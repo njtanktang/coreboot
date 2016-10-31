@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -22,9 +18,7 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdfam10_sysconf.h>
 
@@ -35,8 +29,9 @@
 struct mb_sysconf_t mb_sysconf;
 
 /* Here you only need to set value in pci1234 for HT-IO that could be
-installed or not You may need to preset pci1234 for HTIO board, please
-refer to src/northbridge/amd/amdfam10/get_sblk_pci1234.c for detail */
+ * installed or not You may need to preset pci1234 for HTIO board, please
+ * refer to src/northbridge/amd/amdfam10/get_sblk_pci1234.c for detail
+ */
 static u32 pci1234x[] = {
 	0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc,
 	0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc, 0x0000ffc,
@@ -48,7 +43,8 @@ static u32 pci1234x[] = {
 
 
 /* HT Chain device num, actually it is unit id base of every ht device
-in chain, assume every chain only have 4 ht device at most */
+ * in chain, assume every chain only have 4 ht device at most
+ */
 
 static unsigned hcdnx[] = {
 	0x20202020, 0x20202020, 0x20202020, 0x20202020, 0x20202020,
@@ -76,18 +72,18 @@ static u32 get_hcid(u32 i)
 	dev = dev_find_slot(busn, PCI_DEVFN(devn,0));
 
 	switch (dev->device) {
-	case 0x7458: //8132
+	case 0x7458: /* 8132 */
 		id = 1;
 		break;
-	case 0x7454: //8151
+	case 0x7454: /* 8151 */
 		id = 2;
 		break;
-	case 0x7450: //8131
+	case 0x7450: /* 8131 */
 		id = 3;
 		break;
 	}
-	// we may need more way to find out hcid: subsystem id? GPIO read ?
-	// we need use id for 1. bus num, 2. mptable, 3. acpi table
+	/* we may need more way to find out hcid: subsystem id? GPIO read ? */
+	/* we need use id for 1. bus num, 2. mptable, 3. ACPI table */
 	return id;
 }
 
@@ -100,7 +96,7 @@ void get_bus_conf(void)
 	struct mb_sysconf_t *m;
 
 	if(get_bus_conf_done == 1)
-		return; //do it only once
+		return; /* do it only once */
 
 	get_bus_conf_done = 1;
 
@@ -109,7 +105,7 @@ void get_bus_conf(void)
 	m = sysconf.mb;
 
 	sysconf.hc_possible_num = ARRAY_SIZE(pci1234x);
-	for(i=0;i<sysconf.hc_possible_num; i++) {
+	for(i = 0; i < sysconf.hc_possible_num; i++) {
 		sysconf.pci1234[i] = pci1234x[i];
 		sysconf.hcdn[i] = hcdnx[i];
 	}
@@ -147,17 +143,17 @@ void get_bus_conf(void)
 	}
 
 	 /* HT chain 1 */
-	j=0;
-	for(i=1; i< sysconf.hc_possible_num; i++) {
+	j = 0;
+	for(i = 1; i< sysconf.hc_possible_num; i++) {
 		if(!(sysconf.pci1234[i] & 0x1) ) continue;
 
-		// check hcid type here
+		/* check hcid type here */
 		sysconf.hcid[i] = get_hcid(i);
 
 		switch(sysconf.hcid[i]) {
 
-		case 1:	//8132
-		case 3: //8131
+		case 1:	/* 8132 */
+		case 3: /* 8131 */
 
 			m->bus_8132a[j][0] = (sysconf.pci1234[i] >> 12) & 0xff;
 
@@ -181,7 +177,7 @@ void get_bus_conf(void)
 
 			break;
 
-		case 2: //8151
+		case 2: /* 8151 */
 
 			m->bus_8151[j][0] = (sysconf.pci1234[i] >> 12) & 0xff;
 			m->sbdn5[j] = sysconf.hcdn[i] & 0xff;
@@ -205,7 +201,7 @@ void get_bus_conf(void)
 	m->apicid_8111 = apicid_base + 0;
 	m->apicid_8132_1 = apicid_base + 1;
 	m->apicid_8132_2 = apicid_base + 2;
-	for(i=0;i<j;i++) {
+	for(i = 0; i < j; i++) {
 		m->apicid_8132a[i][0] = apicid_base + 3 + i * 2;
 		m->apicid_8132a[i][1] = apicid_base + 3 + i * 2 + 1;
 	}

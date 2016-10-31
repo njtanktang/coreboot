@@ -10,10 +10,6 @@
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
- *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 51
- * Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <pc80/vga.h>
@@ -57,7 +53,7 @@ vga_fb_init(void)
 	vga_gr_write(0x07, 0x00);
 	vga_gr_write(0x08, 0xFF);
 
-	/* o/e enable: ram enable */
+	/* o/e enable: RAM enable */
 	vga_misc_mask(0x22, 0x22);
 }
 

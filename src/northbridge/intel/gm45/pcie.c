@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -54,12 +49,12 @@ static void init_egress(void)
 	EPBAR32(0x11c) = 0x00005555;
 	EPBAR32(0x20) |= 1 << 16;
 
-	while ((EPBAR8(0x26) & 1) != 0) ;
+	while ((EPBAR8(0x26) & 1) != 0);
 
 	/* VC1: enable */
 	EPBAR32(0x20) |= 1 << 31;
 
-	while ((EPBAR8(0x26) & 2) != 0) ;
+	while ((EPBAR8(0x26) & 2) != 0);
 }
 
 /* MCH side */
@@ -77,7 +72,7 @@ static void init_dmi(int b2step)
 	/* VC1: enable */
 	DMIBAR32(0x20) |= 1 << 31;
 
-	while ((DMIBAR8(0x26) & 2) != 0) ;
+	while ((DMIBAR8(0x26) & 2) != 0);
 
 	/* additional configuration. */
 	DMIBAR32(0x200) |= 3 << 13;
@@ -117,8 +112,8 @@ static void init_pcie(const int peg_enabled,
 	u8 tmp8;
 	u16 tmp16;
 	u32 tmp;
-	const device_t mch = PCI_DEV(0, 0, 0);
-	const device_t pciex = PCI_DEV(0, 1, 0);
+	const pci_devfn_t mch = PCI_DEV(0, 0, 0);
+	const pci_devfn_t pciex = PCI_DEV(0, 1, 0);
 
 	printk(BIOS_DEBUG, "PEG x%d %s, SDVO %s\n", peg_x16?16:1,
 		peg_enabled?"enabled":"disabled",
@@ -167,7 +162,7 @@ static void init_pcie(const int peg_enabled,
 static void setup_aspm(const stepping_t stepping, const int peg_enabled)
 {
 	u32 tmp32;
-	const device_t pciex = PCI_DEV(0, 1, 0);
+	const pci_devfn_t pciex = PCI_DEV(0, 1, 0);
 
 	/* Prerequisites for ASPM: */
 	if (peg_enabled) {
@@ -294,7 +289,7 @@ static void setup_aspm(const stepping_t stepping, const int peg_enabled)
 	 * Maybe we just have to advertise ASPM through LCAP[11:10]
 	 * (LCAP[17:15] == 010b is the default, will be locked, as it's R/WO),
 	 * set 0x208[31:24,23:22] to zero, 0x224[24:21] = 1 and let the
-	 * generic ASPM code do the rest? – Nico
+	 * generic ASPM code do the rest? - Nico
 	 */
 	/* TODO: Prepare PEG for ASPM. */
 }
@@ -308,7 +303,7 @@ static void setup_rcrb(const int peg_enabled)
 
 	/* Link1: component ID 1, link valid. */
 	EPBAR32(EPLE1D) = (EPBAR32(EPLE1D) & 0xff000000) | (1 << 16) | (1 << 0);
-	EPBAR32(EPLE1A) = DEFAULT_DMIBAR;
+	EPBAR32(EPLE1A) = (uintptr_t)DEFAULT_DMIBAR;
 
 	if (peg_enabled)
 		/* Link2: link_valid. */
@@ -322,17 +317,17 @@ static void setup_rcrb(const int peg_enabled)
 
 	/* Link1: target port 0, component id 2 (ICH), link valid. */
 	DMIBAR32(DMILE1D) = (0 << 24) | (2 << 16) | (1 << 0);
-	DMIBAR32(DMILE1A) = DEFAULT_RCBA;
+	DMIBAR32(DMILE1A) = (uintptr_t)DEFAULT_RCBA;
 
 	/* Link2: component ID 1 (MCH), link valid */
 	DMIBAR32(DMILE2D) =
 		(DMIBAR32(DMILE2D) & 0xff000000) | (1 << 16) | (1 << 0);
-	DMIBAR32(DMILE2A) = DEFAULT_MCHBAR;
+	DMIBAR32(DMILE2A) = (uintptr_t)DEFAULT_MCHBAR;
 }
 
 void gm45_late_init(const stepping_t stepping)
 {
-	const device_t mch = PCI_DEV(0, 0, 0);
+	const pci_devfn_t mch = PCI_DEV(0, 0, 0);
 	const int peg_enabled = (pci_read_config8(mch, D0F0_DEVEN) >> 1) & 1;
 	const int sdvo_enabled = (MCHBAR16(0x40) >> 8) & 1;
 	const int peg_x16 = (peg_enabled && !sdvo_enabled);

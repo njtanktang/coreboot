@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -22,18 +18,13 @@
 #include <armv7.h>
 #include <cbfs.h>
 
-#include <arch/stages.h>
+#include <program_loading.h>
 #include <console/console.h>
 
 void main(void)
 {
-	void *entry;
-
 	console_init();
 	printk(BIOS_INFO, "Hello from romstage.\n");
 
-	entry = cbfs_load_stage(CBFS_DEFAULT_MEDIA, "fallback/ramstage");
-	printk(BIOS_INFO, "entry is 0x%p, leaving romstage.\n", entry);
-
-	stage_exit(entry);
+	run_ramstage();
 }

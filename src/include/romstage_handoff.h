@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 #ifndef ROMSTAGE_HANDOFF_H
 #define ROMSTAGE_HANDOFF_H
@@ -33,15 +29,11 @@ struct romstage_handoff {
 	 * responsible for initializing this variable. Otherwise, ramstage
 	 * will be re-loaded from cbfs (which can be slower since it lives
 	 * in flash). */
-	uint32_t s3_resume;
-	/* The ramstage_entry_point is cached in the stag loading path. This
-	 * cached value can only be utilized when the chipset code properly
-	 * fills in the s3_resume field above. */
-	uint32_t ramstage_entry_point;
+	uint8_t s3_resume;
+	uint8_t reboot_required;
+	uint8_t reserved[2];
 };
 
-#if defined(__PRE_RAM__)
-#if CONFIG_EARLY_CBMEM_INIT
 /* The romstage_handoff_find_or_add() function provides the necessary logic
  * for initializing the romstage_handoff structure in cbmem. Different components
  * of the romstage may be responsible for setting up different fields. Therefore
@@ -64,14 +56,5 @@ static inline struct romstage_handoff *romstage_handoff_find_or_add(void)
 
 	return handoff;
 }
-#else /* CONFIG_EARLY_CBMEM_INIT */
-static inline struct romstage_handoff *romstage_handoff_find_or_add(void)
-{
-	return NULL;
-}
-#endif /* CONFIG_EARLY_CBMEM_INIT */
-
-#endif /* defined(__PRE_RAM__) */
 
 #endif /* ROMSTAGE_HANDOFF_H */
-

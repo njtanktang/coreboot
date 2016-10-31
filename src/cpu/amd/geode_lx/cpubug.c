@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,15 +25,15 @@
 #include <cpu/x86/msr.h>
 #include <cpu/amd/lxdef.h>
 
-/**************************************************************************
+/**
  *
  *	pcideadlock
  *
  *	Bugtool #465 and #609
  *	PCI cache deadlock
- *	There is also fix code in cache and PCI functions. This bug is very is pervasive.
- *
- **************************************************************************/
+ *	There is also fix code in cache and PCI functions.
+ *	This bug is very is pervasive.
+ */
 static void pcideadlock(void)
 {
 	msr_t msr;
@@ -61,17 +57,15 @@ static void pcideadlock(void)
 	wrmsr(CPU_RCONF_E0_FF, msr);
 }
 
-/****************************************************************************/
-/***/
-/**	DisableMemoryReorder*/
-/***/
-/**	PBZ 3659:*/
-/**	 The MC reordered transactions incorrectly and breaks coherency.*/
-/**	 Disable reordering and take a potential performance hit.*/
-/**	 This is safe to do here and not in MC init since there is nothing*/
-/**	 to maintain coherency with and the cache is not enabled yet.*/
-/***/
-/****************************************************************************/
+/**
+ *	DisableMemoryReorder
+ *
+ *	PBZ 3659:
+ *	 The MC reordered transactions incorrectly and breaks coherency.
+ *	 Disable reordering and take a potential performance hit.
+ *	 This is safe to do here and not in MC init since there is nothing
+ *	 to maintain coherency with and the cache is not enabled yet.
+ */
 static void disablememoryreadorder(void)
 {
 	msr_t msr;
@@ -81,10 +75,10 @@ static void disablememoryreadorder(void)
 	wrmsr(MC_CF8F_DATA, msr);
 }
 
-/* For cpu version C3. Should be the only released version */
+/* For CPU version C3. Should be the only released version */
 void cpubug(void)
 {
 	pcideadlock();
 	disablememoryreadorder();
-	printk(BIOS_DEBUG, "Done cpubug fixes \n");
+	printk(BIOS_DEBUG, "Done cpubug fixes\n");
 }

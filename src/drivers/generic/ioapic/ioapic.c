@@ -12,21 +12,22 @@
 #include <arch/io.h>
 #include <cpu/x86/lapic.h>
 
-static void ioapic_init(device_t dev)
+static void ioapic_init(struct device *dev)
 {
 	struct drivers_generic_ioapic_config *config = dev->chip_info;
 	u32 bsp_lapicid = lapicid();
 	u32 low, high;
 	u32 i, ioapic_interrupts;
-	u32 ioapic_base;
+	void *ioapic_base;
 	u8 ioapic_id;
+
 	if (!dev->enabled || !config)
 		return;
 
 	ioapic_base = config->base;
 	ioapic_id = config->apicid;
 
-	printk(BIOS_DEBUG, "IOAPIC: Initializing IOAPIC at 0x%08x\n",
+	printk(BIOS_DEBUG, "IOAPIC: Initializing IOAPIC at 0x%p\n",
 	       ioapic_base);
 	printk(BIOS_DEBUG, "IOAPIC: Bootstrap Processor Local APIC = 0x%02x\n",
 	       bsp_lapicid);
@@ -86,30 +87,22 @@ static void ioapic_init(device_t dev)
 	}
 }
 
-static void ioapic_enable_resources(device_t dev)
-{
-}
-
-static void ioapic_nop(device_t dummy)
-{
-}
-
-static void ioapic_read_resources(device_t dev)
+static void ioapic_read_resources(struct device *dev)
 {
 	struct drivers_generic_ioapic_config *config = (struct drivers_generic_ioapic_config *)dev->chip_info;
 	struct resource *res;
 
 	res = new_resource(dev, 0);
-	res->base = config->base;
+	res->base = (resource_t)(uintptr_t)config->base;
 	res->size = 0x1000;
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 }
 
 static struct device_operations ioapic_operations = {
-        .read_resources   = ioapic_read_resources,
-        .set_resources    = ioapic_nop,
-        .enable_resources = ioapic_enable_resources,
-        .init             = ioapic_init,
+	.read_resources   = ioapic_read_resources,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
+	.init             = ioapic_init,
 };
 
 static void enable_dev(struct device *dev)

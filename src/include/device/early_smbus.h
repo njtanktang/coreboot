@@ -12,13 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /**
- * @file early_smbus.h
+ * @file device/early_smbus.h
  *
  * This file defines a common API for accessing the SMBus during early
  * initialization. It defines the prototypes for common SMBus functions. The
@@ -55,7 +52,7 @@
 /**
  * \brief printk macro for SMBus debugging
  */
-#if defined(CONFIG_DEBUG_SMBUS) && (CONFIG_DEBUG_SMBUS)
+#if IS_ENABLED(CONFIG_DEBUG_SMBUS)
 #define printsmbus(x, ...) printk(BIOS_DEBUG, x, ##__VA_ARGS__)
 #else
 #define printsmbus(x, ...)

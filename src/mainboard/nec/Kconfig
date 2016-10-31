@@ -12,21 +12,16 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 if VENDOR_NEC
 
 choice
 	prompt "Mainboard model"
 
-config BOARD_NEC_POWERMATE_2000
-	bool "PowerMate 2000"
+source "src/mainboard/nec/*/Kconfig.name"
 
 endchoice
 
-source "src/mainboard/nec/powermate2000/Kconfig"
+source "src/mainboard/nec/*/Kconfig"
 
 config MAINBOARD_VENDOR
 	string

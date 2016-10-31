@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -36,8 +31,7 @@
 #include <arch/x86/include/arch/acpigen.h>
 #include <arch/interrupt.h>
 #include <smbios.h>
-#include <build.h>
-#include <x86emu/x86emu.h>
+#include <drivers/intel/gma/int15.h>
 #define PANEL INT15_5F35_CL_DISPLAY_DEFAULT
 
 static acpi_cstate_t cst_entries[] = {
@@ -46,50 +40,10 @@ static acpi_cstate_t cst_entries[] = {
 	{ 2, 17,  250, { 0x01, 8, 0, { 0 }, DEFAULT_PMBASE + LV3, 0 } },
 };
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-static int int15_handler(void)
-{
-	/* The right way to do this is to move this handler code into
-	 * the mainboard or northbridge code.
-	 * TODO: completely move to mainboards / chipsets.
-	 */
-	printk(BIOS_DEBUG, "%s: AX=%04x BX=%04x CX=%04x DX=%04x\n",
-	       __func__, X86_AX, X86_BX, X86_CX, X86_DX);
-
-	switch (X86_AX) {
-	case 0x5f35: /* Boot Display */
-		X86_AX = 0x005f; // Success
-		X86_CL = PANEL;
-		break;
-	case 0x5f40: /* Boot Panel Type */
-		X86_AX = 0x005f; // Success
-		X86_CL = 3;
-		printk(BIOS_DEBUG, "DISPLAY=%x\n", X86_CL);
-		break;
-	default:
-		/* Interrupt was not handled */
-		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n", X86_AX);
-		return 0;
-	}
-
-	/* Interrupt handled */
-	return 1;
-}
-#endif
-
 int get_cst_entries(acpi_cstate_t **entries)
 {
 	*entries = cst_entries;
 	return ARRAY_SIZE(cst_entries);
-}
-
-const char *smbios_mainboard_bios_version(void)
-{
-	/* Satisfy thinkpad_acpi.  */
-	if (strlen(CONFIG_LOCALVERSION))
-		return "CBET4000 " CONFIG_LOCALVERSION;
-	else
-		return "CBET4000 " COREBOOT_VERSION;
 }
 
 static void mainboard_init(device_t dev)
@@ -97,10 +51,7 @@ static void mainboard_init(device_t dev)
 	struct southbridge_intel_i82801gx_config *config;
 	device_t dev0, idedev;
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-	/* Install custom int15 handler for VGA OPROM */
-	mainboard_interrupt_handlers(0x15, &int15_handler);
-#endif
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_DEFAULT, PANEL, 3);
 
 	/* If we're resuming from suspend, blink suspend LED */
 	dev0 = dev_find_slot(0, PCI_DEVFN(0,0));
@@ -129,27 +80,11 @@ static void mainboard_init(device_t dev)
 	ec_write(0x0c, inb(0x164c) & 8 ? 0x89 : 0x09);
 }
 
-static int mainboard_smbios_data(device_t dev, int *handle, unsigned long *current)
-{
-	int len;
-	char tpec[] = "IBM ThinkPad Embedded Controller -[                 ]-";
-	const char *oem_strings[] = {
-		tpec,
-	};
-
-	h8_build_id_and_function_spec_version(tpec + 35, 17);
-	len = smbios_write_type11(current, (*handle)++, oem_strings, ARRAY_SIZE(oem_strings));
-
-	return len;
-}
-
 static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
-	dev->ops->get_smbios_data = mainboard_smbios_data;
 }
 
 struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 };
-

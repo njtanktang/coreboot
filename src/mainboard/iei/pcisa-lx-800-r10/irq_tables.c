@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/pirq_routing.h>
@@ -61,7 +57,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[0] = {
 			.slot = 0x0,	/* means also "on board" */
 			.bus = 0x00,
-			.devfn = (0x01<<3)|0x0,	/* 0x01 is CS5536 */
+			.devfn = (0x01 << 3)|0x0,	/* 0x01 is CS5536 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQA,
@@ -85,7 +81,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[1] = {
 			.slot = 0x0,	/* means also "on board" */
 			.bus = 0x00,
-			.devfn = (0x0f<<3)|0x0,	/* 0x0f is CS5536 (USB, AUDIO) */
+			.devfn = (0x0f << 3)|0x0,	/* 0x0f is CS5536 (USB, AUDIO) */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_NONE,
@@ -109,7 +105,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[2] = {
 			.slot = 0x0,	/* means also "on board" */
 			.bus = 0x00,
-			.devfn = (0x0e<<3)|0x0,	/* 0x0e is eth0 */
+			.devfn = (0x0e << 3)|0x0,	/* 0x0e is eth0 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQD,
@@ -133,7 +129,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[3] = {
 			.slot = 0x0,	/* means also "on board" */
 			.bus = 0x00,
-			.devfn = (0x10<<3)|0x0,	/* 0x10 is eth1 */
+			.devfn = (0x10 << 3)|0x0,	/* 0x10 is eth1 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQB,
@@ -157,7 +153,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[4] = {
 			.slot = 0x0,	/* means also "on board" */
 			.bus = 0x00,
-			.devfn = (0x11<<3)|0x0,	/* 0x11 is SATA */
+			.devfn = (0x11 << 3)|0x0,	/* 0x11 is SATA */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQA,
@@ -188,7 +184,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[5] = {
 			.slot = 0x1,	/* This is real PCI slot. */
 			.bus = 0x00,
-			.devfn = (0x09<<3)|0x0,	/* 0x09 is PCI1 */
+			.devfn = (0x09 << 3)|0x0,	/* 0x09 is PCI1 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQA,
@@ -214,7 +210,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[6] = {
 			.slot = 0x2,	/* This is real PCI slot. */
 			.bus = 0x00,
-			.devfn = (0x0a<<3)|0x0,	/* 0x0a is PCI2 */
+			.devfn = (0x0a << 3)|0x0,	/* 0x0a is PCI2 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQD,
@@ -240,7 +236,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[7] = {
 			.slot = 0x3,	/* This is real PCI slot. */
 			.bus = 0x00,
-			.devfn = (0x0b<<3)|0x0,	/* 0x0b is PCI3 */
+			.devfn = (0x0b << 3)|0x0,	/* 0x0b is PCI3 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQC,
@@ -266,7 +262,7 @@ static const struct irq_routing_table intel_irq_routing_table = {
 		[8] = {
 			.slot = 0x4,	/* This is real PCI slot. */
 			.bus = 0x00,
-			.devfn = (0x0c<<3)|0x0,	/* 0x0c is PCI4 */
+			.devfn = (0x0c << 3)|0x0,	/* 0x0c is PCI4 */
 			.irq = {
 				[0] = {	/* <-- 0 means this is INTA# output from the device or slot */
 					.link = LINK_PIRQB,

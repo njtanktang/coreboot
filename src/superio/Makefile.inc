@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 subdirs-y += fintek
 subdirs-y += intel
@@ -29,3 +25,4 @@ subdirs-y += via
 subdirs-y += winbond
 
 ramstage-$(CONFIG_ARCH_RAMSTAGE_X86_32) += common/conf_mode.c
+ramstage-$(CONFIG_ARCH_RAMSTAGE_X86_64) += common/conf_mode.c

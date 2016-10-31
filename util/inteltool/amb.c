@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stddef.h>
@@ -443,6 +439,7 @@ int print_ambs(struct pci_dev *dev, struct pci_access *pacc)
 
 		max_channel = pci_read_byte(dev16, 0x56)/max_branch;
 		max_amb = pci_read_byte(dev16, 0x57);
+		pci_free_dev(dev16);
 		break;
 
 	default:
@@ -465,5 +462,3 @@ int print_ambs(struct pci_dev *dev, struct pci_access *pacc)
 	unmap_physical((void *)ambconfig, AMB_CONFIG_SPACE_SIZE);
 	return 0;
 }
-
-

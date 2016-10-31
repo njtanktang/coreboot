@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -46,7 +42,7 @@
 
 static int via_cx700_int15_handler(void)
 {
-	int res=0;
+	int res = 0;
 	u8 mem_speed;
 
 #define MEMORY_SPEED_66MHZ	(0 << 4)
@@ -87,7 +83,7 @@ static int via_cx700_int15_handler(void)
 		X86_ECX = 0x00000000; // 0 -> default
 		// TV Layout - default
 		X86_EDX = (X86_EDX & 0xffffff00) | 0;
-		res=1;
+		res = 1;
 		break;
 
 	case 0x5f0b:	/* Get Expansion Setting */
@@ -95,12 +91,12 @@ static int via_cx700_int15_handler(void)
 
 		X86_ECX = X86_ECX & 0xffffff00; // non-expansion
 		// regs->ecx = regs->ecx & 0xffffff00 | 1; // expansion
-		res=1;
+		res = 1;
 		break;
 
 	case 0x5f0f:	/* VGA Post Completion */
 		X86_EAX = (X86_EAX & 0xffff0000 ) | 0x5f;
-		res=1;
+		res = 1;
 		break;
 
 	case 0x5f18:
@@ -117,10 +113,10 @@ static int via_cx700_int15_handler(void)
 
 		X86_EBX |= memory_mapping[mem_speed];
 
-		res=1;
+		res = 1;
 		break;
 
-        default:
+	default:
 		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n",
 				X86_EAX & 0xffff);
 		break;

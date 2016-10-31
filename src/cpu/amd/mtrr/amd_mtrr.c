@@ -1,3 +1,16 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <console/console.h>
 #include <device/device.h>
 #include <arch/cpu.h>
@@ -75,7 +88,7 @@ void amd_setup_mtrrs(void)
 		 (((cpu_id>>20 )&0xf) > 0) || // ExtendedFamily > 0
 		((((cpu_id>>8 )&0xf) == 0xf) && // Family == 0F
 		 (((cpu_id>>16)&0xf) >= 0x4));  // Rev>=F deduced from rev tables
-	if(has_tom2wb)
+	if (has_tom2wb)
 		printk(BIOS_DEBUG, "CPU is Fam 0Fh rev.F or later. We can use TOM2WB for any memory above 4GB\n");
 
 	/* Enable the access to AMD RdDram and WrDram extension bits */
@@ -96,7 +109,7 @@ void amd_setup_mtrrs(void)
 	sys_cfg.lo &= ~(SYSCFG_MSR_TOM2En | SYSCFG_MSR_TOM2WB);
 	if (bsp_topmem2() > (uint64_t)1<<32) {
 		sys_cfg.lo |= SYSCFG_MSR_TOM2En;
-		if(has_tom2wb)
+		if (has_tom2wb)
 			sys_cfg.lo |= SYSCFG_MSR_TOM2WB;
 	}
 
@@ -104,7 +117,7 @@ void amd_setup_mtrrs(void)
 	 * undefined side effects.
 	 */
 	msr.lo = msr.hi = 0;
-	for(i = IORR_FIRST; i <= IORR_LAST; i++) {
+	for (i = IORR_FIRST; i <= IORR_LAST; i++) {
 		wrmsr(i, msr);
 	}
 

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* Global Variables */
@@ -30,7 +25,8 @@ Name(\PICM, 0)		// IOAPIC/8259
  */
 
 
-OperationRegion (GNVS, SystemMemory, 0xC0DEBABE, 0x2000)
+External(NVSA)
+OperationRegion (GNVS, SystemMemory, NVSA, 0x2000)
 Field (GNVS, ByteAcc, NoLock, Preserve)
 {
 	/* Miscellaneous */
@@ -52,6 +48,7 @@ Field (GNVS, ByteAcc, NoLock, Preserve)
 	TPMP,	 8,	// 0x12 - TPM Present and Enabled
 	TLVL,	 8,	// 0x13 - Throttle Level
 	PPCM,	 8,	// 0x14 - Maximum P-state usable by OS
+	PM1I,	 32,	// 0x15 - System Wake Source - PM1 Index
 
 	/* Device Config */
 	Offset (0x20),

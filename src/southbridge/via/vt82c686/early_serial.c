@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* This has been ported to the VIA VT82C686(A/B) from the SMSC FDC37M60x
@@ -89,4 +85,3 @@ static void vt82c686_enable_serial(device_t dev, unsigned iobase)
 	reg = pci_read_config8(sbdev, 0x85);
 	pci_write_config8(sbdev, 0x85, reg & 0xfd);	/* Clear bit 1. */
 }
-

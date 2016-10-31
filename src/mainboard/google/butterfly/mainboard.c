@@ -12,38 +12,29 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
 #include <string.h>
+#include <cbfs.h>
 #include <device/device.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <console/console.h>
-#if CONFIG_VGA_ROM_RUN
-#include <x86emu/x86emu.h>
-#endif
+#include <drivers/intel/gma/int15.h>
+#include <fmap.h>
 #include <pc80/mc146818rtc.h>
 #include <arch/acpi.h>
 #include <arch/io.h>
 #include <arch/interrupt.h>
 #include <boot/coreboot_tables.h>
-#include "hda_verb.h"
 #include "onboard.h"
 #include "ec.h"
 #include <southbridge/intel/bd82x6x/pch.h>
 #include <smbios.h>
 #include <device/pci.h>
 #include <ec/quanta/ene_kb3940q/ec.h>
-#if CONFIG_CHROMEOS
-#include <vendorcode/google/chromeos/fmap.h>
-#else
-#include <cbfs.h>
-#endif
+#include <vendorcode/google/chromeos/chromeos.h>
 
 static unsigned int search(char *p, char *a, unsigned int lengthp,
 			   unsigned int lengtha)
@@ -52,7 +43,8 @@ static unsigned int search(char *p, char *a, unsigned int lengthp,
 
 	/* Searching */
 	for (j = 0; j <= lengtha - lengthp; j++) {
-		for (i = 0; i < lengthp && p[i] == a[i + j]; i++) ;
+		for (i = 0; i < lengthp && p[i] == a[i + j]; i++)
+			;
 		if (i >= lengthp)
 			return j;
 	}
@@ -189,133 +181,35 @@ static void program_keyboard_type(u32 search_address, u32 search_length)
 	ec_mem_write(EC_KBID_REG, kbd_type);
 }
 
-void mainboard_suspend_resume(void)
-{
-	/* Call SMM finalize() handlers before resume */
-	outb(0xcb, 0xb2);
-}
-
-#if CONFIG_VGA_ROM_RUN
-static int int15_handler(void)
-{
-	int res = 0;
-
-	printk(BIOS_DEBUG, "%s: INT15 function %04x!\n",
-	       __func__, X86_AX);
-
-	switch (X86_AX) {
-	case 0x5f34:
-		/*
-		 * Set Panel Fitting Hook:
-		 *  bit 2 = Graphics Stretching
-		 *  bit 1 = Text Stretching
-		 *  bit 0 = Centering (do not set with bit1 or bit2)
-		 *  0     = video bios default
-		 */
-		X86_AX = 0x005f;
-		X86_CL = 0x00;	/* Use video bios default */
-		res = 1;
-		break;
-	case 0x5f35:
-		/*
-		 * Boot Display Device Hook:
-		 *  bit 0 = CRT
-		 *  bit 1 = TV (eDP)
-		 *  bit 2 = EFP
-		 *  bit 3 = LFP
-		 *  bit 4 = CRT2
-		 *  bit 5 = TV2 (eDP)
-		 *  bit 6 = EFP2
-		 *  bit 7 = LFP2
-		 */
-		X86_AX = 0x005f;
-		X86_CX = 0x0000;	/* Use video bios default */
-		res = 1;
-		break;
-	case 0x5f51:
-		/*
-		 * Hook to select active LFP configuration:
-		 *  00h = No LVDS, VBIOS does not enable LVDS
-		 *  01h = Int-LVDS, LFP driven by integrated LVDS decoder
-		 *  02h = SVDO-LVDS, LFP driven by SVDO decoder
-		 *  03h = eDP, LFP Driven by Int-DisplayPort encoder
-		 */
-		X86_AX = 0x005f;
-		X86_CX = 0x0001;	/* Int-LVDS */
-		res = 1;
-		break;
-	case 0x5f70:
-		switch (X86_CH) {
-		case 0:
-			/* Get Mux */
-			X86_AX = 0x005f;
-			X86_CX = 0x0000;
-			res = 1;
-			break;
-		case 1:
-			/* Set Mux */
-			X86_AX = 0x005f;
-			X86_CX = 0x0000;
-			res = 1;
-			break;
-		case 2:
-			/* Get SG/Non-SG mode */
-			X86_AX = 0x005f;
-			X86_CX = 0x0000;
-			res = 1;
-			break;
-		default:
-			/* Interrupt was not handled */
-			printk(BIOS_DEBUG, "Unknown INT15 5f70 function: 0x%02x\n",
-			       X86_CH);
-			break;
-		}
-		break;
-
-	default:
-		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n", X86_AX);
-		break;
-	}
-	return res;
-}
-#endif
-
-/* Audio Setup */
-
-extern const u32 *cim_verb_data;
-extern u32 cim_verb_data_size;
-extern const u32 *pc_beep_verbs;
-extern u32 pc_beep_verbs_size;
-
-static void verb_setup(void)
-{
-	cim_verb_data = mainboard_cim_verb_data;
-	cim_verb_data_size = sizeof(mainboard_cim_verb_data);
-	pc_beep_verbs = mainboard_pc_beep_verbs;
-	pc_beep_verbs_size = mainboard_pc_beep_verbs_size;
-
-}
-
 static void mainboard_init(device_t dev)
 {
 	u32 search_address = 0x0;
 	size_t search_length = -1;
 	u16 io_base = 0;
 	struct device *ethernet_dev = NULL;
-#if CONFIG_CHROMEOS
-	char **vpd_region_ptr = NULL;
-	search_length = find_fmap_entry("RO_VPD", (void **)vpd_region_ptr);
-	search_address = (unsigned long)(*vpd_region_ptr);
-#else
-	void *vpd_file = cbfs_get_file_content(CBFS_DEFAULT_MEDIA, "vpd.bin",
-					       CBFS_TYPE_RAW, &search_length);
-	if (vpd_file) {
-		search_address = (unsigned long)vpd_file;
+	void *vpd_file;
+
+	if (IS_ENABLED(CONFIG_CHROMEOS)) {
+		struct region_device rdev;
+
+		if (fmap_locate_area_as_rdev("RO_VPD", &rdev) == 0) {
+			vpd_file = rdev_mmap_full(&rdev);
+
+			if (vpd_file != NULL) {
+				search_length = region_device_sz(&rdev);
+				search_address = (uintptr_t)vpd_file;
+			}
+		}
 	} else {
-		search_length = -1;
-		search_address = 0;
+		vpd_file = cbfs_boot_map_with_leak("vpd.bin", CBFS_TYPE_RAW,
+							&search_length);
+		if (vpd_file) {
+			search_address = (unsigned long)vpd_file;
+		} else {
+			search_length = -1;
+			search_address = 0;
+		}
 	}
-#endif
 
 	/* Initialize the Embedded Controller */
 	butterfly_ec_init();
@@ -367,10 +261,10 @@ static int butterfly_onboard_smbios_data(device_t dev, int *handle,
 
 	len += smbios_write_type41(
 		current, handle,
-		BUTTERFLY_TRACKPAD_NAME,	/* name */
-		BUTTERFLY_TRACKPAD_IRQ,		/* instance */
+		BOARD_TRACKPAD_NAME,		/* name */
+		BOARD_TRACKPAD_IRQ,		/* instance */
 		0,				/* segment */
-		BUTTERFLY_TRACKPAD_I2C_ADDR,	/* bus */
+		BOARD_TRACKPAD_I2C_ADDR,	/* bus */
 		0,				/* device */
 		0);				/* function */
 
@@ -384,11 +278,8 @@ static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
 	dev->ops->get_smbios_data = butterfly_onboard_smbios_data;
-#if CONFIG_VGA_ROM_RUN
-	/* Install custom int15 handler for VGA OPROM */
-	mainboard_interrupt_handlers(0x15, &int15_handler);
-#endif
-	verb_setup();
+	dev->ops->acpi_inject_dsdt_generator = chromeos_dsdt_generator;
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_DEFAULT, GMA_INT15_BOOT_DISPLAY_DEFAULT, 0);
 }
 
 struct chip_operations mainboard_ops = {

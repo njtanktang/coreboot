@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/smbus_def.h>
@@ -38,25 +34,6 @@ static inline void smbus_delay(void)
 	outb(0x80, 0x80);
 }
 
-#if 0
-/* Not needed, upon write to PRTCL, the status will be auto-cleared. */
-static int smbus_wait_until_ready(unsigned smbus_io_base)
-{
-	unsigned long loops;
-	loops = SMBUS_TIMEOUT;
-	do {
-		unsigned char val;
-		smbus_delay();
-		val = inb(smbus_io_base + SMBHSTSTAT);
-		val &= 0x1f;
-		if (val == 0)
-			return 0;
-		outb(val, smbus_io_base + SMBHSTSTAT);
-	} while (--loops);
-	return -2;
-}
-#endif
-
 static int smbus_wait_until_done(unsigned smbus_io_base)
 {
 	unsigned long loops;
@@ -75,12 +52,6 @@ static int smbus_wait_until_done(unsigned smbus_io_base)
 static int do_smbus_recv_byte(unsigned smbus_io_base, unsigned device)
 {
 	unsigned char global_status_register, byte;
-
-#if 0
-	/* Not needed, upon write to PRTCL, the status will be auto-cleared. */
-	if (smbus_wait_until_ready(smbus_io_base) < 0)
-		return -2;
-#endif
 
 	/* Set the device I'm talking to. */
 	outb(((device & 0x7f) << 1) | 1, smbus_io_base + SMBXMITADD);
@@ -116,12 +87,6 @@ static int do_smbus_send_byte(unsigned smbus_io_base, unsigned device,
 {
 	unsigned global_status_register;
 
-#if 0
-	/* Not needed, upon write to PRTCL, the status will be auto-cleared. */
-	if (smbus_wait_until_ready(smbus_io_base) < 0)
-		return -2;
-#endif
-
 	outb(val, smbus_io_base + SMBHSTDAT0);
 	smbus_delay();
 
@@ -154,12 +119,6 @@ static int do_smbus_read_byte(unsigned smbus_io_base, unsigned device,
 			      unsigned address)
 {
 	unsigned char global_status_register, byte;
-
-#if 0
-	/* Not needed, upon write to PRTCL, the status will be auto-cleared. */
-	if (smbus_wait_until_ready(smbus_io_base) < 0)
-		return -2;
-#endif
 
 	/* Set the device I'm talking to. */
 	outb(((device & 0x7f) << 1) | 1, smbus_io_base + SMBXMITADD);
@@ -194,12 +153,6 @@ static int do_smbus_write_byte(unsigned smbus_io_base, unsigned device,
 			       unsigned address, unsigned char val)
 {
 	unsigned global_status_register;
-
-#if 0
-	/* Not needed, upon write to PRTCL, the status will be auto-cleared. */
-	if (smbus_wait_until_ready(smbus_io_base) < 0)
-		return -2;
-#endif
 
 	outb(val, smbus_io_base + SMBHSTDAT0);
 	smbus_delay();

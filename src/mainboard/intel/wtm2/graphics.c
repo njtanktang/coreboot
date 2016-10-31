@@ -11,23 +11,19 @@
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 /* this file was for the most part machine generated, and in future
  * will be all machine generated. Avoid editing.
  */
 #include <console/console.h>
-#include <device/i915.h>
+#include <drivers/intel/gma/i915.h>
 
 void graphics_register_reset(u32 aux_ctl, u32 aux_data, int verbose)
 {
 
 	io_i915_write32(0x80000000,0x45400);
 	io_i915_write32(0x00000000,_CURACNTR);
-	io_i915_write32((/* PIPEA */0x0<<24)|0x00000000,_DSPACNTR);
+	io_i915_write32((/* PIPEA */0x0 << 24)|0x00000000,_DSPACNTR);
 	io_i915_write32(0x00000000,_DSPBCNTR);
 	io_i915_write32(0x80000000,CPU_VGACNTRL);
 	io_i915_write32(0x00000000,_DSPASIZE+0xc);
@@ -85,5 +81,3 @@ void graphics_register_reset(u32 aux_ctl, u32 aux_data, int verbose)
 	/* end not yet documented. */
 	io_i915_write32(0x10000000,SDEISR+0x30);
 }
-
-

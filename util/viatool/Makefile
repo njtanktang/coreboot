@@ -15,17 +15,13 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-#
 
 PROGRAM = viatool
 
 CC      ?= gcc
 INSTALL ?= /usr/bin/install
 PREFIX  ?= /usr/local
-CFLAGS  ?= -O2 -g -Wall -W -I$(shell pwd)
+CFLAGS  ?= -O2 -g -Wall -W -I$(CURDIR)
 LDFLAGS += -lpci -lz
 
 SRCS =  viatool.c \
@@ -44,6 +40,10 @@ CFLAGS += -I/usr/local/include
 LDFLAGS += -L/usr/local/lib
 LIBS = -lz
 endif
+ifeq ($(OS_ARCH), NetBSD)
+CFLAGS += -I/usr/pkg/include
+LDFLAGS += -L/usr/pkg/lib -Wl,-rpath-link,/usr/pkg/lib -lz -lpciutils -lpci -l$(shell uname -p)
+endif
 
 all: pciutils dep $(PROGRAM)
 
@@ -55,6 +55,7 @@ clean:
 	rm -f $(PROGRAM) $(OBJS)
 	# Remove backup files created by some editors
 	find ./ |grep *~ |xargs rm -f
+	rm -f junit.xml
 
 distclean: clean
 	rm -f .dependencies
@@ -65,7 +66,11 @@ dep:
 define LIBPCI_TEST
 /* Avoid a failing test due to libpci header symbol shadowing breakage */
 #define index shadow_workaround_index
+#ifdef __NetBSD__
+#include <pciutils/pci.h>
+#else
 #include <pci/pci.h>
+#endif
 struct pci_access *pacc;
 int main(int argc, char **argv)
 {
@@ -96,4 +101,3 @@ install: $(PROGRAM)
 .PHONY: all clean distclean dep pciutils
 
 -include .dependencies
-

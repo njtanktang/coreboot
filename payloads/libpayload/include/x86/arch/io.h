@@ -31,15 +31,55 @@
 #ifndef _ARCH_IO_H
 #define _ARCH_IO_H
 
-#define readb(_a) (*(volatile unsigned char *) (_a))
-#define readw(_a) (*(volatile unsigned short *) (_a))
-#define readl(_a) (*(volatile unsigned long *) (_a))
+#include <inttypes.h>
+
+/*
+ * readb/w/l writeb/w/l are deprecated. use read8/16/32 and write8/16/32
+ * instead for future development.
+ *
+ * TODO: make the existing code use read8/16/32 and write8/16/32 then remove
+ * readb/w/l and writeb/w/l.
+ */
+
+#define readb(_a) (*(volatile const unsigned char *) (_a))
+#define readw(_a) (*(volatile const unsigned short *) (_a))
+#define readl(_a) (*(volatile const unsigned int *) (_a))
 
 #define writeb(_v, _a) (*(volatile unsigned char *) (_a) = (_v))
 #define writew(_v, _a) (*(volatile unsigned short *) (_a) = (_v))
-#define writel(_v, _a) (*(volatile unsigned long *) (_a) = (_v))
+#define writel(_v, _a) (*(volatile unsigned int *) (_a) = (_v))
 
-static inline unsigned long inl(int port)
+static inline __attribute__((always_inline)) uint8_t read8(const volatile void *addr)
+{
+	return *((volatile uint8_t *)(addr));
+}
+
+static inline __attribute__((always_inline)) uint16_t read16(const volatile void *addr)
+{
+	return *((volatile uint16_t *)(addr));
+}
+
+static inline __attribute__((always_inline)) uint32_t read32(const volatile void *addr)
+{
+	return *((volatile uint32_t *)(addr));
+}
+
+static inline __attribute__((always_inline)) void write8(volatile void *addr, uint8_t value)
+{
+	*((volatile uint8_t *)(addr)) = value;
+}
+
+static inline __attribute__((always_inline)) void write16(volatile void *addr, uint16_t value)
+{
+	*((volatile uint16_t *)(addr)) = value;
+}
+
+static inline __attribute__((always_inline)) void write32(volatile void *addr, uint32_t value)
+{
+	*((volatile uint32_t *)(addr)) = value;
+}
+
+static inline unsigned int inl(int port)
 {
 	unsigned long val;
 	__asm__ __volatile__("inl %w1, %0" : "=a"(val) : "Nd"(port));
@@ -60,7 +100,7 @@ static inline unsigned char inb(int port)
 	return val;
 }
 
-static inline void outl(unsigned long val, int port)
+static inline void outl(unsigned int val, int port)
 {
 	__asm__ __volatile__("outl %0, %w1" : : "a"(val), "Nd"(port));
 }

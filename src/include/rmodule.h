@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 #ifndef RMODULE_H
 #define RMODULE_H
@@ -22,7 +18,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <rmodule-defs.h>
+#include <commonlib/rmodule-defs.h>
 
 enum {
 	RMODULE_TYPE_SMM,
@@ -44,7 +40,7 @@ int rmodule_load_alignment(const struct rmodule *m);
 /* rmodule_calc_region() calculates the region size, offset to place an
  * rmodule in memory, and load address offset based off of a region allocator
  * with an alignment of region_alignment. This function helps place an rmodule
- * in the same location in ram it will run from. The offset to place the
+ * in the same location in RAM it will run from. The offset to place the
  * rmodule into the region allocated of size region_size is returned. The
  * load_offset is the address to load and relocate the rmodule.
  * region_alignment must be a power of 2. */
@@ -54,23 +50,16 @@ int rmodule_calc_region(unsigned int region_alignment, size_t rmodule_size,
 /* Support for loading rmodule stages. This API is only available when
  * using dynamic cbmem because it uses the dynamic cbmem API to obtain
  * the backing store region for the stage. */
-#if CONFIG_DYNAMIC_CBMEM
-struct cbfs_stage;
-struct cbmem_entry;
+struct prog;
 
 struct rmod_stage_load {
-	/* Inputs */
 	uint32_t cbmem_id;
-	const char *name;
-	/* Outputs */
-	const struct cbmem_entry *cbmem_entry;
-	void *entry;
+	struct prog *prog;
+	void *params;
 };
 
 /* Both of the following functions return 0 on success, -1 on error. */
-int rmodule_stage_load(struct rmod_stage_load *rsl, struct cbfs_stage *stage);
-int rmodule_stage_load_from_cbfs(struct rmod_stage_load *rsl);
-#endif
+int rmodule_stage_load(struct rmod_stage_load *rsl);
 
 struct rmodule {
 	void *location;
@@ -81,9 +70,9 @@ struct rmodule {
 };
 
 #if IS_ENABLED(CONFIG_RELOCATABLE_MODULES)
-/* Rmodules have an entry point of named __rmodule_entry. */
+/* Rmodules have an entry point of named _start. */
 #define RMODULE_ENTRY(entry_) \
-	void __rmodule_entry(void *) __attribute__((alias (STRINGIFY(entry_))))
+	void _start(void *) __attribute__((alias (STRINGIFY(entry_))))
 #else
 #define RMODULE_ENTRY(entry_)
 #endif

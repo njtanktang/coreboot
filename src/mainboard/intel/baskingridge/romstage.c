@@ -12,19 +12,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <stddef.h>
 #include <console/console.h>
-#include "cpu/intel/haswell/haswell.h"
-#include "northbridge/intel/haswell/haswell.h"
-#include "northbridge/intel/haswell/raminit.h"
-#include "southbridge/intel/lynxpoint/pch.h"
+#include <cpu/intel/haswell/haswell.h>
+#include <northbridge/intel/haswell/haswell.h>
+#include <northbridge/intel/haswell/raminit.h>
+#include <southbridge/intel/lynxpoint/pch.h>
 #include "gpio.h"
 
 const struct rcba_config_instruction rcba_config[] = {
@@ -71,15 +67,15 @@ void mainboard_romstage_entry(unsigned long bist)
 {
 	struct pei_data pei_data = {
 		.pei_version = PEI_VERSION,
-		.mchbar = DEFAULT_MCHBAR,
-		.dmibar = DEFAULT_DMIBAR,
+		.mchbar = (uintptr_t)DEFAULT_MCHBAR,
+		.dmibar = (uintptr_t)DEFAULT_DMIBAR,
 		.epbar = DEFAULT_EPBAR,
 		.pciexbar = DEFAULT_PCIEXBAR,
 		.smbusbar = SMBUS_IO_BASE,
 		.wdbbar = 0x4000000,
 		.wdbsize = 0x1000,
 		.hpet_address = HPET_ADDR,
-		.rcba = DEFAULT_RCBA,
+		.rcba = (uintptr_t)DEFAULT_RCBA,
 		.pmbase = DEFAULT_PMBASE,
 		.gpiobase = DEFAULT_GPIOBASE,
 		.temp_mmio_base = 0xfed08000,

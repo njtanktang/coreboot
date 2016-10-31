@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,7 +27,13 @@
 #include <arch/acpi.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/smm.h>
+#include <arch/acpigen.h>
+#include <cbmem.h>
+#include <string.h>
 #include "i82801ix.h"
+#include "nvs.h"
+#include <southbridge/intel/common/pciehp.h>
+#include <drivers/intel/gma/i915.h>
 
 #define NMI_OFF	0
 
@@ -57,7 +59,7 @@ static void i82801ix_enable_apic(struct device *dev)
 	*ioapic_index	= 0x01;
 	*ioapic_data	= reg32;
 
-	setup_ioapic(IO_APIC_ADDR, 2); /* ICH7 code uses id 2. */
+	setup_ioapic(VIO_APIC_VADDR, 2); /* ICH7 code uses id 2. */
 }
 
 static void i82801ix_enable_serial_irqs(struct device *dev)
@@ -108,7 +110,7 @@ static void i82801ix_pirq_init(device_t dev)
 	 * I am not so sure anymore he was right.
 	 */
 
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin=0, int_line=0;
 
 		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
@@ -181,8 +183,8 @@ static void i82801ix_power_options(device_t dev)
 	 *
 	 * If the option is not existent (Laptops), use MAINBOARD_POWER_ON.
 	 */
-	if (get_option(&pwr_on, "power_on_after_fail") != CB_SUCCESS)
-		pwr_on = MAINBOARD_POWER_ON;
+	pwr_on = MAINBOARD_POWER_ON;
+	get_option(&pwr_on, "power_on_after_fail");
 
 	reg8 = pci_read_config8(dev, D31F0_GEN_PMCON_3);
 	reg8 &= 0xfe;
@@ -322,7 +324,7 @@ static void i82801ix_rtc_init(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "rtc_failed = 0x%x\n", rtc_failed);
 
-	rtc_init(rtc_failed);
+	cmos_init(rtc_failed);
 }
 
 static void enable_hpet(void)
@@ -534,6 +536,36 @@ static void set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void southbridge_inject_dsdt(device_t dev)
+{
+	global_nvs_t *gnvs = cbmem_add (CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
+
+	if (gnvs) {
+		const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+		memset(gnvs, 0, sizeof(*gnvs));
+		acpi_create_gnvs(gnvs);
+
+		gnvs->ndid = gfx->ndid;
+		memcpy(gnvs->did, gfx->did, sizeof(gnvs->did));
+
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to SSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
+}
+
+static void southbridge_fill_ssdt(device_t device)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
+	config_t *chip = dev->chip_info;
+
+	intel_acpi_pcie_hotplug_generator(chip->pcie_hotplug_map, 8);
+}
+
 static struct pci_operations pci_ops = {
 	.set_subsystem = set_subsystem,
 };
@@ -542,8 +574,11 @@ static struct device_operations device_ops = {
 	.read_resources		= i82801ix_lpc_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_fill_ssdt_generator = southbridge_fill_ssdt,
 	.init			= lpc_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &pci_ops,
 };
 
@@ -562,4 +597,3 @@ static const struct pci_driver ich9_lpc __pci_driver = {
 	.vendor		= PCI_VENDOR_ID_INTEL,
 	.devices	= pci_device_ids,
 };
-

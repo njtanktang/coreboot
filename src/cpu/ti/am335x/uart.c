@@ -10,10 +10,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
  */
 
 #include <stdlib.h>
@@ -42,88 +38,88 @@ static void am335x_uart_init(struct am335x_uart *uart, uint16_t div)
 	uint16_t lcr_orig, efr_orig, mcr_orig;
 
 	/* reset the UART */
-	write16(uart->sysc | SYSC_SOFTRESET, &uart->sysc);
+	write16(&uart->sysc, uart->sysc | SYSC_SOFTRESET);
 	while (!(read16(&uart->syss) & SYSS_RESETDONE))
 		;
 
 	/* 1. switch to register config mode B */
 	lcr_orig = read16(&uart->lcr);
-	write16(0xbf, &uart->lcr);
+	write16(&uart->lcr, 0xbf);
 
 	/*
 	 * 2. Set EFR ENHANCED_EN bit. To access this bit, registers must
 	 * be in TCR_TLR submode, meaning EFR[4] = 1 and MCR[6] = 1.
 	 */
 	efr_orig = read16(&uart->efr);
-	write16(efr_orig | EFR_ENHANCED_EN, &uart->efr);
+	write16(&uart->efr, efr_orig | EFR_ENHANCED_EN);
 
 	/* 3. Switch to register config mode A */
-	write16(0x80, &uart->lcr);
+	write16(&uart->lcr, 0x80);
 
 	/* 4. Enable register submode TCR_TLR to access the UARTi.UART_TLR */
 	mcr_orig = read16(&uart->mcr);
-	write16(mcr_orig | MCR_TCR_TLR, &uart->mcr);
+	write16(&uart->mcr, mcr_orig | MCR_TCR_TLR);
 
 	/* 5. Enable the FIFO. For now we'll ignore FIFO triggers and DMA */
-	write16(FCR_FIFO_EN, &uart->fcr);
+	write16(&uart->fcr, FCR_FIFO_EN);
 
 	/* 6. Switch to configuration mode B */
-	write16(0xbf, &uart->lcr);
+	write16(&uart->lcr, 0xbf);
 	/* Skip steps 7 and 8 (setting up FIFO triggers for DMA) */
 
 	/* 9. Restore original EFR value */
-	write16(efr_orig, &uart->efr);
+	write16(&uart->efr, efr_orig);
 
 	/* 10. Switch to config mode A */
-	write16(0x80, &uart->lcr);
+	write16(&uart->lcr, 0x80);
 
 	/* 11. Restore original MCR value */
-	write16(mcr_orig, &uart->mcr);
+	write16(&uart->mcr, mcr_orig);
 
 	/* 12. Restore original LCR value */
-	write16(lcr_orig, &uart->lcr);
+	write16(&uart->lcr, lcr_orig);
 
 	/* Protocol, baud rate and interrupt settings */
 
 	/* 1. Disable UART access to DLL and DLH registers */
-	write16(read16(&uart->mdr1) | 0x7, &uart->mdr1);
+	write16(&uart->mdr1, read16(&uart->mdr1) | 0x7);
 
 	/* 2. Switch to config mode B */
-	write16(0xbf, &uart->lcr);
+	write16(&uart->lcr, 0xbf);
 
 	/* 3. Enable access to IER[7:4] */
-	write16(efr_orig | EFR_ENHANCED_EN, &uart->efr);
+	write16(&uart->efr, efr_orig | EFR_ENHANCED_EN);
 
 	/* 4. Switch to operational mode */
-	write16(0x0, &uart->lcr);
+	write16(&uart->lcr, 0x0);
 
 	/* 5. Clear IER */
-	write16(0x0, &uart->ier);
+	write16(&uart->ier, 0x0);
 
 	/* 6. Switch to config mode B */
-	write16(0xbf, &uart->lcr);
+	write16(&uart->lcr, 0xbf);
 
 	/* 7. Set dll and dlh to the desired values (table 19-25) */
-	write16((div >> 8), &uart->dlh);
-	write16((div & 0xff), &uart->dll);
+	write16(&uart->dlh, (div >> 8));
+	write16(&uart->dll, (div & 0xff));
 
 	/* 8. Switch to operational mode to access ier */
-	write16(0x0, &uart->lcr);
+	write16(&uart->lcr, 0x0);
 
 	/* 9. Clear ier to disable all interrupts */
-	write16(0x0, &uart->ier);
+	write16(&uart->ier, 0x0);
 
 	/* 10. Switch to config mode B */
-	write16(0xbf, &uart->lcr);
+	write16(&uart->lcr, 0xbf);
 
 	/* 11. Restore efr */
-	write16(efr_orig, &uart->efr);
+	write16(&uart->efr, efr_orig);
 
 	/* 12. Set protocol formatting 8n1 (8 bit data, no parity, 1 stop bit) */
-	write16(0x3, &uart->lcr);
+	write16(&uart->lcr, 0x3);
 
 	/* 13. Load the new UART mode */
-	write16(0x0, &uart->mdr1);
+	write16(&uart->mdr1, 0x0);
 }
 
 /*
@@ -145,7 +141,7 @@ static void am335x_uart_tx_byte(struct am335x_uart *uart, unsigned char data)
 {
 	while (!(read16(&uart->lsr) & LSR_TXFIFOE));
 
-	return write8(data, &uart->thr);
+	return write8(&uart->thr, data);
 }
 
 unsigned int uart_platform_refclk(void)
@@ -153,7 +149,7 @@ unsigned int uart_platform_refclk(void)
 	return 48000000;
 }
 
-unsigned int uart_platform_base(int idx)
+uintptr_t uart_platform_base(int idx)
 {
 	const unsigned int bases[] = {
 		0x44e09000, 0x48022000, 0x48024000,
@@ -195,6 +191,7 @@ void uart_fill_lb(void *data)
 	serial.type = LB_SERIAL_TYPE_MEMORY_MAPPED;
 	serial.baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
 	serial.baud = default_baudrate();
+	serial.regwidth = 2;
 	lb_add_serial(&serial, data);
 
 	lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, data);

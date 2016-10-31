@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "mct_d.h"
@@ -37,24 +34,24 @@ void CPUMemTyping_D(struct MCTStatStruc *pMCTstat,
 
 	/* Set temporary top of memory from Node structure data.
 	 * Adjust temp top of memory down to accommodate 32-bit IO space.
-	 * Bottom40bIO=top of memory, right justified 8 bits
+	 * Bottom40bIO = top of memory, right justified 8 bits
 	 * 	(defines dram versus IO space type)
-	 * Bottom32bIO=sub 4GB top of memory, right justified 8 bits
+	 * Bottom32bIO = sub 4GB top of memory, right justified 8 bits
 	 * 	(defines dram versus IO space type)
-	 * Cache32bTOP=sub 4GB top of WB cacheable memory,
+	 * Cache32bTOP = sub 4GB top of WB cacheable memory,
 	 * 	right justified 8 bits
 	 */
 
 	val = mctGet_NVbits(NV_BottomIO);
-	if(val == 0)
+	if (val == 0)
 		val++;
 
 	Bottom32bIO = val << (24-8);
 
 	val = pMCTstat->SysLimit + 1;
-	if(val <= _4GB_RJ8) {
+	if (val <= _4GB_RJ8) {
 		Bottom40bIO = 0;
-		if(Bottom32bIO >= val)
+		if (Bottom32bIO >= val)
 			Bottom32bIO = val;
 	} else {
 		Bottom40bIO = val;
@@ -85,14 +82,14 @@ void CPUMemTyping_D(struct MCTStatStruc *pMCTstat,
 		 */
 	addr = 0x204;	/* MTRR phys base 2*/
 			/* use TOP_MEM as limit*/
-			/* Limit=TOP_MEM|TOM2*/
-			/* Base=0*/
+			/* Limit = TOP_MEM|TOM2*/
+			/* Base = 0*/
 	printk(BIOS_DEBUG, "\t CPUMemTyping: Cache32bTOP:%x\n", Cache32bTOP);
 	SetMTRRrangeWB_D(0, &Cache32bTOP, &addr);
 				/* Base */
 				/* Limit */
 				/* MtrrAddr */
-	if(addr == -1)		/* ran out of MTRRs?*/
+	if (addr == -1)		/* ran out of MTRRs?*/
 		pMCTstat->GStatus |= 1<<GSB_MTRRshort;
 
 	pMCTstat->Sub4GCacheTop = Cache32bTOP<<8;
@@ -106,7 +103,7 @@ void CPUMemTyping_D(struct MCTStatStruc *pMCTstat,
 	_WRMSR(addr, lo, hi);
 	printk(BIOS_DEBUG, "\t CPUMemTyping: Bottom32bIO:%x\n", Bottom32bIO);
 	printk(BIOS_DEBUG, "\t CPUMemTyping: Bottom40bIO:%x\n", Bottom40bIO);
-	if(Bottom40bIO) {
+	if (Bottom40bIO) {
 		hi = Bottom40bIO >> 24;
 		lo = Bottom40bIO << 8;
 		addr += 3;		/* TOM2 */
@@ -114,11 +111,11 @@ void CPUMemTyping_D(struct MCTStatStruc *pMCTstat,
 	}
 	addr = 0xC0010010;		/* SYS_CFG */
 	_RDMSR(addr, &lo, &hi);
-	if(Bottom40bIO) {
-		lo |= (1<<21);		/* MtrrTom2En=1 */
+	if (Bottom40bIO) {
+		lo |= (1<<21);		/* MtrrTom2En = 1 */
 		lo |= (1<<22);		/* Tom2ForceMemTypeWB */
 	} else {
-		lo &= ~(1<<21);		/* MtrrTom2En=0 */
+		lo &= ~(1<<21);		/* MtrrTom2En = 0 */
 		lo &= ~(1<<22);		/* Tom2ForceMemTypeWB */
 	}
 	_WRMSR(addr, lo, hi);
@@ -149,7 +146,7 @@ static void SetMTRRrange_D(u32 Base, u32 *pLimit, u32 *pMtrrAddr, u16 MtrrType)
 	 * next set bit in a forward or backward sequence of bits (as a function
 	 * of the Limit). We start with the ascending path, to ensure that
 	 * regions are naturally aligned, then we switch to the descending path
-	 * to maximize MTRR usage efficiency. Base=0 is a special case where we
+	 * to maximize MTRR usage efficiency. Base = 0 is a special case where we
 	 * start with the descending path. Correct Mask for region is
 	 * 2comp(Size-1)-1, which is 2comp(Limit-Base-1)-1
 	 */
@@ -161,7 +158,7 @@ static void SetMTRRrange_D(u32 Base, u32 *pLimit, u32 *pMtrrAddr, u16 MtrrType)
 	val = curBase = Base;
 	curLimit = *pLimit;
 	addr = *pMtrrAddr;
-	while((addr >= 0x200) && (addr < 0x20C) && (val < *pLimit)) {
+	while ((addr >= 0x200) && (addr < 0x20C) && (val < *pLimit)) {
 		/* start with "ascending" code path */
 		/* alignment (largest block size)*/
 		valx = 1 << bsf(curBase);
@@ -169,30 +166,30 @@ static void SetMTRRrange_D(u32 Base, u32 *pLimit, u32 *pMtrrAddr, u16 MtrrType)
 
 		/* largest legal limit, given current non-zero range Base*/
 		valx += curBase;
-		if((curBase == 0) || (*pLimit < valx)) {
+		if ((curBase == 0) || (*pLimit < valx)) {
 			/* flop direction to "descending" code path*/
 			valx = 1<<bsr(*pLimit - curBase);
 			curSize = valx;
 			valx += curBase;
 		}
-		curLimit = valx;		/*eax=curBase, edx=curLimit*/
+		curLimit = valx;		/*eax = curBase, edx = curLimit*/
 		valx = val>>24;
 		val <<= 8;
 
 		/* now program the MTRR */
 		val |= MtrrType;		/* set cache type (UC or WB)*/
 		_WRMSR(addr, val, valx);	/* prog. MTRR with current region Base*/
-		val = ((~(curSize - 1))+1) - 1;	/* Size-1*/ /*Mask=2comp(Size-1)-1*/
+		val = ((~(curSize - 1))+1) - 1;	/* Size-1*/ /*Mask = 2comp(Size-1)-1*/
 		valx = (val >> 24) | (0xff00);	/* GH have 48 bits addr */
 		val <<= 8;
-		val |= ( 1 << 11);			/* set MTRR valid*/
+		val |= (1 << 11);			/* set MTRR valid*/
 		addr++;
 		_WRMSR(addr, val, valx);	/* prog. MTRR with current region Mask*/
 		val = curLimit;
 		curBase = val;			/* next Base = current Limit (loop exit)*/
 		addr++;				/* next MTRR pair addr */
 	}
-	if(val < *pLimit) {
+	if (val < *pLimit) {
 		*pLimit = val;
 		addr = -1;
 	}
@@ -201,12 +198,13 @@ static void SetMTRRrange_D(u32 Base, u32 *pLimit, u32 *pMtrrAddr, u16 MtrrType)
 
 void UMAMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstatA)
 {
-/* UMA memory size may need splitting the MTRR configuration into two
-  Before training use NB_BottomIO or the physical memory size to set the MTRRs.
-  After training, add UMAMemTyping function to reconfigure the MTRRs based on
-  NV_BottomUMA (for UMA systems only).
-  This two-step process allows all memory to be cached for training
-*/
+	/* UMA memory size may need splitting the MTRR configuration into two
+	 * Before training use NB_BottomIO or the physical memory size to set the MTRRs.
+	 * After training, add UMAMemTyping function to reconfigure the MTRRs based on
+	 * NV_BottomUMA (for UMA systems only).
+	 * This two-step process allows all memory to be cached for training
+	 */
+
 	u32 Bottom32bIO, Cache32bTOP;
 	u32 val;
 	u32 addr;
@@ -215,9 +213,9 @@ void UMAMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat
 	/*======================================================================
 	 * Adjust temp top of memory down to accommodate UMA memory start
 	 *======================================================================*/
-	/* Bottom32bIO=sub 4GB top of memory, right justified 8 bits
+	/* Bottom32bIO = sub 4GB top of memory, right justified 8 bits
 	 * (defines dram versus IO space type)
-	 * Cache32bTOP=sub 4GB top of WB cacheable memory, right justified 8 bits */
+	 * Cache32bTOP = sub 4GB top of WB cacheable memory, right justified 8 bits */
 
 	Bottom32bIO = pMCTstat->Sub4GCacheTop >> 8;
 
@@ -230,13 +228,13 @@ void UMAMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat
 		Cache32bTOP = val;
 		pMCTstat->Sub4GCacheTop = val;
 
-	/*======================================================================
-	 * Clear variable MTRR values
-	 *======================================================================*/
+		/*======================================================================
+		 * Clear variable MTRR values
+		 *======================================================================*/
 		addr = 0x200;
 		lo = 0;
 		hi = lo;
-		while( addr < 0x20C) {
+		while (addr < 0x20C) {
 			_WRMSR(addr, lo, hi);		/* prog. MTRR with current region Mask */
 			addr++;						/* next MTRR pair addr */
 		}
@@ -246,7 +244,7 @@ void UMAMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat
 		 *======================================================================*/
 		printk(BIOS_DEBUG, "\t UMAMemTyping_D: Cache32bTOP:%x\n", Cache32bTOP);
 		SetMTRRrangeWB_D(0, &Cache32bTOP, &addr);
-		if(addr == -1)		/* ran out of MTRRs?*/
+		if (addr == -1)		/* ran out of MTRRs?*/
 			pMCTstat->GStatus |= 1<<GSB_MTRRshort;
 	}
 }

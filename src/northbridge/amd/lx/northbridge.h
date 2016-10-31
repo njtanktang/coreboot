@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef NORTHBRIDGE_AMD_LX_H
@@ -23,7 +19,6 @@
 #include <cpu/amd/lxdef.h>
 
 /* northbridge.c */
-unsigned int lx_scan_root_bus(device_t root, unsigned int max);
 int sizeram(void);
 
 /* northbridgeinit.c */

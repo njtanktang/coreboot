@@ -16,6 +16,7 @@
 #include "fw_cfg_if.h"
 
 #include "memory.c"
+#include "acpi.h"
 
 static unsigned long qemu_get_high_memory_size(void)
 {
@@ -71,7 +72,7 @@ static void cpu_pci_domain_read_resources(struct device *dev)
 		fw_cfg_load_file("etc/e820", list);
 		for (i = 0; i < size/sizeof(*list); i++) {
 			switch (list[i].type) {
-			case 1: /* ram */
+			case 1: /* RAM */
 				printk(BIOS_DEBUG, "QEMU: e820/ram: 0x%08llx +0x%08llx\n",
 				       list[i].address, list[i].length);
 				if (list[i].address == 0) {
@@ -129,16 +130,12 @@ static void cpu_pci_domain_read_resources(struct device *dev)
 				   "debugcon");
 	}
 
-#if !CONFIG_DYNAMIC_CBMEM
-	set_top_of_ram(tomk * 1024);
-#endif
-
 	if (q35 && ((tomk * 1024) < 0xb0000000)) {
 		/*
 		 * Reserve the region between top-of-ram and the
 		 * mmconf xbar (ar 0xb0000000), so coreboot doesn't
 		 * place pci bars there.  The region isn't declared as
-		 * pci io window in the acpi tables (\_SB.PCI0._CRS).
+		 * pci io window in the ACPI tables (\_SB.PCI0._CRS).
 		 */
 		res = new_resource(dev, idx++);
 		res->base = tomk * 1024;
@@ -216,6 +213,11 @@ static int qemu_get_smbios_data17(int handle, int parent_handle, unsigned long *
 static int qemu_get_smbios_data(device_t dev, int *handle, unsigned long *current)
 {
 	int len;
+
+	len = fw_cfg_smbios_tables(handle, current);
+	if (len != 0)
+		return len;
+
 	len = qemu_get_smbios_data16(*handle, current);
 	len += qemu_get_smbios_data17(*handle+1, *handle, current);
 	*handle += 2;
@@ -239,14 +241,14 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static unsigned int cpu_bus_scan(device_t bus, unsigned int max)
+static void cpu_bus_scan(device_t bus)
 {
 	int max_cpus = fw_cfg_max_cpus();
 	device_t cpu;
 	int i;
 
 	if (max_cpus < 0)
-		return 0;
+		return;
 
 	/*
 	 * TODO: This only handles the simple "qemu -smp $nr" case
@@ -259,17 +261,12 @@ static unsigned int cpu_bus_scan(device_t bus, unsigned int max)
 		if (cpu)
 			set_cpu_topology(cpu, 1, 0, i, 0);
 	}
-	return max_cpus;
-}
-
-static void cpu_bus_noop(device_t dev)
-{
 }
 
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = cpu_bus_scan,
 };

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -216,7 +211,8 @@ smi_handler_t southbridge_smi[32] = {
 /**
  * @brief Interrupt handler for SMI#
  *
- * @param smm_revision revision of the smm state save map
+ * @param node
+ * @param state_save revision of the smm state save map
  */
 
 void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save)
@@ -242,14 +238,14 @@ void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_sav
 			if (southbridge_smi[i])
 				southbridge_smi[i](node, state_save);
 			else {
-				printk(BIOS_DEBUG, "SMI_STS[%d] occured, but no "
+				printk(BIOS_DEBUG, "SMI_STS[%d] occurred, but no "
 						"handler available.\n", i);
 				dump = 1;
 			}
 		}
 	}
 
-	if(dump) {
+	if (dump) {
 		dump_smi_status(smi_sts);
 	}
 

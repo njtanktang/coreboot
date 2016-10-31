@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /*
@@ -45,25 +40,23 @@ smbase:
 .long 0
 save_state_size:
 .long 0
-/* apic_to_cpu_num is a table mapping the default APIC id to cpu num. If the
- * APIC id is found at the given index, the contiguous cpu number is index
+/* apic_to_cpu_num is a table mapping the default APIC id to CPU num. If the
+ * APIC id is found at the given index, the contiguous CPU number is index
  * into the table. */
 apic_to_cpu_num:
 .fill CONFIG_MAX_CPUS,1,0xff
 /* end struct smm_runtime */
 
 .data
-/* Provide fallback stack to use when a valid cpu number cannot be found. */
+/* Provide fallback stack to use when a valid CPU number cannot be found. */
 fallback_stack_bottom:
 .skip 128
 fallback_stack_top:
 
 .text
 .code16
-.global smm_handler_start
-.global __rmodule_entry
-__rmodule_entry:
-smm_handler_start:
+.global _start
+_start:
 	movl	$(smm_relocate_gdt), %ebx
 	data32	lgdt (%ebx)
 
@@ -119,7 +112,7 @@ smm_trampoline32:
 	inc	%ecx
 	cmp	$CONFIG_MAX_CPUS, %ecx
 	jne	1b
-	/* This is bad. One cannot find a stack entry because a cpu num could
+	/* This is bad. One cannot find a stack entry because a CPU num could
 	 * not be assigned. Use the fallback stack and check this condition in
 	 * C handler. */
 	movl	$(fallback_stack_top), %esp
@@ -146,4 +139,3 @@ smm_trampoline32:
 
 	/* Exit from SM mode. */
 	rsm
-

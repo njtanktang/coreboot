@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "rev.h"
@@ -23,49 +19,49 @@
 #define NBMISC_INDEX		0x60
 #define NBMC_INDEX 		0xE8
 
-static u32 nb_read_index(device_t dev, u32 index_reg, u32 index)
+static u32 nb_read_index(pci_devfn_t dev, u32 index_reg, u32 index)
 {
 	pci_write_config32(dev, index_reg, index);
 	return pci_read_config32(dev, index_reg + 0x4);
 }
 
-static void nb_write_index(device_t dev, u32 index_reg, u32 index, u32 data)
+static void nb_write_index(pci_devfn_t dev, u32 index_reg, u32 index, u32 data)
 {
 	pci_write_config32(dev, index_reg, index /* | 0x80 */ );
 	pci_write_config32(dev, index_reg + 0x4, data);
 }
 
-static u32 nbmisc_read_index(device_t nb_dev, u32 index)
+static u32 nbmisc_read_index(pci_devfn_t nb_dev, u32 index)
 {
 	return nb_read_index((nb_dev), NBMISC_INDEX, (index));
 }
 
-static void nbmisc_write_index(device_t nb_dev, u32 index, u32 data)
+static void nbmisc_write_index(pci_devfn_t nb_dev, u32 index, u32 data)
 {
 	nb_write_index((nb_dev), NBMISC_INDEX, ((index) | 0x80), (data));
 }
 
-static u32 htiu_read_index(device_t nb_dev, u32 index)
+static u32 htiu_read_index(pci_devfn_t nb_dev, u32 index)
 {
 	return nb_read_index((nb_dev), NBHTIU_INDEX, (index));
 }
 
-static void htiu_write_index(device_t nb_dev, u32 index, u32 data)
+static void htiu_write_index(pci_devfn_t nb_dev, u32 index, u32 data)
 {
 	nb_write_index((nb_dev), NBHTIU_INDEX, ((index) | 0x100), (data));
 }
 
-static u32 nbmc_read_index(device_t nb_dev, u32 index)
+static u32 nbmc_read_index(pci_devfn_t nb_dev, u32 index)
 {
 	return nb_read_index((nb_dev), NBMC_INDEX, (index));
 }
 
-static void nbmc_write_index(device_t nb_dev, u32 index, u32 data)
+static void nbmc_write_index(pci_devfn_t nb_dev, u32 index, u32 data)
 {
 	nb_write_index((nb_dev), NBMC_INDEX, ((index) | 1 << 9), (data));
 }
 
-static void set_htiu_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
+static void set_htiu_enable_bits(pci_devfn_t nb_dev, u32 reg_pos, u32 mask,
 				 u32 val)
 {
 	u32 reg_old, reg;
@@ -77,7 +73,7 @@ static void set_htiu_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
 	}
 }
 
-static void set_nbmisc_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
+static void set_nbmisc_enable_bits(pci_devfn_t nb_dev, u32 reg_pos, u32 mask,
 				   u32 val)
 {
 	u32 reg_old, reg;
@@ -89,7 +85,7 @@ static void set_nbmisc_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
 	}
 }
 
-static void set_nbcfg_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
+static void set_nbcfg_enable_bits(pci_devfn_t nb_dev, u32 reg_pos, u32 mask,
 				  u32 val)
 {
 	u32 reg_old, reg;
@@ -102,8 +98,8 @@ static void set_nbcfg_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
 }
 /* family 10 only, for reg > 0xFF */
 #if CONFIG_NORTHBRIDGE_AMD_AMDFAM10
-static void set_fam10_ext_cfg_enable_bits(device_t fam10_dev, u32 reg_pos, u32 mask,
-				  u32 val)
+static void set_fam10_ext_cfg_enable_bits(pci_devfn_t fam10_dev, u32 reg_pos,
+		u32 mask, u32 val)
 {
 	u32 reg_old, reg;
 	reg = reg_old = Get_NB32(fam10_dev, reg_pos);
@@ -118,7 +114,7 @@ static void set_fam10_ext_cfg_enable_bits(device_t fam10_dev, u32 reg_pos, u32 m
 #endif
 
 
-static void set_nbcfg_enable_bits_8(device_t nb_dev, u32 reg_pos, u8 mask,
+static void set_nbcfg_enable_bits_8(pci_devfn_t nb_dev, u32 reg_pos, u8 mask,
 				    u8 val)
 {
 	u8 reg_old, reg;
@@ -130,7 +126,7 @@ static void set_nbcfg_enable_bits_8(device_t nb_dev, u32 reg_pos, u8 mask,
 	}
 }
 
-static void set_nbmc_enable_bits(device_t nb_dev, u32 reg_pos, u32 mask,
+static void set_nbmc_enable_bits(pci_devfn_t nb_dev, u32 reg_pos, u32 mask,
 				 u32 val)
 {
 	u32 reg_old, reg;
@@ -159,7 +155,7 @@ static u8 cpu_core_number(void)
 }
 #endif
 
-static u8 get_nb_rev(device_t nb_dev)
+static u8 get_nb_rev(pci_devfn_t nb_dev)
 {
 	u8 reg;
 	reg = pci_read_config8(nb_dev, 0x89);	/* copy from CIM, can't find in doc */
@@ -186,20 +182,20 @@ static u8 get_nb_rev(device_t nb_dev)
  *****************************************/
 static const u8 rs780_ibias[] = {
 	/* 1, 3 are reserved. */
-	[0x0] = 0x4C,		/* 200Mhz HyperTransport 1 only */
-	[0x2] = 0x4C,		/* 400Mhz HyperTransport 1 only */
-	[0x4] = 0xB6,		/* 600Mhz HyperTransport 1 only */
-	[0x5] = 0x4C,		/* 800Mhz HyperTransport 1 only */
-	[0x6] = 0x9D,		/* 1Ghz   HyperTransport 1 only */
+	[0x0] = 0x4C,		/* 200MHz HyperTransport 1 only */
+	[0x2] = 0x4C,		/* 400MHz HyperTransport 1 only */
+	[0x4] = 0xB6,		/* 600MHz HyperTransport 1 only */
+	[0x5] = 0x4C,		/* 800MHz HyperTransport 1 only */
+	[0x6] = 0x9D,		/* 1GHz   HyperTransport 1 only */
 	/* HT3 for Family 10 */
-	[0x7] = 0xB6,		/* 1.2Ghz HyperTransport 3 only */
-	[0x8] = 0x2B,		/* 1.4Ghz HyperTransport 3 only */
-	[0x9] = 0x4C,		/* 1.6Ghz HyperTransport 3 only */
-	[0xa] = 0x6C,		/* 1.8Ghz HyperTransport 3 only */
-	[0xb] = 0x9D,		/* 2.0Ghz HyperTransport 3 only */
-	[0xc] = 0xAD,		/* 2.2Ghz HyperTransport 3 only */
-	[0xd] = 0xB6,		/* 2.4Ghz HyperTransport 3 only */
-	[0xe] = 0xC6,		/* 2.6Ghz HyperTransport 3 only */
+	[0x7] = 0xB6,		/* 1.2GHz HyperTransport 3 only */
+	[0x8] = 0x2B,		/* 1.4GHz HyperTransport 3 only */
+	[0x9] = 0x4C,		/* 1.6GHz HyperTransport 3 only */
+	[0xa] = 0x6C,		/* 1.8GHz HyperTransport 3 only */
+	[0xb] = 0x9D,		/* 2.0GHz HyperTransport 3 only */
+	[0xc] = 0xAD,		/* 2.2GHz HyperTransport 3 only */
+	[0xd] = 0xB6,		/* 2.4GHz HyperTransport 3 only */
+	[0xe] = 0xC6,		/* 2.6GHz HyperTransport 3 only */
 };
 
 static void rs780_htinit(void)
@@ -207,7 +203,7 @@ static void rs780_htinit(void)
 	/*
 	 * About HT, it has been done in enumerate_ht_chain().
 	 */
-	device_t cpu_f0, rs780_f0, clk_f1;
+	pci_devfn_t cpu_f0, rs780_f0, clk_f1;
 	u32 reg;
 	u8 cpu_ht_freq, ibias;
 
@@ -256,17 +252,17 @@ static void rs780_htinit(void)
 		set_htiu_enable_bits(rs780_f0, 0x2A, 0x3, 0x1);
 		/* Enables error-retry mode */
 		set_nbcfg_enable_bits(rs780_f0, 0x44, 0x1, 0x1);
-		/* Enables scrambling and Disalbes command throttling */
+		/* Enables scrambling and Disables command throttling */
 		set_nbcfg_enable_bits(rs780_f0, 0xac, (1 << 3) | (1 << 14), (1 << 3) | (1 << 14));
 		/* Enables transmitter de-emphasis */
 		set_nbcfg_enable_bits(rs780_f0, 0xa4, 1 << 31, 1 << 31);
-		/* Enabels transmitter de-emphasis level */
+		/* Enables transmitter de-emphasis level */
 		/* Sets training 0 time */
 		set_nbcfg_enable_bits(rs780_f0, 0xa0, 0x3F, 0x14);
 
 		/* Enables strict TM4 detection */
 		set_htiu_enable_bits(rs780_f0, 0x15, 0x1 << 22, 0x1 << 22);
-		/* Enables proprer DLL reset sequence */
+		/* Enables proper DLL reset sequence */
 		set_htiu_enable_bits(rs780_f0, 0x16, 0x1 << 10, 0x1 << 10);
 
 		/* HyperTransport 3 Processor register settings to be done in northbridge */
@@ -303,7 +299,7 @@ static void rs780_htinit(void)
 *******************************************************/
 static void k8_optimization(void)
 {
-	device_t k8_f0, k8_f2, k8_f3;
+	pci_devfn_t k8_f0, k8_f2, k8_f3;
 	msr_t msr;
 
 	printk(BIOS_INFO, "k8_optimization()\n");
@@ -339,13 +335,13 @@ static void k8_optimization(void)
 	wrmsr(0xC001001F, msr);
 }
 #else
-#define k8_optimization() do{}while(0)
+#define k8_optimization() do {} while (0)
 #endif	/* !CONFIG_NORTHBRIDGE_AMD_AMDFAM10 */
 
 #if CONFIG_NORTHBRIDGE_AMD_AMDFAM10
 static void fam10_optimization(void)
 {
-	device_t cpu_f0, cpu_f2, cpu_f3;
+	pci_devfn_t cpu_f0, cpu_f2, cpu_f3;
 	u32 val;
 
 	printk(BIOS_INFO, "fam10_optimization()\n");
@@ -404,13 +400,13 @@ static void fam10_optimization(void)
 	}
 }
 #else
-#define fam10_optimization() do{}while(0)
+#define fam10_optimization() do {} while (0)
 #endif	/* CONFIG_NORTHBRIDGE_AMD_AMDFAM10 */
 
 /*****************************************
 * rs780_por_pcicfg_init()
 *****************************************/
-static void rs780_por_pcicfg_init(device_t nb_dev)
+static void rs780_por_pcicfg_init(pci_devfn_t nb_dev)
 {
 	/* enable PCI Memory Access */
 	set_nbcfg_enable_bits_8(nb_dev, 0x04, (u8)(~0xFD), 0x02);
@@ -423,7 +419,7 @@ static void rs780_por_pcicfg_init(device_t nb_dev)
 	/* Power Management Register Enable */
 	set_nbcfg_enable_bits_8(nb_dev, 0x84, (u8)(~0xFF), 0x80);
 
-	/* Reg4Ch[1]=1 (APIC_ENABLE) force cpu request with address 0xFECx_xxxx to south-bridge
+	/* Reg4Ch[1]=1 (APIC_ENABLE) force CPU request with address 0xFECx_xxxx to south-bridge
 	 * Reg4Ch[6]=1 (BMMsgEn) enable BM_Set message generation
 	 * BMMsgEn */
 	set_nbcfg_enable_bits_8(nb_dev, 0x4C, (u8)(~0x00), 0x42 | 1);
@@ -460,7 +456,7 @@ static void rs780_por_pcicfg_init(device_t nb_dev)
 	set_nbcfg_enable_bits_8(nb_dev, 0x8D, (u8)(~0xFF), 0x02);
 }
 
-static void rs780_por_mc_index_init(device_t nb_dev)
+static void rs780_por_mc_index_init(pci_devfn_t nb_dev)
 {
 	set_nbmc_enable_bits(nb_dev, 0x7A, ~0xFFFFFF80, 0x0000005F);
 	set_nbmc_enable_bits(nb_dev, 0xD8, ~0x00000000, 0x00600060);
@@ -471,7 +467,7 @@ static void rs780_por_mc_index_init(device_t nb_dev)
 	set_nbmc_enable_bits(nb_dev, 0xE9, ~0x00000000, 0x003E003E);
 }
 
-static void rs780_por_misc_index_init(device_t nb_dev)
+static void rs780_por_misc_index_init(pci_devfn_t nb_dev)
 {
 	/* NB_MISC_IND_WR_EN + IOC_PCIE_CNTL
 	 * Block non-snoop DMA request if PMArbDis is set.
@@ -528,7 +524,7 @@ static void rs780_por_misc_index_init(device_t nb_dev)
 /*****************************************
 * Some setting is from rpr. Some is from CIMx.
 *****************************************/
-static void rs780_por_htiu_index_init(device_t nb_dev)
+static void rs780_por_htiu_index_init(pci_devfn_t nb_dev)
 {
 #if 0				/* get from rpr. */
 	set_htiu_enable_bits(nb_dev, 0x1C, 0x1<<17, 0x1<<17);
@@ -587,7 +583,7 @@ static void rs780_por_htiu_index_init(device_t nb_dev)
 * POR: Power On Reset
 * RPR: Register Programming Requirements
 *****************************************/
-static void rs780_por_init(device_t nb_dev)
+static void rs780_por_init(pci_devfn_t nb_dev)
 {
 	printk(BIOS_INFO, "rs780_por_init\n");
 	/* ATINB_PCICFG_POR_TABLE, initialize the values for rs780 PCI Config registers */
@@ -625,7 +621,7 @@ static void rs780_before_pci_init(void)
 
 static void rs780_early_setup(void)
 {
-	device_t nb_dev = PCI_DEV(0, 0, 0);
+	pci_devfn_t nb_dev = PCI_DEV(0, 0, 0);
 	printk(BIOS_INFO, "rs780_early_setup()\n");
 
 	/* The printk(BIOS_INFO, s) below cause the system unstable. */

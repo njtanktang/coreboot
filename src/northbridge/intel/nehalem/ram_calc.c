@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define __SIMPLE_DEVICE__
@@ -23,9 +19,14 @@
 #include <cbmem.h>
 #include "nehalem.h"
 
-unsigned long get_top_of_ram(void)
+static uintptr_t smm_region_start(void)
 {
 	/* Base of TSEG is top of usable DRAM */
-	u32 tom = pci_read_config32(PCI_DEV(0,0,0), TSEG);
-	return (unsigned long) tom;
+	uintptr_t tom = pci_read_config32(PCI_DEV(0,0,0), TSEG);
+	return tom;
+}
+
+void *cbmem_top(void)
+{
+	return (void *) smm_region_start();
 }

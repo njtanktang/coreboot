@@ -9,10 +9,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #ifndef ELFPARSING_H
@@ -69,13 +65,23 @@ void parsed_elf_destroy(struct parsed_elf *pelf);
 
 int
 elf_headers(const struct buffer *pinput,
-	    uint32_t arch,
 	    Elf64_Ehdr *ehdr,
 	    Elf64_Phdr **pphdr,
 	    Elf64_Shdr **pshdr);
 
 /* ELF writing support. */
 struct elf_writer;
+
+/*
+ * Initialize a 64-bit ELF header provided the inputs. While the structure
+ * is a 64-bit header one can specify a 32-bit machine. The 64-bit version
+ * is just used as a common structure. If one wants to specify the entry
+ * point, for example, the caller can set it after filling in the common
+ * bits. The machine, nbits, and endian values should be from the ELF
+ * definitions (e.g. EM_386, ELFCLASS32, and ELFDATA2LSB) found in elf.h
+ * with no endian conversion required.
+ */
+void elf_init_eheader(Elf64_Ehdr *ehdr, int machine, int nbits, int endian);
 
 /*
  * Initialize a new ELF writer. Deafult machine type, endianness, etc is
@@ -87,6 +93,8 @@ struct elf_writer *elf_writer_init(const Elf64_Ehdr *ehdr);
 /*
  * Clean up any internal state represented by ew. Aftewards the elf_writer
  * is invalid.
+ * It is safe to call elf_writer_destroy with ew as NULL. It returns without
+ * performing any action.
  */
 void elf_writer_destroy(struct elf_writer *ew);
 
@@ -98,6 +106,17 @@ void elf_writer_destroy(struct elf_writer *ew);
  */
 int elf_writer_add_section(struct elf_writer *ew, const Elf64_Shdr *shdr,
                            struct buffer *contents, const char *name);
+
+/* Add an absolute symbol to the ELF file returning < 0 on error, index of
+ * symbol otherwise. */
+int elf_writer_add_symbol(struct elf_writer *ew, const char *name,
+				const char *section_name,
+				Elf64_Addr value, Elf64_Word size,
+				int binding, int type);
+
+/* Add an absolute relocation referencing the provided symbol name. Returns < 0
+ * on error, 0 on success. */
+int elf_writer_add_rel(struct elf_writer *ew, const char *sym, Elf64_Addr addr);
 
 /*
  * Serialize the ELF file to the output buffer. Return < 0 on error,

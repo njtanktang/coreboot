@@ -13,20 +13,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include <arch/ioapic.h>
 #include <cpu/x86/lapic_def.h>
+#include <southbridge/amd/sb600/sb600.h>
 
 DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 {
 	/* Data to be patched by the BIOS during POST */
 	/* Memory related values */
 	Name(LOMH, 0x0)	/* Start of unused memory in C0000-E0000 range */
-	Name(HPBA, 0xFED00000)	/* Base address of HPET table */
 
 	/* USB overcurrent mapping pins.   */
 	Name(UOM0, 0)
@@ -245,7 +241,9 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 		PWDA, 1,
 	}
 
-	OperationRegion (GVAR, SystemMemory, 0xBADEAFFE, 0x100)
+	External(\NVSA)
+
+	OperationRegion (GVAR, SystemMemory, \NVSA, 0x100)
 	Field (GVAR, ByteAcc, NoLock, Preserve)
 	{
 		Offset (0x00),
@@ -398,48 +396,48 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 				Return(0x0B)     /* Status is visible */
 			}
 
-            Device (MEMR)
-            {
-                Name (_HID, EisaId ("PNP0C02"))
-                Name (MEM1, ResourceTemplate ()
-                {
-                    Memory32Fixed (ReadWrite,
-                        0x00000000,         // Address Base
-                        0x00000000,         // Address Length
-                        _Y1A)
-                    Memory32Fixed (ReadWrite,
-                        0x00000000,         // Address Base
-                        0x00000000,         // Address Length
-                        _Y1B)
-                })
-                Method (_CRS, 0, NotSerialized)
-                {
-                    CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1A._BAS, MB01)
-                    CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1A._LEN, ML01)
-                    CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1B._BAS, MB02)
-                    CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1B._LEN, ML02)
-                    If (PCIF)
-                    {
-                        Store (IO_APIC_ADDR, MB01)
-                        Store (LOCAL_APIC_ADDR, MB02)
-                        Store (0x1000, ML01)
-                        Store (0x1000, ML02)
-                    }
+			Device (MEMR)
+			{
+				Name (_HID, EisaId ("PNP0C02"))
+				Name (MEM1, ResourceTemplate ()
+				{
+				Memory32Fixed (ReadWrite,
+			0x00000000,         // Address Base
+			0x00000000,         // Address Length
+			_Y1A)
+				Memory32Fixed (ReadWrite,
+			0x00000000,         // Address Base
+			0x00000000,         // Address Length
+			_Y1B)
+				})
+				Method (_CRS, 0, NotSerialized)
+				{
+				CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1A._BAS, MB01)
+				CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1A._LEN, ML01)
+				CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1B._BAS, MB02)
+				CreateDWordField (MEM1, \_SB.PCI0.MEMR._Y1B._LEN, ML02)
+				If (PCIF)
+				{
+			Store (IO_APIC_ADDR, MB01)
+			Store (LOCAL_APIC_ADDR, MB02)
+			Store (0x1000, ML01)
+			Store (0x1000, ML02)
+				}
 
-                    Return (MEM1)
-                }
-            }
+				Return (MEM1)
+				}
+			}
 
 			Method(_PRT,0) {
 				If(PCIF){ Return(APR0) }   /* APIC mode */
 				Return (PR0)                  /* PIC Mode */
 			} /* end _PRT */
 
-            OperationRegion (BAR1, PCI_Config, 0x14, 0x04)
-            Field (BAR1, ByteAcc, NoLock, Preserve)
-            {
-                Z009,   32
-            }
+			OperationRegion (BAR1, PCI_Config, 0x14, 0x04)
+			Field (BAR1, ByteAcc, NoLock, Preserve)
+			{
+				Z009,   32
+			}
 
 			/* Describe the Northbridge devices */
 			Device(AMRT) {
@@ -453,8 +451,8 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 				Method(_PRT,0) { Return (APR1) }
 
 				Device (VGA)
-                {
-                    Name (_ADR, 0x00050000)
+				{
+				Name (_ADR, 0x00050000)
 					Method (_DOS, 1)
 					{
 						/* Windows 2000 and Windows XP call _DOS to enable/disable
@@ -463,11 +461,11 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 						*/
 						Store (And(Arg0, 7), DSEN)
 					}
-                    Method (_STA, 0, NotSerialized)
-                    {
-                        Return (0x0F)
-                    }
-                }
+				Method (_STA, 0, NotSerialized)
+				{
+			Return (0x0F)
+				}
+				}
 			}  /* end AGPB */
 
 			/* The external GFX bridge */
@@ -612,8 +610,8 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 
 			Device(LPC0)
 			{
-                Name (_ADR, 0x00140003)
-                Mutex (PSMX, 0x00)
+				Name (_ADR, 0x00140003)
+				Mutex (PSMX, 0x00)
 
 				/* PIC IRQ mapping registers, C00h-C01h */
 				OperationRegion(PRQM, SystemIO, 0x00000C00, 0x00000002)
@@ -961,7 +959,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 				Device(TMR) {	/* Timer */
 					Name(_HID,EISAID("PNP0100"))	/* System Timer */
 					Name(_CRS, ResourceTemplate() {
-                        IRQ (Edge, ActiveHigh, Exclusive, ) {0}
+			IRQ (Edge, ActiveHigh, Exclusive, ) {0}
 						IO(Decode16, 0x0040, 0x0040, 1, 4)
 						/* IO(Decode16, 0x0048, 0x0048, 0, 4) */
 					})
@@ -1006,68 +1004,66 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 					})
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
 
-				Device(HPET) {
+				Device(HPET) { /* HPET */
 					Name(_HID,EISAID("PNP0103"))
 					Name(CRS,ResourceTemplate()	{
-						Memory32Fixed(ReadOnly,0xFED00000, 0x00000400, HPT)	/* 1kb reserved space */
+						Memory32Fixed(ReadOnly, HPET_BASE_ADDRESS, 0x00000400, HPT)	/* 1kb reserved space */
 					})
 					Method(_STA, 0) {
-						Return(0x0F) /* sata is visible */
+						Return(0x0F) /* HPET is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
 						Return(CRS)
 					}
-                }
-
-                Device (KBC0)
-                {
-                    Name (_HID, EisaId ("PNP0303"))
-                    Name (_CRS, ResourceTemplate ()
-                    {
-                        IO (Decode16,
-                            0x0060,             // Range Minimum
-                            0x0060,             // Range Maximum
-                            0x01,               // Alignment
-                            0x01,               // Length
-                            )
-                        IO (Decode16,
-                            0x0064,             // Range Minimum
-                            0x0064,             // Range Maximum
-                            0x01,               // Alignment
-                            0x01,               // Length
-                            )
-                        IRQ (Edge, ActiveHigh, Exclusive, ) {1}
-                    })
 				}
 
-                Device (MSE0)
-                {
-                    Name (_HID, EisaId ("PNP0F13"))
-                    Name (_CRS, ResourceTemplate ()
-                    {
-                        IRQ (Edge, ActiveHigh, Exclusive, ) {12}
-                    })
+				Device (KBC0)
+				{
+				Name (_HID, EisaId ("PNP0303"))
+				Name (_CRS, ResourceTemplate ()
+				{
+			IO (Decode16,
+				0x0060,             // Range Minimum
+				0x0060,             // Range Maximum
+				0x01,               // Alignment
+				0x01,               // Length
+				)
+			IO (Decode16,
+				0x0064,             // Range Minimum
+				0x0064,             // Range Maximum
+				0x01,               // Alignment
+				0x01,               // Length
+				)
+			IRQ (Edge, ActiveHigh, Exclusive, ) {1}
+				})
+				}
+
+				Device (MSE0)
+				{
+				Name (_HID, EisaId ("PNP0F13"))
+				Name (_CRS, ResourceTemplate ()
+				{
+			IRQ (Edge, ActiveHigh, Exclusive, ) {12}
+				})
 				}
 			} /* end LPC0 */
 
 			Device(ACAD) {
 				Name(_ADR, 0x00140005)
 				Name (_PRW, Package (0x02)
-                {
-                    0x0C,
-                    0x04
-                })
+				{
+				0x0C,
+				0x04
+				})
 			} /* end Ac97audio */
 
 			Device(ACMD) {
 				Name(_ADR, 0x00140006)
 				Name (_PRW, Package (0x02)
-                {
-                    0x0C,
-                    0x04
-                })
+				{
+				0x0C,
+				0x04
+				})
 			} /* end Ac97modem */
 
 			/* ITE IT8712F Support */
@@ -1210,102 +1206,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "SIEMENS", "SITEMP ", 0x20101005)
 		}
 	} /* End Scope SI */
 
-	Mutex (SBX0, 0x00)
-	OperationRegion (SMB0, SystemIO, 0xB00, 0x10)  // 0x0C replace by 0x10
-		Field (SMB0, ByteAcc, NoLock, Preserve) {
-			HSTS,   8, /* SMBUS status */
-			SSTS,   8,  /* SMBUS slave status */
-			HCNT,   8,  /* SMBUS control */
-			HCMD,   8,  /* SMBUS host cmd */
-			HADD,   8,  /* SMBUS address */
-			DAT0,   8,  /* SMBUS data0 */
-			DAT1,   8,  /* SMBUS data1 */
-			BLKD,   8,  /* SMBUS block data */
-			SCNT,   8,  /* SMBUS slave control */
-			SCMD,   8,  /* SMBUS shadow cmd */
-			SEVT,   8,  /* SMBUS slave event */
-			SDAT,   8,  /* SMBUS slave data */
-			SMK1,   8,
-            SLMC,   8,
-            RADD,   8,
-            SADD,   8
-	}
-
-	Method (WCLR, 0, NotSerialized) { /* clear SMBUS status register */
-		Store (0x1E, HSTS)
-		Store (0xFA, Local0)
-		While (LAnd (LNotEqual (And (HSTS, 0x1E), Zero), LGreater (Local0, Zero))) {
-			Stall (0x64)
-			Decrement (Local0)
-		}
-
-		Return (Local0)
-	}
-
-	Method (SWTC, 1, NotSerialized) {
-		Store (Arg0, Local0)
-		Store (0x07, Local2)
-		Store (One, Local1)
-		While (LEqual (Local1, One)) {
-			Store (And (HSTS, 0x1E), Local3)
-			If (LNotEqual (Local3, Zero)) { /* read sucess */
-				If (LEqual (Local3, 0x02)) {
-					Store (Zero, Local2)
-				}
-
-				Store (Zero, Local1)
-			}
-			Else {
-				If (LLess (Local0, 0x0A)) { /* read failure */
-					Store (0x10, Local2)
-					Store (Zero, Local1)
-				}
-				Else {
-					Sleep (0x0A) /* 10 ms, try again */
-					Subtract (Local0, 0x0A, Local0)
-				}
-			}
-		}
-
-		Return (Local2)
-	}
-
-	Method (SMBR, 3, NotSerialized) {
-		Store (0x07, Local0)
-		If (LEqual (Acquire (SBX0, 0xFFFF), Zero)) {
-			Store (WCLR (), Local0) /* clear SMBUS status register before read data */
-			If (LEqual (Local0, Zero)) {
-				Release (SBX0)
-				Return (0x0)
-			}
-
-			Store (0x1F, HSTS)
-			Store (Or (ShiftLeft (Arg1, One), One), HADD)
-			Store (Arg2, HCMD)
-			If (LEqual (Arg0, 0x07)) {
-				Store (0x48, HCNT) /* read byte */
-			}
-
-			Store (SWTC (0x03E8), Local1) /* 1000 ms */
-			If (LEqual (Local1, Zero)) {
-				If (LEqual (Arg0, 0x07)) {
-					Store (DAT0, Local0)
-				}
-			}
-			Else {
-				Store (Local1, Local0)
-			}
-
-			Release (SBX0)
-		}
-
-		/* DBGO("the value of SMBusData0 register ") */
-		/* DBGO(Arg2) */
-		/* DBGO(" is ") */
-		/* DBGO(Local0) */
-		/* DBGO("\n") */
-
-		Return (Local0)
-	}
+#include <southbridge/amd/cimx/sb800/acpi/smbus.asl>
 #include "acpi/thermal.asl"
 }

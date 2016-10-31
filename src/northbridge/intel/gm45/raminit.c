@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -25,11 +20,13 @@
 #include <arch/io.h>
 #include <device/pci_def.h>
 #include <device/pnp_def.h>
+#include <device/device.h>
 #include <spd.h>
 #include <console/console.h>
 #include <lib.h>
 #include "delay.h"
 #include "gm45.h"
+#include "chip.h"
 
 static const gmch_gfx_t gmch_gfx_types[][5] = {
 /*  MAX_667MHz    MAX_533MHz    MAX_400MHz    MAX_333MHz    MAX_800MHz    */
@@ -85,7 +82,6 @@ void get_gmch_info(sysinfo_t *sysinfo)
 		sysinfo->gfx_type = gmch_gfx_types[gfx_variant][render_freq];
 	else
 		sysinfo->gfx_type = GMCH_UNKNOWN;
-	sysinfo->gs45_low_power_mode = 0;
 	switch (sysinfo->gfx_type) {
 		case GMCH_GM45:
 			printk(BIOS_SPEW, "GMCH: GM45\n");
@@ -109,8 +105,8 @@ void get_gmch_info(sysinfo_t *sysinfo)
 			printk(BIOS_SPEW, "GMCH: GS40\n");
 			break;
 		case GMCH_GS45:
-			printk(BIOS_SPEW, "GMCH: GS45, using low power mode by default\n");
-			sysinfo->gs45_low_power_mode = 1;
+			printk(BIOS_SPEW, "GMCH: GS45, using %s-power mode\n",
+			       sysinfo->gs45_low_power_mode ? "low" : "high");
 			break;
 		case GMCH_PM45:
 			printk(BIOS_SPEW, "GMCH: PM45\n");
@@ -235,61 +231,62 @@ void enter_raminit_or_reset(void)
 
 /* For a detected DIMM, test the value of an SPD byte to
    match the expected value after masking some bits. */
-static int test_dimm(int dimm, int addr, int bitmask, int expected)
+static int test_dimm(sysinfo_t *const sysinfo,
+		     int dimm, int addr, int bitmask, int expected)
 {
-	return (smbus_read_byte(DIMM0 + dimm, addr) & bitmask) == expected;
+	return (smbus_read_byte(sysinfo->spd_map[dimm], addr) & bitmask) == expected;
 }
 
 /* This function dies if dimm is unsuitable for the chipset. */
-static void verify_ddr3_dimm(int dimm)
+static void verify_ddr3_dimm(sysinfo_t *const sysinfo, int dimm)
 {
-	if (!test_dimm(dimm, 3, 15, 3))
+	if (!test_dimm(sysinfo, dimm, 3, 15, 3))
 		die("Chipset only supports SO-DIMM\n");
 
-	if (!test_dimm(dimm, 8, 0x18, 0))
+	if (!test_dimm(sysinfo, dimm, 8, 0x18, 0))
 		die("Chipset doesn't support ECC RAM\n");
 
-	if (!test_dimm(dimm, 7, 0x38, 0) &&
-			!test_dimm(dimm, 7, 0x38, 8))
+	if (!test_dimm(sysinfo, dimm, 7, 0x38, 0) &&
+			!test_dimm(sysinfo, dimm, 7, 0x38, 8))
 		die("Chipset wants single or double sided DIMMs\n");
 
-	if (!test_dimm(dimm, 7, 7, 1) &&
-			!test_dimm(dimm, 7, 7, 2))
+	if (!test_dimm(sysinfo, dimm, 7, 7, 1) &&
+			!test_dimm(sysinfo, dimm, 7, 7, 2))
 		die("Chipset requires x8 or x16 width\n");
 
-	if (!test_dimm(dimm, 4, 0x0f, 0) &&
-			!test_dimm(dimm, 4, 0x0f, 1) &&
-			!test_dimm(dimm, 4, 0x0f, 2) &&
-			!test_dimm(dimm, 4, 0x0f, 3))
+	if (!test_dimm(sysinfo, dimm, 4, 0x0f, 0) &&
+			!test_dimm(sysinfo, dimm, 4, 0x0f, 1) &&
+			!test_dimm(sysinfo, dimm, 4, 0x0f, 2) &&
+			!test_dimm(sysinfo, dimm, 4, 0x0f, 3))
 		die("Chipset requires 256Mb, 512Mb, 1Gb or 2Gb chips.");
 
-	if (!test_dimm(dimm, 4, 0x70, 0))
+	if (!test_dimm(sysinfo, dimm, 4, 0x70, 0))
 		die("Chipset requires 8 banks on DDR3\n");
 
 	/* How to check if burst length is 8?
 	   Other values are not supported, are they even possible? */
 
-	if (!test_dimm(dimm, 10, 0xff, 1))
+	if (!test_dimm(sysinfo, dimm, 10, 0xff, 1))
 		die("Code assumes 1/8ns MTB\n");
 
-	if (!test_dimm(dimm, 11, 0xff, 8))
+	if (!test_dimm(sysinfo, dimm, 11, 0xff, 8))
 		die("Code assumes 1/8ns MTB\n");
 
-	if (!test_dimm(dimm, 62, 0x9f, 0) &&
-			!test_dimm(dimm, 62, 0x9f, 1) &&
-			!test_dimm(dimm, 62, 0x9f, 2) &&
-			!test_dimm(dimm, 62, 0x9f, 3) &&
-			!test_dimm(dimm, 62, 0x9f, 5))
+	if (!test_dimm(sysinfo, dimm, 62, 0x9f, 0) &&
+			!test_dimm(sysinfo, dimm, 62, 0x9f, 1) &&
+			!test_dimm(sysinfo, dimm, 62, 0x9f, 2) &&
+			!test_dimm(sysinfo, dimm, 62, 0x9f, 3) &&
+			!test_dimm(sysinfo, dimm, 62, 0x9f, 5))
 		die("Only raw card types A, B, C, D and F are supported.\n");
 }
 
 /* For every detected DIMM, test if it's suitable for the chipset. */
-static void verify_ddr3(int mask)
+static void verify_ddr3(sysinfo_t *const sysinfo, int mask)
 {
 	int cur = 0;
 	while (mask) {
 		if (mask & 1) {
-			verify_ddr3_dimm(cur);
+			verify_ddr3_dimm(sysinfo, cur);
 		}
 		mask >>= 1;
 		cur++;
@@ -321,14 +318,15 @@ typedef struct {
  * This function collects RAM characteristics from SPD, assuming that RAM
  * is generally within chipset's requirements, since verify_ddr3() passed.
  */
-static void collect_ddr3(spdinfo_t *const config)
+static void collect_ddr3(sysinfo_t *const sysinfo, spdinfo_t *const config)
 {
 	int mask = config->dimm_mask;
 	int cur = 0;
 	while (mask != 0) {
-		if (mask & 1) {
+		/* FIXME: support several dimms on same channel.  */
+		if ((mask & 1) && sysinfo->spd_map[2 * cur]) {
 			int tmp;
-			const int smb_addr = DIMM0 + cur*2;
+			const int smb_addr = sysinfo->spd_map[2 * cur];
 
 			config->channel[cur].rows = ((smbus_read_byte(smb_addr, 5) >> 3) & 7) + 12;
 			config->channel[cur].cols = (smbus_read_byte(smb_addr, 5) & 7) + 9;
@@ -358,11 +356,11 @@ static void collect_ddr3(spdinfo_t *const config)
 			config->channel[cur].raw_card = smbus_read_byte(smb_addr, 62) & 0x1f;
 		}
 		cur++;
-		mask >>= 2; /* Only every other address is used. */
+		mask >>= 2;
 	}
 }
 
-#define ROUNDUP_DIV(val, by) (((val) + (by) - 1) / (by))
+#define ROUNDUP_DIV(val, by) CEIL_DIV(val, by)
 #define ROUNDUP_DIV_THIS(val, by) val = ROUNDUP_DIV(val, by)
 static fsb_clock_t read_fsb_clock(void)
 {
@@ -590,17 +588,20 @@ static void collect_dimm_config(sysinfo_t *const sysinfo)
 	spdinfo.dimm_mask = 0;
 	sysinfo->spd_type = 0;
 
-	/* at most 2 dimms, on even slots */
-	for (i = 0; i < 4; i += 2) {
-		const u8 spd = smbus_read_byte(DIMM0 + i, 2);
-		if ((spd == 7) || (spd == 8) || (spd == 0xb)) {
-			spdinfo.dimm_mask |= 1 << i;
-			if (sysinfo->spd_type && sysinfo->spd_type != spd) {
-				die("Multiple types of DIMM installed in the system, don't do that!\n");
+	for (i = 0; i < 4; i++)
+		if (sysinfo->spd_map[i]) {
+			const u8 spd = smbus_read_byte(sysinfo->spd_map[i], 2);
+			printk (BIOS_DEBUG, "%x:%x:%x\n",
+				i, sysinfo->spd_map[i],
+				spd);
+			if ((spd == 7) || (spd == 8) || (spd == 0xb)) {
+				spdinfo.dimm_mask |= 1 << i;
+				if (sysinfo->spd_type && sysinfo->spd_type != spd) {
+					die("Multiple types of DIMM installed in the system, don't do that!\n");
+				}
+				sysinfo->spd_type = spd;
 			}
-			sysinfo->spd_type = spd;
 		}
-	}
 	if (spdinfo.dimm_mask == 0) {
 		die("Could not find any DIMM.\n");
 	}
@@ -612,8 +613,8 @@ static void collect_dimm_config(sysinfo_t *const sysinfo)
 	if (sysinfo->spd_type == DDR2) {
 		die("DDR2 not supported at this time.\n");
 	} else if (sysinfo->spd_type == DDR3) {
-		verify_ddr3(spdinfo.dimm_mask);
-		collect_ddr3(&spdinfo);
+		verify_ddr3(sysinfo, spdinfo.dimm_mask);
+		collect_ddr3(sysinfo, &spdinfo);
 	} else {
 		die("Will never support DDR1.\n");
 	}
@@ -1157,8 +1158,27 @@ static void vc1_program_timings(const fsb_clock_t fsb)
 	EPBAR32(0x3c) = timings_by_fsb[fsb][1];
 }
 
+#define DEFAULT_PCI_MMIO_SIZE 2048
+#define HOST_BRIDGE	PCI_DEVFN(0, 0)
+
+static unsigned int get_mmio_size(void)
+{
+	const struct device *dev;
+	const struct northbridge_intel_gm45_config *cfg = NULL;
+
+	dev = dev_find_slot(0, HOST_BRIDGE);
+	if (dev)
+		cfg = dev->chip_info;
+
+	/* If this is zero, it just means devicetree.cb didn't set it */
+	if (!cfg || cfg->pci_mmio_size == 0)
+		return DEFAULT_PCI_MMIO_SIZE;
+	else
+		return cfg->pci_mmio_size;
+}
+
 /* @prejedec if not zero, set rank size to 128MB and page size to 4KB. */
-static void program_memory_map(const dimminfo_t *const dimms, const channel_mode_t mode, const int prejedec)
+static void program_memory_map(const dimminfo_t *const dimms, const channel_mode_t mode, const int prejedec, u16 ggc)
 {
 	int ch, r;
 
@@ -1205,8 +1225,32 @@ static void program_memory_map(const dimminfo_t *const dimms, const channel_mode
 	}
 
 	/* Calculate memory mapping, all values in MB. */
-	const unsigned int MMIOstart = 0x0c00; /* 3GB, makes MTRR configuration small. */
-	const unsigned int ME_SIZE = 0;
+
+	u32 uma_sizem = 0;
+	if (!prejedec) {
+		if (!(ggc & 2)) {
+			printk(BIOS_DEBUG, "IGD decoded, subtracting ");
+
+			/* Graphics memory */
+			const u32 gms_sizek = decode_igd_memory_size((ggc >> 4) & 0xf);
+			printk(BIOS_DEBUG, "%uM UMA", gms_sizek >> 10);
+
+			/* GTT Graphics Stolen Memory Size (GGMS) */
+			const u32 gsm_sizek = decode_igd_gtt_size((ggc >> 8) & 0xf);
+			printk(BIOS_DEBUG, " and %uM GTT\n", gsm_sizek >> 10);
+
+			uma_sizem = (gms_sizek + gsm_sizek) >> 10;
+			/* Further reduce MTRR usage if it costs use less than
+			   16 MiB.  */
+			if (ALIGN_UP(uma_sizem, 64) - uma_sizem <= 16)
+				uma_sizem = ALIGN_UP(uma_sizem, 64);
+		}
+	}
+
+	const unsigned int mmio_size = get_mmio_size();
+	const unsigned int MMIOstart = 4096 - mmio_size + uma_sizem;
+	const int me_active = pci_read_config8(PCI_DEV(0, 3, 0), PCI_CLASS_REVISION) != 0xff;
+	const unsigned int ME_SIZE = prejedec || !me_active ? 0 : 32;
 	const unsigned int usedMEsize = (total_mb[0] != total_mb[1]) ? ME_SIZE : 2 * ME_SIZE;
 	const unsigned int claimCapable =
 		!(pci_read_config32(PCI_DEV(0, 0, 0), D0F0_CAPID0 + 4) & (1 << (47 - 32)));
@@ -1262,8 +1306,9 @@ static void program_memory_map(const dimminfo_t *const dimms, const channel_mode
 			  "TOLUD = %5uMB\n"
 			  "TOUUD = %5uMB\n"
 			  "REMAP:\t base  = %5uMB\n"
-				"\t limit = %5uMB\n",
-			  TOM, TOLUD, TOUUD, REMAPbase, REMAPlimit);
+				"\t limit = %5uMB\n"
+	                  "usedMEsize: %dMB\n",
+			  TOM, TOLUD, TOUUD, REMAPbase, REMAPlimit, usedMEsize);
 }
 static void prejedec_memory_map(const dimminfo_t *const dimms, channel_mode_t mode)
 {
@@ -1271,7 +1316,7 @@ static void prejedec_memory_map(const dimminfo_t *const dimms, channel_mode_t mo
 	if (CHANNEL_MODE_DUAL_INTERLEAVED == mode)
 		mode = CHANNEL_MODE_DUAL_ASYNC;
 
-	program_memory_map(dimms, mode, 1);
+	program_memory_map(dimms, mode, 1, 0);
 	MCHBAR32(DCC_MCHBAR) |= DCC_NO_CHANXOR;
 }
 
@@ -1550,15 +1595,15 @@ static void jedec_init(const timings_t *const timings,
 		const u32 rankaddr = raminit_get_rank_addr(ch, r);
 		printk(BIOS_DEBUG, "Performing Jedec initialization at address 0x%08x.\n", rankaddr);
 		MCHBAR32(DCC_MCHBAR) = (MCHBAR32(DCC_MCHBAR) & ~DCC_SET_EREG_MASK) | DCC_SET_EREGx(2);
-		read32(rankaddr | WL);
+		read32((u32 *)(rankaddr | WL));
 		MCHBAR32(DCC_MCHBAR) = (MCHBAR32(DCC_MCHBAR) & ~DCC_SET_EREG_MASK) | DCC_SET_EREGx(3);
-		read32(rankaddr);
+		read32((u32 *)rankaddr);
 		MCHBAR32(DCC_MCHBAR) = (MCHBAR32(DCC_MCHBAR) & ~DCC_SET_EREG_MASK) | DCC_SET_EREGx(1);
-		read32(rankaddr | ODT_120OHMS | ODS_34OHMS);
+		read32((u32 *)(rankaddr | ODT_120OHMS | ODS_34OHMS));
 		MCHBAR32(DCC_MCHBAR) = (MCHBAR32(DCC_MCHBAR) & ~DCC_CMD_MASK) | DCC_SET_MREG;
-		read32(rankaddr | WR | DLL1 | CAS | INTERLEAVED);
+		read32((u32 *)(rankaddr | WR | DLL1 | CAS | INTERLEAVED));
 		MCHBAR32(DCC_MCHBAR) = (MCHBAR32(DCC_MCHBAR) & ~DCC_CMD_MASK) | DCC_SET_MREG;
-		read32(rankaddr | WR        | CAS | INTERLEAVED);
+		read32((u32 *)(rankaddr | WR | CAS | INTERLEAVED));
 	}
 }
 
@@ -1664,7 +1709,6 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 {
 	const dimminfo_t *const dimms = sysinfo->dimms;
 	const timings_t *const timings = &sysinfo->selected_timings;
-	const int sff = sysinfo->gfx_type == GMCH_GS45;
 
 	int ch;
 	u8 reg8;
@@ -1672,7 +1716,7 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 
 	/* Wait for some bit, maybe TXT clear. */
 	if (sysinfo->txt_enabled) {
-		while (!(read8(0xfed40000) & (1 << 7))) {}
+		while (!(read8((u8 *)0xfed40000) & (1 << 7))) {}
 	}
 
 	/* Enable SMBUS. */
@@ -1706,7 +1750,7 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 	configure_dram_control_mode(timings, dimms);
 
 	/* Initialize RCOMP. */
-	rcomp_initialization(sysinfo->stepping, sff);
+	rcomp_initialization(sysinfo->stepping, sysinfo->sff);
 
 	/* Power-up DRAM. */
 	dram_powerup(s3resume);
@@ -1719,7 +1763,7 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 		MCHBAR32(CxDCLKDIS_MCHBAR(ch)) |= CxDCLKDIS_ENABLE;
 
 	/* Enable On-Die Termination. */
-	odt_setup(timings, sff);
+	odt_setup(timings, sysinfo->sff);
 	/* Miscellaneous settings. */
 	misc_settings(timings, sysinfo->stepping);
 	/* Program clock crossing registers. */
@@ -1727,7 +1771,8 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 	/* Program egress VC1 timings. */
 	vc1_program_timings(timings->fsb_clock);
 	/* Perform system-memory i/o initialization. */
-	memory_io_init(timings->mem_clock, dimms, sysinfo->stepping, sff);
+	memory_io_init(timings->mem_clock, dimms,
+		       sysinfo->stepping, sysinfo->sff);
 
 	/* Initialize memory map with dummy values of 128MB per rank with a
 	   page size of 4KB. This makes the JEDEC initialization code easier. */
@@ -1766,8 +1811,10 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 		raminit_write_training(timings->mem_clock, dimms, s3resume);
 	}
 
+	igd_compute_ggc(sysinfo);
+
 	/* Program final memory map (with real values). */
-	program_memory_map(dimms, timings->channel_mode, 0);
+	program_memory_map(dimms, timings->channel_mode, 0, sysinfo->ggc);
 
 	/* Some last optimizations. */
 	dram_optimizations(timings, dimms);
@@ -1775,4 +1822,7 @@ void raminit(sysinfo_t *const sysinfo, const int s3resume)
 	/* Mark raminit beeing finished. :-) */
 	u8 tmp8 = pci_read_config8(PCI_DEV(0, 0x1f, 0), 0xa2) & ~(1 << 7);
 	pci_write_config8(PCI_DEV(0, 0x1f, 0), 0xa2, tmp8);
+
+	raminit_thermal(sysinfo);
+	init_igd(sysinfo);
 }

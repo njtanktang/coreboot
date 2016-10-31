@@ -13,10 +13,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
- *
  */
 
 #include <spd.h>
@@ -77,15 +73,15 @@ static void ram_read32(u8 dimm_start, u32 offset)
 {
 	u32 reg32, base_addr = 32 * 1024 * 1024 * dimm_start;
 	if (offset == 0x55aa55aa) {
-		reg32 = read32(base_addr);
+		reg32 = read32((u32 *)base_addr);
 		PRINTK_DEBUG("  Reading RAM at 0x%08x => 0x%08x\n", base_addr, reg32);
 		PRINTK_DEBUG("  Writing RAM at 0x%08x <= 0x%08x\n", base_addr, offset);
-		write32(base_addr, offset);
-		reg32 = read32(base_addr);
+		write32((u32 *)base_addr, offset);
+		reg32 = read32((u32 *)base_addr);
 		PRINTK_DEBUG("  Reading RAM at 0x%08x => 0x%08x\n", base_addr, reg32);
 	} else {
 		PRINTK_DEBUG(" to 0x%08x\n", base_addr + offset);
-		read32(base_addr + offset);
+		read32((u32 *)(base_addr + offset));
 	}
 }
 

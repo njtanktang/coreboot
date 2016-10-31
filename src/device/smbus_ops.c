@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,8 +25,17 @@ struct bus *get_pbus_smbus(device_t dev)
 {
 	struct bus *pbus = dev->bus;
 
-	while (pbus && pbus->dev && !ops_smbus_bus(pbus))
-		pbus = pbus->dev->bus;
+	while (pbus && pbus->dev && !ops_smbus_bus(pbus)) {
+		if (pbus->dev->bus != pbus) {
+			pbus = pbus->dev->bus;
+		}
+		else {
+			printk(BIOS_WARNING,
+				"%s Find SMBus bus operations: unable to proceed\n",
+				dev_path(dev));
+			break;
+		}
+	}
 
 	if (!pbus || !pbus->dev || !pbus->dev->ops
 	    || !pbus->dev->ops->ops_smbus_bus) {

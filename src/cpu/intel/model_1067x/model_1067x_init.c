@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -37,7 +32,7 @@
 
 static void init_timer(void)
 {
-	/* Set the apic timer to no interrupts and periodic mode */
+	/* Set the APIC timer to no interrupts and periodic mode */
 	lapic_write(LAPIC_LVTT, (1 << 17)|(1<< 16)|(0 << 12)|(0 << 0));
 
 	/* Set the divider to 1, no divider */
@@ -86,7 +81,7 @@ static void configure_c_states(const int quad)
 	msr_t msr;
 
 	/* Find pointer to CPU configuration. */
-	const device_t lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
+	const struct device *lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
 	const struct cpu_intel_model_1067x_config *const conf =
 		(lapic && lapic->chip_info) ? lapic->chip_info : NULL;
 
@@ -144,12 +139,13 @@ static void configure_p_states(const char stepping, const char cores)
 	msr_t msr;
 
 	/* Find pointer to CPU configuration. */
-	const device_t lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
+	const struct device *lapic = dev_find_lapic(SPEEDSTEP_APIC_MAGIC);
 	struct cpu_intel_model_1067x_config *const conf =
 		(lapic && lapic->chip_info) ? lapic->chip_info : NULL;
 
 	msr = rdmsr(MSR_EXTENDED_CONFIG);
-	if (conf->slfm && (msr.lo & (1 << 27))) /* Super LFM supported? */
+	/* Super LFM supported? */
+	if (conf && conf->slfm && (msr.lo & (1 << 27)))
 		msr.lo |= (1 << 28); /* Enable Super LFM. */
 	wrmsr(MSR_EXTENDED_CONFIG, msr);
 
@@ -284,7 +280,7 @@ static void configure_pic_thermal_sensors(const int tm2, const int quad)
 	wrmsr(PIC_SENS_CFG, msr);
 }
 
-static void model_1067x_init(device_t cpu)
+static void model_1067x_init(struct device *cpu)
 {
 	char processor_name[49];
 
@@ -326,7 +322,7 @@ static void model_1067x_init(device_t cpu)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 	/* Initialize the APIC timer */
@@ -351,7 +347,7 @@ static void model_1067x_init(device_t cpu)
 	/* PIC thermal sensor control */
 	configure_pic_thermal_sensors(tm2, quad);
 
-	/* Start up my cpu siblings */
+	/* Start up my CPU siblings */
 	intel_sibling_init(cpu);
 }
 

@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <device/pci.h>
@@ -28,7 +25,7 @@
 #include "chip.h"
 
 /**
- * @file traf_ctrl.c
+ * @file vx900/traf_ctrl.c
  *
  * STATUS:
  * The same issues with the IOAPIC pointe in lpc.c also apply here.
@@ -80,24 +77,24 @@ static void vx900_north_ioapic_setup(device_t dev)
 	 *     be between 0xfec00000 and 0xfecfff00
 	 *     be 256-byte aligned
 	 */
-	if ((config->base < 0xfec0000 || config->base > 0xfecfff00)
-	    || ((config->base & 0xff) != 0)) {
+	if ((config->base < (void *)0xfec0000 || config->base > (void *)0xfecfff00)
+	    || (((uintptr_t)config->base & 0xff) != 0)) {
 		printk(BIOS_ERR, "ERROR: North module IOAPIC base should be "
 		       "between 0xfec00000 and 0xfecfff00\n"
 		       "and must be aligned to a 256-byte boundary, "
-		       "but we found it at 0x%.8x\n", config->base);
+		       "but we found it at 0x%p\n", config->base);
 		return;
 	}
 
 	printk(BIOS_DEBUG, "VX900 TRAF_CTR: Setting up the north module IOAPIC "
-	       "at 0%.8x\n", config->base);
+	       "at %p\n", config->base);
 
 	/* First register of the IOAPIC base */
-	base_val = (config->base >> 8) & 0xff;
+	base_val = (((uintptr_t)config->base) >> 8) & 0xff;
 	pci_write_config8(dev, 0x41, base_val);
 	/* Second register of the base.
 	 * Bit[7] also enables the IOAPIC and bit[5] enables MSI cycles */
-	base_val = (config->base >> 16) & 0xf;
+	base_val = (((uintptr_t)config->base) >> 16) & 0xf;
 	pci_mod_config8(dev, 0x40, 0, base_val | (1 << 7) | (1 << 5));
 }
 
@@ -134,8 +131,9 @@ static struct device_operations traf_ctrl_ops = {
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = vx900_traf_ctr_init,
-	/* Need this here, or the IOAPIC driver won't be called */
-	.scan_bus = scan_static_bus,
+	/* Need this here, or the IOAPIC driver won't be called.
+	 * FIXME: Technically not a LPC bus. */
+	.scan_bus = scan_lpc_bus,
 };
 
 static const struct pci_driver traf_ctrl_driver __pci_driver = {

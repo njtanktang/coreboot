@@ -8,13 +8,20 @@
 #include <string.h>
 #include "e7505.h"
 #include <cbmem.h>
+#include <arch/acpi.h>
+
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
 
 static void pci_domain_set_resources(device_t dev)
 {
 	device_t mc_dev;
-        uint32_t pci_tolm;
+	uint32_t pci_tolm;
 
-        pci_tolm = find_pci_tolm(dev->link_list);
+	pci_tolm = find_pci_tolm(dev->link_list);
 	mc_dev = dev->link_list->children;
 	if (mc_dev) {
 		/* Figure out which areas are/should be occupied by RAM.
@@ -58,7 +65,7 @@ static void pci_domain_set_resources(device_t dev)
 			/* Find the limit of the remap window */
 			remaplimitk = (remapbasek + (4*1024*1024 - tolmk) - (1 << 16));
 		}
-		/* Write the ram configuration registers,
+		/* Write the RAM configuration registers,
 		 * preserving the reserved bits.
 		 */
 		tolm_r = pci_read_config16(mc_dev, TOLM);
@@ -101,45 +108,40 @@ static struct pci_operations intel_pci_ops = {
 };
 
 static struct device_operations pci_domain_ops = {
-        .read_resources   = pci_domain_read_resources,
-        .set_resources    = pci_domain_set_resources,
-        .enable_resources = NULL,
-        .init             = NULL,
-        .scan_bus         = pci_domain_scan_bus,
+	.read_resources   = pci_domain_read_resources,
+	.set_resources    = pci_domain_set_resources,
+	.enable_resources = NULL,
+	.init             = NULL,
+	.scan_bus         = pci_domain_scan_bus,
 	.ops_pci          = &intel_pci_ops,
 	.ops_pci_bus      = pci_bus_default_ops,
 };
 
 static void cpu_bus_init(device_t dev)
 {
-        initialize_cpus(dev->link_list);
-}
-
-static void cpu_bus_noop(device_t dev)
-{
+	initialize_cpus(dev->link_list);
 }
 
 static struct device_operations cpu_bus_ops = {
-        .read_resources   = cpu_bus_noop,
-        .set_resources    = cpu_bus_noop,
-        .enable_resources = cpu_bus_noop,
-        .init             = cpu_bus_init,
-        .scan_bus         = 0,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
+	.init             = cpu_bus_init,
+	.scan_bus         = 0,
 };
 
 static void enable_dev(struct device *dev)
 {
-        /* Set the operations if it is a special bus type */
-        if (dev->path.type == DEVICE_PATH_DOMAIN) {
-                dev->ops = &pci_domain_ops;
-        }
-        else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
-                dev->ops = &cpu_bus_ops;
-        }
+	/* Set the operations if it is a special bus type */
+	if (dev->path.type == DEVICE_PATH_DOMAIN) {
+		dev->ops = &pci_domain_ops;
+	}
+	else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
+		dev->ops = &cpu_bus_ops;
+	}
 }
 
 struct chip_operations northbridge_intel_e7505_ops = {
 	CHIP_NAME("Intel E7505 Northbridge")
 	.enable_dev = enable_dev,
 };
-

@@ -12,10 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
- *
  */
 
 #include "smbus.h"
@@ -24,14 +20,14 @@
 
 static void enable_smbus(void)
 {
-	device_t dev = PCI_DEV(0x0, 0x1f, 0x3);
+	pci_devfn_t dev = PCI_DEV(0x0, 0x1f, 0x3);
 
-	print_spew("SMBus controller enabled\n");
+	printk(BIOS_SPEW, "SMBus controller enabled\n");
 	pci_write_config32(dev, 0x20, SMBUS_IO_BASE | 1);
 	pci_write_config8(dev, 0x40, 1);
 	pci_write_config8(dev, 0x4, 1);
 	/* SMBALERT_DIS */
-        outb(4, SMBUS_IO_BASE + SMBSLVCMD);
+	outb(4, SMBUS_IO_BASE + SMBSLVCMD);
 
 	/* Disable interrupt generation */
 	outb(0, SMBUS_IO_BASE + SMBHSTCTL);

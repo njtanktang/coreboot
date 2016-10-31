@@ -12,34 +12,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
 #include <device/pnp.h>
+#include <console/console.h>
 #include <pc80/keyboard.h>
 #include <arch/io.h>
+#include <delay.h>
 #include <stdlib.h>
+#include <superio/conf_mode.h>
+
 #include "chip.h" /* FIXME */
 #include "it8772f.h"
-
-static void pnp_enter_ext_func_mode(device_t dev)
-{
-	u16 port = dev->path.pnp.port;
-
-	outb(0x87, port);
-	outb(0x01, port);
-	outb(0x55, port);
-	outb((port == 0x4e) ? 0xaa : 0x55, port);
-}
-
-static void pnp_exit_ext_func_mode(device_t dev)
-{
-	pnp_write_config(dev, 0x02, 0x02);
-}
 
 static inline u8 it8772f_envc_read(struct resource *res, u8 addr)
 {
@@ -51,6 +36,34 @@ static inline void it8772f_envc_write(struct resource *res, u8 addr, u8 value)
 {
 	outb(addr, res->base + 5);
 	outb(value, res->base + 6);
+}
+
+static void it8772f_extemp_force_idle_status(struct resource *res)
+{
+	u8 reg;
+	int retries = 10;
+
+	/* Wait up to 10ms for non-busy state. */
+	while (retries > 0) {
+		reg = it8772f_envc_read(res, IT8772F_EXTEMP_STATUS);
+
+		if ((reg & IT8772F_EXTEMP_STATUS_HOST_BUSY) == 0x0)
+			break;
+
+		retries--;
+
+		mdelay(1);
+	}
+
+	if (retries == 0 && (reg & IT8772F_EXTEMP_STATUS_HOST_BUSY) == 0x1) {
+		/*
+		 * SIO is busy due to unfinished peci transaction.
+		 * Re-configure Register 0x8E to terminate processes.
+		 */
+		it8772f_envc_write(res, IT8772F_EXTEMP_CONTROL,
+			IT8772F_EXTEMP_CONTROL_AUTO_4HZ |
+			IT8772F_EXTEMP_CONTROL_AUTO_START);
+	}
 }
 
 /*
@@ -85,9 +98,46 @@ static void it8772f_enable_peci(struct resource *res, int tmpin)
 }
 
 /*
+ * Set up External Temperature to read via thermal diode/resistor
+ * into TMPINx register
+ */
+static void it8772f_enable_tmpin(struct resource *res, int tmpin,
+				enum thermal_mode mode)
+{
+	u8 reg;
+
+	if (tmpin != 1 && tmpin != 2)
+		return;
+
+	reg = it8772f_envc_read(res, IT8772F_ADC_TEMP_CHANNEL_ENABLE);
+
+	switch (mode) {
+	case THERMAL_DIODE:
+		/* Thermal Diode Mode */
+		it8772f_envc_write(res, IT8772F_ADC_TEMP_CHANNEL_ENABLE,
+				   reg | tmpin);
+		break;
+	case THERMAL_RESISTOR:
+		/* Thermal Resistor Mode */
+		it8772f_envc_write(res, IT8772F_ADC_TEMP_CHANNEL_ENABLE,
+				   reg | (tmpin << 3));
+		break;
+	default:
+		printk(BIOS_ERR, "Unsupported thermal mode 0x%x on TMPIN%d\n",
+			mode, tmpin);
+		return;
+	}
+
+	reg = it8772f_envc_read(res, IT8772F_CONFIGURATION);
+
+	/* Enable the startup of monitoring operation */
+	it8772f_envc_write(res, IT8772F_CONFIGURATION, reg | 0x01);
+}
+
+/*
  * Setup a FAN PWM interface for software control
  */
-static void it8772f_enable_fan(struct resource *res, int fan)
+static void it8772f_enable_fan(struct resource *res, int fan, u8 fan_speed)
 {
 	u8 reg;
 
@@ -115,8 +165,10 @@ static void it8772f_enable_fan(struct resource *res, int fan)
 		/* Disable Smoothing */
 		it8772f_envc_write(res, IT8772F_FAN_CTL2_AUTO_MODE,
 				   IT8772F_FAN_CTL_AUTO_SMOOTHING_DIS);
-		/* Set a default medium fan speed */
-		it8772f_envc_write(res, IT8772F_FAN_CTL2_PWM_START, 0x80);
+		/* Set a default fan speed */
+		if (fan_speed)
+			it8772f_envc_write(res, IT8772F_FAN_CTL2_PWM_START,
+				   fan_speed);
 		break;
 	case 3:
 		/* Enable software operation */
@@ -125,13 +177,15 @@ static void it8772f_enable_fan(struct resource *res, int fan)
 		/* Disable Smoothing */
 		it8772f_envc_write(res, IT8772F_FAN_CTL3_AUTO_MODE,
 				   IT8772F_FAN_CTL_AUTO_SMOOTHING_DIS);
-		/* Set a default medium fan speed */
-		it8772f_envc_write(res, IT8772F_FAN_CTL3_PWM_START, 0x80);
+		/* Set a default fan speed */
+		if (fan_speed)
+			it8772f_envc_write(res, IT8772F_FAN_CTL3_PWM_START,
+				   fan_speed);
 		break;
 	}
 }
 
-static void it8772f_init(device_t dev)
+static void it8772f_init(struct device *dev)
 {
 	struct superio_ite_it8772f_config *conf = dev->chip_info;
 	struct resource *res;
@@ -148,13 +202,28 @@ static void it8772f_init(device_t dev)
 		/* Enable PECI if configured */
 		it8772f_enable_peci(res, conf->peci_tmpin);
 
+		/* Enable HWM if configured */
+		if (conf->tmpin1_mode != THERMAL_MODE_DISABLED)
+			it8772f_enable_tmpin(res, 1, conf->tmpin1_mode);
+		if (conf->tmpin2_mode != THERMAL_MODE_DISABLED)
+			it8772f_enable_tmpin(res, 2, conf->tmpin2_mode);
+
 		/* Enable FANx if configured */
 		if (conf->fan1_enable)
-			it8772f_enable_fan(res, 1);
+			it8772f_enable_fan(res, 1, 0);
 		if (conf->fan2_enable)
-			it8772f_enable_fan(res, 2);
+			it8772f_enable_fan(res, 2,
+				conf->fan2_speed ? conf->fan2_speed : 0x80);
 		if (conf->fan3_enable)
-			it8772f_enable_fan(res, 3);
+			it8772f_enable_fan(res, 3,
+				conf->fan3_speed ? conf->fan3_speed : 0x80);
+
+		/*
+		 * System may get wrong temperature data when SIO is in
+		 * busy state. Therefore, check the status and terminate
+		 * processes if needed.
+		 */
+		it8772f_extemp_force_idle_status(res);
 		break;
 	case IT8772F_GPIO:
 		/* Set GPIO output levels */
@@ -177,7 +246,7 @@ static void it8772f_init(device_t dev)
 	case IT8772F_KBCK:
 		if (!conf->skip_keyboard) {
 			set_kbc_ps2_mode();
-			pc_keyboard_init();
+			pc_keyboard_init(NO_AUX_DEVICE);
 		}
 		break;
 	case IT8772F_KBCM:
@@ -187,18 +256,13 @@ static void it8772f_init(device_t dev)
 	}
 }
 
-static const struct pnp_mode_ops pnp_conf_mode_ops = {
-	.enter_conf_mode  = pnp_enter_ext_func_mode,
-	.exit_conf_mode   = pnp_exit_ext_func_mode,
-};
-
 static struct device_operations ops = {
 	.read_resources   = pnp_read_resources,
 	.set_resources    = pnp_set_resources,
 	.enable_resources = pnp_enable_resources,
 	.enable           = pnp_alt_enable,
 	.init             = it8772f_init,
-	.ops_pnp_mode     = &pnp_conf_mode_ops,
+	.ops_pnp_mode     = &pnp_conf_mode_870155_aa,
 };
 
 static struct pnp_info pnp_dev_info[] = {
@@ -207,7 +271,8 @@ static struct pnp_info pnp_dev_info[] = {
 	/* Serial Port 1 */
 	{ &ops, IT8772F_SP1, PNP_IO0 | PNP_IRQ0, {0x0ff8, 0}, },
 	/* Environmental Controller */
-	{ &ops, IT8772F_EC, PNP_IO0 | PNP_IO1 | PNP_IRQ0,
+	{ &ops, IT8772F_EC, PNP_IO0 | PNP_IO1 | PNP_IRQ0 |
+		PNP_MSC4 | PNP_MSCA,
 	  {0x0ff8, 0}, {0x0ffc, 4}, },
 	/* KBC Keyboard */
 	{ &ops, IT8772F_KBCK, PNP_IO0 | PNP_IO1 | PNP_IRQ0,

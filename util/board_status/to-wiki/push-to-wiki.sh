@@ -1,12 +1,13 @@
 #!/bin/bash
 # $1: file containing text
- 
+# $2: wiki page to update
+
 . ~/.wikiaccount
 WIKIAPI="http://www.coreboot.org/api.php"
-TITLE="Supported_Motherboards"
-cookie_jar="/tmp/wikicookiejar"
+TITLE="$2"
+cookie_jar="$HOME/.wikicookiejar"
 #Will store file in wikifile
- 
+
 #################login
 #Login part 1
 CR=$(curl -sS \
@@ -22,15 +23,13 @@ CR=$(curl -sS \
         --compressed \
         --data-urlencode "lgname=${USERNAME}" \
         --data-urlencode "lgpassword=${USERPASS}" \
-        --request "POST" "${WIKIAPI}?action=login&format=txt")
- 
-CR2=($CR)
-if [ "${CR2[9]}" = "[token]" ]; then
-        TOKEN=${CR2[11]}
-else
+        --request "POST" "${WIKIAPI}?action=login&format=json")
+
+TOKEN=`echo $CR| sed -e 's,^.*"token":"\([^"]*\)".*$,\1,'`
+if [ -z "$TOKEN" ]; then
         exit
 fi
- 
+
 #Login part 2
 CR=$(curl -sS \
         --location \
@@ -44,8 +43,8 @@ CR=$(curl -sS \
         --data-urlencode "lgname=${USERNAME}" \
         --data-urlencode "lgpassword=${USERPASS}" \
         --data-urlencode "lgtoken=${TOKEN}" \
-        --request "POST" "${WIKIAPI}?action=login&format=txt")
- 
+        --request "POST" "${WIKIAPI}?action=login&format=json")
+
 ###############
 #Get edit token
 CR=$(curl -sS \
@@ -57,15 +56,15 @@ CR=$(curl -sS \
         --header "Accept-Language: en-us" \
         --header "Connection: keep-alive" \
         --compressed \
-        --request "POST" "${WIKIAPI}?action=tokens&format=txt")
- 
-CR2=($CR)
-EDITTOKEN=${CR2[8]}
+        --request "POST" "${WIKIAPI}?action=query&meta=tokens&format=json")
+
+EDITTOKEN=`echo $CR| sed -e 's,^.*"csrftoken":"\([^"]*\)".*$,\1,'`
+EDITTOKEN=`printf "$EDITTOKEN"`
 if [ ${#EDITTOKEN} != 34 ]; then
         exit
 fi
 #########################
- 
+
 CR=$(curl -sS \
         --location \
         --cookie $cookie_jar \
@@ -79,4 +78,3 @@ CR=$(curl -sS \
         --form "title=${TITLE}" \
         --form "text=<$1" \
         --request "POST" "${WIKIAPI}?action=edit&")
- 

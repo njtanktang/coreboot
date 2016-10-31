@@ -4,22 +4,19 @@ config BOARD_SPECIFIC_OPTIONS
 	def_bool y
 	select SOC_INTEL_BAYTRAIL
 	select EC_GOOGLE_CHROMEEC
-	select EC_SOFTWARE_SYNC
-	select VIRTUAL_DEV_SWITCH
 	select ENABLE_BUILTIN_COM1
 	select BOARD_ROMSIZE_KB_8192
 	select HAVE_ACPI_TABLES
 	select HAVE_OPTION_TABLE
 	select HAVE_ACPI_RESUME
 	select MAINBOARD_HAS_CHROMEOS
+	select MAINBOARD_HAS_LPC_TPM
 
-config VBOOT_RAMSTAGE_INDEX
-	hex
-	default 0x2
-
-config VBOOT_REFCODE_INDEX
-	hex
-	default 0x3
+config CHROMEOS
+	select EC_SOFTWARE_SYNC
+	select LID_SWITCH
+	select VBOOT_VBNV_CMOS
+	select VIRTUAL_DEV_SWITCH
 
 config MAINBOARD_DIR
 	string
@@ -41,4 +38,12 @@ config HAVE_ME_BIN
 	bool
 	default n
 
-endif # BOARD_INTEL_BAYLEYBAY
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "rambi"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "RAMBI TEST A-A 0128"
+endif # BOARD_GOOGLE_RAMBI

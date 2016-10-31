@@ -12,9 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/*
+ * JEDEC Standard No. 21-C
+ * Annex K: Serial Presence Detect (SPD) for DDR3 SDRAM Modules 2014
+ * http://www.jedec.org/sites/default/files/docs/4_01_02_11R24.pdf
  */
 
 #ifndef DEVICE_DRAM_DDR3L_H
@@ -36,8 +39,15 @@
  * These values are in 1/256 ns units.
  * @{
  */
+#define TCK_1333MHZ     192
+#define TCK_1200MHZ     212
+#define TCK_1100MHZ     232
 #define TCK_1066MHZ     240
+#define TCK_1000MHZ     256
+#define TCK_933MHZ      274
+#define TCK_900MHZ      284
 #define TCK_800MHZ      320
+#define TCK_700MHZ      365
 #define TCK_666MHZ      384
 #define TCK_533MHZ      480
 #define TCK_400MHZ      640
@@ -54,7 +64,7 @@
  * disabled.
  * @{
  */
-#if defined(CONFIG_DEBUG_RAM_SETUP) && (CONFIG_DEBUG_RAM_SETUP)
+#if IS_ENABLED(CONFIG_DEBUG_RAM_SETUP)
 #define printram(x, ...) printk(BIOS_DEBUG, x, ##__VA_ARGS__)
 #else
 #define printram(x, ...)
@@ -78,8 +88,8 @@ enum spd_dimm_type {
 	SPD_DIMM_TYPE_72B_SO_RDIMM		= 0x09,
 	SPD_DIMM_TYPE_72B_SO_CDIMM		= 0x0a,
 	SPD_DIMM_TYPE_LRDIMM			= 0x0b,
-	SPD_DIMM_TYPE_16B_SO_DIMM		= 0x0d,
-	SPD_DIMM_TYPE_32B_SO_DIMM		= 0x0e,
+	SPD_DIMM_TYPE_16B_SO_DIMM		= 0x0c,
+	SPD_DIMM_TYPE_32B_SO_DIMM		= 0x0d,
 	/* Masks to bits 3:0 to give the dimm type */
 	SPD_DIMM_TYPE_MASK			= 0x0f,
 };
@@ -134,9 +144,12 @@ typedef union dimm_flags_st {
  */
 typedef struct dimm_attr_st {
 	enum spd_memory_type dram_type;
+	enum spd_dimm_type dimm_type;
 	u16 cas_supported;
 	/* Flags extracted from SPD */
 	dimm_flags_t flags;
+	/* SDRAM width */
+	u8 width;
 	/* Number of ranks */
 	u8 ranks;
 	/* Number or row address bits */
@@ -158,6 +171,16 @@ typedef struct dimm_attr_st {
 	u32 tWTR;
 	u32 tRTP;
 	u32 tFAW;
+
+	u8 reference_card;
+	/* XMP: Module voltage in mV */
+	u16 voltage;
+	/* XMP: max DIMMs per channel supported (1-4) */
+	u8 dimms_per_channel;
+	/* Manufacturer ID */
+	u16 manufacturer_id;
+	/* ASCII part number - NULL terminated */
+	u8 part_number[17];
 } dimm_attr;
 
 /** Result of the SPD decoding process */
@@ -168,19 +191,27 @@ enum spd_status {
 	SPD_STATUS_INVALID_FIELD,
 };
 
+enum ddr3_xmp_profile {
+	DDR3_XMP_PROFILE_1 = 0,
+	DDR3_XMP_PROFILE_2 = 1,
+};
+
 typedef u8 spd_raw_data[256];
 
 u16 spd_ddr3_calc_crc(u8 *spd, int len);
 int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd_data);
 int dimm_is_registered(enum spd_dimm_type type);
 void dram_print_spd_ddr3(const dimm_attr * dimm);
+int spd_xmp_decode_ddr3(dimm_attr * dimm,
+		        spd_raw_data spd,
+		        enum ddr3_xmp_profile profile);
 
 /**
  * \brief Read double word from specified address
  *
  * Should be useful when doing an MRS to the DIMM
  */
-static inline u32 volatile_read(volatile u32 addr)
+static inline u32 volatile_read(volatile uintptr_t addr)
 {
 	volatile u32 result;
 	result = *(volatile u32 *)addr;
@@ -306,4 +337,4 @@ mrs_cmd_t ddr3_get_mr2(enum ddr3_mr2_rttwr rtt_wr,
 mrs_cmd_t ddr3_get_mr3(char dataflow_from_mpr);
 mrs_cmd_t ddr3_mrs_mirror_pins(mrs_cmd_t cmd);
 
-#endif				/* DEVICE_DRAM_DDR3_H */
+#endif /* DEVICE_DRAM_DDR3L_H */

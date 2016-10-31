@@ -11,18 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include <stdlib.h>
 #include <console/console.h>
 #include <memrange.h>
-
-/* Coreboot doesn't have a free() function. Therefore, keep a cache of
- * free'd entries.  */
-static struct range_entry *free_list;
 
 static inline void range_entry_link(struct range_entry **prev_ptr,
                                     struct range_entry *r)
@@ -38,32 +30,35 @@ static inline void range_entry_unlink(struct range_entry **prev_ptr,
 	r->next = NULL;
 }
 
-static inline void range_entry_unlink_and_free(struct range_entry **prev_ptr,
+static inline void range_entry_unlink_and_free(struct memranges *ranges,
+                                               struct range_entry **prev_ptr,
                                                struct range_entry *r)
 {
 	range_entry_unlink(prev_ptr, r);
-	range_entry_link(&free_list, r);
+	range_entry_link(&ranges->free_list, r);
 }
 
-static struct range_entry *alloc_range(void)
+static struct range_entry *alloc_range(struct memranges *ranges)
 {
-	if (free_list != NULL) {
+	if (ranges->free_list != NULL) {
 		struct range_entry *r;
 
-		r = free_list;
-		range_entry_unlink(&free_list, r);
+		r = ranges->free_list;
+		range_entry_unlink(&ranges->free_list, r);
 		return r;
 	}
-	return malloc(sizeof(struct range_entry));
+	if (ENV_RAMSTAGE)
+		return malloc(sizeof(struct range_entry));
+	return NULL;
 }
 
 static inline struct range_entry *
-range_list_add(struct range_entry **prev_ptr, resource_t begin, resource_t end,
-               unsigned long tag)
+range_list_add(struct memranges *ranges, struct range_entry **prev_ptr,
+               resource_t begin, resource_t end, unsigned long tag)
 {
 	struct range_entry *new_entry;
 
-	new_entry = alloc_range();
+	new_entry = alloc_range(ranges);
 	if (new_entry == NULL) {
 		printk(BIOS_ERR, "Could not allocate range_entry!\n");
 		return NULL;
@@ -95,7 +90,7 @@ static void merge_neighbor_entries(struct memranges *ranges)
 		 * the list. */
 		if (prev->end + 1 >= cur->begin && prev->tag == cur->tag) {
 			prev->end = cur->end;
-			range_entry_unlink_and_free(&prev->next, cur);
+			range_entry_unlink_and_free(ranges, &prev->next, cur);
 			/* Set cur to prev so cur->next is valid since cur
 			 * was just unlinked and free. */
 			cur = prev;
@@ -140,7 +135,8 @@ static void remove_memranges(struct memranges *ranges,
 			/* Full removal. */
 			if (end >= cur->end) {
 				begin = cur->end + 1;
-				range_entry_unlink_and_free(prev_ptr, cur);
+				range_entry_unlink_and_free(ranges, prev_ptr,
+				                            cur);
 				continue;
 			}
 		}
@@ -155,7 +151,8 @@ static void remove_memranges(struct memranges *ranges,
 
 		/* Hole punched in middle of entry. */
 		if (begin > cur->begin && tmp_end < cur->end) {
-			range_list_add(&cur->next, end + 1, cur->end, cur->tag);
+			range_list_add(ranges, &cur->next, end + 1, cur->end,
+			               cur->tag);
 			cur->end = begin - 1;
 			break;
 		}
@@ -200,7 +197,7 @@ static void merge_add_memranges(struct memranges *ranges,
 	}
 
 	/* Add new entry and merge with neighbors. */
-	range_list_add(prev_ptr, begin, end, tag);
+	range_list_add(ranges, prev_ptr, begin, end, tag);
 	merge_neighbor_entries(ranges);
 }
 
@@ -227,6 +224,9 @@ static void do_action(struct memranges *ranges,
 {
 	resource_t end;
 	resource_t begin;
+
+	if (size == 0)
+		return;
 
 	/* The addresses are aligned to 4096 bytes: the begin address is
 	 * aligned down while the end address is aligned up to be conservative
@@ -290,18 +290,31 @@ void memranges_add_resources(struct memranges *ranges,
 	memranges_add_resources_filter(ranges, mask, match, tag, NULL);
 }
 
+void memranges_init_empty(struct memranges *ranges, struct range_entry *to_free,
+                          size_t num_free)
+{
+	size_t i;
+
+	ranges->entries = NULL;
+	ranges->free_list = NULL;
+
+	for (i = 0; i < num_free; i++)
+		range_entry_link(&ranges->free_list, &to_free[i]);
+}
+
 void memranges_init(struct memranges *ranges,
                     unsigned long mask, unsigned long match,
                     unsigned long tag)
 {
-	ranges->entries = NULL;
+	memranges_init_empty(ranges, NULL, 0);
 	memranges_add_resources(ranges, mask, match, tag);
 }
 
 void memranges_teardown(struct memranges *ranges)
 {
 	while (ranges->entries != NULL) {
-		range_entry_unlink_and_free(&ranges->entries, ranges->entries);
+		range_entry_unlink_and_free(ranges, &ranges->entries,
+		                            ranges->entries);
 	}
 }
 
@@ -327,8 +340,8 @@ void memranges_fill_holes_up_to(struct memranges *ranges,
 			end = cur->begin - 1;
 			if (end >= limit)
 				end = limit - 1;
-			range_list_add(&prev->next, range_entry_end(prev),
-			               end, tag);
+			range_list_add(ranges, &prev->next,
+			               range_entry_end(prev), end, tag);
 		}
 
 		prev = cur;
@@ -342,7 +355,7 @@ void memranges_fill_holes_up_to(struct memranges *ranges,
 	/* Handle the case where the limit was never reached. A new entry needs
 	 * to be added to cover the range up to the limit. */
 	if (prev != NULL && range_entry_end(prev) < limit)
-		range_list_add(&prev->next, range_entry_end(prev),
+		range_list_add(ranges, &prev->next, range_entry_end(prev),
 		               limit - 1, tag);
 
 	/* Merge all entries that were newly added. */

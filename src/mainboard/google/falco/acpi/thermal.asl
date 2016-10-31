@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Thermal Zone
@@ -75,7 +71,7 @@ Scope (\_TZ)
 			Return (\PPKG ())
 		}
 
-		Method (_TMP, 0, Serialized)
+		Method (TCHK, 0, Serialized)
 		{
 			// Get Temperature from TIN# set in NVS
 			Store (\_SB.PCI0.LPCB.EC0.TINS (TMPS), Local0)
@@ -107,6 +103,30 @@ Scope (\_TZ)
 			Multiply (Local0, 10, Local0)
 			Return (Local0)
 		}
+
+		Method (_TMP, 0, Serialized)
+		{
+			// Get temperature from EC in deci-kelvin
+			Store (TCHK (), Local0)
+
+			// Critical temperature in deci-kelvin
+			Store (CTOK (\TCRT), Local1)
+
+			If (LGreaterEqual (Local0, Local1)) {
+				Store ("CRITICAL TEMPERATURE", Debug)
+				Store (Local0, Debug)
+
+				// Wait 1 second for EC to re-poll
+				Sleep (1000)
+
+				// Re-read temperature from EC
+				Store (TCHK (), Local0)
+
+				Store ("RE-READ TEMPERATURE", Debug)
+				Store (Local0, Debug)
+			}
+
+			Return (Local0)
+		}
 	}
 }
-

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef _CPU_INTEL_MODEL_2065X_H
@@ -35,6 +30,8 @@
 #define IA32_PLATFORM_DCA_CAP		0x1f8
 #define IA32_MISC_ENABLE		0x1a0
 #define MSR_TEMPERATURE_TARGET		0x1a2
+#define IA32_FERR_CAPABILITY		0x1f1
+#define   FERR_ENABLE			(1 << 0)
 #define IA32_PERF_CTL 			0x199
 #define IA32_THERM_INTERRUPT		0x19b
 #define IA32_ENERGY_PERFORMANCE_BIAS	0x1b0
@@ -74,16 +71,6 @@
 #define  PKG_POWER_LIMIT_TIME_SHIFT	17
 #define  PKG_POWER_LIMIT_TIME_MASK	0x7f
 
-#define MSR_PP0_CURRENT_CONFIG		0x601
-#define  PP0_CURRENT_LIMIT		(112 << 3) /* 112 A */
-#define MSR_PP1_CURRENT_CONFIG		0x602
-#define  PP1_CURRENT_LIMIT_SNB		(35 << 3) /* 35 A */
-#define  PP1_CURRENT_LIMIT_IVB		(50 << 3) /* 50 A */
-#define MSR_PKG_POWER_SKU_UNIT		0x606
-#define MSR_PKG_POWER_SKU		0x614
-#define MSR_PP0_POWER_LIMIT		0x638
-#define MSR_PP1_POWER_LIMIT		0x640
-
 #define IVB_CONFIG_TDP_MIN_CPUID	0x306a2
 #define MSR_CONFIG_TDP_NOMINAL		0x648
 #define MSR_CONFIG_TDP_LEVEL1		0x649
@@ -104,6 +91,7 @@ void intel_model_2065x_finalize_smm(void);
 /* Configure power limits for turbo mode */
 void set_power_limits(u8 power_limit_1_time);
 int cpu_config_tdp_levels(void);
+void smm_relocate(void);
 #endif
 
 #endif

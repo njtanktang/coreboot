@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 config NORTHBRIDGE_AMD_AGESA_FAMILY14
 	bool
 	select MMCONF_SUPPORT
@@ -32,10 +28,10 @@ config HW_MEM_HOLE_SIZE_AUTO_INC
 
 config MMCONF_BASE_ADDRESS
 	hex
-	default 0xf8000000
+	default 0xF8000000
 
 config MMCONF_BUS_NUMBER
 	int
-	default 16
+	default 64
 
-endif
+endif # NORTHBRIDGE_AMD_AGESA_FAMILY14

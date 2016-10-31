@@ -12,10 +12,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-//
 
 	Device (PG0A)
 	{
@@ -27,7 +23,7 @@
 
 		Method (_PRW, 0, NotSerialized)
 		{
-			If (CondRefOf (\_S3, Local0)) { Return (Package (0x02) { 0x29, 0x03 }) }
+			If (CondRefOf (\_S3)) { Return (Package (0x02) { 0x29, 0x03 }) }
 			Else { Return (Package (0x02) { 0x29, 0x01 }) }
 		}
 
@@ -114,7 +110,7 @@
 
 		Method (_PRW, 0, NotSerialized)
 		{
-			If (CondRefOf (\_S3, Local0)) { Return (Package (0x02) { 0x22, 0x03 }) }
+			If (CondRefOf (\_S3)) { Return (Package (0x02) { 0x22, 0x03 }) }
 			Else { Return (Package (0x02) { 0x22, 0x01 }) }
 		}
 

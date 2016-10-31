@@ -1,3 +1,16 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include "cpu/amd/car/post_cache_as_ram.c"
 
 #if CONFIG_HAVE_OPTION_TABLE
@@ -41,7 +54,7 @@ static void for_each_ap(u32 bsp_apicid, u32 core_range, process_ap_t process_ap,
 		j = ((pci_read_config32(PCI_DEV(0, 0x18 + i, 3), 0xe8) >> 12) &
 		     3);
 		if (nb_cfg_54) {
-			if (j == 0) {	// if it is single core, we need to increase siblings for apic calculation
+			if (j == 0) {	// if it is single core, we need to increase siblings for APIC calculation
 #if !CONFIG_K8_REV_F_SUPPORT
 				e0_later_single_core = is_e0_later_in_bsp(i);	// single core
 #else
@@ -144,7 +157,7 @@ static u32 wait_cpu_state(u32 apicid, u32 state)
 			continue;
 		if ((readback & 0xff) == state) {
 			timeout = 0;
-			break;	//target cpu is in stage started
+			break;	//target CPU is in stage started
 		}
 	}
 	if (timeout) {
@@ -188,9 +201,18 @@ void allow_all_aps_stop(u32 bsp_apicid)
 	lapic_write(LAPIC_MSG_REG, (bsp_apicid << 24) | 0x44);
 }
 
+static void enable_apic_ext_id(u32 node)
+{
+	u32 val;
+
+	val = pci_read_config32(NODE_HT(node), 0x68);
+	val |= (HTTC_APIC_EXT_SPUR | HTTC_APIC_EXT_ID | HTTC_APIC_EXT_BRD_CST);
+	pci_write_config32(NODE_HT(node), 0x68, val);
+}
+
 static void STOP_CAR_AND_CPU(void)
 {
-	disable_cache_as_ram();	// inline
+	disable_cache_as_ram(0);	// inline
 	/* stop all cores except node0/core0 the bsp .... */
 	stop_this_cpu();
 }
@@ -205,6 +227,19 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 	u32 apicid;
 	struct node_core_id id;
 
+#if IS_ENABLED(CONFIG_RAMINIT_SYSINFO)
+	/* Please refer to the calculations and explaination in cache_as_ram.inc before modifying these values */
+	uint32_t max_ap_stack_region_size = CONFIG_MAX_CPUS * CONFIG_DCACHE_AP_STACK_SIZE;
+	uint32_t max_bsp_stack_region_size = CONFIG_DCACHE_BSP_STACK_SIZE + CONFIG_DCACHE_BSP_STACK_SLUSH;
+	uint32_t bsp_stack_region_upper_boundary = CONFIG_DCACHE_RAM_BASE + CONFIG_DCACHE_RAM_SIZE;
+	uint32_t bsp_stack_region_lower_boundary = bsp_stack_region_upper_boundary - max_bsp_stack_region_size;
+	void * lower_stack_region_boundary = (void*)(bsp_stack_region_lower_boundary - max_ap_stack_region_size);
+	if (((void*)(sysinfo + 1)) > lower_stack_region_boundary)
+		printk(BIOS_WARNING,
+			"sysinfo extends into stack region (sysinfo range: [%p,%p] lower stack region boundary: %p)\n",
+			sysinfo, sysinfo + 1, lower_stack_region_boundary);
+#endif
+
 	/*
 	 * already set early mtrr in cache_as_ram.inc
 	 */
@@ -217,9 +252,8 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 	   core0 is done at first --- use wait_all_core0_started  */
 	if (id.coreid == 0) {
 		set_apicid_cpuid_lo();	/* only set it on core0 */
-#if CONFIG_ENABLE_APIC_EXT_ID
-		enable_apic_ext_id(id.nodeid);
-#endif
+		if (IS_ENABLED(CONFIG_ENABLE_APIC_EXT_ID))
+			enable_apic_ext_id(id.nodeid);
 	}
 
 	enable_lapic();
@@ -232,7 +266,7 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 	if (initial_apicid != 0)	// other than bsp
 #endif
 	{
-		/* use initial apic id to lift it */
+		/* use initial APIC id to lift it */
 		u32 dword = lapic_read(LAPIC_ID);
 		dword &= ~(0xff << 24);
 		dword |=
@@ -249,7 +283,6 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 	/* get the apicid, it may be lifted already */
 	apicid = lapicid();
 
-#if 0
 	// show our apicid, nodeid, and coreid
 	if (id.coreid == 0) {
 		if (id.nodeid != 0)	//all core0 except bsp
@@ -257,7 +290,6 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 	} else {		//all other cores
 		print_apicid_nodeid_coreid(apicid, id, " corex: ");
 	}
-#endif
 
 	if (cpu_init_detectedx) {
 		print_apicid_nodeid_coreid(apicid, id,
@@ -268,10 +300,10 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 
 	if (id.coreid == 0) {
 		distinguish_cpu_resets(id.nodeid);
-//            start_other_core(id.nodeid); // start second core in first cpu, only allowed for nb_cfg_54 is not set
+//            start_other_core(id.nodeid); // start second core in first CPU, only allowed for nb_cfg_54 is not set
 	}
 	//here don't need to wait
-	lapic_write(LAPIC_MSG_REG, (apicid << 24) | 0x33);	// mark the cpu is started
+	lapic_write(LAPIC_MSG_REG, (apicid << 24) | 0x33);	// mark the CPU is started
 
 	if (apicid != bsp_apicid) {
 		u32 timeout = 1;
@@ -294,7 +326,7 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 			       apicid);
 		}
 		lapic_write(LAPIC_MSG_REG, (apicid << 24) | 0x44);	// bsp can not check it before stop_this_cpu
-		set_var_mtrr(0, 0x00000000, CONFIG_RAMTOP, MTRR_TYPE_WRBACK);
+		set_var_mtrr(0, 0x00000000, CACHE_TMP_RAMTOP, MTRR_TYPE_WRBACK);
 #if CONFIG_K8_REV_F_SUPPORT
 #if CONFIG_MEM_TRAIN_SEQ == 1
 		train_ram_on_node(id.nodeid, id.coreid, sysinfo,
@@ -310,7 +342,7 @@ static u32 init_cpus(u32 cpu_init_detectedx)
 static u32 is_core0_started(u32 nodeid)
 {
 	u32 htic;
-	device_t device;
+	pci_devfn_t device;
 	device = PCI_DEV(0, 0x18 + nodeid, 0);
 	htic = pci_read_config32(device, HT_INIT_CONTROL);
 	htic &= HTIC_INIT_Detect;

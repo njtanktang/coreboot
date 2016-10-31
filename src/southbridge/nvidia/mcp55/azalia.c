@@ -12,14 +12,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <device/device.h>
+#include <device/azalia_device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
@@ -27,11 +24,12 @@
 #include <delay.h>
 #include "mcp55.h"
 
+#if IS_ENABLED(CONFIG_MCP55_USE_AZA)
 #define HDA_ICII_REG 0x68
 #define HDA_ICII_BUSY (1 << 0)
 #define HDA_ICII_VALID (1 << 1)
 
-static int set_bits(u32 port, u32 mask, u32 val)
+static int set_bits(void *port, u32 mask, u32 val)
 {
 	u32 reg32;
 	int count;
@@ -58,7 +56,7 @@ static int set_bits(u32 port, u32 mask, u32 val)
 	return 0;
 }
 
-static int codec_detect(u32 base)
+static int codec_detect(u8 *base)
 {
 	u32 reg32;
 
@@ -86,10 +84,8 @@ no_codec:
 	return 0;
 }
 
-u32 *cim_verb_data = NULL;
-u32 cim_verb_data_size = 0;
 
-static u32 find_verb(struct device *dev, u32 viddid, u32 **verb)
+static u32 find_verb(struct device *dev, u32 viddid, const u32 **verb)
 {
 	int idx = 0;
 
@@ -111,7 +107,7 @@ static u32 find_verb(struct device *dev, u32 viddid, u32 **verb)
  * Wait 50usec for the codec to indicate it is ready.
  * No response would imply that the codec is non-operative.
  */
-static int wait_for_ready(u32 base)
+static int wait_for_ready(u8 *base)
 {
 	/* Use a 50 usec timeout - the Linux kernel uses the same duration. */
 	int timeout = 50;
@@ -130,7 +126,7 @@ static int wait_for_ready(u32 base)
  * Wait 50usec for the codec to indicate that it accepted the previous command.
  * No response would imply that the code is non-operative.
  */
-static int wait_for_valid(u32 base)
+static int wait_for_valid(u8 *base)
 {
 	u32 reg32;
 
@@ -152,10 +148,10 @@ static int wait_for_valid(u32 base)
 	return -1;
 }
 
-static void codec_init(struct device *dev, u32 base, int addr)
+static void codec_init(struct device *dev, u8 *base, int addr)
 {
 	u32 reg32, verb_size;
-	u32 *verb;
+	const u32 *verb;
 	int i;
 
 	printk(BIOS_DEBUG, "Azalia: Initializing codec #%d\n", addr);
@@ -195,7 +191,7 @@ static void codec_init(struct device *dev, u32 base, int addr)
 	printk(BIOS_DEBUG, "Azalia: verb loaded.\n");
 }
 
-static void codecs_init(struct device *dev, u32 base, u32 codec_mask)
+static void codecs_init(struct device *dev, u8 *base, u32 codec_mask)
 {
 	int i;
 	for (i = 2; i >= 0; i--) {
@@ -203,10 +199,13 @@ static void codecs_init(struct device *dev, u32 base, u32 codec_mask)
 			codec_init(dev, base, i);
 	}
 }
+#endif
 
 static void azalia_init(struct device *dev)
 {
-	u32 base, codec_mask, reg32;
+#if IS_ENABLED(CONFIG_MCP55_USE_AZA)
+	u8 *base;
+	u32 codec_mask, reg32;
 	struct resource *res;
 	u8 reg8;
 
@@ -244,14 +243,15 @@ static void azalia_init(struct device *dev)
 	 * NOTE: This will break as soon as the Azalia gets a BAR above
 	 * 4G. Is there anything we can do about it?
 	 */
-	base = (u32)res->base;
-	printk(BIOS_DEBUG, "Azalia: base = %08x\n", (u32)base);
+	base = res2mmio(res, 0, 0);
+	printk(BIOS_DEBUG, "Azalia: base = %p\n", base);
 	codec_mask = codec_detect(base);
 
 	if (codec_mask) {
 		printk(BIOS_DEBUG, "Azalia: codec_mask = %02x\n", codec_mask);
 		codecs_init(dev, base, codec_mask);
 	}
+#endif
 }
 
 static void azalia_set_subsystem(device_t dev, unsigned vendor, unsigned device)

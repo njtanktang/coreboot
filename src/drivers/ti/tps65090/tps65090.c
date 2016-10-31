@@ -64,7 +64,7 @@ static int tps65090_i2c_write(unsigned int bus,
 {
 	int ret;
 
-	ret = i2c_write(bus, TPS65090_I2C_ADDR, reg_addr, 1, &value, 1);
+	ret = i2c_writeb(bus, TPS65090_I2C_ADDR, reg_addr, value);
 	printk(BIOS_DEBUG, "%s: reg=%#x, value=%#x, ret=%d\n",
 			__func__, reg_addr, value, ret);
 	return ret;
@@ -76,7 +76,7 @@ static int tps65090_i2c_read(unsigned int bus,
 	int ret;
 
 	printk(BIOS_DEBUG, "%s: reg=%#x, ", __func__, reg_addr);
-	ret = i2c_read(bus, TPS65090_I2C_ADDR, reg_addr, 1, value, 1);
+	ret = i2c_readb(bus, TPS65090_I2C_ADDR, reg_addr, value);
 	if (ret)
 		printk(BIOS_DEBUG, "fail, ret=%d\n", ret);
 	else
@@ -87,8 +87,9 @@ static int tps65090_i2c_read(unsigned int bus,
 /**
  * Set the power state for a FET
  *
- * @fet_id		Fet number to set (1..MAX_FET_NUM)
- * @set			1 to power on FET, 0 to power off
+ * @param bus
+ * @param fet_id		Fet number to set (1..MAX_FET_NUM)
+ * @param set			1 to power on FET, 0 to power off
  * @return FET_ERR_COMMS if we got a comms error, FET_ERR_NOT_READY if the
  * FET failed to change state. If all is ok, returns 0.
  */

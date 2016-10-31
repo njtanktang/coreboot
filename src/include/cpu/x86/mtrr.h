@@ -2,42 +2,46 @@
 #define CPU_X86_MTRR_H
 
 /*  These are the region types  */
-#define MTRR_TYPE_UNCACHEABLE 0
-#define MTRR_TYPE_WRCOMB     1
-/*#define MTRR_TYPE_         2*/
-/*#define MTRR_TYPE_         3*/
-#define MTRR_TYPE_WRTHROUGH  4
-#define MTRR_TYPE_WRPROT     5
-#define MTRR_TYPE_WRBACK     6
-#define MTRR_NUM_TYPES       7
+#define MTRR_TYPE_UNCACHEABLE		0
+#define MTRR_TYPE_WRCOMB		1
+#define MTRR_TYPE_WRTHROUGH		4
+#define MTRR_TYPE_WRPROT		5
+#define MTRR_TYPE_WRBACK		6
+#define MTRR_NUM_TYPES			7
 
-#define MTRRcap_MSR     0x0fe
-#define MTRRdefType_MSR 0x2ff
+#define MTRR_CAP_MSR			0x0fe
 
-#define MTRRdefTypeEn		(1 << 11)
-#define MTRRdefTypeFixEn	(1 << 10)
+#define MTRR_CAP_SMRR			(1 << 11)
+#define MTRR_CAP_WC			(1 << 10)
+#define MTRR_CAP_FIX			(1 << 8)
+#define MTRR_CAP_VCNT			0xff
 
-#define SMRRphysBase_MSR 0x1f2
-#define SMRRphysMask_MSR 0x1f3
+#define MTRR_DEF_TYPE_MSR		0x2ff
+#define MTRR_DEF_TYPE_MASK		0xff
+#define MTRR_DEF_TYPE_EN		(1 << 11)
+#define MTRR_DEF_TYPE_FIX_EN		(1 << 10)
 
-#define MTRRphysBase_MSR(reg) (0x200 + 2 * (reg))
-#define MTRRphysMask_MSR(reg) (0x200 + 2 * (reg) + 1)
 
-#define MTRRphysMaskValid	(1 << 11)
+#define SMRR_PHYS_BASE			0x1f2
+#define SMRR_PHYS_MASK			0x1f3
 
-#define NUM_FIXED_RANGES 88
-#define RANGES_PER_FIXED_MTRR 8
-#define MTRRfix64K_00000_MSR 0x250
-#define MTRRfix16K_80000_MSR 0x258
-#define MTRRfix16K_A0000_MSR 0x259
-#define MTRRfix4K_C0000_MSR 0x268
-#define MTRRfix4K_C8000_MSR 0x269
-#define MTRRfix4K_D0000_MSR 0x26a
-#define MTRRfix4K_D8000_MSR 0x26b
-#define MTRRfix4K_E0000_MSR 0x26c
-#define MTRRfix4K_E8000_MSR 0x26d
-#define MTRRfix4K_F0000_MSR 0x26e
-#define MTRRfix4K_F8000_MSR 0x26f
+#define MTRR_PHYS_BASE(reg) 		(0x200 + 2 * (reg))
+#define MTRR_PHYS_MASK(reg) 		(MTRR_PHYS_BASE(reg) + 1)
+#define  MTRR_PHYS_MASK_VALID		(1 << 11)
+
+#define NUM_FIXED_RANGES 		88
+#define RANGES_PER_FIXED_MTRR 		8
+#define MTRR_FIX_64K_00000		0x250
+#define MTRR_FIX_16K_80000		0x258
+#define MTRR_FIX_16K_A0000		0x259
+#define MTRR_FIX_4K_C0000		0x268
+#define MTRR_FIX_4K_C8000		0x269
+#define MTRR_FIX_4K_D0000		0x26a
+#define MTRR_FIX_4K_D8000		0x26b
+#define MTRR_FIX_4K_E0000		0x26c
+#define MTRR_FIX_4K_E8000		0x26d
+#define MTRR_FIX_4K_F0000		0x26e
+#define MTRR_FIX_4K_F8000		0x26f
 
 #if !defined (__ASSEMBLER__) && !defined(__PRE_RAM__)
 
@@ -52,14 +56,20 @@
  *    of the nature of the global MTRR enable flag. Therefore, all direct
  *    or indirect callers of enable_fixed_mtrr() should ensure that the
  *    variable MTRR MSRs do not contain bad ranges.
+ *
+ * Note that this function sets up MTRRs for addresses above 4GiB.
  */
 void x86_setup_mtrrs(void);
 /*
+ * x86_setup_mtrrs_with_detect() does the same thing as x86_setup_mtrrs(), but
+ * it always dynamically detects the number of variable MTRRs available.
+ */
+void x86_setup_mtrrs_with_detect(void);
+/*
  * x86_setup_var_mtrrs() parameters:
  * address_bits - number of physical address bits supported by cpu
- * above4gb - 2 means dynamically detect number of variable MTRRs available.
- *            non-zero means handle memory ranges above 4GiB.
- *            0 means ignore memory ranges above 4GiB
+ * above4gb - if set setup MTRRs for addresses above 4GiB else ignore
+ *            memory ranges above 4GiB
  */
 void x86_setup_var_mtrrs(unsigned int address_bits, unsigned int above4gb);
 void enable_fixed_mtrr(void);
@@ -71,6 +81,34 @@ void x86_mtrr_check(void);
 
 #if !defined(__ASSEMBLER__) && defined(__PRE_RAM__) && !defined(__ROMCC__)
 void set_var_mtrr(unsigned reg, unsigned base, unsigned size, unsigned type);
+int get_free_var_mtrr(void);
+#endif
+
+#if !defined(__ASSEMBLER__) && !defined(__ROMCC__)
+
+/* fms: find most significant bit set, stolen from Linux Kernel Source. */
+static inline unsigned int fms(unsigned int x)
+{
+	int r;
+
+	__asm__("bsrl %1,%0\n\t"
+	        "jnz 1f\n\t"
+	        "movl $0,%0\n"
+	        "1:" : "=r" (r) : "g" (x));
+	return r;
+}
+
+/* fls: find least significant bit set */
+static inline unsigned int fls(unsigned int x)
+{
+	int r;
+
+	__asm__("bsfl %1,%0\n\t"
+	        "jnz 1f\n\t"
+	        "movl $32,%0\n"
+	        "1:" : "=r" (r) : "g" (x));
+	return r;
+}
 #endif
 
 /* Align up to next power of 2, suitable for ROMCC and assembler too.
@@ -80,9 +118,11 @@ void set_var_mtrr(unsigned reg, unsigned base, unsigned size, unsigned type);
 					(x>>6)|(x>>7)|(x>>8)|((1<<18)-1))
 #define _ALIGN_UP_POW2(x)	((x + _POW2_MASK(x)) & ~_POW2_MASK(x))
 
-#if !defined(CONFIG_RAMTOP)
-# error "CONFIG_RAMTOP not defined"
-#endif
+/* At the end of romstage, low RAM 0..CACHE_TM_RAMTOP may be set
+ * as write-back cacheable to speed up ramstage decompression.
+ * Note MTRR boundaries, must be power of two.
+ */
+#define CACHE_TMP_RAMTOP (16<<20)
 
 #if ((CONFIG_XIP_ROM_SIZE & (CONFIG_XIP_ROM_SIZE -1)) != 0)
 # error "CONFIG_XIP_ROM_SIZE is not a power of 2"
@@ -111,8 +151,17 @@ void set_var_mtrr(unsigned reg, unsigned base, unsigned size, unsigned type);
 
 #define CACHE_ROM_BASE	(((1<<20) - (CACHE_ROM_SIZE>>12))<<12)
 
-#if (CONFIG_RAMTOP & (CONFIG_RAMTOP - 1)) != 0
-# error "CONFIG_RAMTOP must be a power of 2"
-#endif
+#if (IS_ENABLED(CONFIG_SOC_SETS_MSRS) && !defined(__ASSEMBLER__) \
+	&& !defined(__ROMCC__))
+#include <cpu/x86/msr.h>
+#include <arch/cpu.h>
+
+/*
+ * Set the MTRRs using the data on the stack from setup_stack_and_mtrrs.
+ * Return a new top_of_stack value which removes the setup_stack_and_mtrrs data.
+ */
+asmlinkage void *soc_set_mtrrs(void *top_of_stack);
+asmlinkage void soc_enable_mtrrs(void);
+#endif /* CONFIG_SOC_SETS_MSRS ... */
 
 #endif /* CPU_X86_MTRR_H */

@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __SR5650_CMN_H__
@@ -26,6 +23,8 @@
 #define NBHTIU_INDEX 	0x94 /* Note: It is different with RS690, whose HTIU index is 0xA8 */
 #define NBMC_INDEX 	0xE8
 #define NBPCIE_INDEX  	0xE0
+#define L2CFG_INDEX  	0xF0
+#define L1CFG_INDEX  	0xF8
 #define EXT_CONF_BASE_ADDRESS	CONFIG_MMCONF_BASE_ADDRESS
 #define	TEMP_MMIO_BASE_ADDRESS	0xC0000000
 

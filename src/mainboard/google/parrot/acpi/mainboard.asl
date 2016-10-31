@@ -12,16 +12,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
+
+#include <mainboard/google/parrot/onboard.h>
 
 Scope (\_GPE) {
 	Method(_L1F, 0x0, NotSerialized)
 	{
+		/*
+		 * Invert the interrupt level bit for the lid GPIO
+		 * so we don't get another _SB.LID0 until the state
+		 * changes again. GIV1 is the interrupt level control
+		 * register for GPIO bits 15:8
+		 */
+		Xor(GIV1, 0x80, GIV1)
 		Notify(\_SB.LID0,0x80)
 	}
 }
@@ -52,23 +56,31 @@ Scope (\_SB) {
 		Name(_HID, EisaId("PNP0C0E"))
 
 		// Trackpad Wake is GPIO12, wake from S3
-		Name(_PRW, Package(){0x1c, 0x03})
+		Name(_PRW, Package() { BOARD_TRACKPAD_WAKE_GPIO, 0x03 })
 
 		Name(_CRS, ResourceTemplate()
 		{
 
 			// PIRQA -> GSI16
-			Interrupt (ResourceConsumer, Level, ActiveLow) {16}
+			Interrupt (ResourceConsumer, Level, ActiveLow)
+			{
+				BOARD_TRACKPAD_IRQ_DVT
+			}
 
 			// PIRQE -> GSI20
-			Interrupt (ResourceConsumer, Edge, ActiveLow) {20}
+			Interrupt (ResourceConsumer, Edge, ActiveLow)
+			{
+				BOARD_TRACKPAD_IRQ_PVT
+			}
 
 			// SMBUS Address 0x67
-			VendorShort (ADDR) {0x67}
+			VendorShort (ADDR) { BOARD_TRACKPAD_I2C_ADDR }
 		})
 	}
 
 	Device (MB) {
+		Name(_HID, EisaId("PNP0C01")) // System Board
+
 		/* Lid open */
 		Method (LIDO) { /* Not needed on this board */ }
 		/* Lid closed */

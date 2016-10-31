@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 Name(PCIF, 0)
@@ -30,8 +26,8 @@ Method(_PIC, 1, NotSerialized)
 	}
 }
 
-External (\_PR.CPU0, DeviceObj)
-External (\_PR.CPU1, DeviceObj)
+External (\_PR.CP00, DeviceObj)
+External (\_PR.CP01, DeviceObj)
 
 Scope(\_SB)
 {
@@ -40,7 +36,7 @@ Scope(\_SB)
 	{
 		Store (2000, OSYS)
 
-		If (CondRefOf(_OSI, Local0)) {
+		If (CondRefOf(_OSI)) {
 
 			If (_OSI("Linux")) {
 				Store (1, LINX)

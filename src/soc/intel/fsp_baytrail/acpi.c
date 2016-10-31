@@ -14,11 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -27,26 +22,28 @@
 #include <arch/acpigen.h>
 #include <arch/cpu.h>
 #include <cpu/x86/msr.h>
+#include <cpu/x86/smm.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/intel/turbo.h>
 #include <arch/smp/mpspec.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <baytrail/baytrail.h>
+#include <soc/baytrail.h>
 #include <device/pci_ids.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/acpi.h>
+#include <soc/pci_devs.h>
+#include <soc/acpi.h>
 #include <string.h>
-#include <baytrail/iomap.h>
-#include <baytrail/lpc.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
-#include <baytrail/irq.h>
-#include <baytrail/iosf.h>
+#include <soc/iomap.h>
+#include <soc/lpc.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/irq.h>
+#include <soc/iosf.h>
 #include <arch/io.h>
-#include <baytrail/msr.h>
-#include <baytrail/pattrs.h>
-#include <baytrail/pmc.h>
+#include <soc/msr.h>
+#include <soc/pattrs.h>
+#include <soc/pmc.h>
+#include <cpu/cpu.h>
 #include <cbmem.h>
 
 #include "chip.h"
@@ -102,7 +99,7 @@ void acpi_init_gnvs(global_nvs_t *gnvs)
 
 static int acpi_sci_irq(void)
 {
-	const unsigned long actl = ILB_BASE_ADDRESS + ACTL;
+	u32 *actl = (u32 *)(ILB_BASE_ADDRESS + ACTL);
 	int scis;
 	static int sci_irq;
 
@@ -209,18 +206,10 @@ void acpi_fill_in_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 
 	/* System Management */
 	fadt->sci_int = acpi_sci_irq();
-#if IS_ENABLED(CONFIG_BAYTRAIL_SMM)
+
 	fadt->smi_cmd = APM_CNT;
 	fadt->acpi_enable = APM_CNT_ACPI_ENABLE;
 	fadt->acpi_disable = APM_CNT_ACPI_DISABLE;
-#else
-	fadt->smi_cmd = 0x00;		/* disable SMM */
-	fadt->acpi_enable = 0x00;	/* unused if SMI_CMD = 0 */
-	fadt->acpi_disable = 0x00;	/* unused if SMI_CMD = 0 */
-
-	/* Enable ACPI */
-	outl(inl(pmbase + 4) | 0x01, pmbase + 4);
-#endif
 
 	/* Power Control */
 	fadt->s4bios_req = 0x00;
@@ -358,24 +347,20 @@ static acpi_tstate_t baytrail_tss_table[] = {
 	{ 13, 125, 0, 0x12, 0 },
 };
 
-static int generate_T_state_entries(int core, int cores_per_package)
+static void generate_T_state_entries(int core, int cores_per_package)
 {
-	int len;
-
 	/* Indicate SW_ALL coordination for T-states */
-	len = acpigen_write_TSD_package(core, cores_per_package, SW_ALL);
+	acpigen_write_TSD_package(core, cores_per_package, SW_ALL);
 
 	/* Indicate FFixedHW so OS will use MSR */
-	len += acpigen_write_empty_PTC();
+	acpigen_write_empty_PTC();
 
 	/* Set NVS controlled T-state limit */
-	len += acpigen_write_TPC("\\TLVL");
+	acpigen_write_TPC("\\TLVL");
 
 	/* Write TSS table for MSR access */
-	len += acpigen_write_TSS_package(
+	acpigen_write_TSS_package(
 		ARRAY_SIZE(baytrail_tss_table), baytrail_tss_table);
-
-	return len;
 }
 
 static int calculate_power(int tdp, int p1_ratio, int ratio)
@@ -399,9 +384,8 @@ static int calculate_power(int tdp, int p1_ratio, int ratio)
 	return (int)power;
 }
 
-static int generate_P_state_entries(int core, int cores_per_package)
+static void generate_P_state_entries(int core, int cores_per_package)
 {
-	int len, len_pss;
 	int ratio_min, ratio_max, ratio_turbo, ratio_step, ratio_range_2;
 	int coord_type, power_max, power_unit, num_entries;
 	int ratio, power, clock, clock_max;
@@ -429,16 +413,16 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	power_max = ((msr.lo & 0x7fff) / power_unit) * 1000;
 
 	/* Write _PCT indicating use of FFixedHW */
-	len = acpigen_write_empty_PCT();
+	acpigen_write_empty_PCT();
 
 	/* Write _PPC with NVS specified limit on supported P-state */
-	len += acpigen_write_PPC_NVS();
+	acpigen_write_PPC_NVS();
 
 	/* Write PSD indicating configured coordination type */
-	len += acpigen_write_PSD_package(core, 1, coord_type);
+	acpigen_write_PSD_package(core, 1, coord_type);
 
 	/* Add P-state entries in _PSS table */
-	len += acpigen_write_name("_PSS");
+	acpigen_write_name("_PSS");
 
 	/* Determine ratio points */
 	ratio_step = 1;
@@ -451,14 +435,14 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	/* P[T] is Turbo state if enabled */
 	if (get_turbo_state() == TURBO_ENABLED) {
 		/* _PSS package count including Turbo */
-		len_pss = acpigen_write_package(num_entries + 2);
+		acpigen_write_package(num_entries + 2);
 
 		ratio_turbo = pattrs->iacore_ratios[IACORE_TURBO];
 		vid_turbo = pattrs->iacore_vids[IACORE_TURBO];
 		control_status = (ratio_turbo << 8) | vid_turbo;
 
 		/* Add entry for Turbo ratio */
-		len_pss += acpigen_write_PSS_package(
+		acpigen_write_PSS_package(
 			clock_max + 1,		/*MHz*/
 			power_max,		/*mW*/
 			10,			/*lat1*/
@@ -467,14 +451,14 @@ static int generate_P_state_entries(int core, int cores_per_package)
 			control_status);	/*status*/
 	} else {
 		/* _PSS package count without Turbo */
-		len_pss = acpigen_write_package(num_entries + 1);
+		acpigen_write_package(num_entries + 1);
 		ratio_turbo = ratio_max;
 		vid_turbo = vid_max;
 	}
 
 	/* First regular entry is max non-turbo ratio */
 	control_status = (ratio_max << 8) | vid_max;
-	len_pss += acpigen_write_PSS_package(
+	acpigen_write_PSS_package(
 		clock_max,		/*MHz*/
 		power_max,		/*mW*/
 		10,			/*lat1*/
@@ -502,7 +486,7 @@ static int generate_P_state_entries(int core, int cores_per_package)
 		clock = (ratio * pattrs->bclk_khz) / 1000;
 		control_status = (ratio << 8) | (vid & 0xff);
 
-		len_pss += acpigen_write_PSS_package(
+		acpigen_write_PSS_package(
 			clock,			/*MHz*/
 			power,			/*mW*/
 			10,			/*lat1*/
@@ -512,15 +496,12 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	}
 
 	/* Fix package length */
-	len_pss--;
-	acpigen_patch_len(len_pss);
-
-	return len + len_pss;
+	acpigen_pop_len();
 }
 
-void generate_cpu_entries(void)
+void generate_cpu_entries(device_t device)
 {
-	int len_pr, core;
+	int core;
 	int pcontrol_blk = get_pmbase(), plen = 6;
 	const struct pattrs *pattrs = pattrs_get();
 
@@ -531,23 +512,22 @@ void generate_cpu_entries(void)
 		}
 
 		/* Generate processor \_PR.CPUx */
-		len_pr = acpigen_write_processor(
+		acpigen_write_processor(
 			core, pcontrol_blk, plen);
 
 		/* Generate  P-state tables */
-		len_pr += generate_P_state_entries(
+		generate_P_state_entries(
 			core, pattrs->num_cpus);
 
 		/* Generate C-state tables */
-		len_pr += acpigen_write_CST_package(
+		acpigen_write_CST_package(
 			cstate_map, ARRAY_SIZE(cstate_map));
 
 		/* Generate T-state tables */
-		len_pr += generate_T_state_entries(
+		generate_T_state_entries(
 			core, pattrs->num_cpus);
 
-		len_pr--;
-		acpigen_patch_len(len_pr);
+		acpigen_pop_len();
 	}
 }
 
@@ -571,4 +551,56 @@ unsigned long acpi_madt_irq_overrides(unsigned long current)
 	                                        sci_flags);
 
 	return current;
+}
+
+unsigned long southcluster_write_acpi_tables(device_t device,
+					     unsigned long current,
+					     struct acpi_rsdp *rsdp)
+{
+	acpi_header_t *ssdt2;
+
+	current = acpi_write_hpet(device, current, rsdp);
+	current = acpi_align_current(current);
+
+	ssdt2 = (acpi_header_t *)current;
+	memset(ssdt2, 0, sizeof(acpi_header_t));
+	acpi_create_serialio_ssdt(ssdt2);
+	if (ssdt2->length) {
+		current += ssdt2->length;
+		acpi_add_table(rsdp, ssdt2);
+		printk(BIOS_DEBUG, "ACPI:     * SSDT2 @ %p Length %x\n",ssdt2,
+		       ssdt2->length);
+		current = acpi_align_current(current);
+	} else {
+		ssdt2 = NULL;
+		printk(BIOS_DEBUG, "ACPI:     * SSDT2 not generated.\n");
+	}
+
+	printk(BIOS_DEBUG, "current = %lx\n", current);
+
+	return current;
+}
+
+void southcluster_inject_dsdt(device_t device)
+{
+	global_nvs_t *gnvs;
+
+	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
+	if (!gnvs) {
+		gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof (*gnvs));
+		if (gnvs)
+			memset(gnvs, 0, sizeof(*gnvs));
+	}
+
+	if (gnvs) {
+		acpi_create_gnvs(gnvs);
+		acpi_save_gnvs((unsigned long)gnvs);
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to DSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
 }

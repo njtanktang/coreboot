@@ -11,15 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_SCH_4037_H
 #define SUPERIO_SCH_4037_H
-
 
 #define SCH4037_FDD              0            /* FDD */
 #define SCH4037_LPT              3            /* LPT */
@@ -31,4 +26,6 @@
 #define SCH4037_RUNTIME          0x0A         /* Runtime */
 #define SCH4037_XBUS             0x0B         /* X-BUS */
 
-#endif //SUPERIO_SCH_4037_H
+void sch4037_early_init(unsigned port);
+
+#endif /* SUPERIO_SCH_4037_H */

@@ -12,14 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_BD82X6X_PCH_H
 #define SOUTHBRIDGE_INTEL_BD82X6X_PCH_H
+
+#include <arch/acpi.h>
 
 /* PCH types */
 #define PCH_TYPE_CPT	   0x1c /* CougarPoint */
@@ -48,7 +46,11 @@
 #define DEFAULT_GPIOBASE	0x0480
 #define DEFAULT_PMBASE		0x0500
 
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
+#endif
 
 #ifndef __ACPI__
 #define DEBUG_PERIODIC_SMIS 0
@@ -59,7 +61,7 @@ void intel_pch_finalize_smm(void);
 
 #if !defined(__ASSEMBLER__)
 #if !defined(__PRE_RAM__)
-#if !defined(__SMM__)
+#if !defined(__SIMPLE_DEVICE__)
 #include "chip.h"
 void pch_enable(device_t dev);
 #endif
@@ -67,6 +69,7 @@ int pch_silicon_revision(void);
 int pch_silicon_type(void);
 int pch_silicon_supported(int type, int rev);
 void pch_iobp_update(u32 address, u32 andvalue, u32 orvalue);
+void gpi_route_interrupt(u8 gpi, u8 mode);
 #if CONFIG_ELOG
 void pch_log_state(void);
 #endif
@@ -79,6 +82,7 @@ int smbus_block_read(unsigned device, unsigned cmd, u8 bytes, u8 *buf);
 int smbus_block_write(unsigned device, unsigned cmd, u8 bytes, const u8 *buf);
 int early_spi_read(u32 offset, u32 size, u8 *buffer);
 void early_thermal_init(void);
+void southbridge_configure_default_intmap(void);
 #endif
 #endif
 
@@ -128,7 +132,12 @@ void early_thermal_init(void);
 #define BIOS_CNTL		0xDC
 #define GPIO_BASE		0x48 /* LPC GPIO Base Address Register */
 #define GPIO_CNTL		0x4C /* LPC GPIO Control Register */
+
 #define GPIO_ROUT		0xb8
+#define   GPI_DISABLE		0x00
+#define   GPI_IS_SMI		0x01
+#define   GPI_IS_SCI		0x02
+#define   GPI_IS_NMI		0x03
 
 #define PIRQA_ROUT		0x60
 #define PIRQB_ROUT		0x61
@@ -425,22 +434,6 @@ void early_thermal_init(void);
 #define PCH_DISABLE_MEI1	(1 << 1)
 #define PCH_ENABLE_DBDF		(1 << 0)
 
-/* ICH7 GPIOBASE */
-#define GPIO_USE_SEL	0x00
-#define GP_IO_SEL	0x04
-#define GP_LVL		0x0c
-#define GPO_BLINK	0x18
-#define GPI_INV		0x2c
-#define GPIO_USE_SEL2	0x30
-#define GP_IO_SEL2	0x34
-#define GP_LVL2		0x38
-#define GPIO_USE_SEL3	0x40
-#define GP_IO_SEL3	0x44
-#define GP_LVL3		0x48
-#define GP_RST_SEL1	0x60
-#define GP_RST_SEL2	0x64
-#define GP_RST_SEL3	0x68
-
 /* ICH7 PMBASE */
 #define PM1_STS		0x00
 #define   WAK_STS	(1 << 15)
@@ -458,13 +451,6 @@ void early_thermal_init(void);
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
-#define    SLP_TYP_S0	0
-#define    SLP_TYP_S1	1
-#define    SLP_TYP_S3	5
-#define    SLP_TYP_S4	6
-#define    SLP_TYP_S5	7
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)

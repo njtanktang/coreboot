@@ -12,19 +12,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __NORTHBRIDGE_INTEL_GM45_GM45_H__
-#define __NORTHBRIDGE_INTEL_GM45_GM45_H__ 1
+#define __NORTHBRIDGE_INTEL_GM45_GM45_H__
 
 #include "southbridge/intel/i82801ix/i82801ix.h"
 
 #ifndef __ACPI__
 
+#include <rules.h>
 #include <stdint.h>
 
 typedef enum {
@@ -133,16 +130,22 @@ typedef struct {
 	int		txt_enabled;
 	int		cores;
 	gmch_gfx_t	gfx_type;
-	int		gs45_low_power_mode; /* low power mode of GMCH_GS45 */
 	int		max_ddr2_mhz;
 	int		max_ddr3_mt;
 	fsb_clock_t	max_fsb;
 	int		max_fsb_mhz;
 	int		max_render_mhz;
+	int		enable_igd;
+	int		enable_peg;
+	u16		ggc;
 
+	/* to be filled in romstage main: */
 	int		spd_type;
 	timings_t	selected_timings;
 	dimminfo_t	dimms[2];
+	u8		spd_map[4];
+	int		gs45_low_power_mode; /* low power mode of GMCH_GS45 */
+	int		sff; /* small form factor option (soldered down DIMM) */
 } sysinfo_t;
 #define TOTAL_CHANNELS 2
 #define CHANNEL_IS_POPULATED(dimms, idx) (dimms[idx].card_type != 0)
@@ -183,10 +186,15 @@ enum {
 					(could be reduced to 10 bytes) */
 
 
+#ifndef __ACPI__
+#define DEFAULT_MCHBAR		((u8 *)0xfed14000)
+#define DEFAULT_DMIBAR		((u8 *)0xfed18000)
+#else
 #define DEFAULT_MCHBAR		0xfed14000
 #define DEFAULT_DMIBAR		0xfed18000
+#endif
 #define DEFAULT_EPBAR		0xfed19000
-#define DEFAULT_HECIBAR		0xfed1a000
+#define DEFAULT_HECIBAR		((u8 *)0xfed1a000)
 
 				/* 4 KB per PCIe device */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS
@@ -406,8 +414,9 @@ void enter_raminit_or_reset(void);
 void get_gmch_info(sysinfo_t *);
 void raminit(sysinfo_t *, int s3resume);
 void raminit_thermal(const sysinfo_t *);
-void init_igd(const sysinfo_t *, int no_igd, int no_peg);
-void init_pm(const sysinfo_t *);
+void init_igd(const sysinfo_t *const);
+void init_pm(const sysinfo_t *, int do_freq_scaling_cfg);
+void igd_compute_ggc(sysinfo_t *const sysinfo);
 
 int raminit_read_vco_index(void);
 u32 raminit_get_rank_addr(unsigned int channel, unsigned int rank);
@@ -424,6 +433,14 @@ u32 decode_igd_memory_size(u32 gms);
 u32 decode_igd_gtt_size(u32 gsm);
 
 void init_iommu(void);
+
+#if ENV_RAMSTAGE && !defined(__SIMPLE_DEVICE__)
+#include <device/device.h>
+
+struct acpi_rsdp;
+unsigned long northbridge_write_acpi_tables(device_t device, unsigned long start, struct acpi_rsdp *rsdp);
 #endif
 
-#endif
+
+#endif /* !__ACPI__ */
+#endif /* __NORTHBRIDGE_INTEL_GM45_GM45_H__ */

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -235,7 +230,7 @@ static void southbridge_smi_apmc(unsigned int node, smm_state_save_area_t *state
 	/* Emulate B2 register as the FADT / Linux expects it */
 
 	reg8 = inb(APM_CNT);
-	if (mainboard_smi_apmc && mainboard_smi_apmc(reg8))
+	if (mainboard_smi_apmc(reg8))
 		return;
 
 	switch (reg8) {
@@ -322,12 +317,10 @@ static void southbridge_smi_gpi(unsigned int node, smm_state_save_area_t *state_
 
 	reg16 &= inw(pmbase + ALT_GP_SMI_EN);
 
-	if (mainboard_smi_gpi) {
-		mainboard_smi_gpi(reg16);
-	} else {
-		if (reg16)
-			printk(BIOS_DEBUG, "GPI (mask %04x)\n",reg16);
-	}
+	mainboard_smi_gpi(reg16);
+
+	if (reg16)
+		printk(BIOS_DEBUG, "GPI (mask %04x)\n",reg16);
 }
 
 
@@ -416,7 +409,7 @@ static void southbridge_smi_monitor(unsigned int node, smm_state_save_area_t *st
 	}
 
 	printk(BIOS_DEBUG, "  trapped io address = 0x%x\n", trap_cycle & 0xfffc);
-	for (i=0; i < 4; i++) if(IOTRAP(i)) printk(BIOS_DEBUG, "  TRAP = %d\n", i);
+	for (i=0; i < 4; i++) if (IOTRAP(i)) printk(BIOS_DEBUG, "  TRAP = %d\n", i);
 	printk(BIOS_DEBUG, "  AHBE = %x\n", (trap_cycle >> 16) & 0xf);
 	printk(BIOS_DEBUG, "  MASK = 0x%08x\n", mask);
 	printk(BIOS_DEBUG, "  read/write: %s\n", (trap_cycle & (1 << 24)) ? "read" : "write");
@@ -493,7 +486,8 @@ static u32 southbrigde_smi_mask_events(u32 smi_sts)
 /**
  * @brief Interrupt handler for SMI#
  *
- * @param smm_revision revision of the smm state save map
+ * @param node
+ * @param *state_save
  */
 void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save)
 {
@@ -517,14 +511,14 @@ void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_sav
 			if (southbridge_smi[i])
 				southbridge_smi[i](node, state_save);
 			else {
-				printk(BIOS_DEBUG, "SMI_STS[%d] occured, but no "
+				printk(BIOS_DEBUG, "SMI_STS[%d] occurred, but no "
 						"handler available.\n", i);
 				dump = 1;
 			}
 		}
 	}
 
-	if(dump) {
+	if (dump) {
 		dump_smi_status(smi_sts);
 	}
 

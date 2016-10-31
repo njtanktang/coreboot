@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -82,11 +78,12 @@ static void rd890_enable(device_t dev)
 			0, (devfn >> 3), (devfn & 0x07), dev->enabled);
 
 	/* we only do this once */
-	if(devfn==0) {
+	if (devfn == 0) {
 		/* CIMX configuration defualt initialize */
 		rd890_cimx_config(&gConfig, &nb_cfg[0], &ht_cfg[0], &pcie_cfg[0]);
 		if (gConfig.StandardHeader.CalloutPtr != NULL) {
-			gConfig.StandardHeader.CalloutPtr(CB_AmdSetPcieEarlyConfig, (u32)dev, (VOID*)NbConfigPtr);
+			gConfig.StandardHeader.CalloutPtr(CB_AmdSetPcieEarlyConfig,
+					(uintptr_t)dev, (VOID*)NbConfigPtr);
 		}
 		/* Reset PCIE Cores, Training the Ports selected by port_enable of devicetree
 		 * After this call EP are fully operational on particular NB
@@ -119,10 +116,10 @@ struct chip_operations northbridge_amd_cimx_rd890_ops = {
 
 static void ioapic_init(struct device *dev)
 {
-	u32 ioapic_base;
+	void *ioapic_base;
 
 	pci_write_config32(dev, 0xF8, 0x1);
-	ioapic_base = pci_read_config32(dev, 0xFC) & 0xfffffff0;
+	ioapic_base = (void *)(uintptr_t)(pci_read_config32(dev, 0xFC) & 0xfffffff0);
 	clear_ioapic(ioapic_base);
 	setup_ioapic(ioapic_base, 1);
 }

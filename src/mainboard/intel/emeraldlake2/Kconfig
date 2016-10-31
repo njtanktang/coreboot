@@ -10,7 +10,11 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select HAVE_ACPI_TABLES
 	select HAVE_OPTION_TABLE
 	select HAVE_ACPI_RESUME
+	select INTEL_INT15
 	#select MAINBOARD_HAS_CHROMEOS
+
+config CHROMEOS
+	#select VBOOT_VBNV_CMOS
 
 config MAINBOARD_DIR
 	string
@@ -22,11 +26,7 @@ config MAINBOARD_PART_NUMBER
 
 config MMCONF_BASE_ADDRESS
 	hex
-	default 0xf0000000
-
-config IRQ_SLOT_COUNT
-	int
-	default 18
+	default 0xf8000000 if USE_NATIVE_RAMINIT
 
 config MAX_CPUS
 	int

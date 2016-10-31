@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -87,9 +83,9 @@ static void sm_init(device_t dev)
 	printk(BIOS_INFO, "sm_init().\n");
 
 	/* Don't rename APIC ID */
-	/* TODO: We should call setup_ioapic() here. But kernel hangs if cpu is K8.
+	/* TODO: We should call setup_ioapic() here. But kernel hangs if CPU is K8.
 	 * We need to check out why and change back. */
-	clear_ioapic(IO_APIC_ADDR);
+	clear_ioapic(VIO_APIC_VADDR);
 	//setup_ioapic(IO_APIC_ADDR, 0);
 
 	/* enable serial irq */
@@ -111,7 +107,7 @@ static void sm_init(device_t dev)
 	pm_iowrite(0xE2, (AB_INDX >> 16) & 0xFF);
 	pm_iowrite(0xE3, (AB_INDX >> 24) & 0xFF);
 	/* Initialize the real time clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	byte = pm_ioread(0x8);
 	byte |= 1 << 2 | 1 << 4;
@@ -313,7 +309,7 @@ static void sb800_sm_set_resources(struct device *dev)
 	pci_dev_set_resources(dev);
 
 
-	/* rpr2.14: Make HPET MMIO decoding controlled by the memory enable bit in command register of LPC ISA bridage */
+	/* rpr2.14: Make HPET MMIO decoding controlled by the memory enable bit in command register of LPC ISA bridge */
 	byte = pm_ioread(0x52);
 	byte |= 1 << 6;
 	pm_iowrite(0x52, byte);
@@ -343,7 +339,7 @@ static struct device_operations smbus_ops = {
 	.set_resources = sb800_sm_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = sm_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_smbus,
 	.ops_pci = &lops_pci,
 	.ops_smbus_bus = &lops_smbus_bus,
 };

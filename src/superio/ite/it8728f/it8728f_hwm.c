@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -35,13 +31,7 @@
 #define HWM_FAN3_CTL_PWM		 0x17	/* default 0x00 */
 #define HWM_ADC_TEMP_CHAN_EN_REG 0x51	/* default 0x00 */
 
-static void pnp_write_index(u16 port, u8 reg, u8 value)
-{
-	outb(reg, port);
-	outb(value, port + 1);
-}
-
-void it8728f_hwm_ec_init(device_t dev)
+void it8728f_hwm_ec_init(struct device *dev)
 {
 	struct superio_ite_it8728f_config *conf = dev->chip_info;
 	struct resource *res = find_resource(dev, PNP_IDX_IO0);

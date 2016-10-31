@@ -1,14 +1,8 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright (C) 2008 Jordan Crouse <jordan@cosmicpenguin.net>
- * Copyright (C) 2013 The Chromium OS Authors. All rights reserved.
+ * Copyright 2015 Google Inc.
  *
- * This file is dual-licensed. You can choose between:
- *   - The GNU GPL, version 2, as published by the Free Software Foundation
- *   - The revised BSD license (without advertising clause)
- *
- * ---------------------------------------------------------------------------
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; version 2 of the License.
@@ -17,105 +11,74 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
- * ---------------------------------------------------------------------------
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote products
- *    derived from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- * ---------------------------------------------------------------------------
  */
 
 #ifndef _CBFS_H_
 #define _CBFS_H_
 
-#include <cbfs_core.h>
+#include <commonlib/cbfs.h>
+#include <program_loading.h>
 
-void *cbfs_load_optionrom(struct cbfs_media *media, uint16_t vendor,
-			  uint16_t device, void * dest);
-void *cbfs_load_stage(struct cbfs_media *media, const char *name);
+/***********************************************
+ * Perform CBFS operations on the boot device. *
+ ***********************************************/
 
-/* Simple buffer for streaming media. */
-struct cbfs_simple_buffer {
-	char *buffer;
-	size_t allocated;
+/* Return mapping of option ROM found in boot device. NULL on error. */
+void *cbfs_boot_map_optionrom(uint16_t vendor, uint16_t device);
+/* Load stage by name into memory. Returns entry address on success. NULL on
+ * failure. */
+void *cbfs_boot_load_stage_by_name(const char *name);
+/* Locate file by name and optional type. Return 0 on success. < 0 on error. */
+int cbfs_boot_locate(struct cbfsf *fh, const char *name, uint32_t *type);
+/* Map file into memory leaking the mapping. Only should be used when
+ * leaking mappings are a no-op. Returns NULL on error, else returns
+ * the mapping and sets the size of the file. */
+void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size);
+/* Load a struct file from CBFS into a buffer. Returns amount of loaded
+ * bytes on success or 0 on error. File will get decompressed as necessary.
+ * Same decompression requirements as cbfs_load_and_decompress(). */
+size_t cbfs_boot_load_struct(const char *name, void *buf, size_t buf_size);
+
+/* Load |in_size| bytes from |rdev| at |offset| to the |buffer_size| bytes
+ * large |buffer|, decompressing it according to |compression| in the process.
+ * Returns the decompressed file size, or 0 on error.
+ * LZMA files will be mapped for decompression. LZ4 files will be decompressed
+ * in-place with the buffer size requirements outlined in compression.h. */
+size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+	size_t in_size, void *buffer, size_t buffer_size, uint32_t compression);
+
+/* Load stage into memory filling in prog. Return 0 on success. < 0 on error. */
+int cbfs_prog_stage_load(struct prog *prog);
+
+/*****************************************************************
+ * Support structures and functions. Direct field access should  *
+ * only be done by implementers of cbfs regions -- Not the above *
+ * API.                                                          *
+ *****************************************************************/
+
+/* The cbfs_props struct describes the properties associated with a CBFS. */
+struct cbfs_props {
+	/* CBFS starts at the following offset within the boot region. */
+	size_t offset;
+	/* CBFS size. */
 	size_t size;
-	size_t last_allocate;
 };
 
-void *cbfs_simple_buffer_map(struct cbfs_simple_buffer *buffer,
-			     struct cbfs_media *media,
-			     size_t offset, size_t count);
+/* Return < 0 on error otherwise props are filled out accordingly. */
+int cbfs_boot_region_properties(struct cbfs_props *props);
 
-void *cbfs_simple_buffer_unmap(struct cbfs_simple_buffer *buffer,
-			       const void *address);
+/* Allow external logic to take action prior to locating a program
+ * (stage or payload). */
+void cbfs_prepare_program_locate(void);
 
-// Utility functions
-int run_address(void *f);
-
-/* Defined in individual arch / board implementation. */
-int init_default_cbfs_media(struct cbfs_media *media);
-
-#if defined(__PRE_RAM__)
-struct romstage_handoff;
-struct cbmem_entry;
-
-#if CONFIG_RELOCATABLE_RAMSTAGE && defined(__PRE_RAM__)
-/* The cache_loaded_ramstage() and load_cached_ramstage() functions are defined
- * to be weak so that board and chipset code may override them. Their job is to
- * cache and load the ramstage for quick S3 resume. By default a copy of the
- * relocated ramstage is saved using the cbmem infrastructure. These
- * functions are only valid during romstage. */
-
-/* The implementer of cache_loaded_ramstage() may use the romstage_handoff
- * structure to store information, but note that the handoff variable can be
- * NULL. The ramstage cbmem_entry represents the region occupied by the loaded
- * ramstage. */
-void __attribute__((weak))
-cache_loaded_ramstage(struct romstage_handoff *handoff,
-                      const struct cbmem_entry *ramstage, void *entry_point);
-/* Return NULL on error or entry point on success. The ramstage cbmem_entry is
- * the region where to load the cached contents to. */
-void * __attribute__((weak))
-load_cached_ramstage(struct romstage_handoff *handoff,
-                     const struct cbmem_entry *ramstage);
-#else  /* CONFIG_RELOCATABLE_RAMSTAGE */
-
-static inline void cache_loaded_ramstage(struct romstage_handoff *handoff,
-			const struct cbmem_entry *ramstage, void *entry_point)
-{
-}
-
-static inline void *
-load_cached_ramstage(struct romstage_handoff *handoff,
-			const struct cbmem_entry *ramstage)
-{
-	return NULL;
-}
-
-#endif /* CONFIG_RELOCATABLE_RAMSTAGE */
-#endif /* defined(__PRE_RAM__) */
+/* Object used to identify location of current cbfs to use for cbfs_boot_*
+ * operations. It's used by cbfs_boot_region_properties() and
+ * cbfs_prepare_program_locate(). */
+struct cbfs_locator {
+	const char *name;
+	void (*prepare)(void);
+	/* Returns 0 on successful fill of cbfs properties. */
+	int (*locate)(struct cbfs_props *props);
+};
 
 #endif
-

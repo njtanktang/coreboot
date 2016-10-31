@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,7 +24,7 @@
 #include "chip.h"
 #include <string.h>
 
-static void ics954309_init(device_t dev)
+static void ics954309_init(struct device *dev)
 {
 	struct drivers_ics_954309_config *config;
 	u8 initdata[12];
@@ -55,14 +50,10 @@ static void ics954309_init(device_t dev)
 	smbus_block_write(dev, 0, 12, initdata);
 }
 
-static void ics954309_noop(device_t dummy)
-{
-}
-
 static struct device_operations ics954309_operations = {
-        .read_resources   = ics954309_noop,
-        .set_resources    = ics954309_noop,
-        .enable_resources = ics954309_noop,
+        .read_resources   = DEVICE_NOOP,
+        .set_resources    = DEVICE_NOOP,
+        .enable_resources = DEVICE_NOOP,
         .init             = ics954309_init,
 };
 

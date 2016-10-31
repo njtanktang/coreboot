@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -127,7 +123,7 @@ static int do_smbus_block_write(unsigned smbus_base, unsigned device,
 	outb((inb(smbus_base + SMBHSTCTL) | 0x40),
 	     smbus_base + SMBHSTCTL);
 
-	while(!(inb(smbus_base + SMBHSTSTAT) & 1));
+	while (!(inb(smbus_base + SMBHSTSTAT) & 1));
 	/* Poll for transaction completion */
 	do {
 		status = inb(smbus_base + SMBHSTSTAT);
@@ -140,7 +136,7 @@ static int do_smbus_block_write(unsigned smbus_base, unsigned device,
 			outb(*buf++, smbus_base + SMBBLKDAT);
 			outb(status, smbus_base + SMBHSTSTAT);
 		}
-	} while(status & 0x01);
+	} while (status & 0x01);
 
 	return 0;
 }
@@ -184,7 +180,7 @@ static int do_smbus_block_read(unsigned smbus_base, unsigned device,
 	outb((inb(smbus_base + SMBHSTCTL) | 0x40),
 	     smbus_base + SMBHSTCTL);
 
-	while(!(inb(smbus_base + SMBHSTSTAT) & 1));
+	while (!(inb(smbus_base + SMBHSTSTAT) & 1));
 	/* Poll for transaction completion */
 	do {
 		status = inb(smbus_base + SMBHSTSTAT);
@@ -204,7 +200,7 @@ static int do_smbus_block_read(unsigned smbus_base, unsigned device,
 					 smbus_base + SMBHSTCTL);
 			}
 		}
-	} while(status & 0x01);
+	} while (status & 0x01);
 
 	return bytes_read;
 }
@@ -258,7 +254,7 @@ static struct device_operations smbus_ops = {
 	.read_resources		= smbus_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_smbus,
 	.enable			= i82801gx_enable,
 	.ops_smbus_bus		= &lops_smbus_bus,
 	.ops_pci		= &smbus_pci_ops,

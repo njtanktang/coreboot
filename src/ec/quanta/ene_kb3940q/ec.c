@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef __PRE_RAM__
@@ -37,7 +32,7 @@
 static int ec_input_buffer_empty(u8 status_port)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_port) & KBD_IBF);
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_port) & KBD_IBF);
 	    timeout--) {
 		mdelay(1);
 	}
@@ -52,7 +47,7 @@ static int ec_input_buffer_empty(u8 status_port)
 static int ec_output_buffer_full(u8 status_port)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_port)
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_port)
 	    & KBD_OBF) == 0); timeout--) {
 		mdelay(1);
 	}
@@ -141,40 +136,28 @@ static void ene_kb3940q_log_events(void)
 #endif
 }
 
-static void ene_kb3940q_init(device_t dev)
+static void ene_kb3940q_init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
 
 	printk(BIOS_DEBUG, "Quanta EnE KB3940Q: Initializing keyboard.\n");
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
 	ene_kb3940q_log_events();
 }
 
-
-static void ene_kb3940q_read_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
-}
-
-
-static void ene_kb3940q_enable_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
-}
-
 static struct device_operations ops = {
 	.init             = ene_kb3940q_init,
-	.read_resources   = ene_kb3940q_read_resources,
-	.enable_resources = ene_kb3940q_enable_resources
+	.read_resources   = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 };
 
 static struct pnp_info pnp_dev_info[] = {
-        { &ops, 0, 0, { 0, 0 }, }
+	{ &ops, 0, 0, { 0, 0 }, }
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info),
 			   pnp_dev_info);

@@ -3,7 +3,7 @@
  * sconfig, coreboot device tree compiler
  *
  * Copyright (C) 2010 coresystems GmbH
- *                 written by Patrick Georgi <patrick.georgi@coresystems.de>
+ *   written by Patrick Georgi <patrick@georgi-clan.de>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,13 +13,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include "sconfig.h"
+
+int yylex();
+void yyerror(const char *s);
 
 static struct device *cur_parent, *cur_bus;
 
@@ -30,7 +29,7 @@ static struct device *cur_parent, *cur_bus;
 	int number;
 }
 
-%token CHIP DEVICE REGISTER BOOL BUS RESOURCE END EQUALS HEX STRING PCI PNP I2C APIC CPU_CLUSTER DOMAIN IRQ DRQ IO NUMBER SUBSYSTEMID INHERIT IOAPIC_IRQ IOAPIC PCIINT
+%token CHIP DEVICE REGISTER BOOL BUS RESOURCE END EQUALS HEX STRING PCI PNP I2C APIC CPU_CLUSTER CPU DOMAIN IRQ DRQ IO NUMBER SUBSYSTEMID INHERIT IOAPIC_IRQ IOAPIC PCIINT GENERIC
 %%
 devtree: { cur_parent = cur_bus = head; } chip { postprocess_devtree(); } ;
 

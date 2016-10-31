@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -28,8 +23,10 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <build.h>
+#include <drivers/intel/gma/i915.h>
+#include <arch/acpigen.h>
 #include "northbridge.h"
+#include <cbmem.h>
 
 unsigned long acpi_fill_mcfg(unsigned long current)
 {
@@ -44,7 +41,7 @@ unsigned long acpi_fill_mcfg(unsigned long current)
 	if (!dev)
 		return current;
 
-	pciexbar_reg=pci_read_config32(dev, PCIEXBAR);
+	pciexbar_reg = pci_read_config32(dev, PCIEXBAR);
 
 	// MMCFG not supported or not enabled.
 	if (!(pciexbar_reg & (1 << 0)))
@@ -118,7 +115,7 @@ static int init_opregion_vbt(igd_opregion_t *opregion)
 	optionrom_vbt_t *vbt = (optionrom_vbt_t *)(vbios +
 						oprom->vbt_offset);
 
-	if (read32((unsigned long)vbt->hdr_signature) != VBT_SIGNATURE) {
+	if (read32(vbt->hdr_signature) != VBT_SIGNATURE) {
 		printk(BIOS_DEBUG, "VBT not found!\n");
 		return 1;
 	}
@@ -142,7 +139,7 @@ int init_igd_opregion(igd_opregion_t *opregion)
 	// FIXME if IGD is disabled, we should exit here.
 
 	memcpy(&opregion->header.signature, IGD_OPREGION_SIGNATURE,
-		sizeof(IGD_OPREGION_SIGNATURE));
+		sizeof(opregion->header.signature));
 
 	/* 8kb */
 	opregion->header.size = sizeof(igd_opregion_t) / 1024;
@@ -199,4 +196,13 @@ int init_igd_opregion(igd_opregion_t *opregion)
 	return 0;
 }
 
+void *igd_make_opregion(void)
+{
+	igd_opregion_t *opregion;
 
+	printk(BIOS_DEBUG, "ACPI:    * IGD OpRegion\n");
+	opregion = cbmem_add(CBMEM_ID_IGD_OPREGION, sizeof(*opregion));
+	if (opregion)
+		init_igd_opregion(opregion);
+	return opregion;
+}

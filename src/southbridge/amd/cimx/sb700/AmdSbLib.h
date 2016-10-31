@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _AMD_SB_LIB_H_
@@ -22,7 +18,7 @@
 
 typedef signed char  *va_list;
 #ifndef _INTSIZEOF
-  #define _INTSIZEOF (n) ( (sizeof (n) + sizeof (UINTN) - 1) & ~(sizeof (UINTN) - 1) )
+  #define _INTSIZEOF (n) ( (sizeof(n) + sizeof(UINTN) - 1) & ~(sizeof(UINTN) - 1) )
 #endif
 
 // Also support coding convention rules for var arg macros

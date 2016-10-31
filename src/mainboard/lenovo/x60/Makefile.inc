@@ -12,14 +12,7 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += dock.c
 romstage-y += dock.c
 ramstage-y += dock.c
-ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += i915.c
-ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += i915io.c
-ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += intel_dp.c

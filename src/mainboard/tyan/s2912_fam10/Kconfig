@@ -7,6 +7,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select DIMM_REGISTERED
 	select NORTHBRIDGE_AMD_AMDFAM10
 	select SOUTHBRIDGE_NVIDIA_MCP55
+	select HT_CHAIN_DISTRIBUTE
 	select MCP55_USE_NIC
 	select SUPERIO_WINBOND_W83627HF
 	select PARALLEL_CPU_INIT
@@ -16,9 +17,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select LIFT_BSP_APIC_ID
 	select BOARD_ROMSIZE_KB_1024
 	select ENABLE_APIC_EXT_ID
-	select AMDMCT
 	select MMCONF_SUPPORT_DEFAULT
-	select QRANK_DIMM_SUPPORT
 
 config MAINBOARD_DIR
 	string
@@ -34,19 +33,11 @@ config DCACHE_RAM_SIZE
 
 config APIC_ID_OFFSET
 	hex
-	default 0
-
-config SB_HT_CHAIN_ON_BUS0
-	int
-	default 2
+	default 0x0
 
 config MAINBOARD_PART_NUMBER
 	string
 	default "S2912 (Fam10)"
-
-config PCI_64BIT_PREF_MEM
-	bool
-	default n
 
 config MAX_CPUS
 	int
@@ -67,22 +58,6 @@ config HT_CHAIN_END_UNITID_BASE
 config IRQ_SLOT_COUNT
 	int
 	default 11
-
-config AMD_UCODE_PATCH_FILE
-	string
-	default "mc_patch_01000095.h"
-
-config RAMBASE
-	hex
-	default 0x200000
-
-config RAMTOP
-	hex
-	default 0x1000000
-
-config HEAP_SIZE
-	hex
-	default 0xc0000
 
 config MCP55_PCI_E_X_0
 	int

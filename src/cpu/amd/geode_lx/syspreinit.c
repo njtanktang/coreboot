@@ -14,21 +14,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-/* ***************************************************************************/
-/* **/
-/* *	StartTimer1*/
-/* **/
-/* *	Entry: none*/
-/* *	Exit: Starts Timer 1 for port 61 use*/
-/* *	Destroys: Al,*/
-/* **/
-/* ***************************************************************************/
+/**
+ *	StartTimer1
+ *
+ *	Entry: none
+ *	Exit: Starts Timer 1 for port 61 use
+ *	Destroys: Al,
+ */
 static void StartTimer1(void)
 {
 	outb(0x56, 0x43);
@@ -37,7 +31,6 @@ static void StartTimer1(void)
 
 void SystemPreInit(void)
 {
-
 	/* they want a jump ... */
 #if !CONFIG_CACHE_AS_RAM
 	__asm__ __volatile__("jmp .+2\ninvd\njmp .+2\n");

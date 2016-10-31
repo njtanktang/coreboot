@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <bootstate.h>
@@ -64,14 +59,14 @@ void southbridge_smm_enable_smi(void)
 	disable_gpe(PME_B0_EN);
 
 	/* Enable SMI generation:
-	 *  - on TCO events
 	 *  - on APMC writes (io 0xb2)
 	 *  - on writes to SLP_EN (sleep states)
 	 *  - on writes to GBL_RLS (bios commands)
 	 * No SMIs:
 	 *  - on microcontroller writes (io 0x62/0x66)
+	 *  - on TCO events
 	 */
-	enable_smi(TCO_EN | APMC_EN | SLP_SMI_EN | GBL_SMI_EN | EOS);
+	enable_smi(APMC_EN | SLP_SMI_EN | GBL_SMI_EN | EOS);
 }
 
 void southbridge_trigger_smi(void)
@@ -135,9 +130,6 @@ static void finalize_boot(void *unused)
 	outb(0xcb, 0xb2);
 }
 
-BOOT_STATE_INIT_ENTRIES(finalize) = {
-	BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_BOOT, BS_ON_ENTRY,
-			      finalize_boot, NULL),
-};
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_BOOT, BS_ON_ENTRY, finalize_boot, NULL);
 
 #endif

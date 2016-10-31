@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,9 +19,12 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <delay.h>
-#include "hda_verb.h"
+#include <drivers/intel/gma/int15.h>
+
 
 #include "ec_oem.c"
+
+#include "mainboard.h"
 
 #define MAX_LCD_BRIGHTNESS	0xd8
 
@@ -76,15 +74,11 @@ static void pcie_limit_power(void)
 #endif
 }
 
-static void verb_setup(void)
-{
-	cim_verb_data = mainboard_cim_verb_data;
-	cim_verb_data_size = sizeof(mainboard_cim_verb_data);
-}
 
 static void mainboard_init(device_t dev)
 {
 	ec_enable();
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_TXT_STRETCH, 0, 3);
 }
 
 // mainboard_enable is executed as first thing after
@@ -92,11 +86,11 @@ static void mainboard_init(device_t dev)
 static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
+	dev->ops->write_acpi_tables = mainboard_write_acpi_tables;
+
 	pcie_limit_power();
-	verb_setup();
 }
 
 struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 };
-

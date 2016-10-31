@@ -58,7 +58,7 @@ static int bochs_read(int index)
 }
 #endif
 
-static void bochs_init(device_t dev)
+static void bochs_init(struct device *dev)
 {
 #if IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
 	struct edid edid;
@@ -109,12 +109,11 @@ static void bochs_init(device_t dev)
 	outb(0x20, 0x3c0); /* disable blanking */
 
 	/* setup coreboot framebuffer */
-	edid.ha = width;
-	edid.va = height;
-	edid.x_resolution = width;
-	edid.y_resolution = height;
-	edid.bytes_per_line = width * 4;
-	edid.bpp = 32;
+	edid.mode.ha = width;
+	edid.mode.va = height;
+	edid.panel_bits_per_color = 8;
+	edid.panel_bits_per_pixel = 24;
+	edid_set_framebuffer_bits_per_pixel(&edid, 32, 0);
 	set_vbe_mode_info_valid(&edid, addr);
 #else
 	vga_misc_write(0x1);

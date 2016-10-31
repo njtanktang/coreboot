@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 	/* Routing is in System Bus scope */
@@ -138,11 +134,11 @@
 		/* Bus 0, Dev 17 - SATA controller */
 		Package(){0x0011FFFF, 0, 0, 19 },
 
-		/* Bus0, Dev 21 PCIE Bridge */
-		Package(){0x0015FFFF, 0, 0, 16 },
-		Package(){0x0015FFFF, 1, 0, 17 },
-		Package(){0x0015FFFF, 2, 0, 18 },
-		Package(){0x0015FFFF, 3, 0, 19 },
+		/* Bus 0, Dev 21 PCIE Bridge */
+		Package(){0x0015FFFF, 0, 0, 17 },
+		Package(){0x0015FFFF, 1, 0, 18 },
+		Package(){0x0015FFFF, 2, 0, 19 },
+		Package(){0x0015FFFF, 3, 0, 16 },
 	})
 
 	Name(PS2, Package(){

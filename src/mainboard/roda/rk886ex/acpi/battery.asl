@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Name(\CBA1, 0x60)
@@ -149,7 +144,7 @@ Device (BAT1)
 		Store ("Bad", Index(PBIF, 10))
 		Store ("Bad", Index(PBIF, 11))
 		Store ("Bad", Index(PBIF, 12))
-		Store (1, PBIF)
+		Store (1, Index(PBIF, 0))
 	}
 
 	Method(IVBS, 0)
@@ -289,7 +284,7 @@ Device (BAT2)
 		Store ("Bad", Index(PBIF, 10))
 		Store ("Bad", Index(PBIF, 11))
 		Store ("Bad", Index(PBIF, 12))
-		Store (1, PBIF)
+		Store (1, Index(PBIF, 0))
 	}
 
 	Method(IVBS, 0)
@@ -336,4 +331,3 @@ Device (ADP1)
 		Return (_SB)
 	}
 }
-

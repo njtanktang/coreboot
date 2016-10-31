@@ -1,6 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2008-2009 coresystems GmbH
  *               2012 secunet Security Networks AG
  *
@@ -12,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801GX_I82801IX_H
@@ -27,9 +24,14 @@
 #endif
 #endif
 
-#define DEFAULT_TBAR		0xfed1b000
+#define DEFAULT_TBAR		((u8 *)0xfed1b000)
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
-#ifdef CONFIG_BOARD_EMULATION_QEMU_X86_Q35
+#endif
+
+#if IS_ENABLED(CONFIG_BOARD_EMULATION_QEMU_X86_Q35)
 /*
  * Qemu has the fw_cfg interface at 0x510.  Move the pmbase to a
  * non-conflicting address.  No need to worry about speedstep, it
@@ -71,6 +73,15 @@
 #define ALT_GP_SMI_STS	0x3a
 
 
+#define GP_IO_USE_SEL	0x00
+#define GP_IO_SEL	0x04
+#define GP_LVL		0x0c
+#define GPO_BLINK	0x18
+#define GPI_INV		0x2c
+#define GP_IO_USE_SEL2	0x30
+#define GP_IO_SEL2	0x34
+#define GP_LVL2		0x38
+
 #define DEBUG_PERIODIC_SMIS	0
 
 #define MAINBOARD_POWER_OFF	0
@@ -99,6 +110,9 @@
 #define D31F0_LPC_IODEC		0x80
 #define D31F0_LPC_EN		0x82
 #define D31F0_GEN1_DEC		0x84
+#define D31F0_GEN2_DEC		0x88
+#define D31F0_GEN3_DEC		0x8c
+#define D31F0_GEN4_DEC		0x90
 #define D31F0_GEN_PMCON_1	0xa0
 #define D31F0_GEN_PMCON_3	0xa4
 #define D31F0_C5_EXIT_TIMING	0xa8
@@ -179,7 +193,7 @@
 #define RCBA_FD			0x3418 /* Function Disable, see below. */
 #define RCBA_CG			0x341c
 #define RCBA_FDSW		0x3420
-#define RCBA_MAP		0x35f0 /* UHCI cotroller #6 remapping */
+#define RCBA_MAP		0x35f0 /* UHCI controller #6 remapping */
 
 #define BUC_LAND	(1 <<  5) /* LAN */
 #define FD_SAD2		(1 << 25) /* SATA #2 */

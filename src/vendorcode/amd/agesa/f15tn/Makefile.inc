@@ -32,6 +32,7 @@ AGESA_ROOT = src/vendorcode/amd/agesa/f15tn
 
 AGESA_INC =  -Isrc/mainboard/$(MAINBOARDDIR)
 AGESA_INC += -I$(AGESA_ROOT)
+AGESA_INC += -I$(AGESA_ROOT)/../common
 AGESA_INC += -I$(AGESA_ROOT)/Include
 AGESA_INC += -I$(AGESA_ROOT)/Lib
 AGESA_INC += -I$(AGESA_ROOT)/Legacy
@@ -76,21 +77,17 @@ AGESA_INC += -I$(AGESA_ROOT)/Proc/GNB/Include/Library
 AGESA_INC += -I$(src)/southbridge/amd/agesa/hudson
 
 CFLAGS_x86_32 += -march=k8-sse3 -mtune=k8-sse3 -fno-zero-initialized-in-bss -fno-strict-aliasing
+CFLAGS_x86_64 += -march=k8-sse3 -mtune=k8-sse3 -fno-zero-initialized-in-bss -fno-strict-aliasing
 
 export AGESA_ROOT := $(AGESA_ROOT)
 export AGESA_INC  := $(AGESA_INC)
 CPPFLAGS_x86_32 += $(AGESA_INC)
+CPPFLAGS_x86_64 += $(AGESA_INC)
 #######################################################################
-
-classes-y += libagesa
-
-$(eval $(call create_class_compiler,libagesa,x86_32))
 
 libagesa-y += Legacy/Proc/Dispatcher.c
 libagesa-y += Legacy/Proc/agesaCallouts.c
 libagesa-y += Legacy/Proc/hobTransfer.c
-libagesa-y += Lib/amdlib.c
-libagesa-y += Lib/helper.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnC6State.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnCpb.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnEquivalenceTable.c
@@ -230,6 +227,7 @@ libagesa-y += Proc/GNB/Modules/GnbInitTN/PcieMidInitTN.c
 libagesa-y += Proc/GNB/Modules/GnbInitTN/PciePostInitTN.c
 libagesa-y += Proc/GNB/Modules/GnbInitTN/PciePowerGateTN.c
 libagesa-y += Proc/GNB/Modules/GnbInitTN/PcieTablesTN.c
+libagesa-y += Proc/GNB/Modules/GnbIommuScratch/GnbIommuScratch.c
 libagesa-y += Proc/GNB/Modules/GnbIommuIvrs/GnbIommuIvrs.c
 libagesa-y += Proc/GNB/Modules/GnbIvrsLib/GnbIvrsLib.c
 libagesa-y += Proc/GNB/Modules/GnbMSocketLib/GnbMSocketLib.c

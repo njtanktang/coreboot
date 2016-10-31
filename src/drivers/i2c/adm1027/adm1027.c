@@ -18,7 +18,7 @@
 #define ADM1027_REG_CONFIG2	0x73
 #define ADM1027_REG_CONFIG3	0x78
 
-static void adm1027_enable_monitoring(device_t dev)
+static void adm1027_enable_monitoring(struct device *dev)
 {
 	int result;
 
@@ -39,7 +39,7 @@ static void adm1027_enable_monitoring(device_t dev)
 	printk(BIOS_DEBUG, "ADM1027: monitoring enabled\n");
 }
 
-static void adm1027_init(device_t dev)
+static void adm1027_init(struct device *dev)
 {
 	if (dev->enabled && dev->path.type == DEVICE_PATH_I2C) {
 		if (ops_smbus_bus(get_pbus_smbus(dev))) {
@@ -50,14 +50,10 @@ static void adm1027_init(device_t dev)
 	}
 }
 
-static void adm1027_noop(device_t dummy)
-{
-}
-
 static struct device_operations adm1027_operations = {
-	.read_resources = adm1027_noop,
-	.set_resources = adm1027_noop,
-	.enable_resources = adm1027_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = adm1027_init,
 };
 

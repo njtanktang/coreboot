@@ -12,18 +12,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
 #include <arch/io.h>
-#include <baytrail/iosf.h>
-#include <baytrail/romstage.h>
+#include <soc/iosf.h>
+#include <soc/romstage.h>
 #include <cpu/x86/msr.h>
-#include <baytrail/msr.h>
+#include <soc/msr.h>
 #include <cpu/x86/name.h>
 
 static void print_dram_info(void)

@@ -25,6 +25,8 @@
  **********************************************************************/
 #define RTC_FREQ_SELECT	RTC_REG_A
 
+#define RTC_BOOT_NORMAL		0x1
+
 /* update-in-progress  - set to "1" 244 microsecs before RTC goes off the bus,
  * reset after update (may take 1.984ms @ 32768Hz RefClock) is complete,
  * totaling to a max high interval of 2.228 ms.
@@ -38,7 +40,7 @@
    /* 2 values for divider stage reset, others for "testing purposes only" */
 #  define RTC_DIV_RESET1	0x60
 #  define RTC_DIV_RESET2	0x70
-  /* Periodic intr. / Square wave rate select. 0=none, 1=32.8kHz,... 15=2Hz */
+  /* Periodic intr. / Square wave rate select. 0 = none, 1 = 32.8kHz,... 15 = 2Hz */
 # define RTC_RATE_SELECT 	0x0F
 #  define RTC_RATE_NONE		0x00
 #  define RTC_RATE_32786HZ	0x01
@@ -94,15 +96,11 @@
 #define RTC_CLK_YEAR		9
 #define RTC_CLK_ALTCENTURY	0x32
 
-#define RTC_HAS_ALTCENTURY	1
-#define RTC_HAS_NO_ALTCENTURY	0
-
 /* On PCs, the checksum is built only over bytes 16..45 */
 #define PC_CKS_RANGE_START	16
 #define PC_CKS_RANGE_END	45
 #define PC_CKS_LOC		46
 
-#ifndef UTIL_BUILD_OPTION_TABLE
 static inline unsigned char cmos_read(unsigned char addr)
 {
 	int offs = 0;
@@ -169,26 +167,17 @@ static inline void cmos_write32(u8 offset, u32 value)
 	for (i = 0; i < sizeof(value); ++i)
 		cmos_write((value >> (i << 3)) & 0xff, offset + i);
 }
-#endif
 
 #if !defined(__ROMCC__)
-void rtc_init(int invalid);
-void rtc_check_update_cmos_date(u8 has_century);
-#if CONFIG_USE_OPTION_TABLE
+void cmos_init(bool invalid);
+void cmos_check_update_date(void);
+
 enum cb_err set_option(const char *name, void *val);
 enum cb_err get_option(void *dest, const char *name);
 unsigned read_option_lowlevel(unsigned start, unsigned size, unsigned def);
-#else
-static inline enum cb_err set_option(const char *name __attribute__((unused)),
-				     void *val __attribute__((unused)))
-				{ return CB_CMOS_OTABLE_DISABLED; };
-static inline enum cb_err get_option(void *dest __attribute__((unused)),
-				     const char *name __attribute__((unused)))
-				{ return CB_CMOS_OTABLE_DISABLED; }
-#define read_option_lowlevel(start, size, def) def
-#endif
+
 #else /* defined(__ROMCC__) */
-#include <drivers/pc80/mc146818rtc_early.c>
+#include <drivers/pc80/rtc/mc146818rtc_early.c>
 #endif /* !defined(__ROMCC__) */
 #define read_option(name, default) read_option_lowlevel(CMOS_VSTART_ ##name, CMOS_VLEN_ ##name, (default))
 
@@ -197,10 +186,10 @@ static inline enum cb_err get_option(void *dest __attribute__((unused)),
 # include "option_table.h"
 # define CMOS_POST_OFFSET (CMOS_VSTART_cmos_post_offset >> 3)
 #else
-# if defined(CONFIG_CMOS_POST_OFFSET)
+# if defined(CONFIG_CMOS_POST_OFFSET) && CONFIG_CMOS_POST_OFFSET
 #  define CMOS_POST_OFFSET CONFIG_CMOS_POST_OFFSET
 # else
-#  error "Must define CONFIG_CMOS_POST_OFFSET"
+#  error "Must configure CONFIG_CMOS_POST_OFFSET"
 # endif
 #endif
 

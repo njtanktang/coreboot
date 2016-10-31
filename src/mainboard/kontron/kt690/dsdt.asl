@@ -11,11 +11,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include <southbridge/amd/sb600/sb600.h>
 
 /* DefinitionBlock Statement */
 DefinitionBlock (
@@ -37,7 +35,6 @@ DefinitionBlock (
 	Name(PBLN, 0x0)	/* Length of BIOS area */
 
 	Name(PCBA, 0xE0000000)	/* Base address of PCIe config space */
-	Name(HPBA, 0xFED00000)	/* Base address of HPET table */
 
 	Name(SSFG, 0x0D)		/* S1 support: bit 0, S2 Support: bit 1, etc. S0 & S5 assumed */
 
@@ -378,7 +375,7 @@ DefinitionBlock (
 
 			if(LNotEqual(OSVR, Ones)) {Return(OSVR)}	/* OS version was already detected */
 
-			if(CondRefOf(\_OSI,Local1))
+			if(CondRefOf(\_OSI))
 			{
 				Store(1, OSVR)                /* Assume some form of XP */
 				if (\_OSI("Windows 2006"))      /* Vista */
@@ -902,7 +899,9 @@ DefinitionBlock (
 		}
 
 		/* Arbitrarily clear PciExpWakeStatus */
-		Store(PWST, PWST)
+		Store(PWST, Local1)
+		Store(Local1, PWST)
+
 
 		/* if(DeRefOf(Index(WKST,0))) {
 		*	Store(0, Index(WKST,1))
@@ -1364,20 +1363,18 @@ DefinitionBlock (
 					})
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
 
-				Device(HPTM) {
+				Device(HPTM) { /* HPET */
 					Name(_HID,EISAID("PNP0103"))
 					Name(CRS,ResourceTemplate()	{
-						Memory32Fixed(ReadOnly,0xFED00000, 0x00000400, HPT)	/* 1kb reserved space */
+						Memory32Fixed(ReadOnly, HPET_BASE_ADDRESS, 0x00000400, HPT)	/* 1kb reserved space */
 					})
 					Method(_STA, 0) {
-						Return(0x0F) /* sata is visible */
+						Return(0x0F) /* HPET is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
 						Return(CRS)
 					}
-				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
+				} /* End Device(_SB.PCI0.LpcIsaBr.HPTM) */
 			} /* end LIBR */
 
 			Device(HPBR) {
@@ -1625,99 +1622,7 @@ DefinitionBlock (
 		}
 	} /* End Scope SI */
 
-	Mutex (SBX0, 0x00)
-	OperationRegion (SMB0, SystemIO, 0xB00, 0x0C)
-		Field (SMB0, ByteAcc, NoLock, Preserve) {
-			HSTS,   8, /* SMBUS status */
-			SSTS,   8,  /* SMBUS slave status */
-			HCNT,   8,  /* SMBUS control */
-			HCMD,   8,  /* SMBUS host cmd */
-			HADD,   8,  /* SMBUS address */
-			DAT0,   8,  /* SMBUS data0 */
-			DAT1,   8,  /* SMBUS data1 */
-			BLKD,   8,  /* SMBUS block data */
-			SCNT,   8,  /* SMBUS slave control */
-			SCMD,   8,  /* SMBUS shadow cmd */
-			SEVT,   8,  /* SMBUS slave event */
-			SDAT,   8  /* SMBUS slave data */
-	}
-
-	Method (WCLR, 0, NotSerialized) { /* clear SMBUS status register */
-		Store (0x1E, HSTS)
-		Store (0xFA, Local0)
-		While (LAnd (LNotEqual (And (HSTS, 0x1E), Zero), LGreater (Local0, Zero))) {
-			Stall (0x64)
-			Decrement (Local0)
-		}
-
-		Return (Local0)
-	}
-
-	Method (SWTC, 1, NotSerialized) {
-		Store (Arg0, Local0)
-		Store (0x07, Local2)
-		Store (One, Local1)
-		While (LEqual (Local1, One)) {
-			Store (And (HSTS, 0x1E), Local3)
-			If (LNotEqual (Local3, Zero)) { /* read sucess */
-				If (LEqual (Local3, 0x02)) {
-					Store (Zero, Local2)
-				}
-
-				Store (Zero, Local1)
-			}
-			Else {
-				If (LLess (Local0, 0x0A)) { /* read failure */
-					Store (0x10, Local2)
-					Store (Zero, Local1)
-				}
-				Else {
-					Sleep (0x0A) /* 10 ms, try again */
-					Subtract (Local0, 0x0A, Local0)
-				}
-			}
-		}
-
-		Return (Local2)
-	}
-
-	Method (SMBR, 3, NotSerialized) {
-		Store (0x07, Local0)
-		If (LEqual (Acquire (SBX0, 0xFFFF), Zero)) {
-			Store (WCLR (), Local0) /* clear SMBUS status register before read data */
-			If (LEqual (Local0, Zero)) {
-				Release (SBX0)
-				Return (0x0)
-			}
-
-			Store (0x1F, HSTS)
-			Store (Or (ShiftLeft (Arg1, One), One), HADD)
-			Store (Arg2, HCMD)
-			If (LEqual (Arg0, 0x07)) {
-				Store (0x48, HCNT) /* read byte */
-			}
-
-			Store (SWTC (0x03E8), Local1) /* 1000 ms */
-			If (LEqual (Local1, Zero)) {
-				If (LEqual (Arg0, 0x07)) {
-					Store (DAT0, Local0)
-				}
-			}
-			Else {
-				Store (Local1, Local0)
-			}
-
-			Release (SBX0)
-		}
-
-		/* DBGO("the value of SMBusData0 register ") */
-		/* DBGO(Arg2) */
-		/* DBGO(" is ") */
-		/* DBGO(Local0) */
-		/* DBGO("\n") */
-
-		Return (Local0)
-	}
+	#include <southbridge/amd/cimx/sb800/acpi/smbus.asl>
 
 	/* THERMAL */
 	Scope(\_TZ) {

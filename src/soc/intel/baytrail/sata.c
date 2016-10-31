@@ -11,16 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
-#include <baytrail/sata.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
+#include <soc/sata.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/device.h>
@@ -92,7 +88,7 @@ static void sata_init(struct device *dev)
 	pci_write_config16(dev, 0x92, reg16);
 
 	if (config->sata_ahci) {
-		u32 abar = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+	  u8 *abar = (u8 *)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
 
 		/* Enable CR memory space decoding */
 		reg16 = pci_read_config16(dev, 0x04);
@@ -174,7 +170,7 @@ static void sata_enable(device_t dev)
 	reg16 = pci_read_config16(dev, 0x90);
 	reg16 &= ~0x03e0;
 	reg16 |= (config->sata_port_map ^ 0x3) << 8;
-	if(config->sata_ahci)
+	if (config->sata_ahci)
 		reg16 |= 0x60;
 	pci_write_config16(dev, 0x90, reg16);
 

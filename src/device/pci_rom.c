@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,35 +25,39 @@
 #include <string.h>
 #include <cbfs.h>
 
+/* Rmodules don't like weak symbols. */
+u32 __attribute__((weak)) map_oprom_vendev(u32 vendev) { return vendev; }
+
 struct rom_header *pci_rom_probe(struct device *dev)
 {
 	struct rom_header *rom_header;
 	struct pci_data *rom_data;
 
 	/* If it's in FLASH, then don't check device for ROM. */
-	rom_header = cbfs_load_optionrom(CBFS_DEFAULT_MEDIA, dev->vendor,
-					 dev->device, NULL);
+	rom_header = cbfs_boot_map_optionrom(dev->vendor, dev->device);
 
 	u32 vendev = (dev->vendor << 16) | dev->device;
 	u32 mapped_vendev = vendev;
 
-	if (map_oprom_vendev)
-		mapped_vendev = map_oprom_vendev(vendev);
+	mapped_vendev = map_oprom_vendev(vendev);
 
 	if (!rom_header) {
 		if (vendev != mapped_vendev) {
-			rom_header = cbfs_load_optionrom(
-					CBFS_DEFAULT_MEDIA,
+			rom_header = cbfs_boot_map_optionrom(
 					mapped_vendev >> 16,
-					mapped_vendev & 0xffff, NULL);
+					mapped_vendev & 0xffff);
 		}
 	}
 
 	if (rom_header) {
 		printk(BIOS_DEBUG, "In CBFS, ROM address for %s = %p\n",
 		       dev_path(dev), rom_header);
+	} else if (!IS_ENABLED(CONFIG_ON_DEVICE_ROM_LOAD)) {
+			printk(BIOS_DEBUG, "PCI Option ROM loading disabled "
+				"for %s\n", dev_path(dev));
+			return NULL;
 	} else {
-		u32 rom_address;
+		uintptr_t rom_address;
 
 		rom_address = pci_read_config32(dev, PCI_ROM_ADDRESS);
 
@@ -74,15 +74,9 @@ struct rom_header *pci_rom_probe(struct device *dev)
 					   rom_address|PCI_ROM_ADDRESS_ENABLE);
 		}
 
-#if CONFIG_ON_DEVICE_ROM_RUN
 		printk(BIOS_DEBUG, "Option ROM address for %s = %lx\n",
 		       dev_path(dev), (unsigned long)rom_address);
 		rom_header = (struct rom_header *)rom_address;
-#else
-		printk(BIOS_DEBUG, "Option ROM execution disabled "
-			"for %s\n", dev_path(dev));
-		return NULL;
-#endif
 	}
 
 	printk(BIOS_SPEW, "PCI expansion ROM, signature 0x%04x, "

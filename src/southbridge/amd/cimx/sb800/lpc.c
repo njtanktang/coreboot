@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -77,7 +73,7 @@ void lpc_set_resources(struct device *dev)
 /**
  * @brief Enable resources for children devices
  *
- * @param dev the device whos children's resources are to be enabled
+ * @param dev the device whose children's resources are to be enabled
  *
  */
 void lpc_enable_childrens_resources(device_t dev)
@@ -119,13 +115,13 @@ void lpc_enable_childrens_resources(device_t dev)
 					case 0x2f8:	/*  COM2 */
 						reg |= (1 << 7);
 						break;
-					case 0x378:	/*  Parallal 1 */
+					case 0x378:	/*  Parallel 1 */
 						reg |= (1 << 0);
 						break;
 					case 0x3f0:	/*  FD0 */
 						reg |= (1 << 26);
 						break;
-					case 0x220:	/*  Aduio 0 */
+					case 0x220:	/*  Audio 0 */
 						reg |= (1 << 8);
 						break;
 					case 0x300:	/*  Midi 0 */

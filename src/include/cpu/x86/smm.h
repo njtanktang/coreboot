@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* AMD64 SMM State-Save Area
@@ -23,6 +19,9 @@
 
 #ifndef CPU_X86_SMM_H
 #define CPU_X86_SMM_H
+
+#include <arch/cpu.h>
+#include <types.h>
 
 #define SMM_DEFAULT_BASE 0x30000
 #define SMM_DEFAULT_SIZE 0x10000
@@ -33,8 +32,6 @@
 #define SMM_ENTRY_OFFSET 0x8000
 #define SMM_SAVE_STATE_BEGIN(x) (SMM_ENTRY_OFFSET + (x))
 
-#include <arch/cpu.h>
-#include <types.h>
 typedef struct {
 	u16	es_selector;
 	u16	es_attributes;
@@ -459,6 +456,7 @@ typedef struct {
 #define APM_CNT_MBI_UPDATE	0xeb
 #define APM_CNT_GNVS_UPDATE	0xea
 #define APM_CNT_FINALIZE	0xcb
+#define APM_CNT_LEGACY		0xcc
 #define APM_STS		0xb3
 
 /* SMI handler function prototypes */
@@ -466,50 +464,35 @@ void smi_handler(u32 smm_revision);
 
 void io_trap_handler(int smif);
 int southbridge_io_trap_handler(int smif);
-int __attribute__((weak)) mainboard_io_trap_handler(int smif);
+int mainboard_io_trap_handler(int smif);
 
 void southbridge_smi_set_eos(void);
 
-#if CONFIG_SMM_MODULES
+#if CONFIG_SMM_TSEG
 void cpu_smi_handler(void);
 void northbridge_smi_handler(void);
 void southbridge_smi_handler(void);
+#else
+void cpu_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
+void northbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
+void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
+#endif /* CONFIG_SMM_TSEG */
 void mainboard_smi_gpi(u32 gpi_sts);
 int  mainboard_smi_apmc(u8 data);
 void mainboard_smi_sleep(u8 slp_typ);
-#else
-void __attribute__((weak)) cpu_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
-void __attribute__((weak)) northbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
-void __attribute__((weak)) southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save);
-
-void __attribute__((weak)) mainboard_smi_gpi(u32 gpi_sts);
-int __attribute__((weak)) mainboard_smi_apmc(u8 data);
-void __attribute__((weak)) mainboard_smi_sleep(u8 slp_typ);
-#endif /* CONFIG_SMM_MODULES */
 
 #if !CONFIG_SMM_TSEG
 void smi_release_lock(void);
-#define tseg_relocate(ptr)
-#elif CONFIG_SMM_MODULES
-#define tseg_relocate(ptr)
-#define smi_get_tseg_base() 0
-#else
-/* Return address of TSEG base */
-u32 smi_get_tseg_base(void);
-/* Adjust pointer with TSEG base */
-void tseg_relocate(void **ptr);
 #endif
 
 /* Get PMBASE address */
 u16 smm_get_pmbase(void);
 
-#if CONFIG_SMM_MODULES
-
 struct smm_runtime {
 	u32 smbase;
 	u32 save_state_size;
-	/* The apic_id_to_cpu provides a mapping from APIC id to cpu number.
-	 * The cpu number is indicated by the index into the array by matching
+	/* The apic_id_to_cpu provides a mapping from APIC id to CPU number.
+	 * The CPU number is indicated by the index into the array by matching
 	 * the default APIC id and value at the index. The stub loader
 	 * initializes this array with a 1:1 mapping. If the APIC ids are not
 	 * contiguous like the 1:1 mapping it is up to the caller of the stub
@@ -535,17 +518,17 @@ void asmlinkage smm_handler_start(void *params);
 /* Retrieve SMM save state for a given CPU. WARNING: This does not take into
  * account CPUs which are configured to not save their state to RAM. */
 void *smm_get_save_state(int cpu);
+#endif /* __SMM__ */
 
-#else
 /* SMM Module Loading API */
 
 /* The smm_loader_params structure provides direction to the SMM loader:
  * - stack_top - optional external stack provided to loader. It must be at
  *               least per_cpu_stack_size * num_concurrent_stacks in size.
- * - per_cpu_stack_size - stack size per cpu for smm modules.
+ * - per_cpu_stack_size - stack size per CPU for smm modules.
  * - num_concurrent_stacks - number of concurrent cpus in handler needing stack
  *                           optional for setting up relocation handler.
- * - per_cpu_save_state_size - the smm save state size per cpu
+ * - per_cpu_save_state_size - the SMM save state size per cpu
  * - num_concurrent_save_states - number of concurrent cpus needing save state
  *                                space
  * - handler - optional handler to call. Only used during SMM relocation setup.
@@ -554,8 +537,8 @@ void *smm_get_save_state(int cpu);
  *                 the address of the module's parameters (if present).
  * - runtime - this field is a result only. The SMM runtime location is filled
  *             into this field so the code doing the loading can manipulate the
- *             runtime's assumptions. e.g. updating the apic id to cpu map to
- *             handle sparse apic id space.
+ *             runtime's assumptions. e.g. updating the APIC id to CPU map to
+ *             handle sparse APIC id space.
  */
 struct smm_loader_params {
 	void *stack_top;
@@ -574,11 +557,9 @@ struct smm_loader_params {
 /* Both of these return 0 on success, < 0 on failure. */
 int smm_setup_relocation_handler(struct smm_loader_params *params);
 int smm_load_module(void *smram, int size, struct smm_loader_params *params);
-#endif /* __SMM__ */
-#endif /* CONFIG_SMM_MODULES */
 
 /* Backup and restore default SMM region. */
 void *backup_default_smm_area(void);
 void restore_default_smm_area(void *smm_save_area);
 
-#endif
+#endif /* CPU_X86_SMM_H */

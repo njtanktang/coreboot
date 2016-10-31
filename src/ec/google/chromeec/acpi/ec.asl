@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -26,6 +22,10 @@
 // Mainboard specific throttle handler
 External (\_TZ.THRT, MethodObj)
 External (\_SB.DPTF.TEVT, MethodObj)
+#ifdef DPTF_ENABLE_CHARGER
+External (\_SB.DPTF.TCHG, DeviceObj)
+#endif
+External (\_SB.DPTF.TPET, MethodObj)
 
 Device (EC0)
 {
@@ -40,7 +40,7 @@ Device (EC0)
 	Name (DWRN, 15)		// Battery capacity warning at 15%
 	Name (DLOW, 10)		// Battery capacity low at 10%
 
-	OperationRegion (ERAM, EmbeddedControl, 0x00, 0xff)
+	OperationRegion (ERAM, EmbeddedControl, 0x00, EC_ACPI_MEM_MAPPED_BEGIN)
 	Field (ERAM, ByteAcc, Lock, Preserve)
 	{
 		Offset (0x00),
@@ -52,51 +52,37 @@ Device (EC0)
 		PATI, 8,	// Programmable Auxiliary Trip Sensor ID
 		PATT, 8,	// Programmable Auxiliary Trip Threshold
 		PATC, 8,	// Programmable Auxiliary Trip Commit
+		CHGL, 8,	// Charger Current Limit
+		TBMD, 1,	// Tablet mode
 	}
 
+#if CONFIG_EC_GOOGLE_CHROMEEC_ACPI_MEMMAP
+	OperationRegion (EMEM, EmbeddedControl,
+			 EC_ACPI_MEM_MAPPED_BEGIN, EC_ACPI_MEM_MAPPED_SIZE)
+	Field (EMEM, ByteAcc, Lock, Preserve)
+#else
 	OperationRegion (EMEM, SystemIO, EC_LPC_ADDR_MEMMAP, EC_MEMMAP_SIZE)
 	Field (EMEM, ByteAcc, NoLock, Preserve)
+#endif
 	{
-		Offset (0x00),
-		TIN0, 8,	// Temperature 0
-		TIN1, 8,	// Temperature 1
-		TIN2, 8,	// Temperature 2
-		TIN3, 8,	// Temperature 3
-		TIN4, 8,	// Temperature 4
-		TIN5, 8,	// Temperature 5
-		TIN6, 8,	// Temperature 6
-		TIN7, 8,	// Temperature 7
-		TIN8, 8,	// Temperature 8
-		TIN9, 8,	// Temperature 9
-		Offset (0x10),
-		FAN0, 16,	// Fan Speed 0
-		Offset (0x30),
-		LIDS, 1,	// Lid Switch State
-		PBTN, 1,	// Power Button Pressed
-		WPDI, 1,	// Write Protect Disabled
-		RECK, 1,	// Keyboard Initiated Recovery
-		RECD, 1,	// Dedicated Recovery Mode
-		Offset (0x40),
-		BTVO, 32,	// Battery Present Voltage
-		BTPR, 32,	// Battery Present Rate
-		BTRA, 32,	// Battery Remaining Capacity
-		ACEX, 1,	// AC Present
-		BTEX, 1,	// Battery Present
-		BFDC, 1,	// Battery Discharging
-		BFCG, 1,	// Battery Charging
-		BFCR, 1,	// Battery Level Critical
-		Offset (0x50),
-		BTDA, 32,	// Battery Design Capacity
-		BTDV, 32,	// Battery Design Voltage
-		BTDF, 32,	// Battery Last Full Charge Capacity
-		BTCC, 32,	// Battery Cycle Count
-		BMFG, 64,	// Battery Manufacturer String
-		BMOD, 64,	// Battery Model String
-		BSER, 64,	// Battery Serial String
-		BTYP, 64,	// Battery Type String
-		Offset (0x80),
-		ALS0, 16,	// ALS reading 0 in lux
+		#include "emem.asl"
 	}
+
+#ifdef EC_ENABLE_LID_SWITCH
+	/* LID Switch */
+	Device (LID0)
+	{
+		Name (_HID, EisaId ("PNP0C0D"))
+		Method (_LID, 0)
+		{
+			Return (^^LIDS)
+		}
+
+#ifdef EC_ENABLE_WAKE_PIN
+		Name (_PRW, Package () { EC_ENABLE_WAKE_PIN, 0x5 })
+#endif
+	}
+#endif
 
 	Method (TINS, 1, Serialized)
 	{
@@ -116,7 +102,7 @@ Device (EC0)
 		}
 	}
 
-	Method (_CRS, 0, NotSerialized)
+	Method (_CRS, 0, Serialized)
 	{
 		Name (ECMD, ResourceTemplate()
 		{
@@ -180,7 +166,11 @@ Device (EC0)
 	{
 		Store ("EC: LID CLOSE", Debug)
 		Store (LIDS, \LIDS)
+#ifdef EC_ENABLE_LID_SWITCH
+		Notify (LID0, 0x80)
+#else
 		Notify (\_SB.LID0, 0x80)
+#endif
 	}
 
 	// Lid Open Event
@@ -188,7 +178,11 @@ Device (EC0)
 	{
 		Store ("EC: LID OPEN", Debug)
 		Store (LIDS, \LIDS)
+#ifdef EC_ENABLE_LID_SWITCH
+		Notify (LID0, 0x80)
+#else
 		Notify (\_SB.LID0, 0x80)
+#endif
 	}
 
 	// Power Button
@@ -204,6 +198,11 @@ Device (EC0)
 		Store ("EC: AC CONNECTED", Debug)
 		Store (ACEX, \PWRS)
 		Notify (AC, 0x80)
+#ifdef DPTF_ENABLE_CHARGER
+		If (CondRefOf (\_SB.DPTF.TCHG)) {
+			Notify (\_SB.DPTF.TCHG, 0x80)
+		}
+#endif
 		\PNOT ()
 	}
 
@@ -213,6 +212,11 @@ Device (EC0)
 		Store ("EC: AC DISCONNECTED", Debug)
 		Store (ACEX, \PWRS)
 		Notify (AC, 0x80)
+#ifdef DPTF_ENABLE_CHARGER
+		If (CondRefOf (\_SB.DPTF.TCHG)) {
+			Notify (\_SB.DPTF.TCHG, 0x80)
+		}
+#endif
 		\PNOT ()
 	}
 
@@ -263,11 +267,25 @@ Device (EC0)
 		Store ("EC: KEY PRESSED", Debug)
 	}
 
+	// Thermal Shutdown Imminent
+	Method (_Q10, 0, NotSerialized)
+	{
+		Store ("EC: THERMAL SHUTDOWN", Debug)
+		Notify (\_TZ, 0x80)
+	}
+
+	// Battery Shutdown Imminent
+	Method (_Q11, 0, NotSerialized)
+	{
+		Store ("EC: BATTERY SHUTDOWN", Debug)
+		Notify (BAT0, 0x80)
+	}
+
 	// Throttle Start
 	Method (_Q12, 0, NotSerialized)
 	{
 		Store ("EC: THROTTLE START", Debug)
-		If (CondRefOf (\_TZ.THRT, Local0)) {
+		If (CondRefOf (\_TZ.THRT)) {
 			\_TZ.THRT (1)
 		}
 	}
@@ -276,8 +294,40 @@ Device (EC0)
 	Method (_Q13, 0, NotSerialized)
 	{
 		Store ("EC: THROTTLE STOP", Debug)
-		If (CondRefOf (\_TZ.THRT, Local0)) {
+		If (CondRefOf (\_TZ.THRT)) {
 			\_TZ.THRT (0)
+		}
+	}
+
+#ifdef EC_ENABLE_PD_MCU_DEVICE
+	// PD event
+	Method (_Q16, 0, NotSerialized)
+	{
+		Store ("EC: GOT PD EVENT", Debug)
+		Notify (ECPD, 0x80)
+	}
+#endif
+
+	// Battery Status
+	Method (_Q17, 0, NotSerialized)
+	{
+		Store ("EC: BATTERY STATUS", Debug)
+		Notify (BAT0, 0x80)
+	}
+
+	// MKBP interrupt.
+	Method (_Q1B, 0, NotSerialized)
+	{
+		Store ("EC: MKBP", Debug)
+		Notify (CREC, 0x80)
+	}
+
+	// TABLET mode switch Event
+	Method (_Q1D, 0, NotSerialized)
+	{
+		Store ("EC: TABLET mode switch Event", Debug)
+		If (CondRefOf (\_SB.DPTF.TPET)) {
+			\_SB.DPTF.TPET()
 		}
 	}
 
@@ -303,7 +353,7 @@ Device (EC0)
 		Store (ToInteger (Arg0), ^PATI)
 
 		/* Temperature is passed in 1/10 Kelvin */
-		Divide (ToInteger (Arg1), 10, Local0, Local1)
+		Divide (ToInteger (Arg1), 10, , Local1)
 
 		/* Adjust by EC temperature offset */
 		Subtract (Local1, ^TOFS, ^PATT)
@@ -330,7 +380,7 @@ Device (EC0)
 		Store (ToInteger (Arg0), ^PATI)
 
 		/* Temperature is passed in 1/10 Kelvin */
-		Divide (ToInteger (Arg1), 10, Local0, Local1)
+		Divide (ToInteger (Arg1), 10, , Local1)
 
 		/* Adjust by EC temperature offset */
 		Subtract (Local1, ^TOFS, ^PATT)
@@ -366,7 +416,7 @@ Device (EC0)
 
 	/*
 	 * Thermal Threshold Event
-	  */
+	 */
 	Method (_Q09, 0, NotSerialized)
 	{
 		If (Acquire (^PATM, 1000)) {
@@ -379,7 +429,7 @@ Device (EC0)
 		/* When sensor ID returns 0xFF then no more events */
 		While (LNotEqual (Local0, EC_TEMP_SENSOR_NOT_PRESENT))
 		{
-			If (CondRefOf (\_SB.DPTF.TEVT, Local1)) {
+			If (CondRefOf (\_SB.DPTF.TEVT)) {
 				\_SB.DPTF.TEVT (Local0)
 			}
 
@@ -390,6 +440,42 @@ Device (EC0)
 		Release (^PATM)
 	}
 
+	/*
+	 * Set Charger Current Limit
+	 *   Arg0 = Current Limit in 64mA steps
+	 */
+	Method (CHGS, 1, Serialized)
+	{
+		Store (ToInteger (Arg0), ^CHGL)
+	}
+
+	/*
+	 * Disable Charger Current Limit
+	 */
+	Method (CHGD, 0, Serialized)
+	{
+		Store (0xFF, ^CHGL)
+	}
+
+	/* Read current Tablet mode */
+	Method (RCTM, 0, NotSerialized)
+	{
+		Return (^TBMD)
+	}
+
 	#include "ac.asl"
 	#include "battery.asl"
+	#include "cros_ec.asl"
+
+#ifdef EC_ENABLE_ALS_DEVICE
+	#include "als.asl"
+#endif
+
+#ifdef EC_ENABLE_KEYBOARD_BACKLIGHT
+	#include "keyboard_backlight.asl"
+#endif
+
+#ifdef EC_ENABLE_PD_MCU_DEVICE
+	#include "pd.asl"
+#endif
 }

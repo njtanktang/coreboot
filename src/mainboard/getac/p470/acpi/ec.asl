@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Device(EC0)
@@ -105,7 +100,7 @@ Device(EC0)
 	// EC Query methods, called upon SCI interrupts.
 	Method (_Q01, 0)
 	{
-		Notify (\_PR.CPU0, 0x80)
+		Notify (\_PR.CP00, 0x80)
 		If(ADP) {
 			Store(1, \_SB.AC.ACST)
 			TRAP(0xe3)
@@ -120,6 +115,8 @@ Device(EC0)
 		}
 
 		PNOT()
+		Notify(\_SB.BAT0, 0x80) // Execute BAT0 _BST
+		Notify(\_SB.BAT1, 0x80) // Execute BAT1 _BST
 	}
 
 	Method (_Q02, 0)
@@ -133,12 +130,16 @@ Device(EC0)
 		}
 
 		PNOT()
+		Notify(\_SB.BAT0, 0x80) // Execute BAT0 _BST
+		Notify(\_SB.BAT1, 0x80) // Execute BAT1 _BST
 	}
 
 	Method (_Q05, 0)
 	{
 		Notify(SLPB, 0x80)
 		PNOT()
+		Notify(\_SB.BAT0, 0x80) // Execute BAT0 _BST
+		Notify(\_SB.BAT1, 0x80) // Execute BAT1 _BST
 	}
 
 	Method (_Q07, 0)
@@ -187,7 +188,7 @@ Device(EC0)
 	{
 		Store(0x3f, HOTK)
 		If(IGDS) {
-			HKDS(10)
+			Notify (\_SB.PCI0.GFX0, 0x82)
 		} Else {
 			TRAP(0xE1)
 		}

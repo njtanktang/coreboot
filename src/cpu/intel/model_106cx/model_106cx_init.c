@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -110,7 +106,7 @@ static void configure_misc(void)
 	wrmsr(IA32_MISC_ENABLE, msr);
 }
 
-static void model_106cx_init(device_t cpu)
+static void model_106cx_init(struct device *cpu)
 {
 	char processor_name[49];
 
@@ -128,7 +124,7 @@ static void model_106cx_init(device_t cpu)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 	/* Enable virtualization */
@@ -142,7 +138,7 @@ static void model_106cx_init(device_t cpu)
 
 	/* TODO: PIC thermal sensor control */
 
-	/* Start up my cpu siblings */
+	/* Start up my CPU siblings */
 	intel_sibling_init(cpu);
 }
 
@@ -152,6 +148,7 @@ static struct device_operations cpu_dev_ops = {
 
 static struct cpu_device_id cpu_table[] = {
 	{ X86_VENDOR_INTEL, 0x106c0 }, /* Intel Atom 230 */
+	{ X86_VENDOR_INTEL, 0x106ca }, /* Intel Atom D5xx */
 	{ 0, 0 },
 };
 
@@ -159,4 +156,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
 };
-

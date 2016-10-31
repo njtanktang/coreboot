@@ -1145,7 +1145,7 @@ typedef struct {
 /// GNB configuration info
 typedef struct {
   IN       PCIe_COMPLEX_DESCRIPTOR  *PcieComplexList;  /**< Pointer to array of structures describe PCIe topology on each processor package or NULL.
-                                                        * Last element of array must ne terminated with DESCRIPTOR_TERMINATE_LIST
+                                                        * Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST
                                                         * Example of topology definition for single socket system:
                                                         * @code
                                                         *  PCIe_PORT_DESCRIPTOR PortList [] = {
@@ -1418,14 +1418,8 @@ typedef enum {
 
 ///< CPU MSR Register definitions ------------------------------------------
 #define SYS_CFG     0xC0010010
-//#define TOP_MEM     0xC001001A
-//#define TOP_MEM2    0xC001001D
-#ifndef TOP_MEM
-  #define TOP_MEM			0xC001001A
-#endif
-#ifndef TOP_MEM2
-  #define TOP_MEM2			0xC001001D
-#endif
+#define TOP_MEM		0xC001001Aul
+#define TOP_MEM2	0xC001001Dul
 #define HWCR        0xC0010015
 #define NB_CFG      0xC001001F
 

@@ -11,18 +11,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
-
 
 #ifndef _PLATFORM_CFG_H_
 #define _PLATFORM_CFG_H_
 
 /**
- * @def BIOS_SIZE -> BIOS_SIZE_{1,2,4,8,16}M
+ * @def BIOS_SIZE
+ *      BIOS_SIZE_{1,2,4,8,16}M
  *
  * In SB800, default ROM size is 1M Bytes, if your platform ROM
  * bigger than 1M you have to set the ROM size outside CIMx module and
@@ -164,7 +160,6 @@
  *  SDIN2 is define at BIT4 & BIT5
  *  SDIN3 is define at BIT6 & BIT7
  */
-//#define AZALIA_SDIN_PIN		0xAA
 #define AZALIA_SDIN_PIN			0x2A
 
 /**
@@ -191,7 +186,7 @@
 #define NB_SB_GEN2			TRUE
 
 /**
- * @def SB_GEN2
+ * @def SB_GPP_GEN2
  *    0  - Disable
  *    1  - Enable
  */
@@ -212,7 +207,8 @@
 #define GEC_CONFIG			0
 
 /**
- * @def SIO_HWM_BASE_ADDRESS  Super IO HWM base address
+ * @def SIO_HWM_BASE_ADDRESS
+ *   Super IO HWM base address
  */
 #define SIO_HWM_BASE_ADDRESS		0x290
 

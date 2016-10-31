@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* DefinitionBlock Statement */
@@ -414,7 +410,7 @@ DefinitionBlock (
 
 			if(LNotEqual(OSVR, Ones)) {Return(OSVR)}	/* OS version was already detected */
 
-			if(CondRefOf(\_OSI,Local1))
+			if(CondRefOf(\_OSI))
 			{
 				Store(1, OSVR)                /* Assume some form of XP */
 				if (\_OSI("Windows 2006"))      /* Vista */
@@ -935,7 +931,8 @@ DefinitionBlock (
 		}
 
 		/* Arbitrarily clear PciExpWakeStatus */
-		Store(PWST, PWST)
+		Store(PWST, Local1)
+		Store(Local1, PWST)
 
 		/* if(DeRefOf(Index(WKST,0))) {
 		*	Store(0, Index(WKST,1))
@@ -1456,8 +1453,8 @@ DefinitionBlock (
 						Return(0x0F) /* sata is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
+						CreateDwordField(CRS, ^HPT._BAS, HPBX)
+						Store(HPBA, HPBX)
 						Return(CRS)
 					}
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
@@ -1537,8 +1534,8 @@ DefinitionBlock (
 					PEBM
 				)
 #endif
-                                /* memory space for PCI BARs below 4GB */
-                                Memory32Fixed(ReadOnly, 0x00000000, 0x00000000, MMIO)
+				/* memory space for PCI BARs below 4GB */
+				Memory32Fixed(ReadOnly, 0x00000000, 0x00000000, MMIO)
 			}) /* End Name(_SB.PCI0.CRES) */
 
 			Method(_CRS, 0) {
@@ -1581,20 +1578,20 @@ DefinitionBlock (
 					Store(PBLN,EBML)
 				}
 #endif
-                                CreateDWordField(CRES, ^MMIO._BAS, MM1B)
-                                CreateDWordField(CRES, ^MMIO._LEN, MM1L)
-                                /*
-                                 * Declare memory between TOM1 and 4GB as available
-                                 * for PCI MMIO.
-                                 * Use ShiftLeft to avoid 64bit constant (for XP).
-                                 * This will work even if the OS does 32bit arithmetic, as
-                                 * 32bit (0x00000000 - TOM1) will wrap and give the same
-                                 * result as 64bit (0x100000000 - TOM1).
-                                 */
-                                Store(TOM1, MM1B)
-                                ShiftLeft(0x10000000, 4, Local0)
-                                Subtract(Local0, TOM1, Local0)
-                                Store(Local0, MM1L)
+				CreateDWordField(CRES, ^MMIO._BAS, MM1B)
+				CreateDWordField(CRES, ^MMIO._LEN, MM1L)
+				/*
+				 * Declare memory between TOM1 and 4GB as available
+				 * for PCI MMIO.
+				 * Use ShiftLeft to avoid 64bit constant (for XP).
+				 * This will work even if the OS does 32bit arithmetic, as
+				 * 32bit (0x00000000 - TOM1) will wrap and give the same
+				 * result as 64bit (0x100000000 - TOM1).
+				 */
+				Store(TOM1, MM1B)
+				ShiftLeft(0x10000000, 4, Local0)
+				Subtract(Local0, TOM1, Local0)
+				Store(Local0, MM1L)
 
 				Return(CRES) /* note to change the Name buffer */
 			}  /* end of Method(_SB.PCI0._CRS) */
@@ -1648,171 +1645,5 @@ DefinitionBlock (
 			/* DBGO("\n") */
 		}
 	} /* End Scope SI */
-#if 0
-	/* SMBUS Support */
-	Mutex (SBX0, 0x00)
-	OperationRegion (SMB0, SystemIO, 0xB00, 0x0C)
-		Field (SMB0, ByteAcc, NoLock, Preserve) {
-			HSTS,   8, /* SMBUS status */
-			SSTS,   8,  /* SMBUS slave status */
-			HCNT,   8,  /* SMBUS control */
-			HCMD,   8,  /* SMBUS host cmd */
-			HADD,   8,  /* SMBUS address */
-			DAT0,   8,  /* SMBUS data0 */
-			DAT1,   8,  /* SMBUS data1 */
-			BLKD,   8,  /* SMBUS block data */
-			SCNT,   8,  /* SMBUS slave control */
-			SCMD,   8,  /* SMBUS shadow cmd */
-			SEVT,   8,  /* SMBUS slave event */
-			SDAT,   8  /* SMBUS slave data */
-	}
-
-	Method (WCLR, 0, NotSerialized) { /* clear SMBUS status register */
-		Store (0x1E, HSTS)
-		Store (0xFA, Local0)
-		While (LAnd (LNotEqual (And (HSTS, 0x1E), Zero), LGreater (Local0, Zero))) {
-			Stall (0x64)
-			Decrement (Local0)
-		}
-
-		Return (Local0)
-	}
-
-	Method (SWTC, 1, NotSerialized) {
-		Store (Arg0, Local0)
-		Store (0x07, Local2)
-		Store (One, Local1)
-		While (LEqual (Local1, One)) {
-			Store (And (HSTS, 0x1E), Local3)
-			If (LNotEqual (Local3, Zero)) { /* read sucess */
-				If (LEqual (Local3, 0x02)) {
-					Store (Zero, Local2)
-				}
-
-				Store (Zero, Local1)
-			}
-			Else {
-				If (LLess (Local0, 0x0A)) { /* read failure */
-					Store (0x10, Local2)
-					Store (Zero, Local1)
-				}
-				Else {
-					Sleep (0x0A) /* 10 ms, try again */
-					Subtract (Local0, 0x0A, Local0)
-				}
-			}
-		}
-
-		Return (Local2)
-	}
-
-	Method (SMBR, 3, NotSerialized) {
-		Store (0x07, Local0)
-		If (LEqual (Acquire (SBX0, 0xFFFF), Zero)) {
-			Store (WCLR (), Local0) /* clear SMBUS status register before read data */
-			If (LEqual (Local0, Zero)) {
-				Release (SBX0)
-				Return (0x0)
-			}
-
-			Store (0x1F, HSTS)
-			Store (Or (ShiftLeft (Arg1, One), One), HADD)
-			Store (Arg2, HCMD)
-			If (LEqual (Arg0, 0x07)) {
-				Store (0x48, HCNT) /* read byte */
-			}
-
-			Store (SWTC (0x03E8), Local1) /* 1000 ms */
-			If (LEqual (Local1, Zero)) {
-				If (LEqual (Arg0, 0x07)) {
-					Store (DAT0, Local0)
-				}
-			}
-			Else {
-				Store (Local1, Local0)
-			}
-
-			Release (SBX0)
-		}
-
-		/* DBGO("the value of SMBusData0 register ") */
-		/* DBGO(Arg2) */
-		/* DBGO(" is ") */
-		/* DBGO(Local0) */
-		/* DBGO("\n") */
-
-		Return (Local0)
-	}
-
-	/* THERMAL */
-	Scope(\_TZ) {
-		Name (KELV, 2732)
-		Name (THOT, 800)
-		Name (TCRT, 850)
-
-		ThermalZone(TZ00) {
-			Method(_AC0,0) {	/* Active Cooling 0 (0=highest fan speed) */
-				/* DBGO("\\_TZ\\TZ00\\_AC0\n") */
-				Return(Add(0, 2730))
-			}
-			Method(_AL0,0) {	/* Returns package of cooling device to turn on */
-				/* DBGO("\\_TZ\\TZ00\\_AL0\n") */
-				Return(Package() {\_TZ.TZ00.FAN0})
-			}
-			Device (FAN0) {
-				Name(_HID, EISAID("PNP0C0B"))
-				Name(_PR0, Package() {PFN0})
-			}
-
-			PowerResource(PFN0,0,0) {
-				Method(_STA) {
-					Store(0xF,Local0)
-					Return(Local0)
-				}
-				Method(_ON) {
-					/* DBGO("\\_TZ\\TZ00\\FAN0 _ON\n") */
-				}
-				Method(_OFF) {
-					/* DBGO("\\_TZ\\TZ00\\FAN0 _OFF\n") */
-				}
-			}
-
-			Method(_HOT,0) {	/* return hot temp in tenths degree Kelvin */
-				/* DBGO("\\_TZ\\TZ00\\_HOT\n") */
-				Return (Add (THOT, KELV))
-			}
-			Method(_CRT,0) {	/* return critical temp in tenths degree Kelvin */
-				/* DBGO("\\_TZ\\TZ00\\_CRT\n") */
-				Return (Add (TCRT, KELV))
-			}
-			Method(_TMP,0) {	/* return current temp of this zone */
-				Store (SMBR (0x07, 0x4C,, 0x00), Local0)
-				If (LGreater (Local0, 0x10)) {
-					Store (Local0, Local1)
-				}
-				Else {
-					Add (Local0, THOT, Local0)
-					Return (Add (400, KELV))
-				}
-
-				Store (SMBR (0x07, 0x4C, 0x01), Local0)
-				/* only the two MSBs in the external temperature low byte are used, resolution 0.25. We ignore it */
-				/* Store (SMBR (0x07, 0x4C, 0x10), Local2) */
-				If (LGreater (Local0, 0x10)) {
-					If (LGreater (Local0, Local1)) {
-						Store (Local0, Local1)
-					}
-
-					Multiply (Local1, 10, Local1)
-					Return (Add (Local1, KELV))
-				}
-				Else {
-					Add (Local0, THOT, Local0)
-					Return (Add (400 , KELV))
-				}
-			} /* end of _TMP */
-		} /* end of TZ00 */
-	}
-#endif
 }
 /* End of ASL file */

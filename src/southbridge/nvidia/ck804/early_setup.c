@@ -12,13 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <reset.h>
+#include "ck804.h"
 
 static int set_ht_link_ck804(u8 ht_c_num)
 {
@@ -65,28 +62,6 @@ static void setup_ss_table(unsigned index, unsigned where, unsigned control,
  *	 8 4 4 4 :3
  *	16 4     :4
  */
-
-#if CONFIG_CK804_NUM > 1
-#define CK804B_ANACTRL_IO_BASE (ANACTRL_IO_BASE + 0x8000)
-#define CK804B_SYSCTRL_IO_BASE (SYSCTRL_IO_BASE + 0x8000)
-#ifndef CK804B_BUSN
-#define CK804B_BUSN 0x80
-#endif
-#endif
-
-#define CK804_CHIP_REV 3
-
-#if CONFIG_HT_CHAIN_END_UNITID_BASE < CONFIG_HT_CHAIN_UNITID_BASE
-#define CK804_DEVN_BASE CONFIG_HT_CHAIN_END_UNITID_BASE
-#else
-#define CK804_DEVN_BASE CONFIG_HT_CHAIN_UNITID_BASE
-#endif
-
-#if CONFIG_SB_HT_CHAIN_UNITID_OFFSET_ONLY
-#define CK804B_DEVN_BASE 1
-#else
-#define CK804B_DEVN_BASE CK804_DEVN_BASE
-#endif
 
 static void ck804_early_set_port(void)
 {
@@ -173,10 +148,24 @@ static void ck804_early_setup(void)
 	RES_PCI_IO, PCI_ADDR(CK804B_BUSN, CK804B_DEVN_BASE + 9, 0, 0x74), 0xffffffc0, 0x00000000,
 #endif
 
+#if IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AMDFAM10)
+	/*
+	 * Avoid crash (complete with severe memory corruption!) during initial CAR boot
+	 * in ck804_early_setup_x() on Fam10h systems by not touching 0x78.
+	 * Interestingly once the system is fully booted into Linux this can be set, but
+	 * not before!  Apparently something isn't initialized but the amount of effort
+	 * required to fix this is non-negligible and of unknown real-world benefit
+	 */
+#else
 	RES_PCI_IO, PCI_ADDR(0, CK804_DEVN_BASE + 1, 0, 0x78), 0xc0ffffff, 0x19000000,
+#endif
 	RES_PCI_IO, PCI_ADDR(0, CK804_DEVN_BASE + 1, 0, 0xe0), 0xfffffeff, 0x00000100,
 
 #if CONFIG_CK804_NUM > 1
+	/*
+	 * Avoid touching 0x78 for CONFIG_NORTHBRIDGE_AMD_AMDFAM10 for
+	 * non-primary chain too???
+	 */
 	RES_PCI_IO, PCI_ADDR(CK804B_BUSN, CK804B_DEVN_BASE + 1, 0, 0x78), 0xc0ffffff, 0x20000000,
 	RES_PCI_IO, PCI_ADDR(CK804B_BUSN, CK804B_DEVN_BASE + 1, 0, 0xe0), 0xfffffeff, 0x00000000,
 	RES_PCI_IO, PCI_ADDR(CK804B_BUSN, CK804B_DEVN_BASE + 1, 0, 0xe8), 0xffffff00, 0x000000ff,
@@ -288,6 +277,12 @@ static void ck804_early_setup(void)
 #endif
 #endif
 
+#if IS_ENABLED(CONFIG_CK804_PCIE_PME_WAKE)
+	RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe4), 0xffffffff, 0x00400000,
+#else
+	RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe4), 0xffbfffff, 0x00000000,
+#endif
+
 #ifdef CK804_MB_SETUP
 	CK804_MB_SETUP
 #endif
@@ -305,10 +300,6 @@ static void ck804_early_setup(void)
 	setup_ss_table(CK804B_ANACTRL_IO_BASE + 0xc0, CK804B_ANACTRL_IO_BASE + 0xc4, CK804B_ANACTRL_IO_BASE + 0xc8, cpu_ss_tbl, 64);
 #endif
 
-#if 0
-	dump_io_resources(ANACTRL_IO_BASE);
-	dump_io_resources(SYSCTRL_IO_BASE);
-#endif
 }
 
 static int ck804_early_setup_x(void)

@@ -9,27 +9,25 @@
  *
  */
 
-#include "lzmadecode.c"
 #include <console/console.h>
 #include <string.h>
 #include <lib.h>
+#include <timestamp.h>
 
-unsigned long ulzma(unsigned char * src, unsigned char * dst)
+#include "lzmadecode.h"
+
+size_t ulzman(const void *src, size_t srcn, void *dst, size_t dstn)
 {
 	unsigned char properties[LZMA_PROPERTIES_SIZE];
+	const int data_offset = LZMA_PROPERTIES_SIZE + 8;
 	UInt32 outSize;
 	SizeT inProcessed;
 	SizeT outProcessed;
 	int res;
 	CLzmaDecoderState state;
 	SizeT mallocneeds;
-#if !defined(__PRE_RAM__)
-	/* in ramstage, this can go in BSS */
-	static
-#endif
-	/* in pre-ram, it must go on the stack */
-	unsigned char scratchpad[15980];
-	unsigned char *cp;
+	MAYBE_STATIC unsigned char scratchpad[15980];
+	const unsigned char *cp;
 
 	memcpy(properties, src, LZMA_PROPERTIES_SIZE);
 	/* The outSize in LZMA stream is a 64bit integer stored in little-endian
@@ -38,7 +36,8 @@ unsigned long ulzma(unsigned char * src, unsigned char * dst)
 	 * byte and re-construct. */
 	cp = src + LZMA_PROPERTIES_SIZE;
 	outSize = cp[3] << 24 | cp[2] << 16 | cp[1] << 8 | cp[0];
-	if (LzmaDecodeProperties(&state.Properties, properties, LZMA_PROPERTIES_SIZE) != LZMA_RESULT_OK) {
+	if (LzmaDecodeProperties(&state.Properties, properties,
+				 LZMA_PROPERTIES_SIZE) != LZMA_RESULT_OK) {
 		printk(BIOS_WARNING, "lzma: Incorrect stream properties.\n");
 		return 0;
 	}
@@ -48,11 +47,11 @@ unsigned long ulzma(unsigned char * src, unsigned char * dst)
 		return 0;
 	}
 	state.Probs = (CProb *)scratchpad;
-	res = LzmaDecode(&state, src + LZMA_PROPERTIES_SIZE + 8, (SizeT)0xffffffff, &inProcessed,
-		dst, outSize, &outProcessed);
+	res = LzmaDecode(&state, src + data_offset, srcn - data_offset,
+			 &inProcessed, dst, outSize, &outProcessed);
 	if (res != 0) {
 		printk(BIOS_WARNING, "lzma: Decoding error = %d\n", res);
 		return 0;
 	}
-	return outSize;
+	return outProcessed;
 }

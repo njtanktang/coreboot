@@ -3,54 +3,14 @@ if VENDOR_LENOVO
 choice
 	prompt "Mainboard model"
 
-config BOARD_LENOVO_X60
-	bool "ThinkPad X60 / X60s"
-	help
-	  The following X60 series ThinkPad machines have been verified to
-	  work correctly:
-
-	    ThinkPad X60s (Model 1702, 1703)
-	    ThinkPad X60  (Model 1709)
-
-config BOARD_LENOVO_X201
-	bool "ThinkPad X201"
-	help
-	  Lenovo X201 laptop. Consult wiki for details.
-
-config BOARD_LENOVO_X230
-	bool "ThinkPad X230"
-	help
-	  Lenovo X230 laptop. Consult wiki for details.
-
-config BOARD_LENOVO_T520
-	bool "ThinkPad T520"
-	help
-	  Lenovo T520 laptop. Consult wiki for details.
-
-config BOARD_LENOVO_T530
-	bool "ThinkPad T530"
-	help
-	  Lenovo T530 laptop. Consult wiki for details.
-
-config BOARD_LENOVO_T60
-	bool "ThinkPad T60 / T60p"
-	help
-	  The following T60 series ThinkPad machines have been verified to
-          work correctly:
-
-	    Thinkpad T60p (Model 2007)
+source "src/mainboard/lenovo/*/Kconfig.name"
 
 endchoice
 
-source "src/mainboard/lenovo/x60/Kconfig"
-source "src/mainboard/lenovo/x201/Kconfig"
-source "src/mainboard/lenovo/x230/Kconfig"
-source "src/mainboard/lenovo/t520/Kconfig"
-source "src/mainboard/lenovo/t530/Kconfig"
-source "src/mainboard/lenovo/t60/Kconfig"
+source "src/mainboard/lenovo/*/Kconfig"
 
 config MAINBOARD_VENDOR
 	string
-	default "Lenovo"
+	default "LENOVO"
 
 endif # VENDOR_LENOVO

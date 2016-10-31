@@ -11,14 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <arch/io.h>
+#include <arch/acpi.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
@@ -190,28 +187,17 @@ static void rs780_nb_gfx_dev_table(device_t nb_dev, device_t dev)
 {
 	/* NB_InitGFXStraps */
 	u32 MMIOBase, apc04, apc18, apc24, romstrap2;
-	msr_t pcie_mmio_save = { 0, 0 };
 	volatile u32 * strap;
 
-	// disable processor pcie mmio, if enabled
-	if (is_family10h()) {
-		msr_t temp;
-		pcie_mmio_save = temp = rdmsr (0xc0010058);
-		temp.lo &= ~1;
-		wrmsr (0xc0010058, temp);
-	}
+	/* Choose a base address that is unused and routed to the RS780. */
+	MMIOBase = 0xFFB00000;
 
-	/* Get PCIe configuration space. */
-	MMIOBase = pci_read_config32(nb_dev, 0x1c) & 0xfffffff0;
-	/* Temporarily disable PCIe configuration space. */
-	set_htiu_enable_bits(nb_dev, 0x32, 1<<28, 0);
-
-	// 1E: NB_BIF_SPARE
+	/* 1E: NB_BIF_SPARE */
 	set_nbmisc_enable_bits(nb_dev, 0x1e, 0xffffffff, 1<<1 | 1<<4 | 1<<6 | 1<<7);
 	/* Set a temporary Bus number. */
 	apc18 = pci_read_config32(dev, 0x18);
 	pci_write_config32(dev, 0x18, 0x010100);
-	/* Set MMIO for AGP target(graphics controller). base = 0xe0000000, limit = 0x20000 */
+	/* Set MMIO window for AGP target(graphics controller). */
 	apc24 = pci_read_config32(dev, 0x24);
 	pci_write_config32(dev, 0x24, (MMIOBase>>16)+((MMIOBase+0x20000)&0xffff0000));
 	/* Enable memory access. */
@@ -262,13 +248,6 @@ static void rs780_nb_gfx_dev_table(device_t nb_dev, device_t dev)
 	pci_write_config32(dev, 0x18, apc18);
 	pci_write_config32(dev, 0x24, apc24);
 
-	/* Enable PCIe configuration space. */
-	set_htiu_enable_bits(nb_dev, 0x32, 0, 1<<28);
-
-	// restore processor pcie mmio
-	if (is_family10h())
-		wrmsr (0xc0010058, pcie_mmio_save);
-
 	printk(BIOS_INFO, "GC is accessible from now on.\n");
 }
 
@@ -283,7 +262,7 @@ static void rs780_nb_gfx_dev_table(device_t nb_dev, device_t dev)
 *	0:06.0  P2P	: bit 6 of nbmiscind 0x0c : 0 - enable, default	   + 32 * 2
 *	0:07.0  P2P	: bit 7 of nbmiscind 0x0c : 0 - enable, default	   + 32 * 2
 *	0:08.0  NB2SB	: bit 6 of nbmiscind 0x00 : 0 - disable, default   + 32 * 1
-* case 0 will be called twice, one is by cpu in hypertransport.c line458,
+* case 0 will be called twice, one is by CPU in hypertransport.c line458,
 * the other is by rs780.
 ***********************************************/
 void rs780_enable(device_t dev)
@@ -370,6 +349,17 @@ void rs780_enable(device_t dev)
 		printk(BIOS_DEBUG, "unknown dev: %s\n", dev_path(dev));
 	}
 }
+
+#if !IS_ENABLED(CONFIG_AMD_SB_CIMX)
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* FIXME
+	 * Leave table blank until proper contents
+	 * are determined.
+	 */
+	return current;
+}
+#endif
 
 struct chip_operations southbridge_amd_rs780_ops = {
 	CHIP_NAME("ATI RS780")

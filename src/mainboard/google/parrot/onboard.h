@@ -11,19 +11,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef PARROT_ONBOARD_H
 #define PARROT_ONBOARD_H
 
-#include <arch/smp/mpspec.h>
+#define BOARD_TRACKPAD_NAME         "trackpad"
+#define BOARD_TRACKPAD_I2C_ADDR     0x67
+#define BOARD_TRACKPAD_IRQ_DVT      16
+#define BOARD_TRACKPAD_IRQ_PVT      20
+#define BOARD_TRACKPAD_WAKE_GPIO    0x1c
 
-#define PARROT_TRACKPAD_NAME         "trackpad"
-#define PARROT_TRACKPAD_I2C_ADDR     0x67
-#define PARROT_TRACKPAD_IRQ_DVT      16
-#define PARROT_TRACKPAD_IRQ_PVT      20
 #endif

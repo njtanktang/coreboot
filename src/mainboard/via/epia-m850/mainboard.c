@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <device/device.h>
@@ -100,7 +97,7 @@ static void mainboard_enable(device_t dev)
 	(void)dev;
 
 #if CONFIG_VGA_ROM_RUN
-	print_debug("Installing INT15 handler...\n");
+	printk(BIOS_DEBUG, "Installing INT15 handler...\n");
 	mainboard_interrupt_handlers(0x15, &vx900_int15_handler);
 #endif
 }

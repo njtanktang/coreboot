@@ -13,22 +13,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+#include <arch/io.h>
+#include <arch/registers.h>
+#include <console/console.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <string.h>
-#include <console/console.h>
-#include <arch/io.h>
-#include <arch/registers.h>
-#include "x86.h"
+
 /* we use x86emu's register file representation */
 #include <x86emu/regs.h>
+
+#include "x86.h"
 
 // errors go in AH. Just set these up so that word assigns
 // will work. KISS.
@@ -232,4 +230,3 @@ int int1a_handler(void)
 
 	return retval;
 }
-

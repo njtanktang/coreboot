@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -80,23 +76,23 @@ u8 k8t890_early_setup_ht(void)
 	}
 
 #if CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8M800
-	print_debug("K8M800 found at LDT ");
+	printk(BIOS_DEBUG, "K8M800 found at LDT ");
 #elif CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8T800
-	print_debug("K8T800 found at LDT ");
+	printk(BIOS_DEBUG, "K8T800 found at LDT ");
 #elif CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8T800_OLD
-	print_debug("K8T800_OLD found at LDT ");
+	printk(BIOS_DEBUG, "K8T800_OLD found at LDT ");
 	pci_write_config8(PCI_DEV(0, 0x0, 0), 0x64, 0x00);
 	pci_write_config8(PCI_DEV(0, 0x0, 0), 0xdd, 0x50);
 #elif CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8T800PRO
-	print_debug("K8T800 Pro found at LDT ");
+	printk(BIOS_DEBUG, "K8T800 Pro found at LDT ");
 #elif CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8M890
-	print_debug("K8M890 found at LDT ");
+	printk(BIOS_DEBUG, "K8M890 found at LDT ");
 	/* K8M890 fix HT delay */
 	pci_write_config8(PCI_DEV(0, 0x0, 2), 0xab, 0x22);
 #elif CONFIG_SOUTHBRIDGE_VIA_SUBTYPE_K8T890
-	print_debug("K8T890 found at LDT ");
+	printk(BIOS_DEBUG, "K8T890 found at LDT ");
 #endif
-	print_debug_hex8(ldtnr);
+	printk(BIOS_DEBUG, "%02x", ldtnr);
 
 	/* get the maximum widths for both sides */
 	cldtwidth_in = pci_read_config8(PCI_DEV(0, 0x18, 0), ldtreg[ldtnr]) & 0x7;
@@ -105,8 +101,7 @@ u8 k8t890_early_setup_ht(void)
 	vldtwidth_out = (pci_read_config8(PCI_DEV(0, 0x0, 0), K8X8XX_HT_CFG_BASE + 0x6) >> 4) & 0x7;
 
 	width = MIN(MIN(MIN(cldtwidth_out, cldtwidth_in), vldtwidth_out), vldtwidth_in);
-	print_debug(" Agreed on width: ");
-	print_debug_hex8(width);
+	printk(BIOS_DEBUG, " Agreed on width: %02x", width);
 
 	awidth = pci_read_config8(PCI_DEV(0, 0x0, 0), K8X8XX_HT_CFG_BASE + 0x7);
 
@@ -117,12 +112,10 @@ u8 k8t890_early_setup_ht(void)
 
 	/* Get programmed HT freq at base 0x89 */
 	cldtfreq = pci_read_config8(PCI_DEV(0, 0x18, 0), ldtreg[ldtnr] + 3) & 0xf;
-	print_debug(" CPU programmed to HT freq: ");
-	print_debug_hex8(cldtfreq);
+	printk(BIOS_DEBUG, " CPU programmed to HT freq: %02x", cldtfreq);
 
-	print_debug(" VIA HT caps: ");
 	vldtcaps = pci_read_config16(PCI_DEV(0, 0, 0), K8X8XX_HT_CFG_BASE + 0xe);
-	print_debug_hex16(vldtcaps);
+	printk(BIOS_DEBUG, " VIA HT caps: %04x", vldtcaps);
 
 	if (!(vldtcaps & (1 << cldtfreq ))) {
 		die("Chipset does not support desired HT frequency\n");
@@ -130,7 +123,7 @@ u8 k8t890_early_setup_ht(void)
 
 	afreq = pci_read_config8(PCI_DEV(0, 0x0, 0), K8X8XX_HT_CFG_BASE + 0xd);
 	pci_write_config8(PCI_DEV(0, 0x0, 0), K8X8XX_HT_CFG_BASE + 0xd, cldtfreq);
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 
 	/* no reset needed */
 	if ((width == awidth) && (afreq == cldtfreq)) {
@@ -183,11 +176,9 @@ static inline int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos)
 	return nvram_pos;
 }
 
-#if CONFIG_HAVE_ACPI_RESUME
 unsigned long get_top_of_ram(void)
 {
-	if (!acpi_is_wakeup_early())
+	if (acpi_get_sleep_type() != 3)
 		return 0;
 	return (unsigned long) inl(K8T890_NVRAM_IO_BASE+K8T890_NVRAM_TOP_OF_RAM);
 }
-#endif

@@ -1,7 +1,34 @@
+##
+## This file is part of the coreboot project.
+##
+## Copyright (C) 2009-2010 coresystems GmbH
+##
+## This program is free software; you can redistribute it and/or modify
+## it under the terms of the GNU General Public License as published by
+## the Free Software Foundation; version 2 of the License.
+##
+## This program is distributed in the hope that it will be useful,
+## but WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+##
+
+config ARCH_X86
+	bool
+	default n
+	select PCI
+
+# stage selectors for x86
+
 config ARCH_BOOTBLOCK_X86_32
 	bool
 	default n
 	select ARCH_X86
+	select BOOTBLOCK_CUSTOM if !C_ENVIRONMENT_BOOTBLOCK
+
+config ARCH_VERSTAGE_X86_32
+	bool
+	default n
 
 config ARCH_ROMSTAGE_X86_32
 	bool
@@ -10,6 +37,32 @@ config ARCH_ROMSTAGE_X86_32
 config ARCH_RAMSTAGE_X86_32
 	bool
 	default n
+
+# stage selectors for x64
+
+config ARCH_BOOTBLOCK_X86_64
+	bool
+	default n
+	select ARCH_X86
+	select BOOTBLOCK_CUSTOM if !C_ENVIRONMENT_BOOTBLOCK
+
+config ARCH_VERSTAGE_X86_64
+	bool
+	default n
+
+config ARCH_ROMSTAGE_X86_64
+	bool
+	default n
+
+config ARCH_RAMSTAGE_X86_64
+	bool
+	default n
+
+config USE_MARCH_586
+	def_bool n
+	help
+	  Allow a platform or processor to select to be compiled using
+	  the '-march=i586' option instead of the typical '-march=i686'
 
 # This is an SMP option. It relates to starting up APs.
 # It is usually set in mainboard/*/Kconfig.
@@ -33,10 +86,17 @@ config RAMBASE
 config RAMTOP
 	hex
 	default 0x200000
+	depends on ARCH_X86
 
-config STACK_SIZE
-	hex
-	default 0x1000
+# Traditionally BIOS region on SPI flash boot media was memory mapped right below
+# 4G and it was the last region in the IFD. This way translation between CPU
+# address space to flash address was trivial. However some IFDs on newer SoCs
+# have BIOS region sandwiched between descriptor and other regions. Turning off
+# this option enables soc code to provide custom mmap_boot.c which can be used to
+# implement complex translation.
+config X86_TOP4G_BOOTMEDIA_MAP
+	bool
+	default y
 
 # This is something you almost certainly don't want to mess with.
 # How many SIPIs do we send when starting up APs and cores?
@@ -51,15 +111,41 @@ config ROMCC
 	bool
 	default n
 
+config LATE_CBMEM_INIT
+	def_bool n
+	help
+	  Enable this in chipset's Kconfig if northbridge does not implement
+	  early get_top_of_ram() call for romstage. CBMEM tables will be
+	  allocated late in ramstage, after PCI devices resources are known.
+
 config PC80_SYSTEM
 	bool
 	default y if ARCH_X86
+
+config BOOTBLOCK_DEBUG_SPINLOOP
+	bool
+	default n
+	help
+	  Add a spin (JMP .) in bootblock_crt0.S during early bootblock to wait
+	  for a JTAG debugger to break into the execution sequence.
 
 config BOOTBLOCK_MAINBOARD_INIT
 	string
 
 config BOOTBLOCK_NORTHBRIDGE_INIT
 	string
+
+config BOOTBLOCK_RESETS
+	string
+
+config BOOTBLOCK_SAVE_BIST_AND_TIMESTAMP
+	bool
+	default n
+	help
+	  Select this value to provide a routine to save the BIST and timestamp
+	  values.  The default code places the BIST value in MM0 and the
+	  timestamp value in MM2:MM1.  Another file is necessary when the CPU
+	  does not support the MMx register set.
 
 config HAVE_CMOS_DEFAULT
 	def_bool n
@@ -87,3 +173,37 @@ config HPET_ADDRESS
 config ID_SECTION_OFFSET
 	hex
 	default 0x80
+
+# 64KiB default bootblock size when employing C_ENVIRONMENT_BOOTBLOCK.
+config C_ENV_BOOTBLOCK_SIZE
+	hex
+	default 0x10000
+
+# Default address romstage is to be linked at
+config ROMSTAGE_ADDR
+	hex
+	default 0x2000000
+
+# Default address verstage is to be linked at
+config VERSTAGE_ADDR
+	hex
+	default 0x2000000
+
+# Use the post CAR infrastructure for tearing down cache-as-ram
+# from a program loaded in RAM and subsequently loading ramstage.
+config POSTCAR_STAGE
+	def_bool n
+
+config VERSTAGE_DEBUG_SPINLOOP
+	bool
+	default n
+	help
+	  Add a spin (JMP .) in assembly_entry.S during early verstage to wait
+	  for a JTAG debugger to break into the execution sequence.
+
+config ROMSTAGE_DEBUG_SPINLOOP
+	bool
+	default n
+	help
+	  Add a spin (JMP .) in assembly_entry.S during early romstage to wait
+	  for a JTAG debugger to break into the execution sequence.

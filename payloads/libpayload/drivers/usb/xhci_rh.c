@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#define USB_DEBUG
+//#define USB_DEBUG
 
 #include <usb/usb.h>
 #include "generic_hub.h"
@@ -51,9 +51,9 @@ xhci_rh_port_status_changed(usbdev_t *const dev, const int port)
 	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
-	const int changed = !!(*portsc & PORTSC_CSC);
+	const int changed = !!(*portsc & (PORTSC_CSC | PORTSC_PRC));
 	/* always clear all the status change bits */
-	*portsc = (*portsc & PORTSC_RW_MASK) | 0x00ef0000;
+	*portsc = (*portsc & PORTSC_RW_MASK) | 0x00fe0000;
 	return changed;
 }
 
@@ -84,7 +84,7 @@ xhci_rh_port_enabled(usbdev_t *const dev, const int port)
 	return !!(*portsc & PORTSC_PED);
 }
 
-static int
+static usb_speed
 xhci_rh_port_speed(usbdev_t *const dev, const int port)
 {
 	xhci_t *const xhci = XHCI_INST(dev->controller);
@@ -100,14 +100,42 @@ xhci_rh_port_speed(usbdev_t *const dev, const int port)
 }
 
 static int
-xhci_rh_start_port_reset(usbdev_t *const dev, const int port)
+xhci_rh_reset_port(usbdev_t *const dev, const int port)
 {
 	xhci_t *const xhci = XHCI_INST(dev->controller);
 	volatile u32 *const portsc = &xhci->opreg->prs[port - 1].portsc;
 
+	/* Trigger port reset. */
 	*portsc = (*portsc & PORTSC_RW_MASK) | PORTSC_PR;
+
+	/* Wait for port_in_reset == 0, up to 150 * 1000us = 150ms */
+	if (generic_hub_wait_for_port(dev, port, 0, xhci_rh_port_in_reset,
+				      150, 1000) == 0)
+		usb_debug("xhci_rh: Reset timed out at port %d\n", port);
+	else
+		/* Clear reset status bits, since port is out of reset. */
+		*portsc = (*portsc & PORTSC_RW_MASK) | PORTSC_PRC | PORTSC_WRC;
+
 	return 0;
 }
+
+static int
+xhci_rh_enable_port(usbdev_t *const dev, int port)
+{
+	if (IS_ENABLED(CONFIG_LP_USB_XHCI_MTK_QUIRK)) {
+		xhci_t *const xhci = XHCI_INST(dev->controller);
+		volatile u32 *const portsc =
+			&xhci->opreg->prs[port - 1].portsc;
+
+		/*
+		 * Before sending commands to a port, the Port Power in
+		 * PORTSC register should be enabled on MTK's xHCI.
+		 */
+		*portsc = (*portsc & PORTSC_RW_MASK) | PORTSC_PP;
+	}
+	return 0;
+}
+
 
 static const generic_hub_ops_t xhci_rh_ops = {
 	.hub_status_changed	= xhci_rh_hub_status_changed,
@@ -116,10 +144,10 @@ static const generic_hub_ops_t xhci_rh_ops = {
 	.port_in_reset		= xhci_rh_port_in_reset,
 	.port_enabled		= xhci_rh_port_enabled,
 	.port_speed		= xhci_rh_port_speed,
-	.enable_port		= NULL,
+	.enable_port		= xhci_rh_enable_port,
 	.disable_port		= NULL,
-	.start_port_reset	= xhci_rh_start_port_reset,
-	.reset_port		= generic_hub_rh_resetport,
+	.start_port_reset	= NULL,
+	.reset_port		= xhci_rh_reset_port,
 };
 
 void

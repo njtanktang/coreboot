@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 DefinitionBlock(
@@ -33,6 +28,7 @@ DefinitionBlock(
 
 	// global NVS and variables
 	#include <southbridge/intel/i82801gx/acpi/globalnvs.asl>
+	#include <southbridge/intel/common/acpi/platform.asl>
 
 	// General Purpose Events
 	#include "acpi/gpe.asl"
@@ -42,6 +38,8 @@ DefinitionBlock(
 
 	// Thermal Zone
 	#include "acpi/thermal.asl"
+
+	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Scope (\_SB) {
 		Device (PCI0)

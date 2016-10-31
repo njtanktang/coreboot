@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,7 +21,7 @@
 #include <stdlib.h>
 #include "w83627dhg.h"
 
-static void w83627dhg_enable_UR2(device_t dev)
+static void w83627dhg_enable_UR2(struct device *dev)
 {
 	u8 reg8;
 
@@ -36,7 +32,7 @@ static void w83627dhg_enable_UR2(device_t dev)
 	pnp_exit_conf_mode(dev);
 }
 
-static void w83627dhg_init(device_t dev)
+static void w83627dhg_init(struct device *dev)
 {
 
 	if (!dev->enabled)
@@ -47,7 +43,7 @@ static void w83627dhg_init(device_t dev)
 		w83627dhg_enable_UR2(dev);
 		break;
 	case W83627DHG_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }

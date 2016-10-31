@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I3100_I3100_H
@@ -40,6 +36,8 @@
 #define SATA_MODE_IDE  0x00
 #define SATA_MODE_AHCI 0x01
 
+#ifndef __SIMPLE_DEVICE__
 void i3100_enable(device_t dev);
+#endif
 
 #endif

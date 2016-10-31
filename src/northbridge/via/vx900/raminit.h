@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef RAMINIT_VX900_H
@@ -71,6 +68,7 @@ typedef struct vx900_delay_calib_st {
 
 typedef struct ramctr_timing_st {
 	enum spd_memory_type dram_type;
+	enum spd_dimm_type dimm_type;
 	u16 cas_supported;
 	/* tLatencies are in units of ns, scaled by x256 */
 	u32 tCK;

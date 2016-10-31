@@ -2,9 +2,6 @@
  * Copyright (C) 2012 Samsung Electronics
  * Alim Akhtar <alim.akhtar@samsung.com>
  *
- * See file CREDITS for list of people who contributed to this
- * project.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -14,11 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
- * MA 02111-1307 USA
  */
 
 #include <console/console.h>
@@ -93,7 +85,7 @@ struct max77686_para max77686_param[] = {/*{vol_addr, vol_bitpos,
 static inline int max77686_i2c_write(unsigned int bus, unsigned char chip_addr,
 					unsigned int reg, unsigned char val)
 {
-	return i2c_write(bus, chip_addr, reg, 1, &val, 1);
+	return i2c_writeb(bus, chip_addr, reg, val);
 }
 
 /*
@@ -107,7 +99,7 @@ static inline int max77686_i2c_write(unsigned int bus, unsigned char chip_addr,
 static inline int max77686_i2c_read(unsigned int bus, unsigned char chip_addr,
 					unsigned int reg, unsigned char *val)
 {
-	return i2c_read(bus, chip_addr, reg, 1, val, 1);
+	return i2c_readb(bus, chip_addr, reg, (uint8_t *)val);
 }
 
 /*

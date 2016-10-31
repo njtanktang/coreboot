@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -22,11 +18,13 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
+#include <vendorcode/google/chromeos/chromeos.h>
+#include <arch/acpi.h>
 
-#include <baytrail/iomap.h>
-#include <baytrail/iosf.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/iomap.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
 
 /* Host Memory Map:
  *
@@ -49,7 +47,7 @@
  * +--------------------------+ 0
  *
  * Note that there are really only a few regions that need to enumerated w.r.t.
- * coreboot's resrouce model:
+ * coreboot's resource model:
  *
  * +--------------------------+ BMBOUND_HI
  * |     Cacheable/Usable     |
@@ -88,14 +86,8 @@ static void nc_read_resources(device_t dev)
 	mmconf = iosf_bunit_read(BUNIT_MMCONF_REG) & ~((1 << 28) - 1);
 	mmio_resource(dev, BUNIT_MMCONF_REG, RES_IN_KiB(mmconf), 256 * 1024);
 
-	/* 0 -> SMM_DEFAULT_BASE cacheable ram. */
-	ram_resource(dev, index++, 0, RES_IN_KiB(SMM_DEFAULT_BASE));
-	/* Default SMM region is cacheable but reserved for coreboot */
-	reserved_ram_resource(dev, index++, RES_IN_KiB(SMM_DEFAULT_BASE),
-	                      RES_IN_KiB(SMM_DEFAULT_SIZE));
-
-	/* SMM_DEFAULT_BASE + SMM_DEFAULT_SIZE - > 0xa0000 */
-	base_k = RES_IN_KiB(SMM_DEFAULT_BASE + SMM_DEFAULT_SIZE);
+	/* 0 -> 0xa0000 */
+	base_k = RES_IN_KiB(0);
 	size_k = RES_IN_KiB(0xa0000) - base_k;
 	ram_resource(dev, index++, base_k, size_k);
 
@@ -132,15 +124,13 @@ static void nc_read_resources(device_t dev)
 	mmio_resource(dev, index++, (0xa0000 >> 10), (0xc0000 - 0xa0000) >> 10);
 	reserved_ram_resource(dev, index++, (0xc0000 >> 10),
 	                      (0x100000 - 0xc0000) >> 10);
-#if CONFIG_CHROMEOS_RAMOOPS
-	reserved_ram_resource(dev, index++,
-			CONFIG_CHROMEOS_RAMOOPS_RAM_START >> 10,
-			CONFIG_CHROMEOS_RAMOOPS_RAM_SIZE >> 10);
-#endif
+
+	chromeos_reserve_ram_oops(dev, index++);
 }
 
 static struct device_operations nc_ops = {
 	.read_resources   = nc_read_resources,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 	.set_resources    = NULL,
 	.enable_resources = NULL,
 	.init             = NULL,
@@ -154,4 +144,3 @@ static const struct pci_driver nc_driver __pci_driver = {
 	.vendor = PCI_VENDOR_ID_INTEL,
 	.device = SOC_DEVID,
 };
-

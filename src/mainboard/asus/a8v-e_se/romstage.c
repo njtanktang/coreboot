@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 unsigned int get_sbdn(unsigned bus);
@@ -33,16 +29,17 @@ unsigned int get_sbdn(unsigned bus);
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <halt.h>
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include "northbridge/amd/amdk8/early_ht.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627ehg/w83627ehg.h>
 #include "southbridge/via/vt8237r/early_smbus.c"
 #include "northbridge/amd/amdk8/debug.c" /* After vt8237r/early_smbus.c! */
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include <spd.h>
 
@@ -64,21 +61,18 @@ void soft_reset(void)
 	uint8_t tmp;
 
 	set_bios_reset();
-	print_debug("soft reset \n");
+	printk(BIOS_DEBUG, "soft reset\n");
 
 	/* PCI reset */
 	tmp = pci_read_config8(PCI_DEV(0, 0x11, 0), 0x4f);
 	tmp |= 0x01;
 	pci_write_config8(PCI_DEV(0, 0x11, 0), 0x4f, tmp);
 
-	while (1) {
-		/* daisy daisy ... */
-		hlt();
-	}
+	halt();
 }
 
 #include "southbridge/via/k8t890/early_car.c"
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit.c"
@@ -90,7 +84,7 @@ void soft_reset(void)
 
 unsigned int get_sbdn(unsigned bus)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_locate_device_on_bus(PCI_ID(PCI_VENDOR_ID_VIA,
 					PCI_DEVICE_ID_VIA_VT8237R_LPC), bus);
@@ -132,8 +126,8 @@ static void sio_init(void)
 	pnp_write_config(GPIO_DEV, 0x30, 0x09);	/* Enable GPIO 2 & GPIO 5. */
 	pnp_write_config(GPIO_DEV, 0xe2, 0x00);	/* No inversion */
 	pnp_write_config(GPIO_DEV, 0xe5, 0x00);	/* No inversion */
-	pnp_write_config(GPIO_DEV, 0xe3, 0x03);	/* 0000 0011, 0=output 1=input */
-	pnp_write_config(GPIO_DEV, 0xe0, 0xde);	/* 1101 1110, 0=output 1=input */
+	pnp_write_config(GPIO_DEV, 0xe3, 0x03);	/* 0000 0011, 0 = output 1 = input */
+	pnp_write_config(GPIO_DEV, 0xe0, 0xde);	/* 1101 1110, 0 = output 1 = input */
 	pnp_write_config(GPIO_DEV, 0xe1, 0x01);	/* Set output val. */
 	pnp_write_config(GPIO_DEV, 0xe4, 0xb4);	/* Set output val (1011 0100). */
 	pnp_exit_ext_func_mode(GPIO_DEV);
@@ -158,7 +152,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	console_init();
 	enable_rom_decode();
 
-	print_info("now booting... fallback\n");
+	printk(BIOS_INFO, "now booting... fallback\n");
 
 	/* Is this a CPU only reset? Or is this a secondary CPU? */
 	if (!cpu_init_detectedx && boot_cpu()) {
@@ -167,7 +161,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 		enumerate_ht_chain();
 	}
 
-	print_info("now booting... real_main\n");
+	printk(BIOS_INFO, "now booting... real_main\n");
 
 	if (bist == 0)
 		bsp_apicid = init_cpus(cpu_init_detectedx, sysinfo);
@@ -179,7 +173,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	setup_coherent_ht_domain();
 	wait_all_core0_started();
 
-	print_info("now booting... Core0 started\n");
+	printk(BIOS_INFO, "now booting... Core0 started\n");
 
 #if CONFIG_LOGICAL_CPUS
 	/* It is said that we should start core1 after all core0 launched. */
@@ -194,7 +188,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	needs_reset |= k8t890_early_setup_ht();
 
 	if (needs_reset) {
-		print_debug("ht reset -\n");
+		printk(BIOS_DEBUG, "ht reset -\n");
 		soft_reset();
 	}
 

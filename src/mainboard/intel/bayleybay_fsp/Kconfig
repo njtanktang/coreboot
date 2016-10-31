@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 if BOARD_INTEL_BAYLEYBAY_FSP
 
@@ -25,32 +21,17 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select BOARD_ROMSIZE_KB_2048
 	select HAVE_ACPI_TABLES
 	select HAVE_OPTION_TABLE
-	select OVERRIDE_MRC_CACHE_LOC
-	select POST_IO
-	select INCLUDE_MICROCODE_IN_BUILD if FSP_PACKAGE_DEFAULT
 	select ENABLE_BUILTIN_COM1 if FSP_PACKAGE_DEFAULT
 	select HAVE_FSP_BIN if FSP_PACKAGE_DEFAULT
-	select DEFAULT_CONSOLE_LOGLEVEL_7 if FSP_PACKAGE_DEFAULT
+	select TSC_MONOTONIC_TIMER
 
 config MAINBOARD_DIR
 	string
 	default "intel/bayleybay_fsp"
 
-config INCLUDE_ME
-	bool
-	default n
-
-config LOCK_MANAGEMENT_ENGINE
-	bool
-	default n
-
 config MAINBOARD_PART_NUMBER
 	string
-	default "Bayley Bay CRB"
-
-config IRQ_SLOT_COUNT
-	int
-	default 18
+	default "Bayley Bay CRB (FSP)"
 
 config MAX_CPUS
 	int
@@ -64,22 +45,9 @@ config FSP_FILE
 	string
 	default "../intel/fsp/baytrail/BAYTRAIL_FSP.fd"
 
-config MRC_CACHE_LOC_OVERRIDE
-	hex
-	default 0xfff80000
-	depends on ENABLE_FSP_FAST_BOOT
-
 config CBFS_SIZE
 	hex
 	default 0x00200000
-
-config DRIVERS_PS2_KEYBOARD
-	bool
-	default n
-
-config CONSOLE_POST
-	bool
-	default y
 
 config ENABLE_FSP_FAST_BOOT
 	bool

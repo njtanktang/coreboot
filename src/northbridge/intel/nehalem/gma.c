@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -32,7 +28,7 @@
 #include <drivers/intel/gma/i915.h>
 #include <pc80/vga.h>
 #include <pc80/vga_io.h>
-
+#include <drivers/intel/gma/intel_bios.h>
 
 #include "chip.h"
 #include "nehalem.h"
@@ -141,62 +137,6 @@ static const struct gt_powermeter ivb_pm_gt1[] = {
 	{0xaa3c, 0x00001c00},
 	{0xaa54, 0x00000004},
 	{0xaa60, 0x00060000},
-	{0}
-};
-
-static const struct gt_powermeter ivb_pm_gt2[] = {
-	{0xa800, 0x10000000},
-	{0xa804, 0x00033800},
-	{0xa808, 0x00000902},
-	{0xa80c, 0x0c002f00},
-	{0xa810, 0x12000400},
-	{0xa814, 0x00000000},
-	{0xa818, 0x00d20800},
-	{0xa81c, 0x00000002},
-	{0xa820, 0x03004b02},
-	{0xa824, 0x00000600},
-	{0xa828, 0x07000773},
-	{0xa82c, 0x00000000},
-	{0xa830, 0x00010032},
-	{0xa834, 0x1520040d},
-	{0xa838, 0x00020105},
-	{0xa83c, 0x00083700},
-	{0xa840, 0x0000151d},
-	{0xa844, 0x00000000},
-	{0xa848, 0x20001b00},
-	{0xa84c, 0x0a000010},
-	{0xa850, 0x00000000},
-	{0xa854, 0x00000008},
-	{0xa858, 0x00000008},
-	{0xa85c, 0x00000000},
-	{0xa860, 0x00020000},
-	{0xa248, 0x0000221e},
-	{0xa900, 0x00000000},
-	{0xa904, 0x00003500},
-	{0xa908, 0x00000000},
-	{0xa90c, 0x0c000000},
-	{0xa910, 0x12000500},
-	{0xa914, 0x00000000},
-	{0xa918, 0x00b20000},
-	{0xa91c, 0x00000000},
-	{0xa920, 0x08004b02},
-	{0xa924, 0x00000200},
-	{0xa928, 0x07000820},
-	{0xa92c, 0x00000000},
-	{0xa930, 0x00030000},
-	{0xa934, 0x050f020d},
-	{0xa938, 0x00020300},
-	{0xa93c, 0x00903900},
-	{0xa940, 0x00000000},
-	{0xa944, 0x00000000},
-	{0xa948, 0x20001b00},
-	{0xa94c, 0x0a000010},
-	{0xa950, 0x00000000},
-	{0xa954, 0x00000008},
-	{0xa960, 0x00110000},
-	{0xaa3c, 0x00003900},
-	{0xaa54, 0x00000008},
-	{0xaa60, 0x00110000},
 	{0}
 };
 
@@ -321,21 +261,21 @@ u32 map_oprom_vendev(u32 vendev)
 {
 	u32 new_vendev = vendev;
 
-	/* none curently.  */
+	/* none curently. */
 
 	return new_vendev;
 }
 
 static struct resource *gtt_res = NULL;
 
-static inline u32 gtt_read(u32 reg)
+u32 gtt_read(u32 reg)
 {
-	return read32(gtt_res->base + reg);
+	return read32(res2mmio(gtt_res, reg, 0));
 }
 
-static inline void gtt_write(u32 reg, u32 data)
+void gtt_write(u32 reg, u32 data)
 {
-	write32(gtt_res->base + reg, data);
+	write32(res2mmio(gtt_res, reg, 0), data);
 }
 
 static inline void gtt_write_powermeter(const struct gt_powermeter *pm)
@@ -345,7 +285,7 @@ static inline void gtt_write_powermeter(const struct gt_powermeter *pm)
 }
 
 #define GTT_RETRY 1000
-static int gtt_poll(u32 reg, u32 mask, u32 value)
+int gtt_poll(u32 reg, u32 mask, u32 value)
 {
 	unsigned try = GTT_RETRY;
 	u32 data;
@@ -617,7 +557,7 @@ static void gma_pm_init_post_vbios(struct device *dev)
 
 #if IS_ENABLED(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT)
 
-static void train_link(u32 mmio)
+static void train_link(u8 *mmio)
 {
 	/* Clear interrupts. */
 	write32(mmio + DEIIR, 0xffffffff);
@@ -640,7 +580,7 @@ static void train_link(u32 mmio)
 	read32(mmio + 0x000f0014); // = 0x00000600
 }
 
-static void power_port(u32 mmio)
+static void power_port(u8 *mmio)
 {
 	read32(mmio + 0x000e1100); // = 0x00000000
 	write32(mmio + 0x000e1100, 0x00000000);
@@ -695,11 +635,12 @@ static void power_port(u32 mmio)
 }
 
 static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
-			   u32 mmio, u32 physbase, u16 piobase, u32 lfb)
+			   u8 *mmio, u32 physbase, u16 piobase, u32 lfb)
 {
 	int i;
 	u8 edid_data[128];
 	struct edid edid;
+	struct edid_mode *mode;
 	u32 hactive, vactive, right_border, bottom_border;
 	int hpolarity, vpolarity;
 	u32 vsync, hsync, vblank, hblank, hfront_porch, vfront_porch;
@@ -710,7 +651,7 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 	u32 pixel_n = 1;
 	u32 pixel_m1 = 1;
 	u32 pixel_m2 = 1;
-	u32 link_frequency = info->gpu_link_frequency_270_mhz ? 270000 : 162000;
+	u32 link_frequency = info->gfx.link_frequency_270_mhz ? 270000 : 162000;
 	u32 data_m1;
 	u32 data_n1 = 0x00800000;
 	u32 link_m1;
@@ -734,7 +675,7 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 	write32(mmio + 0x00042004, 0x02000000);
 	write32(mmio + 0x000fd034, 0x8421ffe0);
 
-	/* Setup GTT.  */
+	/* Setup GTT. */
 	for (i = 0; i < 0x2000; i++)
 	{
 		outl((i << 2) | 1, piobase);
@@ -755,31 +696,33 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 
 	power_port(mmio);
 
-	intel_gmbus_read_edid(mmio + PCH_GMBUS0, 3, 0x50, edid_data, 128);
+	intel_gmbus_read_edid(mmio + PCH_GMBUS0, 3, 0x50, edid_data,
+			sizeof(edid_data));
+	intel_gmbus_stop(mmio + PCH_GMBUS0);
 	decode_edid(edid_data,
 		    sizeof(edid_data), &edid);
+	mode = &edid.mode;
 
-	/* Disable screen memory to prevent garbage from appearing.  */
+	/* Disable screen memory to prevent garbage from appearing. */
 	vga_sr_write(1, vga_sr_read(1) | 0x20);
 
 	hactive = edid.x_resolution;
 	vactive = edid.y_resolution;
-	right_border = edid.hborder;
-	bottom_border = edid.vborder;
-	hpolarity = (edid.phsync == '-');
-	vpolarity = (edid.pvsync == '-');
-	vsync = edid.vspw;
-	hsync = edid.hspw;
-	vblank = edid.vbl;
-	hblank = edid.hbl;
-	hfront_porch = edid.hso;
-	vfront_porch = edid.vso;
+	right_border = mode->hborder;
+	bottom_border = mode->vborder;
+	hpolarity = (mode->phsync == '-');
+	vpolarity = (mode->pvsync == '-');
+	vsync = mode->vspw;
+	hsync = mode->hspw;
+	vblank = mode->vbl;
+	hblank = mode->hbl;
+	hfront_porch = mode->hso;
+	vfront_porch = mode->vso;
 
-	target_frequency = info->gpu_lvds_dual_channel ? edid.pixel_clock
-		: (2 * edid.pixel_clock);
-#if !IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
+	target_frequency = mode->lvds_dual_channel ? mode->pixel_clock
+		: (2 * mode->pixel_clock);
 	vga_textmode_init();
-#else
+#if IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
 	vga_sr_write(1, 1);
 	vga_sr_write(0x2, 0xf);
 	vga_sr_write(0x3, 0x0);
@@ -806,17 +749,17 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 		write32(mmio + LGC_PALETTE(0) + 4 * i, i * 0x010101);
 #endif
 
-	/* Find suitable divisors.  */
+	/* Find suitable divisors. */
 	for (candp1 = 1; candp1 <= 8; candp1++) {
 		for (candn = 5; candn <= 10; candn++) {
 			u32 cur_frequency;
-			u32 m; /* 77 - 131.  */
-			u32 denom; /* 35 - 560.  */
+			u32 m; /* 77 - 131. */
+			u32 denom; /* 35 - 560. */
 			u32 current_delta;
 
 			denom = candn * candp1 * 7;
 			/* Doesnt overflow for up to
-			   5000000 kHz = 5 GHz.  */
+			   5000000 kHz = 5 GHz. */
 			m = (target_frequency * denom + 60000) / 120000;
 
 			if (m < 77 || m > 131)
@@ -844,9 +787,9 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 		return;
 	}
 
-	link_m1 = ((uint64_t)link_n1 * edid.pixel_clock) / link_frequency;
-	data_m1 = ((uint64_t)data_n1 * 18 * edid.pixel_clock)
-		/ (link_frequency * 8 * (info->gpu_lvds_num_lanes ? : 4));
+	link_m1 = ((uint64_t)link_n1 * mode->pixel_clock) / link_frequency;
+	data_m1 = ((uint64_t)data_n1 * 18 * mode->pixel_clock)
+		/ (link_frequency * 8 * 4);
 
 	printk(BIOS_INFO, "bringing up panel at resolution %d x %d\n",
 	       hactive, vactive);
@@ -858,10 +801,10 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 	       hsync, vsync);
 	printk(BIOS_DEBUG, "Front porch %d x %d\n",
 	       hfront_porch, vfront_porch);
-	printk(BIOS_DEBUG, (info->gpu_use_spread_spectrum_clock
+	printk(BIOS_DEBUG, (info->gfx.use_spread_spectrum_clock
 			    ? "Spread spectrum clock\n" : "DREF clock\n"));
 	printk(BIOS_DEBUG,
-	       info->gpu_lvds_dual_channel ? "Dual channel\n" : "Single channel\n");
+	       mode->lvds_dual_channel ? "Dual channel\n" : "Single channel\n");
 	printk(BIOS_DEBUG, "Polarities %d, %d\n",
 	       hpolarity, vpolarity);
 	printk(BIOS_DEBUG, "Data M1=%d, N1=%d\n",
@@ -878,12 +821,12 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 
 	write32(mmio + PCH_LVDS,
 		(hpolarity << 20) | (vpolarity << 21)
-		| (info->gpu_lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
+		| (mode->lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
 		   | LVDS_CLOCK_BOTH_POWERUP_ALL : 0)
 		| LVDS_BORDER_ENABLE | LVDS_CLOCK_A_POWERUP_ALL
 		| LVDS_DETECTED);
 	write32(mmio + BLC_PWM_CPU_CTL2, (1 << 31));
-	write32(mmio + PCH_DREF_CONTROL, (info->gpu_use_spread_spectrum_clock
+	write32(mmio + PCH_DREF_CONTROL, (info->gfx.use_spread_spectrum_clock
 					  ? 0x1002 : 0x400));
 	mdelay(1);
 	write32(mmio + PCH_PP_CONTROL, PANEL_UNLOCK_REGS
@@ -893,18 +836,18 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 		| ((pixel_m1 - 2) << 8) | pixel_m2);
 	write32(mmio + _PCH_DPLL(0),
 		DPLL_VCO_ENABLE | DPLLB_MODE_LVDS
-		| (info->gpu_lvds_dual_channel ? DPLLB_LVDS_P2_CLOCK_DIV_7
+		| (mode->lvds_dual_channel ? DPLLB_LVDS_P2_CLOCK_DIV_7
 		   : DPLLB_LVDS_P2_CLOCK_DIV_14)
 		| (0x10000 << (pixel_p1 - 1))
-		| ((info->gpu_use_spread_spectrum_clock ? 3 : 0) << 13)
+		| ((info->gfx.use_spread_spectrum_clock ? 3 : 0) << 13)
 		| (0x1 << (pixel_p1 - 1)));
 	mdelay(1);
 	write32(mmio + _PCH_DPLL(0),
 		DPLL_VCO_ENABLE | DPLLB_MODE_LVDS
-		| (info->gpu_lvds_dual_channel ? DPLLB_LVDS_P2_CLOCK_DIV_7
+		| (mode->lvds_dual_channel ? DPLLB_LVDS_P2_CLOCK_DIV_7
 		   : DPLLB_LVDS_P2_CLOCK_DIV_14)
 		| (0x10000 << (pixel_p1 - 1))
-		| ((info->gpu_use_spread_spectrum_clock ? 3 : 0) << 13)
+		| ((info->gfx.use_spread_spectrum_clock ? 3 : 0) << 13)
 		| (0x1 << (pixel_p1 - 1)));
 	/* Re-lock the registers.  */
 	write32(mmio + PCH_PP_CONTROL,
@@ -912,7 +855,7 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 
 	write32(mmio + PCH_LVDS,
 		(hpolarity << 20) | (vpolarity << 21)
-		| (info->gpu_lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
+		| (mode->lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
 		   | LVDS_CLOCK_BOTH_POWERUP_ALL : 0)
 		| LVDS_BORDER_ENABLE | LVDS_CLOCK_A_POWERUP_ALL
 		| LVDS_DETECTED);
@@ -1009,7 +952,7 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 	write32(mmio + PCH_LVDS,
 		LVDS_PORT_ENABLE
 		| (hpolarity << 20) | (vpolarity << 21)
-		| (info->gpu_lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
+		| (mode->lvds_dual_channel ? LVDS_CLOCK_B_POWERUP_ALL
 		   | LVDS_CLOCK_BOTH_POWERUP_ALL : 0)
 		| LVDS_BORDER_ENABLE | LVDS_CLOCK_A_POWERUP_ALL
 		| LVDS_DETECTED);
@@ -1031,12 +974,17 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 
 	write32(mmio + PCH_PP_CONTROL, PANEL_POWER_ON | PANEL_POWER_RESET);
 
-	/* Enable screen memory.  */
+	/* Enable screen memory. */
 	vga_sr_write(1, vga_sr_read(1) & ~0x20);
 
 	/* Clear interrupts. */
 	write32(mmio + DEIIR, 0xffffffff);
 	write32(mmio + SDEIIR, 0xffffffff);
+
+	/* Doesn't change any hw behaviour but vga oprom expects it there. */
+	write32(mmio + 0x0004f040, 0x01000008);
+	write32(mmio + 0x0004f04c, 0x7f7f0000);
+	write32(mmio + 0x0004f054, 0x0000020d);
 
 #if IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
 	memset ((void *) lfb, 0, edid.x_resolution * edid.y_resolution * 4);
@@ -1045,7 +993,6 @@ static void intel_gma_init(const struct northbridge_intel_nehalem_config *info,
 }
 
 #endif
-
 
 static void gma_func0_init(struct device *dev)
 {
@@ -1077,39 +1024,13 @@ static void gma_func0_init(struct device *dev)
 	    && lfb_res && lfb_res->base) {
 		printk(BIOS_SPEW, "Initializing VGA without OPROM. MMIO 0x%llx\n",
 		       gtt_res->base);
-		intel_gma_init(conf, gtt_res->base, physbase, pio_res->base,
-			       lfb_res->base);
+		intel_gma_init(conf, res2mmio(gtt_res, 0, 0), physbase,
+			       pio_res->base, lfb_res->base);
 	}
+
+	/* Linux relies on VBT for panel info. */
+	generate_fake_intel_oprom(&conf->gfx, dev, "$VBT IRONLAKE-MOBILE");
 #endif
-
-	/* Linux relies on VBT for panel info.  */
-	if (read16(0xc0000) != 0xaa55) {
-		optionrom_header_t *oh = (void *)0xc0000;
-		optionrom_pcir_t *pcir;
-		int sz;
-
-		memset(oh->reserved, 0, 8192);
-
-		sz = (0x80 + sizeof(fake_vbt) + 511) / 512;
-		oh->signature = 0xaa55;
-		oh->size = sz;
-		oh->pcir_offset = 0x40;
-		oh->vbt_offset = 0x80;
-
-		pcir = (void *)0xc0040;
-		pcir->signature = 0x52494350;	// PCIR
-		pcir->vendor = dev->vendor;
-		pcir->device = dev->device;
-		pcir->length = sizeof(*pcir);
-		pcir->revision = dev->class;
-		pcir->classcode[0] = dev->class >> 8;
-		pcir->classcode[1] = dev->class >> 16;
-		pcir->classcode[2] = dev->class >> 24;
-		pcir->imagelength = sz;
-		pcir->indicator = 0x80;
-
-		memcpy((void *)0xc0080, fake_vbt, sizeof(fake_vbt));
-	}
 
 
 	/* Post VBIOS init */
@@ -1141,12 +1062,31 @@ static void gma_read_resources(struct device *dev)
 		return;
 	}
 	res->flags |= IORESOURCE_RESERVE | IORESOURCE_FIXED | IORESOURCE_ASSIGNED;
-	pci_write_config32(dev, PCI_BASE_ADDRESS_2,
-			   0xd0000001);
-	pci_write_config32(dev, PCI_BASE_ADDRESS_2 + 4,
-			   0);
+	pci_write_config32(dev, PCI_BASE_ADDRESS_2, 0xd0000001);
+	pci_write_config32(dev, PCI_BASE_ADDRESS_2 + 4, 0);
 	res->base = (resource_t) 0xd0000000;
 	res->size = (resource_t) 0x10000000;
+}
+
+const struct i915_gpu_controller_info *
+intel_gma_get_controller_info(void)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x2,0));
+	if (!dev) {
+		return NULL;
+	}
+	struct northbridge_intel_nehalem_config *chip = dev->chip_info;
+	return &chip->gfx;
+}
+
+static void gma_ssdt(device_t device)
+{
+	const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+	if (!gfx) {
+		return;
+	}
+
+	drivers_intel_gma_displays_ssdt_generate(gfx);
 }
 
 static struct pci_operations gma_pci_ops = {
@@ -1157,14 +1097,15 @@ static struct device_operations gma_func0_ops = {
 	.read_resources = gma_read_resources,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
+	.acpi_fill_ssdt_generator = gma_ssdt,
 	.init = gma_func0_init,
 	.scan_bus = 0,
 	.enable = 0,
 	.ops_pci = &gma_pci_ops,
 };
 
-static const unsigned short pci_device_ids[] =
-    { 0x0046, 0x0102, 0x0106, 0x010a, 0x0112,
+static const unsigned short pci_device_ids[] = {
+	0x0046, 0x0102, 0x0106, 0x010a, 0x0112,
 	0x0116, 0x0122, 0x0126, 0x0156,
 	0x0166,
 	0

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Scope(\_SB) {
@@ -76,10 +71,10 @@ Scope(\_SB) {
 			Store(\_SB.PCI0.LPCB.EC0.BFC0, Local0)
 			Store(Local0, Index(PBIF, 2))
 
-			Divide(Local0, 10, Local1, Local2)
+			Divide(Local0, 10, , Local2)
 			Store(Local2, Index(PBIF, 5))
 
-			Divide(Local0, 20, Local1, Local2)
+			Divide(Local0, 20, , Local2)
 			Store(Local2, Index(PBIF, 6))
 
 			If(\_SB.PCI0.LPCB.EC0.BTYP) {
@@ -181,10 +176,10 @@ Scope(\_SB) {
 			Store(\_SB.PCI0.LPCB.EC0.BFC2, Local0)
 			Store(Local0, Index(PBIF, 2))
 
-			Divide(Local0, 10, Local1, Local2)
+			Divide(Local0, 10, , Local2)
 			Store(Local2, Index(PBIF, 5))
 
-			Divide(Local0, 20, Local1, Local2)
+			Divide(Local0, 20, , Local2)
 			Store(Local2, Index(PBIF, 6))
 
 			If(\_SB.PCI0.LPCB.EC0.BTY2) {

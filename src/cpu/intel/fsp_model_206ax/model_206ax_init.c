@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -28,6 +23,7 @@
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/lapic.h>
+#include <cpu/intel/microcode.h>
 #include <cpu/intel/speedstep.h>
 #include <cpu/intel/turbo.h>
 #include <cpu/x86/cache.h>
@@ -35,12 +31,13 @@
 #include <pc80/mc146818rtc.h>
 #include "model_206ax.h"
 #include "chip.h"
+#include <cpu/intel/smm/gen1/smi.h>
 
 static void enable_vmx(void)
 {
 	struct cpuid_result regs;
 	msr_t msr;
-	int enable = CONFIG_ENABLE_VMX;
+	int enable = IS_ENABLED(CONFIG_ENABLE_VMX);
 
 	regs = cpuid(1);
 	/* Check that the VMX is supported before reading or writing the MSR. */
@@ -65,9 +62,9 @@ static void enable_vmx(void)
 	printk(BIOS_DEBUG, "%s VMX\n", enable ? "Enabling" : "Disabling");
 
 	if (enable) {
-			msr.lo |= (1 << 2);
-			if (regs.ecx & CPUID_SMX)
-				msr.lo |= (1 << 1);
+		msr.lo |= (1 << 2);
+		if (regs.ecx & CPUID_SMX)
+			msr.lo |= (1 << 1);
 	}
 
 	wrmsr(IA32_FEATURE_CONTROL, msr);
@@ -156,7 +153,7 @@ void set_power_limits(u8 power_limit_1_time)
 	unsigned tdp, min_power, max_power, max_time;
 	u8 power_limit_1_val;
 
-	if (power_limit_1_time > ARRAY_SIZE(power_limit_time_sec_to_msr))
+	if (power_limit_1_time >= ARRAY_SIZE(power_limit_time_sec_to_msr))
 		return;
 
 	if (!(msr.lo & PLATFORM_INFO_SET_TDP))
@@ -287,10 +284,32 @@ static void configure_mca(void)
 		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
 }
 
+int cpu_get_apic_id_map(int *apic_id_map)
+{
+	struct cpuid_result result;
+	unsigned threads_per_package, threads_per_core, i, shift = 0;
+
+	/* Logical processors (threads) per core */
+	result = cpuid_ext(0xb, 0);
+	threads_per_core = result.ebx & 0xffff;
+
+	/* Logical processors (threads) per package */
+	result = cpuid_ext(0xb, 1);
+	threads_per_package = result.ebx & 0xffff;
+
+	if (threads_per_core == 1)
+		shift++;
+
+	for (i = 0; i < threads_per_package && i < CONFIG_MAX_CPUS; i++)
+		apic_id_map[i] = i << shift;
+
+	return threads_per_package;
+}
+
 /*
  * Initialize any extra cores/threads in this package.
  */
-static void intel_cores_init(device_t cpu)
+static void intel_cores_init(struct device *cpu)
 {
 	struct cpuid_result result;
 	unsigned threads_per_package, threads_per_core, i;
@@ -313,9 +332,9 @@ static void intel_cores_init(device_t cpu)
 
 	for (i = 1; i < threads_per_package; ++i) {
 		struct device_path cpu_path;
-		device_t new;
+		struct device *new;
 
-		/* Build the cpu device path */
+		/* Build the CPU device path */
 		cpu_path.type = DEVICE_PATH_APIC;
 		cpu_path.apic.apic_id =
 			cpu->path.apic.apic_id + i;
@@ -324,7 +343,7 @@ static void intel_cores_init(device_t cpu)
 		if (threads_per_core == 1)
 			cpu_path.apic.apic_id <<= 1;
 
-		/* Allocate the new cpu device structure */
+		/* Allocate the new CPU device structure */
 		new = alloc_dev(cpu->bus, &cpu_path);
 		if (!new)
 			continue;
@@ -334,7 +353,7 @@ static void intel_cores_init(device_t cpu)
 		       new->path.apic.apic_id);
 
 #if CONFIG_SMP && CONFIG_MAX_CPUS > 1
-		/* Start the new cpu */
+		/* Start the new CPU */
 		if (!start_cpu(new)) {
 			/* Record the error in cpu? */
 			printk(BIOS_ERR, "CPU %u would not start!\n",
@@ -344,13 +363,14 @@ static void intel_cores_init(device_t cpu)
 	}
 }
 
-static void model_206ax_init(device_t cpu)
+static void model_206ax_init(struct device *cpu)
 {
 	char processor_name[49];
-	struct cpuid_result cpuid_regs;
 
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
+
+	intel_update_microcode_from_cbfs();
 
 	/* Clear out pending MCEs */
 	configure_mca();
@@ -360,19 +380,17 @@ static void model_206ax_init(device_t cpu)
 	printk(BIOS_INFO, "CPU: %s.\n", processor_name);
 
 	/* Setup MTRRs based on physical address size */
-	cpuid_regs = cpuid(0x80000008);
-	x86_setup_fixed_mtrrs();
-	x86_setup_var_mtrrs(cpuid_regs.eax & 0xff, 2);
+	x86_setup_mtrrs_with_detect();
 	x86_mtrr_check();
 
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	enable_lapic_tpr();
 	setup_lapic();
 
-	/* Enable virtualization if enabled in CMOS */
+	/* Enable virtualization if Kconfig option is set */
 	enable_vmx();
 
 	/* Configure Enhanced SpeedStep and Thermal Sensors */
@@ -413,4 +431,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
 };
-

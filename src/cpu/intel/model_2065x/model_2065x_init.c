@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -36,6 +31,7 @@
 #include <pc80/mc146818rtc.h>
 #include "model_2065x.h"
 #include "chip.h"
+#include <cpu/intel/smm/gen1/smi.h>
 
 /*
  * List of supported C-states in this processor
@@ -114,6 +110,28 @@ static acpi_cstate_t cstate_map[] = {
 	{ 0 }
 };
 
+int cpu_get_apic_id_map(int *apic_id_map)
+{
+	int i;
+	struct cpuid_result result;
+	unsigned threads_per_package, threads_per_core;
+
+	/* Logical processors (threads) per core */
+	result = cpuid_ext(0xb, 0);
+	threads_per_core = result.ebx & 0xffff;
+
+	/* Logical processors (threads) per package */
+	result = cpuid_ext(0xb, 1);
+	threads_per_package = result.ebx & 0xffff;
+
+	for (i = 0; i < threads_per_package && i < CONFIG_MAX_CPUS; ++i) {
+		apic_id_map[i] = (i % threads_per_core)
+			+ ((i / threads_per_core) << 2);
+	}
+
+	return threads_per_package;
+}
+
 static void enable_vmx(void)
 {
 	struct cpuid_result regs;
@@ -164,63 +182,6 @@ static void enable_vmx(void)
 	wrmsr(IA32_FEATURE_CONTROL, msr);
 }
 
-/* Convert time in seconds to POWER_LIMIT_1_TIME MSR value */
-static const u8 power_limit_time_sec_to_msr[] = {
-	[0]   = 0x00,
-	[1]   = 0x0a,
-	[2]   = 0x0b,
-	[3]   = 0x4b,
-	[4]   = 0x0c,
-	[5]   = 0x2c,
-	[6]   = 0x4c,
-	[7]   = 0x6c,
-	[8]   = 0x0d,
-	[10]  = 0x2d,
-	[12]  = 0x4d,
-	[14]  = 0x6d,
-	[16]  = 0x0e,
-	[20]  = 0x2e,
-	[24]  = 0x4e,
-	[28]  = 0x6e,
-	[32]  = 0x0f,
-	[40]  = 0x2f,
-	[48]  = 0x4f,
-	[56]  = 0x6f,
-	[64]  = 0x10,
-	[80]  = 0x30,
-	[96]  = 0x50,
-	[112] = 0x70,
-	[128] = 0x11,
-};
-
-/* Convert POWER_LIMIT_1_TIME MSR value to seconds */
-static const u8 power_limit_time_msr_to_sec[] = {
-	[0x00] = 0,
-	[0x0a] = 1,
-	[0x0b] = 2,
-	[0x4b] = 3,
-	[0x0c] = 4,
-	[0x2c] = 5,
-	[0x4c] = 6,
-	[0x6c] = 7,
-	[0x0d] = 8,
-	[0x2d] = 10,
-	[0x4d] = 12,
-	[0x6d] = 14,
-	[0x0e] = 16,
-	[0x2e] = 20,
-	[0x4e] = 24,
-	[0x6e] = 28,
-	[0x0f] = 32,
-	[0x2f] = 40,
-	[0x4f] = 48,
-	[0x6f] = 56,
-	[0x10] = 64,
-	[0x30] = 80,
-	[0x50] = 96,
-	[0x70] = 112,
-	[0x11] = 128,
-};
 
 int cpu_config_tdp_levels(void)
 {
@@ -239,7 +200,7 @@ int cpu_config_tdp_levels(void)
 static void configure_thermal_target(void)
 {
 	struct cpu_intel_model_2065x_config *conf;
-	device_t lapic;
+	struct device *lapic;
 	msr_t msr;
 
 	/* Find pointer to CPU configuration */
@@ -343,7 +304,7 @@ static void configure_mca(void)
 /*
  * Initialize any extra cores/threads in this package.
  */
-static void intel_cores_init(device_t cpu)
+static void intel_cores_init(struct device *cpu)
 {
 	struct cpuid_result result;
 	unsigned threads_per_package, threads_per_core, i;
@@ -366,15 +327,15 @@ static void intel_cores_init(device_t cpu)
 
 	for (i = 1; i < threads_per_package; ++i) {
 		struct device_path cpu_path;
-		device_t new;
+		struct device *new;
 
-		/* Build the cpu device path */
+		/* Build the CPU device path */
 		cpu_path.type = DEVICE_PATH_APIC;
 		cpu_path.apic.apic_id =
 		  cpu->path.apic.apic_id + (i % threads_per_core)
 			+ ((i / threads_per_core) << 2);
 
-		/* Allocate the new cpu device structure */
+		/* Allocate the new CPU device structure */
 		new = alloc_dev(cpu->bus, &cpu_path);
 		if (!new)
 			continue;
@@ -384,7 +345,7 @@ static void intel_cores_init(device_t cpu)
 		       new->path.apic.apic_id);
 
 #if CONFIG_SMP && CONFIG_MAX_CPUS > 1
-		/* Start the new cpu */
+		/* Start the new CPU */
 		if (!start_cpu(new)) {
 			/* Record the error in cpu? */
 			printk(BIOS_ERR, "CPU %u would not start!\n",
@@ -394,10 +355,9 @@ static void intel_cores_init(device_t cpu)
 	}
 }
 
-static void model_2065x_init(device_t cpu)
+static void model_2065x_init(struct device *cpu)
 {
 	char processor_name[49];
-	struct cpuid_result cpuid_regs;
 
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
@@ -413,15 +373,13 @@ static void model_2065x_init(device_t cpu)
 	printk(BIOS_INFO, "CPU:lapic=%ld, boot_cpu=%d\n", lapicid (), boot_cpu ());
 
 	/* Setup MTRRs based on physical address size */
-	cpuid_regs = cpuid(0x80000008);
-	x86_setup_fixed_mtrrs();
-	x86_setup_var_mtrrs(cpuid_regs.eax & 0xff, 2);
+	x86_setup_mtrrs_with_detect();
 	x86_mtrr_check();
 
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	enable_lapic_tpr();
 	setup_lapic();
 
@@ -462,4 +420,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.id_table = cpu_table,
 	.cstates  = cstate_map,
 };
-

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Intel SMBus Controller 0:1f.3
@@ -25,6 +20,7 @@ Device (SBUS)
 {
 	Name (_ADR, 0x001f0003)
 
+#ifdef ENABLE_SMBUS_METHODS
 	OperationRegion (SMBP, PCI_Config, 0x00, 0x100)
 	Field(SMBP, DWordAcc, NoLock, Preserve)
 	{
@@ -58,7 +54,6 @@ Device (SBUS)
 		NDLH,	8,	// Notify Data High Byte
 	}
 
-#ifdef ENABLE_SMBUS_METHODS
 	// Kill all SMBus communication
 	Method (KILL, 0, Serialized)
 	{
@@ -239,4 +234,3 @@ Device (SBUS)
 	}
 #endif
 }
-

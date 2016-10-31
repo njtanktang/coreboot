@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* The SIPI vector is responsible for initializing the APs in the sytem. It
@@ -57,10 +52,8 @@ ap_count:
 
 .text
 .code16
-.global ap_start
-.global __rmodule_entry
-__rmodule_entry:
-ap_start:
+.global _start
+_start:
 	cli
 	xorl	%eax, %eax
 	movl	%eax, %cr3    /* Invalidate TLB*/
@@ -75,9 +68,9 @@ ap_start:
 
 	/* The gdtaddr needs to be releative to the data segment in order
 	 * to properly dereference it. The .text section comes first in an
-	 * rmodule so ap_start can be used as a proxy for the load address. */
+	 * rmodule so _start can be used as a proxy for the load address. */
 	movl	$(gdtaddr), %ebx
-	sub	$(ap_start), %ebx
+	sub	$(_start), %ebx
 
 	data32 lgdt (%ebx)
 
@@ -100,7 +93,7 @@ ap_start:
 	mov	idt_ptr, %ebx
 	lidt	(%ebx)
 
-	/* Obtain cpu number. */
+	/* Obtain CPU number. */
 	movl	ap_count, %eax
 1:
 	movl	%eax, %ecx
@@ -114,7 +107,7 @@ ap_start:
 	movl	stack_top, %edx
 	subl	%eax, %edx
 	mov	%edx, %esp
-	/* Save cpu number. */
+	/* Save CPU number. */
 	mov	%ecx, %esi
 
 	/* Determine if one should check microcode versions. */

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -32,15 +28,14 @@
 #include <cbmem.h>
 #include "chip.h"
 #include "gm45.h"
+#include "arch/acpi.h"
 
-/* Reserve everything between A segment and 1MB:
+/* Reserve segments A and B:
  *
  * 0xa0000 - 0xbffff: legacy VGA
- * 0xc0000 - 0xcffff: VGA OPROM (needed by kernel)
- * 0xe0000 - 0xfffff: SeaBIOS, if used, otherwise DMI
  */
 static const int legacy_hole_base_k = 0xa0000 / 1024;
-static const int legacy_hole_size_k = 384;
+static const int legacy_hole_size_k = 128;
 
 static int decode_pcie_bar(u32 *const base, u32 *const len)
 {
@@ -77,7 +72,7 @@ static int decode_pcie_bar(u32 *const base, u32 *const len)
 static void mch_domain_read_resources(device_t dev)
 {
 	u64 tom, touud;
-	u32 tomk, tolud, uma_sizek = 0;
+	u32 tomk, tolud, uma_sizek = 0, usable_tomk;
 	u32 pcie_config_base, pcie_config_size;
 
 	/* Total Memory 2GB example:
@@ -136,12 +131,16 @@ static void mch_domain_read_resources(device_t dev)
 		uma_sizek = gms_sizek + gsm_sizek;
 	}
 
-	printk(BIOS_INFO, "Available memory below 4GB: %uM\n", tomk >> 10);
+	usable_tomk = ALIGN_DOWN(tomk, 64 << 10);
+	if (tomk - usable_tomk > (16 << 10))
+		usable_tomk = tomk;
+
+	printk(BIOS_INFO, "Available memory below 4GB: %uM\n", usable_tomk >> 10);
 
 	/* Report the memory regions */
 	ram_resource(dev, 3, 0, legacy_hole_base_k);
 	ram_resource(dev, 4, legacy_hole_base_k + legacy_hole_size_k,
-	     (tomk - (legacy_hole_base_k + legacy_hole_size_k)));
+		     (usable_tomk - (legacy_hole_base_k + legacy_hole_size_k)));
 
 	/*
 	 * If >= 4GB installed then memory from TOLUD to 4GB
@@ -174,7 +173,7 @@ static void mch_domain_set_resources(device_t dev)
 
 	for (i = 3; i < 8; ++i) {
 		/* Report read resources. */
-		resource = find_resource(dev, i);
+		resource = probe_resource(dev, i);
 		if (resource)
 			report_resource_stored(dev, resource, "");
 	}
@@ -199,6 +198,8 @@ static struct device_operations pci_domain_ops = {
 	.init             = mch_domain_init,
 	.scan_bus         = pci_domain_scan_bus,
 	.ops_pci_bus	  = pci_bus_default_ops,
+	.write_acpi_tables = northbridge_write_acpi_tables,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 };
 
 
@@ -207,14 +208,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = 0,
 };
@@ -225,6 +222,22 @@ static void enable_dev(device_t dev)
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
 		dev->ops = &pci_domain_ops;
+#if CONFIG_HAVE_ACPI_RESUME
+		switch (pci_read_config32(dev_find_slot(0, PCI_DEVFN(0, 0)), /*D0F0_SKPD*/0xdc)) {
+		case SKPAD_NORMAL_BOOT_MAGIC:
+			printk(BIOS_DEBUG, "Normal boot.\n");
+			acpi_slp_type = 0;
+			break;
+		case SKPAD_ACPI_S3_MAGIC:
+			printk(BIOS_DEBUG, "S3 Resume.\n");
+			acpi_slp_type = 3;
+			break;
+		default:
+			printk(BIOS_DEBUG, "Unknown boot method, assuming normal.\n");
+			acpi_slp_type = 0;
+			break;
+		}
+#endif
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
 	}

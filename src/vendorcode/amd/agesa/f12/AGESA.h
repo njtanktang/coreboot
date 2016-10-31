@@ -825,8 +825,8 @@ typedef struct {
                                                            * @li @b Bit31 - last descriptor in topology
                                                            */
   IN       UINT32               SocketId;                 ///< Socket Id
-  IN       PCIe_PORT_DESCRIPTOR *PciePortList;            ///< Pointer to array of PCIe port descriptors or NULL (Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST).
-  IN       PCIe_DDI_DESCRIPTOR  *DdiLinkList;             ///< Pointer to array DDI link descriptors (Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST).
+  IN       CONST PCIe_PORT_DESCRIPTOR *PciePortList;            ///< Pointer to array of PCIe port descriptors or NULL (Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST).
+  IN       CONST PCIe_DDI_DESCRIPTOR  *DdiLinkList;             ///< Pointer to array DDI link descriptors (Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST).
   IN       VOID                 *Reserved;                ///< Reserved for future use
 } PCIe_COMPLEX_DESCRIPTOR;
 
@@ -1022,7 +1022,7 @@ typedef struct {
 /// GNB configuration info
 typedef struct {
   IN       PCIe_COMPLEX_DESCRIPTOR  *PcieComplexList;  /**< Pointer to array of structures describe PCIe topology on each processor package or NULL.
-                                                        * Last element of array must ne terminated with DESCRIPTOR_TERMINATE_LIST
+                                                        * Last element of array must be terminated with DESCRIPTOR_TERMINATE_LIST
                                                         * Example of topology definition for single socket system:
                                                         * @code
                                                         *  PCIe_PORT_DESCRIPTOR PortList [] = {
@@ -1279,12 +1279,8 @@ typedef enum {
 
 ///< CPU MSR Register definitions ------------------------------------------
 #define SYS_CFG     0xC0010010
-#ifndef TOP_MEM
-#define TOP_MEM     0xC001001A
-#endif
-#ifndef TOP_MEM2
-#define TOP_MEM2    0xC001001D
-#endif
+#define TOP_MEM     0xC001001Aul
+#define TOP_MEM2    0xC001001Dul
 #define HWCR        0xC0010015
 #define NB_CFG      0xC001001F
 

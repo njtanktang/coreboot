@@ -1,4 +1,7 @@
 chip northbridge/intel/gm45
+	# IGD Displays
+	register "gfx.ndid" = "3"
+	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
 	device cpu_cluster 0 on
 		chip cpu/intel/socket_BGA956
 			device lapic 0 on end
@@ -15,6 +18,8 @@ chip northbridge/intel/gm45
 			register "c6" = "1"
 		end
 	end
+
+	register "pci_mmio_size" = "2048"
 
 	device domain 0 on
 		subsystemid 0x4352 0x8986
@@ -44,7 +49,6 @@ chip northbridge/intel/gm45
 			register "alt_gp_smi_en" = "0x0002"
 
 			# Set AHCI mode, enable ports 1 and 2.
-			register "sata_ahci"			= "1"
 			register "sata_port_map"		= "0x03"
 			register "sata_clock_request"		= "0"
 			register "sata_traffic_monitor"		= "0"
@@ -67,7 +71,7 @@ chip northbridge/intel/gm45
 				register "have_isa_interrupts" = "1"
 				register "irq_on_fsb" = "1"
 				register "enable_virtual_wire" = "1"
-				register "base" = "0xfec00000"
+				register "base" = "(void *)0xfec00000"
 				device ioapic 2 on end
 			end
 

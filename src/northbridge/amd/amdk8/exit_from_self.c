@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "raminit.h"
@@ -120,7 +116,7 @@ void exit_from_self(int controllers, const struct mem_controller *ctrl,
 				     "orb %1, %%al\n\t"
 				     "not %1\n\t"
 				     ".align 64\n\t"
-				     "outl  %%eax, (%%dx) \n\t"
+				     "outl  %%eax, (%%dx)\n\t"
 				     "andb %1, %%al\n\t"
 				     "outl %%eax, (%%dx)\n\t"
 				     "popl %0\n\t"::"a"(pcidev),
@@ -148,7 +144,7 @@ void exit_from_self(int controllers, const struct mem_controller *ctrl,
 			dcm =
 			    pci_read_config32(ctrl[i].f2, DRAM_CTRL_MISC);
 		} while (((dcm & DCM_MemClrStatus) ==
-			  0) /* || ((dcm & DCM_DramEnabled) == 0) */ );
+			  0) /* || ((dcm & DCM_DramEnabled) == 0) */);
 
 		if (loops >= TIMEOUT_LOOPS) {
 			printk(BIOS_DEBUG, "timeout with with cntrl[%d]\n", i);

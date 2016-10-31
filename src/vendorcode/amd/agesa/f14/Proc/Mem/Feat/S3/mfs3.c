@@ -17,7 +17,7 @@
  *
  * Copyright (c) 2011, Advanced Micro Devices, Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -25,10 +25,10 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Advanced Micro Devices, Inc. nor the names of 
- *       its contributors may be used to endorse or promote products derived 
+ *     * Neither the name of Advanced Micro Devices, Inc. nor the names of
+ *       its contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -39,7 +39,7 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * ***************************************************************************
  *
  */
@@ -259,30 +259,30 @@ MemFS3GetDeviceList (
   (*DeviceBlockHdrPtr)->RelativeOrMaskOffset = (UINT16) AllocHeapParams.RequestedBufferSize;
 
   // Copy device list on the stack to the heap.
-  BufferOffset = sizeof (DEVICE_BLOCK_HEADER) + (UINT64) (UINT32) AllocHeapParams.BufferPtr;
+  BufferOffset = sizeof (DEVICE_BLOCK_HEADER) + (UINTN) AllocHeapParams.BufferPtr;
   for (Die = 0; Die < DieCount; Die ++) {
     for (i = PRESELFREF; i <= POSTSELFREF; i ++) {
       // Copy PCI device descriptor to the heap if it exists.
       if (DeviceDescript[Die].PCIDevice[i].RegisterListID != 0xFFFFFFFF) {
-        LibAmdMemCopy ((VOID *)(UINT32) BufferOffset, &(DeviceDescript[Die].PCIDevice[i]), sizeof (PCI_DEVICE_DESCRIPTOR), StdHeader);
+        LibAmdMemCopy ((VOID *)(UINTN) BufferOffset, &(DeviceDescript[Die].PCIDevice[i]), sizeof (PCI_DEVICE_DESCRIPTOR), StdHeader);
         (*DeviceBlockHdrPtr)->NumDevices ++;
         BufferOffset += sizeof (PCI_DEVICE_DESCRIPTOR);
       }
       // Copy conditional PCI device descriptor to the heap if it exists.
       if (DeviceDescript[Die].CPCIDevice[i].RegisterListID != 0xFFFFFFFF) {
-        LibAmdMemCopy ((VOID *)(UINT32) BufferOffset, &(DeviceDescript[Die].CPCIDevice[i]), sizeof (CONDITIONAL_PCI_DEVICE_DESCRIPTOR), StdHeader);
+        LibAmdMemCopy ((VOID *)(UINTN) BufferOffset, &(DeviceDescript[Die].CPCIDevice[i]), sizeof (CONDITIONAL_PCI_DEVICE_DESCRIPTOR), StdHeader);
         (*DeviceBlockHdrPtr)->NumDevices ++;
         BufferOffset += sizeof (CONDITIONAL_PCI_DEVICE_DESCRIPTOR);
       }
       // Copy MSR device descriptor to the heap if it exists.
       if (DeviceDescript[Die].MSRDevice[i].RegisterListID != 0xFFFFFFFF) {
-        LibAmdMemCopy ((VOID *)(UINT32) BufferOffset, &(DeviceDescript[Die].MSRDevice[i]), sizeof (MSR_DEVICE_DESCRIPTOR), StdHeader);
+        LibAmdMemCopy ((VOID *)(UINTN) BufferOffset, &(DeviceDescript[Die].MSRDevice[i]), sizeof (MSR_DEVICE_DESCRIPTOR), StdHeader);
         (*DeviceBlockHdrPtr)->NumDevices ++;
         BufferOffset += sizeof (MSR_DEVICE_DESCRIPTOR);
       }
       // Copy conditional MSR device descriptor to the heap if it exists.
       if (DeviceDescript[Die].CMSRDevice[i].RegisterListID != 0xFFFFFFFF) {
-        LibAmdMemCopy ((VOID *)(UINT32) BufferOffset, &(DeviceDescript[Die].PCIDevice[i]), sizeof (CONDITIONAL_MSR_DEVICE_DESCRIPTOR), StdHeader);
+        LibAmdMemCopy ((VOID *)(UINTN) BufferOffset, &(DeviceDescript[Die].PCIDevice[i]), sizeof (CONDITIONAL_MSR_DEVICE_DESCRIPTOR), StdHeader);
         (*DeviceBlockHdrPtr)->NumDevices ++;
         BufferOffset += sizeof (CONDITIONAL_MSR_DEVICE_DESCRIPTOR);
       }

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,6 +25,7 @@
 #include <cpu/cpu.h>
 #include <cpu/x86/mtrr.h>
 #include <cbmem.h>
+#include <arch/acpi.h>
 
 static void pci_domain_set_resources(device_t dev)
 {
@@ -79,6 +76,28 @@ static void pci_domain_set_resources(device_t dev)
 	assign_resources(dev->link_list);
 }
 
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	device_t dev;
+	u64 mmcfg;
+
+	dev = dev_find_device(0x1106, 0x324b, 0);	// 0:0x13.0
+	if (!dev)
+		return current;
+
+	// MMCFG not supported or not enabled.
+	if ((pci_read_config8(dev, 0x40) & 0xC0) != 0xC0)
+		return current;
+
+	mmcfg = ((u64) pci_read_config8(dev, 0x41)) << 28;
+	if (!mmcfg)
+		return current;
+
+	current += acpi_create_mcfg_mmconfig((acpi_mcfg_mmconfig_t *) current, mmcfg, 0x0, 0x0, 0xff);
+
+	return current;
+}
+
 static struct device_operations pci_domain_ops = {
 	.read_resources	  = pci_domain_read_resources,
 	.set_resources	  = pci_domain_set_resources,
@@ -86,6 +105,7 @@ static struct device_operations pci_domain_ops = {
 	.init		  = NULL,
 	.scan_bus	  = pci_domain_scan_bus,
 	.ops_pci_bus  = pci_bus_default_ops,
+	.write_acpi_tables = acpi_write_hpet,
 };
 
 static void cpu_bus_init(device_t dev)
@@ -93,14 +113,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources	  = cpu_bus_noop,
-	.set_resources	  = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources	  = DEVICE_NOOP,
+	.set_resources	  = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init		  = cpu_bus_init,
 	.scan_bus	  = 0,
 };

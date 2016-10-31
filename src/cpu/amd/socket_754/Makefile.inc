@@ -1,4 +1,3 @@
-ramstage-y += socket_754.c
 subdirs-y += ../model_fxx
 subdirs-y += ../dualcore
 subdirs-y += ../mtrr
@@ -11,4 +10,4 @@ subdirs-y += ../../x86/pae
 subdirs-y += ../../x86/smm
 subdirs-y += ../smm
 
-cpu_incs += $(src)/cpu/amd/car/cache_as_ram.inc
+cpu_incs-y += $(src)/cpu/amd/car/cache_as_ram.inc

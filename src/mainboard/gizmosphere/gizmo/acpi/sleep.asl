@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Wake status package */
@@ -109,7 +105,8 @@ Method(\_WAK, 1) {
 	}
 
 	/* Arbitrarily clear PciExpWakeStatus */
-	Store(PWST, PWST)
+	Store(PWST, Local1)
+	Store(Local1, PWST)
 
 	/* if(DeRefOf(Index(WKST,0))) {
 	*	Store(0, Index(WKST,1))
@@ -119,4 +116,3 @@ Method(\_WAK, 1) {
 	*/
 	Return(WKST)
 } /* End Method(\_WAK) */
-

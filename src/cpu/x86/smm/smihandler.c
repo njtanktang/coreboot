@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -24,7 +19,12 @@
 #include <cpu/x86/cache.h>
 #include <cpu/x86/smm.h>
 
-#if !CONFIG_SMM_TSEG /* TSEG handler locks in assembly */
+#if CONFIG_SPI_FLASH_SMM
+#include <spi-generic.h>
+#endif
+
+static int do_driver_init = 1;
+
 typedef enum { SMI_LOCKED, SMI_UNLOCKED } smi_semaphore;
 
 /* SMI multiprocessing semaphore */
@@ -56,7 +56,6 @@ void smi_release_lock(void)
 		: "eax"
 	);
 }
-#endif
 
 #define LAPIC_ID 0xfee00020
 static inline __attribute__((always_inline)) unsigned long nodeid(void)
@@ -69,7 +68,7 @@ void io_trap_handler(int smif)
 	/* If a handler function handled a given IO trap, it
 	 * shall return a non-zero value
 	 */
-        printk(BIOS_DEBUG, "SMI function trap 0x%x: ", smif);
+	printk(BIOS_DEBUG, "SMI function trap 0x%x: ", smif);
 
 	if (southbridge_io_trap_handler(smif))
 		return;
@@ -106,7 +105,7 @@ static void smi_restore_pci_address(void)
 	outl(pci_orig, 0xcf8);
 }
 
-static inline void *smm_save_state(u32 base, int arch_offset, int node)
+static inline void *smm_save_state(uintptr_t base, int arch_offset, int node)
 {
 	base += SMM_SAVE_STATE_BEGIN(arch_offset) - (node * 0x400);
 	return (void *)base;
@@ -124,12 +123,6 @@ void smi_handler(u32 smm_revision)
 	smm_state_save_area_t state_save;
 	u32 smm_base = 0xa0000; /* ASEG */
 
-#if CONFIG_SMM_TSEG
-	/* Update global variable TSEG base */
-	if (!smi_get_tseg_base())
-		return;
-	smm_base = smi_get_tseg_base();
-#else
 	/* Are we ok to execute the handler? */
 	if (!smi_obtain_lock()) {
 		/* For security reasons we don't release the other CPUs
@@ -142,7 +135,6 @@ void smi_handler(u32 smm_revision)
 		}
 		return;
 	}
-#endif
 
 	smi_backup_pci_address();
 
@@ -163,6 +155,7 @@ void smi_handler(u32 smm_revision)
 		state_save.type = EM64T;
 		state_save.em64t_state_save =
 			smm_save_state(smm_base, 0x7d00, node);
+		break;
 	case 0x00030101: /* SandyBridge, IvyBridge, and Haswell */
 		state_save.type = EM64T101;
 		state_save.em64t101_state_save =
@@ -183,20 +176,35 @@ void smi_handler(u32 smm_revision)
 		return;
 	}
 
+	/* Allow drivers to initialize variables in SMM context. */
+	if (do_driver_init) {
+#if CONFIG_SPI_FLASH_SMM
+		spi_init();
+#endif
+		do_driver_init = 0;
+	}
+
 	/* Call chipset specific SMI handlers. */
-	if (cpu_smi_handler)
-		cpu_smi_handler(node, &state_save);
-	if (northbridge_smi_handler)
-		northbridge_smi_handler(node, &state_save);
-	if (southbridge_smi_handler)
-		southbridge_smi_handler(node, &state_save);
+	cpu_smi_handler(node, &state_save);
+	northbridge_smi_handler(node, &state_save);
+	southbridge_smi_handler(node, &state_save);
 
 	smi_restore_pci_address();
 
-#if !CONFIG_SMM_TSEG
 	smi_release_lock();
-#endif
 
 	/* De-assert SMI# signal to allow another SMI */
 	smi_set_eos();
 }
+
+/* Provide a default implementation for all weak handlers so that relocation
+ * entries in the modules make sense. Without default implementations the
+ * weak relocations w/o a symbol have a 0 address which is where the modules
+ * are linked at. */
+int __attribute__((weak)) mainboard_io_trap_handler(int smif) { return 0; }
+void __attribute__((weak)) cpu_smi_handler(unsigned int node, smm_state_save_area_t *state_save) {}
+void __attribute__((weak)) northbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save) {}
+void __attribute__((weak)) southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save) {}
+void __attribute__((weak)) mainboard_smi_gpi(u32 gpi_sts) {}
+int __attribute__((weak)) mainboard_smi_apmc(u8 data) { return 0; }
+void __attribute__((weak)) mainboard_smi_sleep(u8 slp_typ) {}

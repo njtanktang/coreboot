@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -25,6 +21,7 @@
 #include <pc80/keyboard.h>
 #include <arch/io.h>
 #include <console/console.h>
+#include <drivers/intel/gma/i915.h>
 
 #define Q35_PAM0            0x90
 
@@ -32,6 +29,19 @@ static const unsigned char qemu_q35_irqs[] = {
 	10, 10, 11, 11,
 	10, 10, 11, 11,
 };
+
+struct i915_gpu_controller_info gfx_controller_info = {
+	.ndid = 3,
+	.did = {
+		0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005
+	}
+};
+
+const struct i915_gpu_controller_info *
+intel_gma_get_controller_info(void)
+{
+	return &gfx_controller_info;
+}
 
 static void qemu_nb_init(device_t dev)
 {
@@ -50,7 +60,7 @@ static void qemu_nb_init(device_t dev)
 	/* This sneaked in here, because Qemu does not
 	 * emulate a SuperIO chip
 	 */
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
 	/* setup IRQ routing for pci slots */
 	for (i = 0; i < 25; i++)

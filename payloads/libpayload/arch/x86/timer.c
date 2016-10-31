@@ -76,13 +76,3 @@ unsigned int get_cpu_speed(void)
 
 	return cpu_khz;
 }
-
-uint64_t timer_hz(void)
-{
-	return lib_sysinfo.cpu_khz * 1000;
-}
-
-uint64_t timer_raw_value(void)
-{
-	return rdtsc();
-}

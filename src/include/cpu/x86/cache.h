@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef CPU_X86_CACHE
@@ -56,7 +52,7 @@ static inline void invd(void)
 
 /* The following functions require the always_inline due to AMD
  * function STOP_CAR_AND_CPU that disables cache as
- * ram, the cache as ram stack can no longer be used. Called
+ * RAM, the cache as RAM stack can no longer be used. Called
  * functions must be inlined to avoid stack usage. Also, the
  * compiler must keep local variables register based and not
  * allocated them from the stack. With gcc 4.5.0, some functions

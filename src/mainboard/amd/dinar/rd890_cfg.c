@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "NbPlatform.h"
@@ -82,7 +78,7 @@ static void nb_platform_config(device_t nb_dev, AMD_NB_CONFIG *NbConfigPtr)
 			}
 			if ((platform_config.PortHotplugMap & (1 << i)) != 0) {
 				u16 j;
-				pPcieConfig->PortConfiguration[j].PortHotplug = ON; /* Enable Hotplug */
+				pPcieConfig->PortConfiguration[i].PortHotplug = ON; /* Enable Hotplug */
 				/* Set Hotplug descriptor info */
 				for (j = 0; j < 8; j++) {
 					u32 PortDescriptor;
@@ -104,12 +100,12 @@ static void nb_platform_config(device_t nb_dev, AMD_NB_CONFIG *NbConfigPtr)
  *
  * prototype AGESA_STATUS (*CALLOUT_ENTRY) (UINT32 Param1, UINTN Param2, VOID* ConfigPtr);
  *
- * @param[in] u32 func               Northbridge CIMx CallBackId
- * @param[in] u32 data               Northbridge Input Data.
- * @param[in] AMD_NB_CONFIG *config  Northbridge configuration structure pointer.
+ * @param[in] func     Northbridge CIMx CallBackId
+ * @param[in] data     Northbridge Input Data.
+ * @param[in] *config  Northbridge configuration structure pointer.
  *
  */
-static u32 rd890_callout_entry(u32 func, u32 data, void *config)
+static u32 rd890_callout_entry(u32 func, uintptr_t data, void *config)
 {
 	u32 ret = 0;
 #ifndef __PRE_RAM__
@@ -224,7 +220,6 @@ void rd890_cimx_config(AMD_NB_CONFIG_BLOCK *pConfig, NB_CONFIG *nbConfig, HT_CON
 	AmdInitializer(pConfig);
 
 	pConfig->NumberOfNorthbridges = MAX_NB_COUNT - 1; /* Support limited to primary NB only located at 0:0:0 */
-	//pConfig->StandardHeader.ImageBasePtr = CIMX_B2_IMAGE_BASE_ADDRESS;
 	pConfig->StandardHeader.PcieBasePtr = (VOID *)PCIEX_BASE_ADDRESS;
 	pConfig->StandardHeader.CalloutPtr = &rd890_callout_entry;
 
@@ -271,4 +266,3 @@ void rd890_cimx_config(AMD_NB_CONFIG_BLOCK *pConfig, NB_CONFIG *nbConfig, HT_CON
 	}
 #endif
 }
-

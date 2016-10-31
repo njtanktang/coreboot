@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -49,7 +45,7 @@
 
 /* Enable configuration: pass entry key '0x87' into index port dev
  * two times. */
-static void pnp_enter_conf_state(device_t dev)
+static void pnp_enter_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(NUVOTON_ENTRY_KEY, port);
@@ -57,16 +53,19 @@ static void pnp_enter_conf_state(device_t dev)
 }
 
 /* Disable configuration: pass exit key '0xAA' into index port dev. */
-static void pnp_exit_conf_state(device_t dev)
+static void pnp_exit_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(NUVOTON_EXIT_KEY, port);
 }
 
 /* Bring up early serial debugging output before the RAM is initialized. */
-void nuvoton_enable_serial(device_t dev, u16 iobase)
+void nuvoton_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	pnp_enter_conf_state(dev);
+	if (IS_ENABLED(CONFIG_SUPERIO_NUVOTON_NCT6776_COM_A))
+		/* Route GPIO8 pin group to COM A */
+		pnp_write_config(dev, 0x2a, 0x40);
 	pnp_set_logical_device(dev);
 	pnp_set_enable(dev, 0);
 	pnp_set_iobase(dev, PNP_IDX_IO0, iobase);

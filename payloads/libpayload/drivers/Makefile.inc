@@ -29,65 +29,87 @@
 ## SUCH DAMAGE.
 ##
 
-libc-$(CONFIG_PCI) += pci.c
+libc-$(CONFIG_LP_PCI) += pci.c
 
-libc-$(CONFIG_SPEAKER) += speaker.c
+libc-$(CONFIG_LP_SPEAKER) += speaker.c
 
-libc-$(CONFIG_X86_SERIAL_CONSOLE) += serial.c
+libc-$(CONFIG_LP_8250_SERIAL_CONSOLE) += serial/8250.c serial/serial.c
+libc-$(CONFIG_LP_S5P_SERIAL_CONSOLE) += serial/s5p.c serial/serial.c
+libc-$(CONFIG_LP_IPQ806X_SERIAL_CONSOLE) += serial/ipq806x.c serial/serial.c
+libc-$(CONFIG_LP_IPQ40XX_SERIAL_CONSOLE) += serial/ipq40xx.c serial/serial.c
+libc-$(CONFIG_LP_BG4CD_SERIAL_CONSOLE) += serial/bg4cd.c serial/serial.c
+libc-$(CONFIG_LP_PC_KEYBOARD) += keyboard.c
 
-libc-$(CONFIG_PC_KEYBOARD) += keyboard.c
+libc-$(CONFIG_LP_CBMEM_CONSOLE) += cbmem_console.c
 
-libc-$(CONFIG_CBMEM_CONSOLE) += cbmem_console.c
+libc-$(CONFIG_LP_NVRAM) += nvram.c
+libc-$(CONFIG_LP_NVRAM) += options.c
 
-libc-$(CONFIG_NVRAM) += nvram.c
-libc-$(CONFIG_NVRAM) += options.c
+# Timer drivers
+ifneq ($(CONFIG_LP_TIMER_GENERIC_HZ),0)
+libc-y += timer/generic.c
+endif
+libc-$(CONFIG_LP_TIMER_RDTSC) += timer/rdtsc.c
+libc-$(CONFIG_LP_TIMER_IMG_PISTACHIO) += timer/img_pistachio.c
+libc-$(CONFIG_LP_TIMER_ARMADA38X) += timer/armada38x.c
+libc-$(CONFIG_LP_TIMER_MVMAP2315) += timer/mvmap2315.c
 
 # Video console drivers
-libc-$(CONFIG_VIDEO_CONSOLE) += video/video.c
-libc-$(CONFIG_VGA_VIDEO_CONSOLE) += video/vga.c
+libc-$(CONFIG_LP_VIDEO_CONSOLE) += video/video.c
+libc-$(CONFIG_LP_VGA_VIDEO_CONSOLE) += video/vga.c
 
 # Geode LX console drivers
-libc-$(CONFIG_GEODELX_VIDEO_CONSOLE) += video/geodelx.c
-libc-$(CONFIG_GEODELX_VIDEO_CONSOLE) += video/font8x16.c
+libc-$(CONFIG_LP_GEODELX_VIDEO_CONSOLE) += video/geodelx.c
+libc-$(CONFIG_LP_GEODELX_VIDEO_CONSOLE) += video/font8x16.c
 
 # coreboot generic framebuffer driver
-libc-$(CONFIG_COREBOOT_VIDEO_CONSOLE) += video/corebootfb.c
-libc-$(CONFIG_COREBOOT_VIDEO_CONSOLE) += video/font8x16.c
+libc-$(CONFIG_LP_COREBOOT_VIDEO_CONSOLE) += video/corebootfb.c
+libc-$(CONFIG_LP_COREBOOT_VIDEO_CONSOLE) += video/font8x16.c
+
+# cbgfx: coreboot graphics library
+libc-y += video/graphics.c
 
 # AHCI/ATAPI driver
-libc-$(CONFIG_STORAGE) += storage/storage.c
-libc-$(CONFIG_STORAGE_AHCI) += storage/ahci.c
-libc-$(CONFIG_STORAGE_AHCI) += storage/ahci_common.c
-ifeq ($(CONFIG_STORAGE_ATA),y)
-libc-$(CONFIG_STORAGE_ATA) += storage/ata.c
-libc-$(CONFIG_STORAGE_ATA) += storage/ahci_ata.c
+libc-$(CONFIG_LP_STORAGE) += storage/storage.c
+libc-$(CONFIG_LP_STORAGE_AHCI) += storage/ahci.c
+libc-$(CONFIG_LP_STORAGE_AHCI) += storage/ahci_common.c
+ifeq ($(CONFIG_LP_STORAGE_ATA),y)
+libc-$(CONFIG_LP_STORAGE_ATA) += storage/ata.c
+libc-$(CONFIG_LP_STORAGE_ATA) += storage/ahci_ata.c
 endif
-ifeq ($(CONFIG_STORAGE_ATAPI),y)
-libc-$(CONFIG_STORAGE_ATAPI) += storage/atapi.c
-libc-$(CONFIG_STORAGE_ATAPI) += storage/ahci_atapi.c
+ifeq ($(CONFIG_LP_STORAGE_ATAPI),y)
+libc-$(CONFIG_LP_STORAGE_ATAPI) += storage/atapi.c
+libc-$(CONFIG_LP_STORAGE_ATAPI) += storage/ahci_atapi.c
 endif
 
 # USB stack
-libc-$(CONFIG_USB) += usb/usbinit.c
-libc-$(CONFIG_USB) += usb/usb.c
-libc-$(CONFIG_USB) += usb/usb_dev.c
-libc-$(CONFIG_USB) += usb/quirks.c
-libc-$(CONFIG_USB_GEN_HUB) += usb/generic_hub.c
-libc-$(CONFIG_USB_HUB) += usb/usbhub.c
-libc-$(CONFIG_USB_UHCI) += usb/uhci.c
-libc-$(CONFIG_USB_UHCI) += usb/uhci_rh.c
-libc-$(CONFIG_USB_OHCI) += usb/ohci.c
-libc-$(CONFIG_USB_OHCI) += usb/ohci_rh.c
-libc-$(CONFIG_USB_EHCI) += usb/ehci.c
-libc-$(CONFIG_USB_EHCI) += usb/ehci_rh.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci_debug.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci_devconf.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci_events.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci_commands.c
-libc-$(CONFIG_USB_XHCI) += usb/xhci_rh.c
-libc-$(CONFIG_USB_HID) += usb/usbhid.c
-libc-$(CONFIG_USB_MSC) += usb/usbmsc.c
+libc-$(CONFIG_LP_USB) += usb/usbinit.c
+libc-$(CONFIG_LP_USB) += usb/usb.c
+libc-$(CONFIG_LP_USB) += usb/usb_dev.c
+libc-$(CONFIG_LP_USB) += usb/quirks.c
+libc-$(CONFIG_LP_USB_GEN_HUB) += usb/generic_hub.c
+libc-$(CONFIG_LP_USB_HUB) += usb/usbhub.c
+libc-$(CONFIG_LP_USB_UHCI) += usb/uhci.c
+libc-$(CONFIG_LP_USB_UHCI) += usb/uhci_rh.c
+libc-$(CONFIG_LP_USB_OHCI) += usb/ohci.c
+libc-$(CONFIG_LP_USB_OHCI) += usb/ohci_rh.c
+libc-$(CONFIG_LP_USB_EHCI) += usb/ehci.c
+libc-$(CONFIG_LP_USB_EHCI) += usb/ehci_rh.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci_debug.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci_devconf.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci_events.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci_commands.c
+libc-$(CONFIG_LP_USB_XHCI) += usb/xhci_rh.c
+libc-$(CONFIG_LP_USB_HID) += usb/usbhid.c
+libc-$(CONFIG_LP_USB_MSC) += usb/usbmsc.c
+libc-$(CONFIG_LP_USB_DWC2) += usb/dwc2.c
+libc-$(CONFIG_LP_USB_DWC2) += usb/dwc2_rh.c
+
+# USB device stack
+libc-$(CONFIG_LP_UDC) += udc/udc.c
+libc-$(CONFIG_LP_UDC_CI) += udc/chipidea.c
+libc-$(CONFIG_LP_UDC_DWC2) += udc/dwc2.c
 
 # used by both USB HID and keyboard
 libc-y += hid.c

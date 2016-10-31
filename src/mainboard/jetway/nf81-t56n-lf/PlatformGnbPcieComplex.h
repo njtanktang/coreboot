@@ -12,17 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _PLATFORM_GNB_PCIE_COMPLEX_H
 #define _PLATFORM_GNB_PCIE_COMPLEX_H
 
 #include <vendorcode/amd/agesa/f14/AGESA.h>
-#include <vendorcode/amd/agesa/f14/Lib/amdlib.h>
+#include <amdlib.h>
 
 /**
  * @brief Graphic NorthBridge (GNB) General Purpose Port (GPP)
@@ -78,7 +74,5 @@
 #define GNB_GPP_PORT8_LINK_ASPM			3
 #define GNB_GPP_PORT8_CHANNEL_TYPE		4
 #define GNB_GPP_PORT8_HOTPLUG_SUPPORT	0
-
-void OemCustomizeInitEarly (IN OUT AMD_EARLY_PARAMS *InitEarly);
 
 #endif /* _PLATFORM_GNB_PCIE_COMPLEX_H */

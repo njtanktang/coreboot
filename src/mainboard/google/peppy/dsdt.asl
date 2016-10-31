@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define ENABLE_TPM
@@ -47,6 +43,8 @@ DefinitionBlock(
 		{
 			#include <northbridge/intel/haswell/acpi/haswell.asl>
 			#include <southbridge/intel/lynxpoint/acpi/pch.asl>
+
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
 
@@ -54,7 +52,6 @@ DefinitionBlock(
 	#include "acpi/thermal.asl"
 
 	// Chrome OS specific
-	#include "acpi/chromeos.asl"
 	#include <vendorcode/google/chromeos/acpi/chromeos.asl>
 
 	// Chipset specific sleep states

@@ -1,0 +1,3 @@
+config DRIVERS_XGI_Z79_COMMON
+	bool
+	select VGA

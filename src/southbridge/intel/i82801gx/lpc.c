@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,6 +27,12 @@
 #include <cpu/cpu.h>
 #include "i82801gx.h"
 #include <cpu/x86/smm.h>
+#include <arch/acpigen.h>
+#include <arch/smp/mpspec.h>
+#include <cbmem.h>
+#include <string.h>
+#include <drivers/intel/gma/i915.h>
+#include "nvs.h"
 
 #define NMI_OFF	0
 
@@ -40,7 +42,7 @@
 typedef struct southbridge_intel_i82801gx_config config_t;
 
 /**
- * Set miscellanous static southbridge features.
+ * Set miscellaneous static southbridge features.
  *
  * @param dev PCI device with I/O APIC control registers
  */
@@ -49,13 +51,13 @@ static void i82801gx_enable_ioapic(struct device *dev)
 	/* Enable ACPI I/O range decode */
 	pci_write_config8(dev, ACPI_CNTL, ACPI_EN);
 
-	set_ioapic_id(IO_APIC_ADDR, 0x02);
+	set_ioapic_id(VIO_APIC_VADDR, 0x02);
 
 	/*
 	 * Select Boot Configuration register (0x03) and
 	 * use Processor System Bus (0x01) to deliver interrupts.
 	 */
-	io_apic_write(IO_APIC_ADDR, 0x03, 0x01);
+	io_apic_write(VIO_APIC_VADDR, 0x03, 0x01);
 }
 
 static void i82801gx_enable_serial_irqs(struct device *dev)
@@ -106,7 +108,7 @@ static void i82801gx_pirq_init(device_t dev)
 	 * I am not so sure anymore he was right.
 	 */
 
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin=0, int_line=0;
 
 		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
@@ -154,7 +156,7 @@ static void i82801gx_gpi_routing(device_t dev)
 	reg32 |= (config->gpi14_routing & 0x03) << 28;
 	reg32 |= (config->gpi15_routing & 0x03) << 30;
 
-	pci_write_config32(dev, 0xb8, reg32);
+	pci_write_config32(dev, GPIO_ROUT, reg32);
 }
 
 static void i82801gx_power_options(device_t dev)
@@ -175,8 +177,8 @@ static void i82801gx_power_options(device_t dev)
 	 *
 	 * If the option is not existent (Laptops), use MAINBOARD_POWER_ON.
 	 */
-	if (get_option(&pwr_on, "power_on_after_fail") != CB_SUCCESS)
-		pwr_on = MAINBOARD_POWER_ON;
+	pwr_on = MAINBOARD_POWER_ON;
+	get_option(&pwr_on, "power_on_after_fail");
 
 	reg8 = pci_read_config8(dev, GEN_PMCON_3);
 	reg8 &= 0xfe;
@@ -198,7 +200,7 @@ static void i82801gx_power_options(device_t dev)
 	}
 
 	reg8 |= (3 << 4);	/* avoid #S4 assertions */
-	reg8 &= ~(1 << 3);	/* minimum asssertion is 1 to 2 RTCCLK */
+	reg8 &= ~(1 << 3);	/* minimum assertion is 1 to 2 RTCCLK */
 
 	pci_write_config8(dev, GEN_PMCON_3, reg8);
 	printk(BIOS_INFO, "Set power %s after power failure.\n", state);
@@ -290,7 +292,7 @@ static void i82801gx_rtc_init(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "rtc_failed = 0x%x\n", rtc_failed);
 
-	rtc_init(rtc_failed);
+	cmos_init(rtc_failed);
 }
 
 static void enable_hpet(void)
@@ -451,21 +453,171 @@ static void lpc_init(struct device *dev)
 	i82801gx_fixups(dev);
 }
 
+unsigned long acpi_fill_madt(unsigned long current)
+{
+	/* Local APICs */
+	current = acpi_create_madt_lapics(current);
+
+	/* IOAPIC */
+	current += acpi_create_madt_ioapic((acpi_madt_ioapic_t *) current,
+				2, IO_APIC_ADDR, 0);
+
+	/* LAPIC_NMI */
+	current += acpi_create_madt_lapic_nmi((acpi_madt_lapic_nmi_t *)
+				current, 0,
+				MP_IRQ_POLARITY_HIGH |
+				MP_IRQ_TRIGGER_EDGE, 0x01);
+	current += acpi_create_madt_lapic_nmi((acpi_madt_lapic_nmi_t *)
+				current, 1, MP_IRQ_POLARITY_HIGH |
+				MP_IRQ_TRIGGER_EDGE, 0x01);
+
+	/* INT_SRC_OVR */
+	current += acpi_create_madt_irqoverride((acpi_madt_irqoverride_t *)
+		 current, 0, 0, 2, MP_IRQ_POLARITY_HIGH | MP_IRQ_TRIGGER_EDGE);
+	current += acpi_create_madt_irqoverride((acpi_madt_irqoverride_t *)
+		 current, 0, 9, 9, MP_IRQ_POLARITY_HIGH | MP_IRQ_TRIGGER_LEVEL);
+
+
+	return current;
+}
+
+void acpi_fill_fadt(acpi_fadt_t * fadt)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
+	config_t *chip = dev->chip_info;
+	u16 pmbase = pci_read_config16(dev, 0x40) & 0xfffe;
+
+	fadt->pm1a_evt_blk = pmbase;
+	fadt->pm1b_evt_blk = 0x0;
+	fadt->pm1a_cnt_blk = pmbase + 0x4;
+	fadt->pm1b_cnt_blk = 0x0;
+	fadt->pm2_cnt_blk = pmbase + 0x20;
+	fadt->pm_tmr_blk = pmbase + 0x8;
+	fadt->gpe0_blk = pmbase + 0x28;
+	fadt->gpe1_blk = 0;
+
+	fadt->pm1_evt_len = 4;
+	fadt->pm1_cnt_len = 2;
+	fadt->pm2_cnt_len = 1;
+	fadt->pm_tmr_len = 4;
+	fadt->gpe0_blk_len = 8;
+	fadt->gpe1_blk_len = 0;
+	fadt->gpe1_base = 0;
+
+	fadt->reset_reg.space_id = 1;
+	fadt->reset_reg.bit_width = 8;
+	fadt->reset_reg.bit_offset = 0;
+	fadt->reset_reg.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
+	fadt->reset_reg.addrl = 0xcf9;
+	fadt->reset_reg.addrh = 0;
+
+	fadt->reset_value = 6;
+
+	fadt->x_pm1a_evt_blk.space_id = 1;
+	fadt->x_pm1a_evt_blk.bit_width = 32;
+	fadt->x_pm1a_evt_blk.bit_offset = 0;
+	fadt->x_pm1a_evt_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_pm1a_evt_blk.addrl = pmbase;
+	fadt->x_pm1a_evt_blk.addrh = 0x0;
+
+	fadt->x_pm1b_evt_blk.space_id = 0;
+	fadt->x_pm1b_evt_blk.bit_width = 0;
+	fadt->x_pm1b_evt_blk.bit_offset = 0;
+	fadt->x_pm1b_evt_blk.access_size = 0;
+	fadt->x_pm1b_evt_blk.addrl = 0x0;
+	fadt->x_pm1b_evt_blk.addrh = 0x0;
+
+	fadt->x_pm1a_cnt_blk.space_id = 1;
+	fadt->x_pm1a_cnt_blk.bit_width = 16;
+	fadt->x_pm1a_cnt_blk.bit_offset = 0;
+	fadt->x_pm1a_cnt_blk.access_size = ACPI_ACCESS_SIZE_WORD_ACCESS;
+	fadt->x_pm1a_cnt_blk.addrl = pmbase + 0x4;
+	fadt->x_pm1a_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm1b_cnt_blk.space_id = 0;
+	fadt->x_pm1b_cnt_blk.bit_width = 0;
+	fadt->x_pm1b_cnt_blk.bit_offset = 0;
+	fadt->x_pm1b_cnt_blk.access_size = 0;
+	fadt->x_pm1b_cnt_blk.addrl = 0x0;
+	fadt->x_pm1b_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm2_cnt_blk.space_id = 1;
+	fadt->x_pm2_cnt_blk.bit_width = 8;
+	fadt->x_pm2_cnt_blk.bit_offset = 0;
+	fadt->x_pm2_cnt_blk.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
+	fadt->x_pm2_cnt_blk.addrl = pmbase + 0x20;
+	fadt->x_pm2_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm_tmr_blk.space_id = 1;
+	fadt->x_pm_tmr_blk.bit_width = 32;
+	fadt->x_pm_tmr_blk.bit_offset = 0;
+	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_pm_tmr_blk.addrl = pmbase + 0x8;
+	fadt->x_pm_tmr_blk.addrh = 0x0;
+
+	fadt->x_gpe0_blk.space_id = 1;
+	fadt->x_gpe0_blk.bit_width = 64;
+	fadt->x_gpe0_blk.bit_offset = 0;
+	fadt->x_gpe0_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_gpe0_blk.addrl = pmbase + 0x28;
+	fadt->x_gpe0_blk.addrh = 0x0;
+
+	fadt->x_gpe1_blk.space_id = 0;
+	fadt->x_gpe1_blk.bit_width = 0;
+	fadt->x_gpe1_blk.bit_offset = 0;
+	fadt->x_gpe1_blk.access_size = 0;
+	fadt->x_gpe1_blk.addrl = 0x0;
+	fadt->x_gpe1_blk.addrh = 0x0;
+	fadt->day_alrm = 0xd;
+	fadt->mon_alrm = 0x00;
+	fadt->century = 0x32;
+
+	fadt->model = 1;
+	fadt->sci_int = 0x9;
+	fadt->smi_cmd = APM_CNT;
+	fadt->acpi_enable = APM_CNT_ACPI_ENABLE;
+	fadt->acpi_disable = APM_CNT_ACPI_DISABLE;
+	fadt->s4bios_req = 0x0;
+	fadt->pstate_cnt = APM_CNT_PST_CONTROL;
+
+	fadt->cst_cnt = APM_CNT_CST_CONTROL;
+	fadt->p_lvl2_lat = 1;
+	fadt->p_lvl3_lat = chip->c3_latency;
+	fadt->flush_size = 0;
+	fadt->flush_stride = 0;
+	fadt->duty_offset = 1;
+	if (chip->p_cnt_throttling_supported) {
+		fadt->duty_width = 3;
+	} else {
+		fadt->duty_width = 0;
+	}
+	fadt->iapc_boot_arch = 0x03;
+	fadt->flags = (ACPI_FADT_WBINVD | ACPI_FADT_C1_SUPPORTED
+		       | ACPI_FADT_SLEEP_BUTTON | ACPI_FADT_S4_RTC_WAKE
+		       | ACPI_FADT_PLATFORM_CLOCK | ACPI_FADT_RESET_REGISTER
+		       | ACPI_FADT_C2_MP_SUPPORTED);
+	if (chip->docking_supported) {
+		fadt->flags |= ACPI_FADT_DOCKING_SUPPORTED;
+	}
+}
+
 static void i82801gx_lpc_read_resources(device_t dev)
 {
 	struct resource *res;
+	u8 io_index = 0;
+	int i;
 
 	/* Get the normal PCI resources of this device. */
 	pci_dev_read_resources(dev);
 
 	/* Add an extra subtractive resource for both memory and I/O. */
-	res = new_resource(dev, IOINDEX_SUBTRACTIVE(0, 0));
+	res = new_resource(dev, IOINDEX_SUBTRACTIVE(io_index++, 0));
 	res->base = 0;
 	res->size = 0x1000;
 	res->flags = IORESOURCE_IO | IORESOURCE_SUBTRACTIVE |
 		     IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
-	res = new_resource(dev, IOINDEX_SUBTRACTIVE(1, 0));
+	res = new_resource(dev, IOINDEX_SUBTRACTIVE(io_index++, 0));
 	res->base = 0xff800000;
 	res->size = 0x00800000; /* 8 MB for flash */
 	res->flags = IORESOURCE_MEM | IORESOURCE_SUBTRACTIVE |
@@ -475,6 +627,20 @@ static void i82801gx_lpc_read_resources(device_t dev)
 	res->base = IO_APIC_ADDR;
 	res->size = 0x00001000;
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
+
+	/* Set IO decode ranges if required.*/
+	for (i = 0; i < 4; i++) {
+		u32 gen_dec;
+		gen_dec = pci_read_config32(dev, 0x84 + 4 * i);
+
+		if ((gen_dec & 0xFFFC) > 0x1000) {
+			res = new_resource(dev, IOINDEX_SUBTRACTIVE(io_index++, 0));
+			res->base = gen_dec & 0xFFFC;
+			res->size = (gen_dec >> 16) & 0xFC;
+			res->flags = IORESOURCE_IO | IORESOURCE_SUBTRACTIVE |
+				IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
+		}
+	}
 }
 
 static void set_subsystem(device_t dev, unsigned vendor, unsigned device)
@@ -488,6 +654,33 @@ static void set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void southbridge_inject_dsdt(device_t dev)
+{
+	global_nvs_t *gnvs = cbmem_add (CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
+
+	if (gnvs) {
+		const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+
+		memset(gnvs, 0, sizeof(*gnvs));
+
+		gnvs->apic = 1;
+		gnvs->mpen = 1; /* Enable Multi Processing */
+
+		acpi_create_gnvs(gnvs);
+
+		gnvs->ndid = gfx->ndid;
+		memcpy(gnvs->did, gfx->did, sizeof(gnvs->did));
+
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to SSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
+}
+
 static struct pci_operations pci_ops = {
 	.set_subsystem = set_subsystem,
 };
@@ -496,36 +689,26 @@ static struct device_operations device_ops = {
 	.read_resources		= i82801gx_lpc_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
+	.write_acpi_tables      = acpi_write_hpet,
 	.init			= lpc_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.enable			= i82801gx_enable,
 	.ops_pci		= &pci_ops,
 };
 
-/* 82801GH (ICH7 DH) */
-static const struct pci_driver ich7_dh_lpc __pci_driver = {
-	.ops	= &device_ops,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= 0x27b0,
+/* 27b0: 82801GH (ICH7 DH) */
+/* 27b8: 82801GB/GR (ICH7/ICH7R) */
+/* 27b9: 82801GBM/GU (ICH7-M/ICH7-U) */
+/* 27bc: 82NM10 (NM10) */
+/* 27bd: 82801GHM (ICH7-M DH) */
+
+static const unsigned short pci_device_ids[] = {
+	0x27b0, 0x27b8, 0x27b9, 0x27bc, 0x27bd, 0
 };
 
-/* 82801GB/GR (ICH7/ICH7R) */
-static const struct pci_driver ich7_ich7r_lpc __pci_driver = {
+static const struct pci_driver ich7_lpc __pci_driver = {
 	.ops	= &device_ops,
 	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= 0x27b8,
-};
-
-/* 82801GBM/GU (ICH7-M/ICH7-U) */
-static const struct pci_driver ich7m_ich7u_lpc __pci_driver = {
-	.ops	= &device_ops,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= 0x27b9,
-};
-
-/* 82801GHM (ICH7-M DH) */
-static const struct pci_driver ich7m_dh_lpc __pci_driver = {
-	.ops	= &device_ops,
-	.vendor	= PCI_VENDOR_ID_INTEL,
-	.device	= 0x27bd,
+	.devices = pci_device_ids,
 };

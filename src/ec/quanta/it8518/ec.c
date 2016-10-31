@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -34,7 +29,7 @@
 static int input_buffer_empty(u16 status_reg)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_reg) & KBD_IBF);
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(status_reg) & KBD_IBF);
 	    timeout--) {
 		udelay(1000);
 	}
@@ -50,7 +45,7 @@ static int input_buffer_empty(u16 status_reg)
 static int output_buffer_full(u16 status_reg)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_reg)
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(status_reg)
 	    & KBD_OBF) == 0); timeout--) {
 		udelay(1000);
 	}
@@ -136,10 +131,10 @@ u8 ec_it8518_get_event(void)
 {
 	u8 cmd = 0;
 	u8 status = inb(EC_SC);
-	if (status & SCI_EVT) 	{
+	if (status & SCI_EVT) {
 		ec_write_cmd(QR_EC);
 		cmd = ec_read_ob();
-	} else if ( status & SMI_EVT) {
+	} else if (status & SMI_EVT) {
 		ec_kbc_write_cmd(EC_KBD_SMI_EVENT);
 		cmd = ec_kbc_read_ob();
 	}
@@ -156,38 +151,26 @@ void ec_it8518_enable_wake_events(void)
 }
 
 #ifndef __SMM__
-static void it8518_init(device_t dev)
+static void it8518_init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
 
 	printk(BIOS_DEBUG, "Quanta IT8518: Initializing keyboard.\n");
-	pc_keyboard_init();
-}
-
-
-static void it8518_read_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
-}
-
-
-static void it8518_enable_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
+	pc_keyboard_init(NO_AUX_DEVICE);
 }
 
 static struct device_operations ops = {
 	.init             = it8518_init,
-	.read_resources   = it8518_read_resources,
-	.enable_resources = it8518_enable_resources
+	.read_resources   = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 };
 
 static struct pnp_info pnp_dev_info[] = {
-        { &ops, 0, 0, { 0, 0 }, }
+	{ &ops, 0, 0, { 0, 0 }, }
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info),
 			   pnp_dev_info);

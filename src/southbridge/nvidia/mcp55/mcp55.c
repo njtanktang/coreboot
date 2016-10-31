@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -72,9 +68,7 @@ void mcp55_enable(device_t dev)
 	if (dev->device == 0x0000) {
 		vendorid = pci_read_config32(dev, PCI_VENDOR_ID);
 		deviceid = (vendorid >> 16) & 0xffff;
-//		vendorid &= 0xffff;
 	} else {
-//		vendorid = dev->vendor;
 		deviceid = dev->device;
 	}
 
@@ -204,22 +198,15 @@ void mcp55_enable(device_t dev)
 				| (1 << 11) | (1 << 10) | (1 << 9));
 		pci_write_config32(sm_dev, 0xe8, final_reg); /* Enable all at first. */
 
-#if 0
-		reg_old = reg = pci_read_config32(sm_dev, 0xe4);
-//		reg |= (1 << 0);
-		reg &= ~(0x3f << 4);
-		if (reg != reg_old) {
-			printk(BIOS_DEBUG, "mcp55.c pcie enabled\n");
-			pci_write_config32(sm_dev, 0xe4, reg);
-		}
-#endif
 	}
 
 	if (!dev->enabled) {
 		final_reg |= (1 << index); /* Disable it. */
 		/*
-		 * The reason for using final_reg, if diable func 1,
-		 * the func 2 will be func 1, so we need disable them one time.
+		 * The reason for using final_reg is that if func 1 is disabled,
+		 * then func 2 will become func 1.
+		 * Because of this, we need loop through disabling them all at
+		 * the same time.
 		 */
 	}
 

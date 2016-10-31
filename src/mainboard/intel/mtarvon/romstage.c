@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -28,11 +24,11 @@
 #include <console/console.h>
 #include "southbridge/intel/i3100/early_smbus.c"
 #include "southbridge/intel/i3100/early_lpc.c"
-#include "northbridge/intel/i3100/raminit.h"
-#include "superio/intel/i3100/i3100.h"
-#include "superio/intel/i3100/early_serial.c"
+#include <northbridge/intel/i3100/raminit.h>
+#include <superio/intel/i3100/i3100.h>
 #include "northbridge/intel/i3100/memory_initialized.c"
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <spd.h>
 
 #define DEVPRES_CONFIG  (DEVPRES_D1F0 | DEVPRES_D2F0)
@@ -51,7 +47,7 @@ static inline int spd_read_byte(u16 device, u8 address)
 #include "arch/x86/lib/stages.c"
 #endif
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	msr_t msr;
 	u16 perf;

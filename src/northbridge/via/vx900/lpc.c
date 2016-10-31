@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <arch/io.h>
@@ -30,7 +27,7 @@
 #include "chip.h"
 
 /**
- * @file lpc.c
+ * @file vx900/lpc.c
  *
  * STATUS:
  * We do a fair bit of setup, and most of it seems to work fairly well. There
@@ -80,7 +77,7 @@ static void vx900_lpc_dma_setup(device_t dev)
 
 	/* Enable Positive South Module PCI Cycle Decoding */
 	/* FIXME: Setting this seems to hang our system */
-	//pci_mod_config8(dev, 0x58, 0, 1<<4);
+
 	/* Positive decoding for ROM + APIC + On-board IO ports */
 	pci_mod_config8(dev, 0x6c, 0, (1 << 2) | (1 << 3) | (1 << 7));
 	/* Enable DMA channels. BIOS guide recommends DMA channel 2 off */
@@ -139,14 +136,14 @@ static void vx900_lpc_ioapic_setup(device_t dev)
 	/* The base address of this IOAPIC _must_ be at 0xfec00000.
 	 * Don't move this value to a #define, as people might think it's
 	 * configurable. It is not. */
-	const u32 base = config->base;
-	if (base != 0xfec00000) {
+	const void *base = config->base;
+	if (base != (void *)0xfec00000) {
 		printk(BIOS_ERR, "ERROR: South module IOAPIC base should be at "
-		       "0xfec00000\n but we found it at 0x%.8x\n", base);
+		       "0xfec00000\n but we found it at %p\n", base);
 		return;
 	}
 
-	print_debug("VX900 LPC: Setting up the south module IOAPIC.\n");
+	printk(BIOS_DEBUG, "VX900 LPC: Setting up the south module IOAPIC.\n");
 	/* Enable IOAPIC
 	 * So much work for one line of code. Talk about bloat :)
 	 * The 8259 PIC should still work even if the IOAPIC is enabled, so
@@ -192,7 +189,7 @@ static struct device_operations vx900_lpc_ops = {
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = vx900_lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 };
 
 static const struct pci_driver lpc_driver __pci_driver = {

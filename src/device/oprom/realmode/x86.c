@@ -12,29 +12,29 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
-#include <device/pci.h>
-#include <string.h>
-
 #include <arch/io.h>
-#include <arch/registers.h>
-#include <console/console.h>
 #include <arch/interrupt.h>
+#include <arch/registers.h>
+#include <boot/coreboot_tables.h>
 #include <cbfs.h>
+#include <console/console.h>
+#include <cpu/amd/lxdef.h>
+#include <cpu/amd/vr.h>
 #include <delay.h>
-#include <pc80/i8259.h>
-#include "x86.h"
-#include <vbe.h>
+#include <device/pci.h>
+#include <device/pci_ids.h>
 #include <lib/jpeg.h>
+#include <pc80/i8259.h>
+#include <pc80/i8254.h>
+#include <string.h>
+#include <vbe.h>
+
 /* we use x86emu's register file representation */
 #include <x86emu/regs.h>
-#include <boot/coreboot_tables.h>
-#include <device/pci_ids.h>
+
+#include "x86.h"
 
 /* The following symbols cannot be used directly. They need to be fixed up
  * to point to the correct address location after the code has been copied
@@ -77,7 +77,7 @@ static void setup_rombios(void)
 	memcpy((void *)0xfffd9, &ident, 7);
 
 	/* system model: IBM-AT */
-	write8(0xffffe, 0xfc);
+	write8((void *)0xffffe, 0xfc);
 }
 
 static int (*intXX_handler[256])(void) = { NULL };
@@ -185,7 +185,7 @@ static void setup_realmode_idt(void)
 	 for (i = 0; i < 256; i++) {
 		idts[i].cs = 0;
 		idts[i].offset = 0x1000 + (i * __idt_handler_size);
-		write_idt_stub((void *)((u32 )idts[i].offset), i);
+		write_idt_stub((void *)((uintptr_t)idts[i].offset), i);
 	}
 
 	/* Many option ROMs use the hard coded interrupt entry points in the
@@ -230,7 +230,7 @@ static u8 vbe_get_mode_info(vbe_mode_info_t * mi)
 	u16 buffer_adr = ((unsigned long)buffer) & 0xffff;
 	realmode_interrupt(0x10, VESA_GET_MODE_INFO, 0x0000,
 			mi->video_mode, 0x0000, buffer_seg, buffer_adr);
-	memcpy(mi->mode_info_block, buffer, sizeof(vbe_mode_info_t));
+	memcpy(mi->mode_info_block, buffer, sizeof(mi->mode_info_block));
 	mode_info_valid = 1;
 	return 0;
 }
@@ -270,15 +270,14 @@ void vbe_set_graphics(void)
 	vbe_set_mode(&mode_info);
 #if CONFIG_BOOTSPLASH
 	struct jpeg_decdata *decdata;
-	decdata = malloc(sizeof(*decdata));
-	unsigned char *jpeg = cbfs_get_file_content(CBFS_DEFAULT_MEDIA,
-						    "bootsplash.jpg",
-						    CBFS_TYPE_BOOTSPLASH,
-						    NULL);
+	unsigned char *jpeg = cbfs_boot_map_with_leak("bootsplash.jpg",
+							CBFS_TYPE_BOOTSPLASH,
+							NULL);
 	if (!jpeg) {
 		printk(BIOS_DEBUG, "VBE: No bootsplash found.\n");
 		return;
 	}
+	decdata = malloc(sizeof(*decdata));
 	int ret = 0;
 	ret = jpeg_decode(jpeg, framebuffer, 1024, 768, 16, decdata);
 #endif
@@ -313,6 +312,18 @@ void fill_lb_framebuffer(struct lb_framebuffer *framebuffer)
 	framebuffer->reserved_mask_pos = mode_info.vesa.reserved_mask_pos;
 	framebuffer->reserved_mask_size = mode_info.vesa.reserved_mask_size;
 }
+
+#else
+
+int vbe_mode_info_valid(void)
+{
+	return 0;
+}
+
+void fill_lb_framebuffer(struct lb_framebuffer *framebuffer)
+{
+}
+
 #endif
 
 void run_bios(struct device *dev, unsigned long addr)
@@ -324,6 +335,7 @@ void run_bios(struct device *dev, unsigned long addr)
 	 * in some option roms.
 	 */
 	setup_i8259();
+	setup_i8254();
 
 	/* Set up some legacy information in the F segment */
 	setup_rombios();
@@ -350,9 +362,6 @@ void run_bios(struct device *dev, unsigned long addr)
 }
 
 #if CONFIG_GEODE_VSA
-#include <cpu/amd/lxdef.h>
-#include <cpu/amd/vr.h>
-#include <cbfs.h>
 
 #define VSA2_BUFFER		0x60000
 #define VSA2_ENTRY_POINT	0x60020
@@ -390,7 +399,7 @@ void do_vsmbios(void)
 	/* Make sure the code is placed. */
 	setup_realmode_code();
 
-	if ((unsigned int)cbfs_load_stage(CBFS_DEFAULT_MEDIA, "vsa") !=
+	if ((uintptr_t)cbfs_boot_load_stage_by_name("vsa") !=
 	    VSA2_ENTRY_POINT) {
 		printk(BIOS_ERR, "Failed to load VSA.\n");
 		return;
@@ -512,4 +521,3 @@ int asmlinkage interrupt_handler(u32 intnumber,
 	 * but keep it around so its expectations are met */
 	return ret;
 }
-

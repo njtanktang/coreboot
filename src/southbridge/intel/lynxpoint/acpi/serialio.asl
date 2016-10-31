@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Intel LynxPoint Serial IO Devices in ACPI Mode
@@ -224,14 +219,20 @@ Device (I2C0)
 	Method (_PS0, 0, Serialized)
 	{
 		And (^PSAT, 0xfffffffc, ^PSAT)
-		Store (^PSAT, Local0)
+		Store (^PSAT, Local0) // Read back after writing
+
+		// Use Local0 to avoid iasl warning: Method Local is set but never used
+		And(Local0, Ones, Local0)
 	}
 
 	// Put controller in D3Hot state
 	Method (_PS3, 0, Serialized)
 	{
 		Or (^PSAT, 0x00000003, ^PSAT)
-		Store (^PSAT, Local0)
+		Store (^PSAT, Local0) // Read back after writing
+
+		// Use Local0 to avoid iasl warning: Method Local is set but never used
+		And(Local0, Ones, Local0)
 	}
 }
 
@@ -297,14 +298,20 @@ Device (I2C1)
 	Method (_PS0, 0, Serialized)
 	{
 		And (^PSAT, 0xfffffffc, ^PSAT)
-		Store (^PSAT, Local0)
+		Store (^PSAT, Local0) // Read back after writing
+
+		// Use Local0 to avoid iasl warning: Method Local is set but never used
+		And(Local0, Ones, Local0)
 	}
 
 	// Put controller in D3Hot state
 	Method (_PS3, 0, Serialized)
 	{
 		Or (^PSAT, 0x00000003, ^PSAT)
-		Store (^PSAT, Local0)
+		Store (^PSAT, Local0) // Read back after writing
+
+		// Use Local0 to avoid iasl warning: Method Local is set but never used
+		And(Local0, Ones, Local0)
 	}
 }
 
@@ -546,6 +553,8 @@ Device (GPIO)
 			,            // ResourceSourceIndex
 			,            // ResourceSource
 			BAR0)
+		Interrupt (ResourceConsumer,
+			Level, ActiveHigh, Shared, , , ) {14}
 	})
 
 	Method (_CRS, 0, NotSerialized)

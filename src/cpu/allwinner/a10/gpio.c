@@ -1,8 +1,19 @@
 /*
- * Basic GPIO helpers for Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Basic GPIO helpers for Allwinner CPUs
  */
 
 #include "gpio.h"
@@ -68,7 +79,7 @@ int gpio_get(u8 port, u8 pin)
  * configured as output pins.
  *
  * @param[in] port GPIO port of the pin (GPA -> GPS)
- * @param[in] value 32-bit mask indicating which pins to set. For a set bit, the
+ * @param[in] val 32-bit mask indicating which pins to set. For a set bit, the
  *                  corresponding pin will be set. Otherwise, it will be cleared
  */
 void gpio_write(u8 port, u32 val)
@@ -76,7 +87,7 @@ void gpio_write(u8 port, u32 val)
 	if ((port > GPS))
 		return;
 
-	write32(val, &gpio->port[port].dat);
+	write32(&gpio->port[port].dat, val);
 }
 
 /**

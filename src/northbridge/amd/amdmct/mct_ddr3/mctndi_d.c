@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
@@ -24,7 +21,7 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 	u8 Node;
 	u32 Base;
 	u32 MemSize, MemSize0 = 0;
-	u32 Dct0MemSize, DctSelBase, DctSelBaseOffset = 0;
+	u32 Dct0MemSize = 0, DctSelBase, DctSelBaseOffset = 0;
 	u8 Nodes;
 	u8 NodesWmem;
 	u8 DoIntlv;
@@ -65,13 +62,13 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 			_SWHole = 0;
 		}
 
-		if(!_SWHole) {
+		if (!_SWHole) {
 			Base = Get_NB32(dev0, reg0);
 			if (Base & 1) {
 				NodesWmem++;
 				Base &= 0xFFFF0000;	/* Base[39:8] */
 
-				if (pDCTstat->Status & (1 << SB_HWHole )) {
+				if (pDCTstat->Status & (1 << SB_HWHole)) {
 
 					/* to get true amount of dram,
 					 * subtract out memory hole if HW dram remapping */
@@ -84,9 +81,9 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 				 * are the same on all nodes */
 
 				DctSelBase = Get_NB32(pDCTstat->dev_dct, 0x114);
-				if(DctSelBase) {
+				if (DctSelBase) {
 					DctSelBase <<= 8;
-					if ( pDCTstat->Status & (1 << SB_HWHole)) {
+					if (pDCTstat->Status & (1 << SB_HWHole)) {
 						if (DctSelBase >= 0x1000000) {
 							DctSelBase -= HWHoleSz;
 						}
@@ -103,7 +100,7 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 				MemSize &= 0xFFFF0000;
 				MemSize += 0x00010000;
 				MemSize -= Base;
-				if ( pDCTstat->Status & (1 << SB_HWHole)) {
+				if (pDCTstat->Status & (1 << SB_HWHole)) {
 					MemSize -= HWHoleSz;
 				}
 				if (Node == 0) {
@@ -140,15 +137,15 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 	}
 
 	if (DoIntlv) {
-		MCTMemClr_D(pMCTstat,pDCTstatA);
+		MCTMemClr_D(pMCTstat, pDCTstatA);
 		/* Program Interleaving enabled on Node 0 map only.*/
-		MemSize0 <<= bsf(Nodes);	/* MemSize=MemSize*2 (or 4, or 8) */
+		MemSize0 <<= bsf(Nodes);	/* MemSize = MemSize*2 (or 4, or 8) */
 		Dct0MemSize <<= bsf(Nodes);
 		MemSize0 += HWHoleSz;
 		Base = ((Nodes - 1) << 8) | 3;
 		reg0 = 0x40;
 		Node = 0;
-		while(Node < Nodes) {
+		while (Node < Nodes) {
 			Set_NB32(dev0, reg0, Base);
 			MemSize = MemSize0;
 			MemSize--;
@@ -162,7 +159,7 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 
 		/*  set base/limit to F1x120/124 per Node */
 		Node = 0;
-		while(Node < Nodes) {
+		while (Node < Nodes) {
 			pDCTstat = pDCTstatA + Node;
 			pDCTstat->NodeSysBase = 0;
 			MemSize = MemSize0;
@@ -183,7 +180,7 @@ void InterleaveNodes_D(struct MCTStatStruc *pMCTstat,
 				HoleBase = pMCTstat->HoleBase;
 				if (Dct0MemSize >= HoleBase) {
 					val = HWHoleSz;
-					if( Node == 0) {
+					if (Node == 0) {
 						val += Dct0MemSize;
 					}
 				} else {

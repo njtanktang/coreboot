@@ -89,7 +89,7 @@ static int lsmbus_block_write(device_t dev, uint8_t cmd, u8 bytes, const u8 *buf
 }
 
 
-#if CONFIG_GENERATE_ACPI_TABLES
+#if CONFIG_HAVE_ACPI_TABLES
 unsigned pm_base;
 #endif
 
@@ -152,7 +152,7 @@ static void acpi_init(struct device *dev)
 	/* Throttle the CPU speed down for testing */
 	on = SLOW_CPU_OFF;
 	get_option(&on, "slow_cpu");
-	if(on) {
+	if (on) {
 		pm10_bar = (pci_read_config16(dev, 0x58)&0xff00);
 		outl(((on<<1)+0x10)  ,(pm10_bar + 0x10));
 		inl(pm10_bar + 0x10);
@@ -161,7 +161,7 @@ static void acpi_init(struct device *dev)
 				(on*12)+(on>>1),(on&1)*5);
 	}
 
-#if CONFIG_GENERATE_ACPI_TABLES
+#if CONFIG_HAVE_ACPI_TABLES
 	pm_base = pci_read_config16(dev, 0x58) & 0xff00;
 	printk(BIOS_DEBUG, "pm_base: 0x%04x\n",pm_base);
 #endif
@@ -226,7 +226,7 @@ static struct device_operations acpi_ops  = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = acpi_enable_resources,
 	.init             = acpi_init,
-	.scan_bus         = scan_static_bus,
+	.scan_bus         = scan_smbus,
 	/*  We don't need amd8111_enable, chip ops takes care of it.
 	 *  It could be useful if these devices were not
 	 *  enabled by default.
@@ -241,4 +241,3 @@ static const struct pci_driver acpi_driver __pci_driver = {
 	.vendor = PCI_VENDOR_ID_AMD,
 	.device = PCI_DEVICE_ID_AMD_8111_ACPI,
 };
-

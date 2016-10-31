@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -343,7 +339,7 @@ int test_l2_address_alias(u32 address1, u32 address2,
 
 /* Calculates the L2 cache size.
  *
- * Reference: Intel(R) 64 and IA-32 Architectures Software Developer�s Manual
+ * Reference: Intel(R) 64 and IA-32 Architectures Software Developer's Manual
  *            Volume 3B: System Programming Guide, Part 2, Intel pub. 253669, pg. B-172.
  *
  */
@@ -807,4 +803,3 @@ out:
 	printk(BIOS_INFO, "done.\n");
 	return result;
 }
-

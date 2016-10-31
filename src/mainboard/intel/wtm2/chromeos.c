@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -22,7 +18,8 @@
 #include <arch/io.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <southbridge/intel/lynxpoint/pch.h>
+#include <soc/gpio.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 /* Compile-time settings for developer and recovery mode. */
 #define DEV_MODE_SETTING 1
@@ -31,22 +28,17 @@
 #ifndef __PRE_RAM__
 #include <boot/coreboot_tables.h>
 
-#define GPIO_COUNT	6
-
 void fill_lb_gpios(struct lb_gpios *gpios)
 {
-	struct lb_gpio *gpio;
-
-	gpios->size = sizeof(*gpios) + (GPIO_COUNT * sizeof(struct lb_gpio));
-	gpios->count = GPIO_COUNT;
-
-	gpio = gpios->gpios;
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "write protect", 0);
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "recovery", REC_MODE_SETTING);
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "developer", DEV_MODE_SETTING);
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "lid", 1); // force open
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "power", 0);
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "oprom", gfx_get_init_done());
+	struct lb_gpio chromeos_gpios[] = {
+		{-1, ACTIVE_HIGH, 0, "write protect"},
+		{-1, ACTIVE_HIGH, REC_MODE_SETTING, "recovery"},
+		{-1, ACTIVE_HIGH, DEV_MODE_SETTING, "developer"},
+		{-1, ACTIVE_HIGH, 1, "lid"}, // force open
+		{-1, ACTIVE_HIGH, 0, "power"},
+		{-1, ACTIVE_HIGH, gfx_get_init_done(), "oprom"},
+	};
+	lb_add_gpios(gpios, chromeos_gpios, ARRAY_SIZE(chromeos_gpios));
 }
 #endif
 
@@ -65,3 +57,13 @@ int get_write_protect_state(void)
 	return 0;
 }
 
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AL(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_DEV_AL(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AL(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+};
+
+void mainboard_chromeos_acpi_generate(void)
+{
+	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
+}

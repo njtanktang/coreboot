@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 #include  <stdio.h>
 /* you can't include string.h due to conflicts with coreboot prototypes. */
@@ -165,5 +161,5 @@ main()
  * Example: (yank this and paste into M-x compile in emacs)
  * or tail -2 showdt.c | head -1 |sh
  * or whatever.
-   cc -I ../src -I ../src/include -I ../src/arch/armv7/include/ -include build/mainboard/google/snow/static.c showdt.c
+   cc -I ../src -I ../src/include -I ../src/arch/arm/include/ -include build/mainboard/google/snow/static.c showdt.c
 */

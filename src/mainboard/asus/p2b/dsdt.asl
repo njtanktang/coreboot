@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "southbridge/intel/i82371eb/i82371eb.h"
@@ -32,7 +28,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "CORE  ", "COREBOOT", 1)
 	 * 3: powered on suspend, CPU context lost			S1
 	 *    Note: Looks like 'CPU context lost' does _not_ mean the
 	 *          CPU restarts at the reset vector. Most likely only
-	 *          caches are lost, so both 0x3 and 0x4 map to acpi S1
+	 *          caches are lost, so both 0x3 and 0x4 map to ACPI S1
 	 * 4: powered on suspend, context maintained			S1
 	 * 5: working (clock control)					S0
 	 * 6: reserved

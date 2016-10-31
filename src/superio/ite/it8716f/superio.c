@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -27,35 +23,11 @@
 #include <pc80/keyboard.h>
 #include <arch/io.h>
 #include <stdlib.h>
+#include <superio/conf_mode.h>
+
 #include "it8716f.h"
 
-static void pnp_enter_ext_func_mode(device_t dev)
-{
-	u16 port = dev->path.pnp.port;
-
-	outb(0x87, port);
-	outb(0x01, port);
-	outb(0x55, port);
-	outb((port == 0x4e) ? 0xaa : 0x55, port);
-}
-
-static void pnp_exit_ext_func_mode(device_t dev)
-{
-	pnp_write_config(dev, 0x02, 0x02);
-}
-
 #if !CONFIG_SUPERIO_ITE_IT8716F_OVERRIDE_FANCTL
-static void pnp_write_index(u16 port_base, u8 reg, u8 value)
-{
-	outb(reg, port_base);
-	outb(value, port_base + 1);
-}
-
-static u8 pnp_read_index(u16 port_base, u8 reg)
-{
-	outb(reg, port_base);
-	return inb(port_base + 1);
-}
 
 static void init_ec(u16 base)
 {
@@ -73,7 +45,7 @@ static void init_ec(u16 base)
 }
 #endif
 
-static void it8716f_init(device_t dev)
+static void it8716f_init(struct device *dev)
 {
 	struct resource *res0;
 
@@ -88,15 +60,10 @@ static void it8716f_init(device_t dev)
 		init_ec(res0->base + EC_INDEX_PORT);
 		break;
 	case IT8716F_KBCK:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }
-
-static const struct pnp_mode_ops pnp_conf_mode_ops = {
-	.enter_conf_mode  = pnp_enter_ext_func_mode,
-	.exit_conf_mode   = pnp_exit_ext_func_mode,
-};
 
 static struct device_operations ops = {
 	.read_resources   = pnp_read_resources,
@@ -104,7 +71,7 @@ static struct device_operations ops = {
 	.enable_resources = pnp_enable_resources,
 	.enable           = pnp_alt_enable,
 	.init             = it8716f_init,
-	.ops_pnp_mode     = &pnp_conf_mode_ops,
+	.ops_pnp_mode     = &pnp_conf_mode_870155_aa,
 };
 
 static struct pnp_info pnp_dev_info[] = {

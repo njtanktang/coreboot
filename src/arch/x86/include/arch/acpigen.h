@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2009 Rudolf Marek <r.marek@assembler.cz>
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef LIBACPI_H
@@ -25,46 +22,182 @@
 #include <stdint.h>
 #include <arch/acpi.h>
 
-int acpigen_write_len_f(void);
-void acpigen_patch_len(int len);
+/* Values that can be returned for ACPI Device _STA method */
+#define ACPI_STATUS_DEVICE_PRESENT	(1 << 0)
+#define ACPI_STATUS_DEVICE_ENABLED	(1 << 1)
+#define ACPI_STATUS_DEVICE_SHOW_IN_UI	(1 << 2)
+#define ACPI_STATUS_DEVICE_STATE_OK	(1 << 3)
+
+#define ACPI_STATUS_DEVICE_ALL_OFF	0
+#define ACPI_STATUS_DEVICE_ALL_ON	(ACPI_STATUS_DEVICE_PRESENT |\
+					 ACPI_STATUS_DEVICE_ENABLED |\
+					 ACPI_STATUS_DEVICE_SHOW_IN_UI |\
+					 ACPI_STATUS_DEVICE_STATE_OK)
+
+/* ACPI Op/Prefix Codes */
+enum {
+	ZERO_OP		= 0x00,
+	ONE_OP			= 0x01,
+	NAME_OP		= 0x08,
+	SCOPE_OP		= 0x10,
+	BUFFER_OP		= 0x11,
+	BYTE_PREFIX		= 0x0A,
+	WORD_PREFIX		= 0x0B,
+	DWORD_PREFIX		= 0x0C,
+	STRING_PREFIX		= 0x0D,
+	QWORD_PREFIX		= 0x0E,
+	PACKAGE_OP		= 0x12,
+	METHOD_OP		= 0x14,
+	DUAL_NAME_PREFIX	= 0x2E,
+	MULTI_NAME_PREFIX	= 0x2F,
+	EXT_OP_PREFIX		= 0x5B,
+	 SLEEP_OP		= 0x22,
+	 DEBUG_OP		= 0x31,
+	 DEVICE_OP		= 0x82,
+	 PROCESSOR_OP		= 0x83,
+	 POWER_RES_OP		= 0x84,
+	LOCAL0_OP		= 0x60,
+	LOCAL1_OP		= 0x61,
+	LOCAL2_OP		= 0x62,
+	LOCAL3_OP		= 0x63,
+	LOCAL4_OP		= 0x64,
+	LOCAL5_OP		= 0x65,
+	LOCAL6_OP		= 0x66,
+	LOCAL7_OP		= 0x67,
+	ARG0_OP		= 0x68,
+	ARG1_OP		= 0x69,
+	ARG2_OP		= 0x6A,
+	ARG3_OP		= 0x6B,
+	ARG4_OP		= 0x6C,
+	ARG5_OP		= 0x6D,
+	ARG6_OP		= 0x6E,
+	STORE_OP		= 0x70,
+	AND_OP			= 0x7B,
+	OR_OP			= 0x7D,
+	NOT_OP			= 0x80,
+	LEQUAL_OP		= 0x93,
+	TO_BUFFER_OP		= 0x96,
+	TO_INTEGER_OP		= 0x99,
+	IF_OP			= 0xA0,
+	ELSE_OP		= 0xA1,
+	RETURN_OP		= 0xA4,
+	ONES_OP		= 0xFF,
+};
+
+void acpigen_write_len_f(void);
+void acpigen_pop_len(void);
 void acpigen_set_current(char *curr);
 char *acpigen_get_current(void);
-int acpigen_write_package(int nr_el);
-int acpigen_write_byte(unsigned int data);
-int acpigen_emit_byte(unsigned char data);
-int acpigen_emit_stream(const char *data, int size);
-int acpigen_emit_namestring(const char *namepath);
-int acpigen_emit_eisaid(const char *eisaid);
-int acpigen_write_dword(unsigned int data);
-int acpigen_write_qword(uint64_t data);
-int acpigen_write_name(const char *name);
-int acpigen_write_name_dword(const char *name, uint32_t val);
-int acpigen_write_name_qword(const char *name, uint64_t val);
-int acpigen_write_name_byte(const char *name, uint8_t val);
-int acpigen_write_scope(const char *name);
-int acpigen_write_PPC(u8 nr);
-int acpigen_write_PPC_NVS(void);
-int acpigen_write_empty_PCT(void);
-int acpigen_write_empty_PTC(void);
-int acpigen_write_TPC(const char *gnvs_tpc_limit);
-int acpigen_write_PSS_package(u32 coreFreq, u32 power, u32 transLat, u32 busmLat,
+char *acpigen_write_package(int nr_el);
+void acpigen_write_zero(void);
+void acpigen_write_one(void);
+void acpigen_write_ones(void);
+void acpigen_write_byte(unsigned int data);
+void acpigen_emit_byte(unsigned char data);
+void acpigen_emit_ext_op(uint8_t op);
+void acpigen_emit_word(unsigned int data);
+void acpigen_emit_dword(unsigned int data);
+void acpigen_emit_stream(const char *data, int size);
+void acpigen_emit_string(const char *string);
+void acpigen_emit_namestring(const char *namepath);
+void acpigen_emit_eisaid(const char *eisaid);
+void acpigen_write_word(unsigned int data);
+void acpigen_write_dword(unsigned int data);
+void acpigen_write_qword(uint64_t data);
+void acpigen_write_integer(uint64_t data);
+void acpigen_write_string(const char *string);
+void acpigen_write_name(const char *name);
+void acpigen_write_name_zero(const char *name);
+void acpigen_write_name_one(const char *name);
+void acpigen_write_name_string(const char *name, const char *string);
+void acpigen_write_name_dword(const char *name, uint32_t val);
+void acpigen_write_name_qword(const char *name, uint64_t val);
+void acpigen_write_name_byte(const char *name, uint8_t val);
+void acpigen_write_name_integer(const char *name, uint64_t val);
+void acpigen_write_coreboot_hid(enum coreboot_acpi_ids id);
+void acpigen_write_scope(const char *name);
+void acpigen_write_method(const char *name, int nargs);
+void acpigen_write_method_serialized(const char *name, int nargs);
+void acpigen_write_device(const char *name);
+void acpigen_write_PPC(u8 nr);
+void acpigen_write_PPC_NVS(void);
+void acpigen_write_empty_PCT(void);
+void acpigen_write_empty_PTC(void);
+void acpigen_write_PRW(u32 wake, u32 level);
+void acpigen_write_STA(uint8_t status);
+void acpigen_write_TPC(const char *gnvs_tpc_limit);
+void acpigen_write_PSS_package(u32 coreFreq, u32 power, u32 transLat, u32 busmLat,
 			u32 control, u32 status);
 typedef enum { SW_ALL=0xfc, SW_ANY=0xfd, HW_ALL=0xfe } PSD_coord;
-int acpigen_write_PSD_package(u32 domain, u32 numprocs, PSD_coord coordtype);
-int acpigen_write_CST_package_entry(acpi_cstate_t *cstate);
-int acpigen_write_CST_package(acpi_cstate_t *entry, int nentries);
-int acpigen_write_processor(u8 cpuindex, u32 pblock_addr, u8 pblock_len);
-int acpigen_write_TSS_package(int entries, acpi_tstate_t *tstate_list);
-int acpigen_write_TSD_package(u32 domain, u32 numprocs, PSD_coord coordtype);
-int acpigen_write_mem32fixed(int readwrite, u32 base, u32 size);
-int acpigen_write_io16(u16 min, u16 max, u8 align, u8 len, u8 decode16);
-int acpigen_write_register(acpi_addr_t *addr);
-int acpigen_write_resourcetemplate_header(void);
-int acpigen_write_resourcetemplate_footer(int len);
-int acpigen_write_mainboard_resource_template(void);
-int acpigen_write_mainboard_resources(const char *scope, const char *name);
-int acpigen_write_irq(u16 mask);
+void acpigen_write_PSD_package(u32 domain, u32 numprocs, PSD_coord coordtype);
+void acpigen_write_CST_package_entry(acpi_cstate_t *cstate);
+void acpigen_write_CST_package(acpi_cstate_t *entry, int nentries);
+typedef enum { CSD_HW_ALL=0xfe } CSD_coord;
+void acpigen_write_CSD_package(u32 domain, u32 numprocs, CSD_coord coordtype, u32 index);
+void acpigen_write_processor(u8 cpuindex, u32 pblock_addr, u8 pblock_len);
+void acpigen_write_TSS_package(int entries, acpi_tstate_t *tstate_list);
+void acpigen_write_TSD_package(u32 domain, u32 numprocs, PSD_coord coordtype);
+void acpigen_write_mem32fixed(int readwrite, u32 base, u32 size);
+void acpigen_write_io16(u16 min, u16 max, u8 align, u8 len, u8 decode16);
+void acpigen_write_register(acpi_addr_t *addr);
+void acpigen_write_resourcetemplate_header(void);
+void acpigen_write_resourcetemplate_footer(void);
+void acpigen_write_mainboard_resource_template(void);
+void acpigen_write_mainboard_resources(const char *scope, const char *name);
+void acpigen_write_irq(u16 mask);
+void acpigen_write_uuid(const char *uuid);
+void acpigen_write_power_res(const char *name, uint8_t level, uint16_t order,
+			     const char *dev_states[], size_t dev_states_count);
+void acpigen_write_sleep(uint64_t sleep_ms);
+void acpigen_write_store(void);
+void acpigen_write_store_ops(uint8_t src, uint8_t dst);
+void acpigen_write_or(uint8_t arg1, uint8_t arg2, uint8_t res);
+void acpigen_write_and(uint8_t arg1, uint8_t arg2, uint8_t res);
+void acpigen_write_not(uint8_t arg, uint8_t res);
+void acpigen_write_debug_string(const char *str);
+void acpigen_write_debug_integer(uint64_t val);
+void acpigen_write_debug_op(uint8_t op);
+void acpigen_write_if(void);
+void acpigen_write_if_and(uint8_t arg1, uint8_t arg2);
+void acpigen_write_if_lequal(uint8_t arg1, uint8_t arg2);
+void acpigen_write_else(void);
+void acpigen_write_to_buffer(uint8_t src, uint8_t dst);
+void acpigen_write_to_integer(uint8_t src, uint8_t dst);
+void acpigen_write_byte_buffer(uint8_t *arr, uint8_t size);
+void acpigen_write_return_byte_buffer(uint8_t *arr, uint8_t size);
+void acpigen_write_return_singleton_buffer(uint8_t arg);
+void acpigen_write_return_byte(uint8_t arg);
+/*
+ * Generate ACPI AML code for _DSM method.
+ * This function takes as input uuid for the device, set of callbacks and
+ * argument to pass into the callbacks. Callbacks should ensure that Local0 and
+ * Local1 are left untouched. Use of Local2-Local7 is permitted in callbacks.
+ */
+void acpigen_write_dsm(const char *uuid, void (*callbacks[])(void *),
+		       size_t count, void *arg);
 
 int get_cst_entries(acpi_cstate_t **);
+
+/*
+ * Soc-implemented functions for generating ACPI AML code for GPIO handling. All
+ * these functions are expected to use only Local5, Local6 and Local7
+ * variables. If the functions call into another ACPI method, then there is no
+ * restriction on the use of Local variables. In case of get/read functions,
+ * return value is expected to be stored in Local0 variable.
+ *
+ * All functions return 0 on success and -1 on error.
+ */
+
+/* Generate ACPI AML code to return Rx value of GPIO in Local0. */
+int acpigen_soc_read_rx_gpio(unsigned int gpio_num);
+
+/* Generate ACPI AML code to return Tx value of GPIO in Local0. */
+int acpigen_soc_get_tx_gpio(unsigned int gpio_num);
+
+/* Generate ACPI AML code to set Tx value of GPIO to 1. */
+int acpigen_soc_set_tx_gpio(unsigned int gpio_num);
+
+/* Generate ACPI AML code to set Tx value of GPIO to 0. */
+int acpigen_soc_clear_tx_gpio(unsigned int gpio_num);
 
 #endif

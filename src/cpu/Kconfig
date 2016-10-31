@@ -2,17 +2,7 @@
 # The if controls how the evaluation occurs.
 # (See also src/Kconfig)
 
-source src/cpu/allwinner/Kconfig
-source src/cpu/armltd/Kconfig
-source src/cpu/samsung/Kconfig
-source src/cpu/ti/Kconfig
-
-source src/cpu/amd/Kconfig
-source src/cpu/dmp/Kconfig
-source src/cpu/intel/Kconfig
-source src/cpu/via/Kconfig
-source src/cpu/qemu-x86/Kconfig
-source src/cpu/x86/Kconfig
+source "src/cpu/*/Kconfig"
 
 if ARCH_X86
 
@@ -24,6 +14,15 @@ config DCACHE_RAM_BASE
 	hex
 
 config DCACHE_RAM_SIZE
+	hex
+
+config DCACHE_BSP_STACK_SIZE
+	hex
+
+config DCACHE_BSP_STACK_SLUSH
+	hex
+
+config DCACHE_AP_STACK_SIZE
 	hex
 
 config SMP
@@ -68,20 +67,17 @@ config SUPPORT_CPU_UCODE_IN_CBFS
 	bool
 	default n
 
-# This variable is used to determine if we add CPU microcode to CBFS during the
-# build. Microcode can be added manually afterwards, or removed. As a result,
-# code should not rely on this to tell if a microcode update is present or not,
-# and should instead search CBFS.
-# This variable is useful in determining if certain automated post-processing
-# steps can be performed right after the build, such as automatically adding
-# a firmware interface table.
-config CPU_MICROCODE_ADDED_DURING_BUILD
-	bool
-	default y if CPU_MICROCODE_CBFS_GENERATE || CPU_MICROCODE_CBFS_EXTERNAL
+config USES_MICROCODE_HEADER_FILES
+	def_bool n
+	select SUPPORT_CPU_UCODE_IN_CBFS
+	help
+	  This is selected by a board or chipset to set the default for the
+	  microcode source choice to a list of external microcode headers
 
 choice
 	prompt "Include CPU microcode in CBFS" if ARCH_X86
-	default CPU_MICROCODE_CBFS_GENERATE if SUPPORT_CPU_UCODE_IN_CBFS
+	default CPU_MICROCODE_CBFS_EXTERNAL_HEADER if USES_MICROCODE_HEADER_FILES
+	default CPU_MICROCODE_CBFS_GENERATE if SUPPORT_CPU_UCODE_IN_CBFS && USE_BLOBS
 	default CPU_MICROCODE_CBFS_NONE if !SUPPORT_CPU_UCODE_IN_CBFS
 
 config CPU_MICROCODE_CBFS_GENERATE
@@ -96,11 +92,13 @@ config CPU_MICROCODE_CBFS_GENERATE
 
 	  If unsure, select this option.
 
-config CPU_MICROCODE_CBFS_EXTERNAL
-	bool "Include external microcode file"
+config CPU_MICROCODE_CBFS_EXTERNAL_HEADER
+	bool "Include external microcode header files"
 	help
-	  Select this option if you want to include an external file containing
-	  the CPU microcode. This will be included as a separate file in CBFS.
+	  Select this option if you want to include external c header files
+	  containing the CPU microcode. This will be included as a separate
+	  file in CBFS.
+
 	  A word of caution: only select this option if you are sure the
 	  microcode that you have is newer than the microcode shipping with
 	  coreboot.
@@ -154,22 +152,32 @@ config CPU_MICROCODE_CBFS_NONE
 
 endchoice
 
-config CPU_MICROCODE_FILE
-	  string "Path and filename of CPU microcode"
-	  depends on CPU_MICROCODE_CBFS_EXTERNAL
-	  default "cpu_microcode.bin"
-	  help
-	    The path and filename of the file containing the CPU microcode.
+config CPU_MICROCODE_MULTIPLE_FILES
+	bool
+	default n
+	depends on CPU_MICROCODE_CBFS_GENERATE
+	help
+	  Select this option to install separate microcode container files into
+	  CBFS instead of using the traditional monolithic microcode file format.
 
-config CPU_MICROCODE_CBFS_LOC
-	  hex "Microcode address in CBFS"
-	  depends on CPU_MICROCODE_IN_CBFS
-	  default 0
+config CPU_MICROCODE_HEADER_FILES
+	string "List of space separated microcode header files with the path"
+	depends on CPU_MICROCODE_CBFS_EXTERNAL_HEADER
+	help
+	  A list of one or more microcode header files with path from the
+	  coreboot directory.  These should be separated by spaces.
 
-config CPU_MICROCODE_CBFS_LEN
-	  hex "Microcode length in CBFS"
-	  depends on CPU_MICROCODE_IN_CBFS
-	  default 0xC000
-	  help
-		The microcode needs a specific length to get correctly
-		detected and loaded by all CPUs.
+config CPU_UCODE_BINARIES
+	string "Microcode binary path and filename"
+	depends on CPU_MICROCODE_CBFS_GENERATE
+	default ""
+	help
+	  Some platforms have microcode in the blobs directory, and these can
+	  be hardcoded in the makefiles.  For platforms with microcode
+	  binaries that aren't in the makefile, set this option to pull
+	  in the microcode.
+
+	  This should contain the full path of the file for one or more
+	  microcode binary files to include, separated by spaces.
+
+	  If unsure, leave this blank.

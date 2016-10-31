@@ -12,28 +12,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
-#include <arch/hlt.h>
 #include <console/console.h>
+#include <halt.h>
 
 #ifndef __ROMCC__
 #define NORETURN __attribute__((noreturn))
-#else
-#define NORETURN
-#endif
 
 /* Report a fatal error */
 void NORETURN die(const char *msg)
 {
-	print_emerg(msg);
-	do {
-		hlt();
-	} while(1);
+	printk(BIOS_EMERG, "%s", msg);
+	halt();
 }
+#endif

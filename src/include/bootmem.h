@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef BOOTMEM_H
@@ -29,6 +25,9 @@
  * serves as the source for the lb_mem table.
  */
 void bootmem_init(void);
+
+/* Architecture hook to add bootmem areas the architecture controls. */
+void bootmem_arch_add_ranges(void);
 
 /* Add a range of a given type to the bootmem address space. */
 void bootmem_add_range(uint64_t start, uint64_t size, uint32_t type);

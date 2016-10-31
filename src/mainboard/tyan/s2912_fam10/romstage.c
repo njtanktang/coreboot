@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define FAM10_SCAN_PCI_BUS 0
@@ -30,18 +26,19 @@
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <console/console.h>
+#include <timestamp.h>
 #include <lib.h>
 #include <spd.h>
 #include <cpu/amd/model_10xxx_rev.h>
 #include "southbridge/nvidia/mcp55/early_smbus.c"
-#include "northbridge/amd/amdfam10/raminit.h"
-#include "northbridge/amd/amdfam10/amdfam10.h"
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <northbridge/amd/amdfam10/raminit.h>
+#include <northbridge/amd/amdfam10/amdfam10.h>
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdfam10/reset_test.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdfam10/debug.c"
 #include "northbridge/amd/amdfam10/setup_resource_map.c"
 #include "southbridge/nvidia/mcp55/early_ctrl.c"
@@ -55,7 +52,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdfam10/amdfam10.h"
+#include <northbridge/amd/amdfam10/amdfam10.h>
 #include "northbridge/amd/amdfam10/raminit_sysinfo_in_ram.c"
 #include "northbridge/amd/amdfam10/pci.c"
 #include "resourcemap.c"
@@ -69,11 +66,11 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0+59, 0x00, 0x60,/* GPIP60 FANCTL0 */ \
 	RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0+60, 0x00, 0x60,/* GPIO61 FANCTL1 */
 
-#include "southbridge/nvidia/mcp55/early_setup_ss.h"
+#include <southbridge/nvidia/mcp55/early_setup_ss.h>
 #include "southbridge/nvidia/mcp55/early_setup_car.c"
-#include "cpu/amd/microcode.h"
+#include <cpu/amd/microcode.h>
 
-#include "cpu/amd/model_10xxx/init_cpus.c"
+#include "cpu/amd/family_10h-family_15h/init_cpus.c"
 #include "northbridge/amd/amdfam10/early_ht.c"
 
 static void sio_setup(void)
@@ -87,11 +84,11 @@ static void sio_setup(void)
 
 	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0);
 	/*serial 0 */
-	dword |= (1<<0);
+	dword |= (1 << 0);
 	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0, dword);
 
 	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4);
-	dword |= (1<<16);
+	dword |= (1 << 16);
 	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4, dword);
 }
 
@@ -110,6 +107,9 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	u32 bsp_apicid = 0, val, wants_reset;
 	msr_t msr;
+
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_START_ROMSTAGE);
 
 	if (!cpu_init_detectedx && boot_cpu()) {
 		/* Nothing special needs to be done to find bus 0 */
@@ -145,7 +145,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	post_code(0x33);
 
-	cpuSetAMDMSR();
+	cpuSetAMDMSR(0);
 	post_code(0x34);
 
 	amd_ht_init(sysinfo);
@@ -169,7 +169,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 #if CONFIG_LOGICAL_CPUS
 	/* Core0 on each node is configured. Now setup any additional cores. */
 	printk(BIOS_DEBUG, "start_other_cores()\n");
-	start_other_cores();
+	start_other_cores(bsp_apicid);
 	post_code(0x37);
 	wait_all_other_cores_started(bsp_apicid);
 #endif
@@ -195,17 +195,17 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	post_code(0x3A);
 
 	/* show final fid and vid */
-	msr=rdmsr(0xc0010071);
+	msr = rdmsr(0xc0010071);
 	printk(BIOS_DEBUG, "End FIDVIDMSR 0xc0010071 0x%08x 0x%08x\n", msr.hi, msr.lo);
 #endif
 
-	init_timer(); // Need to use TMICT to synconize FID/VID
+	init_timer(); // Need to use TMICT to synchronize FID/VID
 
 	wants_reset = mcp55_early_setup_x();
 
 	/* Reset for HT, FIDVID, PLL and errata changes to take affect. */
 	if (!warm_reset_detect(0)) {
-		print_info("...WARM RESET...\n\n\n");
+		printk(BIOS_INFO, "...WARM RESET...\n\n\n");
 		soft_reset();
 		die("After soft_reset_x - shouldn't see this message!!!\n");
 	}
@@ -225,9 +225,15 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	post_code(0x40);
 
+	timestamp_add_now(TS_BEFORE_INITRAM);
 	printk(BIOS_DEBUG, "raminit_amdmct()\n");
 	raminit_amdmct(sysinfo);
+	timestamp_add_now(TS_AFTER_INITRAM);
+
+	cbmem_initialize_empty();
 	post_code(0x41);
+
+	amdmct_cbmem_store_info(sysinfo);
 
 	post_cache_as_ram();	// BSP switch stack to ram, copy then execute LB.
 	post_code(0x43);	// Should never see this post code.
@@ -246,11 +252,9 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
  *	based on each device's unit count.
  *
  * Parameters:
- *	@param[in]  u8  node    = The node on which this chain is located
- *	@param[in]  u8  link    = The link on the host for this chain
- *	@param[out] u8** list   = supply a pointer to a list
- *	@param[out] BOOL result = true to use a manual list
- *				  false to initialize the link automatically
+ *	@param[in]  node   = The node on which this chain is located
+ *	@param[in]  link   = The link on the host for this chain
+ *	@param[out] List   = supply a pointer to a list
  */
 BOOL AMD_CB_ManualBUIDSwapList (u8 node, u8 link, const u8 **List)
 {

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -147,7 +143,7 @@ static int read_dqs_level(const int channel, const int lane)
 	MCHBAR32(mchbar) |=  (1 << 9);
 
 	/* Read from this channel. */
-	read32(raminit_get_rank_addr(channel, 0));
+	read32((u32 *)raminit_get_rank_addr(channel, 0));
 
 	mchbar = 0x14b0 + (channel * 0x0100) + ((7 - lane) * 4);
 	return MCHBAR32(mchbar) & (1 << 30);

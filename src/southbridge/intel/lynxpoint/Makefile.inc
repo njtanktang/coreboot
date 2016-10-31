@@ -12,16 +12,8 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
-# Run an intermediate step when producing coreboot.rom
-# that adds additional components to the final firmware
-# image outside of CBFS
-# FIXME, uncomment as soon as we have ME firmware in the blobs repo
-# INTERMEDIATE:=lynxpoint_add_me
+ifeq ($(CONFIG_SOUTHBRIDGE_INTEL_LYNXPOINT),y)
 
 ramstage-y += pch.c
 ramstage-y += azalia.c
@@ -35,6 +27,8 @@ ramstage-y += me_9.x.c
 ramstage-y += smbus.c
 ramstage-y += hda_verb.c
 ramstage-$(CONFIG_INTEL_LYNXPOINT_LP) += serialio.c
+
+ramstage-srcs += src/mainboard/$(MAINBOARDDIR)/hda_verb.c
 
 ramstage-y += rcba.c
 ramstage-y += me_status.c
@@ -57,29 +51,6 @@ ifeq ($(CONFIG_INTEL_LYNXPOINT_LP),y)
 romstage-y += lp_gpio.c
 ramstage-y += lp_gpio.c
 smm-$(CONFIG_HAVE_SMI_HANDLER) += lp_gpio.c
-else
-romstage-y += gpio.c
-ramstage-y += gpio.c
-smm-$(CONFIG_HAVE_SMI_HANDLER) += gpio.c
 endif
 
-lynxpoint_add_me: $(obj)/coreboot.pre $(IFDTOOL)
-	printf "    DD         Adding Intel Firmware Descriptor\n"
-	dd if=$(CONFIG_IFD_BIN_PATH) \
-		of=$(obj)/coreboot.pre conv=notrunc >/dev/null 2>&1
-	printf "    IFDTOOL    me.bin -> coreboot.pre\n"
-	$(objutil)/ifdtool/ifdtool \
-		-i ME:$(CONFIG_ME_BIN_PATH) \
-		$(obj)/coreboot.pre
-	mv $(obj)/coreboot.pre.new $(obj)/coreboot.pre
-ifeq ($(CONFIG_LOCK_MANAGEMENT_ENGINE),y)
-	printf "    IFDTOOL    Locking Management Engine\n"
-	$(objutil)/ifdtool/ifdtool -l $(obj)/coreboot.pre
-	mv $(obj)/coreboot.pre.new $(obj)/coreboot.pre
-else
-	printf "    IFDTOOL    Unlocking Management Engine\n"
-	$(objutil)/ifdtool/ifdtool -u $(obj)/coreboot.pre
-	mv $(obj)/coreboot.pre.new $(obj)/coreboot.pre
 endif
-
-PHONY += lynxpoint_add_me

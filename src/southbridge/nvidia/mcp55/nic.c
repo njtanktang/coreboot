@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,7 +27,7 @@
 #include <delay.h>
 #include "mcp55.h"
 
-static int phy_read(u32 base, unsigned phy_addr, unsigned phy_reg)
+static int phy_read(u8 *base, unsigned phy_addr, unsigned phy_reg)
 {
 	u32 dword;
 	unsigned loop = 0x100;
@@ -59,7 +55,7 @@ static int phy_read(u32 base, unsigned phy_addr, unsigned phy_reg)
 	return dword;
 }
 
-static void phy_detect(u32 base)
+static void phy_detect(u8 *base)
 {
 	u32 dword;
 	int i, val;
@@ -103,7 +99,8 @@ static void phy_detect(u32 base)
 
 static void nic_init(struct device *dev)
 {
-	u32 mac_h = 0, mac_l = 0, base;
+	u8 *base;
+	u32 mac_h = 0, mac_l = 0;
 	int eeprom_valid = 0;
 	struct southbridge_nvidia_mcp55_config *conf;
 	static u32 nic_index = 0;
@@ -114,7 +111,7 @@ static void nic_init(struct device *dev)
 	if (!res)
 		return;
 
-	base = res->base;
+	base = res2mmio(res, 0, 0);
 
 	phy_detect(base);
 
@@ -130,26 +127,26 @@ static void nic_init(struct device *dev)
 		struct device *dev_eeprom;
 		dev_eeprom = dev_find_slot_on_smbus(conf->mac_eeprom_smbus, conf->mac_eeprom_addr);
 
-		if(dev_eeprom) {
+		if (dev_eeprom) {
 		//	if that is valid we will use that
 			unsigned char dat[6];
 			int status;
 			int i;
-			for(i=0;i<6;i++) {
+			for (i=0;i<6;i++) {
 				status = smbus_read_byte(dev_eeprom, i);
-				if(status < 0) break;
+				if (status < 0) break;
 				dat[i] = status & 0xff;
 			}
-			if(status >= 0) {
+			if (status >= 0) {
 				mac_l = 0;
-				for(i=3;i>=0;i--) {
+				for (i=3;i>=0;i--) {
 					mac_l <<= 8;
 					mac_l += dat[i];
 				}
-				if(mac_l != 0xffffffff) {
+				if (mac_l != 0xffffffff) {
 					mac_l += nic_index;
 					mac_h = 0;
-					for(i=5;i>=4;i--) {
+					for (i=5;i>=4;i--) {
 						mac_h <<= 8;
 						mac_h += dat[i];
 					}
@@ -159,11 +156,11 @@ static void nic_init(struct device *dev)
 		}
 	}
 //	if that is invalid we will read that from romstrap
-	if(!eeprom_valid) {
-		unsigned long mac_pos;
-		mac_pos = 0xffffffd0; // refer to romstrap.inc and romstrap.lds
+	if (!eeprom_valid) {
+		u32 *mac_pos;
+		mac_pos = (u32 *)0xffffffd0; // refer to romstrap.inc and romstrap.ld
 		mac_l = read32(mac_pos) + nic_index; // overflow?
-		mac_h = read32(mac_pos + 4);
+		mac_h = read32(mac_pos + 1);
 
 	}
 #if 1

@@ -11,16 +11,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 #include <assert.h>
+#include <cbmem.h>
+#include <cbfs.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <lib.h>
 #include <console/console.h>
+#include <program_loading.h>
 #include <rmodule.h>
 
 /* Change this define to get more verbose debugging for module loading. */
@@ -151,17 +151,17 @@ static int rmodule_relocate(const struct rmodule *module)
 	reloc = module->relocations;
 	num_relocations = rmodule_number_relocations(module);
 
-	printk(BIOS_DEBUG, "Processing %zu relocs. Offset value of 0x%08x\n",
-	       num_relocations, adjustment);
+	printk(BIOS_DEBUG, "Processing %zu relocs. Offset value of 0x%08lx\n",
+	       num_relocations, (unsigned long)adjustment);
 
 	while (num_relocations > 0) {
 		uintptr_t *adjust_loc;
 
 		/* If the adjustment location is non-NULL adjust it. */
 		adjust_loc = rmodule_load_addr(module, *reloc);
-		printk(PK_ADJ_LEVEL, "Adjusting %p: 0x%08x -> 0x%08x\n",
-			       adjust_loc, *adjust_loc,
-			       *adjust_loc + adjustment);
+		printk(PK_ADJ_LEVEL, "Adjusting %p: 0x%08lx -> 0x%08lx\n",
+		       adjust_loc, (unsigned long) *adjust_loc,
+		       (unsigned long) (*adjust_loc + adjustment));
 			*adjust_loc += adjustment;
 
 		reloc++;
@@ -196,6 +196,10 @@ int rmodule_load(void *base, struct rmodule *module)
 	if (rmodule_relocate(module))
 		return -1;
 	rmodule_clear_bss(module);
+
+	prog_segment_loaded((uintptr_t)module->location,
+				rmodule_memory_size(module), SEG_FINAL);
+
 	return 0;
 }
 
@@ -245,63 +249,55 @@ int rmodule_calc_region(unsigned int region_alignment, size_t rmodule_size,
 	return region_alignment - sizeof(struct rmodule_header);
 }
 
-#if CONFIG_DYNAMIC_CBMEM
-#include <cbmem.h>
-#include <cbfs_core.h>
-
-int rmodule_stage_load(struct rmod_stage_load *rsl, struct cbfs_stage *stage)
+int rmodule_stage_load(struct rmod_stage_load *rsl)
 {
 	struct rmodule rmod_stage;
 	size_t region_size;
 	char *stage_region;
 	int rmodule_offset;
 	int load_offset;
-	const struct cbmem_entry *cbmem_entry;
+	struct cbfs_stage stage;
+	void *rmod_loc;
+	struct region_device *fh;
 
-	if (stage == NULL || rsl->name == NULL)
+	if (rsl->prog == NULL || prog_name(rsl->prog) == NULL)
+		return -1;
+
+	fh = prog_rdev(rsl->prog);
+
+	if (rdev_readat(fh, &stage, 0, sizeof(stage)) != sizeof(stage))
 		return -1;
 
 	rmodule_offset =
 		rmodule_calc_region(DYN_CBMEM_ALIGN_SIZE,
-		                    stage->memlen, &region_size, &load_offset);
+		                    stage.memlen, &region_size, &load_offset);
 
-	cbmem_entry = cbmem_entry_add(rsl->cbmem_id, region_size);
+	stage_region = cbmem_add(rsl->cbmem_id, region_size);
 
-	if (cbmem_entry == NULL)
+	if (stage_region == NULL)
 		return -1;
 
-	stage_region = cbmem_entry_start(cbmem_entry);
+	rmod_loc = &stage_region[rmodule_offset];
 
 	printk(BIOS_INFO, "Decompressing stage %s @ 0x%p (%d bytes)\n",
-	       rsl->name, &stage_region[rmodule_offset], stage->memlen);
+	       prog_name(rsl->prog), rmod_loc, stage.memlen);
 
-	if (!cbfs_decompress(stage->compression, &stage[1],
-	                    &stage_region[rmodule_offset], stage->len))
+	if (!cbfs_load_and_decompress(fh, sizeof(stage), stage.len, rmod_loc,
+				      stage.memlen, stage.compression))
 		return -1;
 
-	if (rmodule_parse(&stage_region[rmodule_offset], &rmod_stage))
+	if (rmodule_parse(rmod_loc, &rmod_stage))
 		return -1;
 
 	if (rmodule_load(&stage_region[load_offset], &rmod_stage))
 		return -1;
 
-	rsl->cbmem_entry = cbmem_entry;
-	rsl->entry = rmodule_entry(&rmod_stage);
+	prog_set_area(rsl->prog, rmod_stage.location,
+			rmodule_memory_size(&rmod_stage));
+	prog_set_entry(rsl->prog, rmodule_entry(&rmod_stage), NULL);
+
+	/* Allow caller to pick up parameters, if available. */
+	rsl->params = rmodule_parameters(&rmod_stage);
 
 	return 0;
 }
-
-int rmodule_stage_load_from_cbfs(struct rmod_stage_load *rsl)
-{
-	struct cbfs_stage *stage;
-
-	stage = cbfs_get_file_content(CBFS_DEFAULT_MEDIA,
-	                              rsl->name, CBFS_TYPE_STAGE, NULL);
-
-	if (stage == NULL)
-		return -1;
-
-	return rmodule_stage_load(rsl, stage);
-}
-
-#endif /* DYNAMIC_CBMEM */

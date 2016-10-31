@@ -27,11 +27,11 @@
  */
 
 #if defined (__GNUC__)
-
+#include <stdint.h>
 /* I/O intrin functions.  */
-static __inline__ __attribute__((always_inline)) unsigned char __inbyte(unsigned short Port)
+static __inline__ __attribute__((always_inline)) uint8_t __inbyte(uint16_t Port)
 {
-  unsigned char value;
+  uint8_t value;
 
   __asm__ __volatile__ (
     "in  %1, %0"
@@ -42,9 +42,9 @@ static __inline__ __attribute__((always_inline)) unsigned char __inbyte(unsigned
   return value;
 }
 
-static __inline__ __attribute__((always_inline)) unsigned short __inword(unsigned short Port)
+static __inline__ __attribute__((always_inline)) uint16_t __inword(uint16_t Port)
 {
-  unsigned short value;
+  uint16_t value;
 
   __asm__ __volatile__ (
     "in  %1, %0"
@@ -55,9 +55,9 @@ static __inline__ __attribute__((always_inline)) unsigned short __inword(unsigne
   return value;
 }
 
-static __inline__ __attribute__((always_inline)) unsigned long __indword(unsigned short Port)
+static __inline__ __attribute__((always_inline)) uint32_t __indword(uint16_t Port)
 {
-  unsigned long value;
+  uint32_t value;
 
   __asm__ __volatile__ (
     "in  %1, %0"
@@ -68,7 +68,7 @@ static __inline__ __attribute__((always_inline)) unsigned long __indword(unsigne
 
 }
 
-static __inline__ __attribute__((always_inline)) void __outbyte(unsigned short Port,unsigned char Data)
+static __inline__ __attribute__((always_inline)) void __outbyte(uint16_t Port,uint8_t Data)
 {
   __asm__ __volatile__ (
     "out  %0, %1"
@@ -77,7 +77,7 @@ static __inline__ __attribute__((always_inline)) void __outbyte(unsigned short P
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __outword(unsigned short Port,unsigned short Data)
+static __inline__ __attribute__((always_inline)) void __outword(uint16_t Port,uint16_t Data)
 {
   __asm__ __volatile__ (
     "out  %0, %1"
@@ -86,7 +86,7 @@ static __inline__ __attribute__((always_inline)) void __outword(unsigned short P
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __outdword(unsigned short Port,unsigned long Data)
+static __inline__ __attribute__((always_inline)) void __outdword(uint16_t Port,uint32_t Data)
 {
   __asm__ __volatile__ (
     "out  %0, %1"
@@ -95,7 +95,7 @@ static __inline__ __attribute__((always_inline)) void __outdword(unsigned short 
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __inbytestring(unsigned short Port,unsigned char *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __inbytestring(uint16_t Port,uint8_t *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
     "rep ; insb"
@@ -104,7 +104,7 @@ static __inline__ __attribute__((always_inline)) void __inbytestring(unsigned sh
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __inwordstring(unsigned short Port,unsigned short *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __inwordstring(uint16_t Port,uint16_t *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
     "rep ; insw"
@@ -113,7 +113,7 @@ static __inline__ __attribute__((always_inline)) void __inwordstring(unsigned sh
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __indwordstring(unsigned short Port,unsigned long *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __indwordstring(uint16_t Port,unsigned long *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
     "rep ; insl"
@@ -122,7 +122,7 @@ static __inline__ __attribute__((always_inline)) void __indwordstring(unsigned s
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __outbytestring(unsigned short Port,unsigned char *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __outbytestring(uint16_t Port,uint8_t *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
     "rep ; outsb"
@@ -131,7 +131,7 @@ static __inline__ __attribute__((always_inline)) void __outbytestring(unsigned s
     );
 }
 
-static __inline__ __attribute__((always_inline)) void __outwordstring(unsigned short Port,unsigned short *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __outwordstring(uint16_t Port,uint16_t *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
     "rep ; outsw"
@@ -140,7 +140,7 @@ static __inline__ __attribute__((always_inline)) void __outwordstring(unsigned s
   );
 }
 
-static __inline__ __attribute__((always_inline)) void __outdwordstring(unsigned short Port,unsigned long *Buffer,unsigned long Count)
+static __inline__ __attribute__((always_inline)) void __outdwordstring(uint16_t Port,unsigned long *Buffer,unsigned long Count)
 {
   __asm__ __volatile__ (
    "rep ; outsl"
@@ -525,7 +525,7 @@ static __inline__ __attribute__((always_inline)) void __lidt(void *Source)
 }
 
 static __inline__ __attribute__((always_inline)) void
-__writefsbyte(const unsigned long Offset, const unsigned char Data)
+__writefsbyte(const unsigned long Offset, const uint8_t Data)
 {
   __asm__ ("movb %[Data], %%fs:%a[Offset]"
           :
@@ -533,7 +533,7 @@ __writefsbyte(const unsigned long Offset, const unsigned char Data)
 }
 
 static __inline__ __attribute__((always_inline)) void
-__writefsword(const unsigned long Offset, const unsigned short Data)
+__writefsword(const unsigned long Offset, const uint16_t Data)
 {
   __asm__ ("movw %[Data], %%fs:%a[Offset]"
           :
@@ -541,14 +541,14 @@ __writefsword(const unsigned long Offset, const unsigned short Data)
 }
 
 static __inline__ __attribute__((always_inline)) void
-__writefsdword(const unsigned long Offset, const unsigned long Data)
+__writefsdword(const unsigned long Offset, const uint32_t Data)
 {
   __asm__ ("movl %[Data], %%fs:%a[Offset]"
            :
            : [Offset] "ir" (Offset), [Data] "ir" (Data));
 }
 
-static __inline__ __attribute__((always_inline)) unsigned char
+static __inline__ __attribute__((always_inline)) uint8_t
 __readfsbyte(const unsigned long Offset)
 {
   unsigned char value;
@@ -558,7 +558,7 @@ __readfsbyte(const unsigned long Offset)
   return value;
 }
 
-static __inline__ __attribute__((always_inline)) unsigned short
+static __inline__ __attribute__((always_inline)) uint16_t
 __readfsword(const unsigned long Offset)
 {
   unsigned short value;
@@ -568,11 +568,11 @@ __readfsword(const unsigned long Offset)
   return value;
 }
 
-static __inline__ __attribute__((always_inline)) unsigned long
+static __inline__ __attribute__((always_inline)) uint32_t
 __readfsdword(unsigned long Offset)
 {
   unsigned long value;
-  __asm__ ("movl %%fs:%a[Offset], %[value]"
+  __asm__ ("mov %%fs:%a[Offset], %[value]"
            : [value] "=r" (value)
            : [Offset] "ir" (Offset));
   return value;
@@ -612,40 +612,4 @@ static __inline __attribute__(( __always_inline__)) void _mm_sfence (void)
 }
 #endif /* __SSE3__ */
 
-static __inline__ __attribute__((always_inline)) void __stosb(unsigned char *dest, unsigned char data, size_t count)
-{
-   __asm__ __volatile__ (
-    "rep ; stosb "
-    : "+D" (dest), "+c" (count)
-    : "a"(data)
-  );
-}
-
-static __inline__ __attribute__((always_inline)) void __movsb(unsigned char *dest, unsigned char *data, size_t count)
-{
-   __asm__ __volatile__ (
-    "movsb "
-    : "+D" (dest), "+S"(data), "+c" (count)
-  );
-}
-
-static __inline__ __attribute__((always_inline))
-void debug_point ( unsigned short Port,  unsigned long Data )
-{
-   __outdword (Port, Data);
-   __asm__ __volatile__ (".word 0xfeeb");
-
-}
-
-static __inline__ __attribute__((always_inline))
-void delay_point ( unsigned short Port, unsigned long Data, unsigned long delayTime )
-{
-  UINTN  Index;
-  Index = 0;
-  __outdword (Port, Data);
-  while (Index < delayTime * 600000) {
-    __outdword (0xE0, 0);
-    Index ++;
-  }
-}
 #endif /* defined (__GNUC__) */

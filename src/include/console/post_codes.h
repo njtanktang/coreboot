@@ -12,15 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
  * @file post_codes.h
- *
+ */
+
+/*
  * This aims to be a central point for POST codes used throughout coreboot.
  * All POST codes should be declared here as macros, and post_code() should
  * be used with the macros instead of hardcoded values. This allows us to
@@ -40,6 +38,7 @@
  * without any explanation or effort on part of the maintainers.
  *
  */
+
 #ifndef POST_CODES_H
 #define POST_CODES_H
 
@@ -83,14 +82,14 @@
 #define POST_ENTRY_C_START			0x13
 
 /**
- * \brief Pre call to ram stage main()
+ * \brief Pre call to RAM stage main()
  *
- * POSTed right before ram stage main() is called from c_start.S
+ * POSTed right before RAM stage main() is called from c_start.S
  */
 #define POST_PRE_HARDWAREMAIN			0x79
 
 /**
- * \brief Entry into coreboot in ram stage main()
+ * \brief Entry into coreboot in RAM stage main()
  *
  * This is the first call in hardwaremain.c. If this code is POSTed, then
  * ramstage has successfully loaded and started executing.
@@ -204,6 +203,62 @@
 #define POST_BS_PAYLOAD_BOOT			0x7b
 
 /**
+ * \brief Before calling FSP TempRamInit
+ *
+ * Going to call into FSP binary for TempRamInit phase
+ */
+#define POST_FSP_TEMP_RAM_INIT			0x90
+
+/**
+ * \brief Before calling FSP TempRamExit
+ *
+ * Going to call into FSP binary for TempRamExit phase
+ */
+#define POST_FSP_TEMP_RAM_EXIT			0x91
+
+/**
+ * \brief Before calling FSP MemoryInit
+ *
+ * Going to call into FSP binary for MemoryInit phase
+ */
+#define POST_FSP_MEMORY_INIT			0x92
+
+/**
+ * \brief Before calling FSP SiliconInit
+ *
+ * Going to call into FSP binary for SiliconInit phase
+ */
+#define POST_FSP_SILICON_INIT			0x93
+
+/**
+ * \brief Before calling FSP Notify before resource allocation
+ *
+ * Going to call into FSP binary for Notify phase
+ */
+#define POST_FSP_NOTIFY_BEFORE_ENUMERATE	0x94
+
+/**
+ * \brief Before calling FSP Notify before finalize
+ *
+ * Going to call into FSP binary for Notify phase
+ */
+#define POST_FSP_NOTIFY_BEFORE_FINALIZE		0x95
+
+/**
+ * \brief Indicate OS _PTS entry
+ *
+ * Called from _PTS asl method
+ */
+#define POST_OS_ENTER_PTS			0x96
+
+/**
+ * \brief Indicate OS _WAK entry
+ *
+ * Called from within _WAK method
+ */
+#define POST_OS_ENTER_WAKE			0x97
+
+/**
  * \brief Entry into elf boot
  *
  * This POST code is called right before invoking jmp_to_elf_entry()
@@ -218,6 +273,13 @@
  * this code, chances are the payload freezes.
  */
 #define POST_JUMPING_TO_PAYLOAD			0xf3
+
+/**
+ * \brief TPM failure
+ *
+ * An error with the TPM, either unexepcted state or communications failure.
+ */
+#define POST_TPM_FAILURE			0xed
 
 /**
  * \brief Not supposed to get here
@@ -263,7 +325,7 @@
  * If the payload was built out-of-tree, check that it was compiled as
  * a coreboot payload
  * \n
- * Check the console output to see exactly where the failure occured.
+ * Check the console output to see exactly where the failure occurred.
  */
 #define POST_DIE 				0xff
 
@@ -439,4 +501,4 @@
 
 #define POST_INTR_SEG_JUMP			(0x0F0)
 
-#endif /* THE_ALMIGHTY_POST_CODES_H */
+#endif /* POST_CODES_H */

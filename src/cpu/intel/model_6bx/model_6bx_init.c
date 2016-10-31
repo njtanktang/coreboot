@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,7 +26,7 @@
 #include <cpu/x86/cache.h>
 #include <cpu/x86/name.h>
 
-static void model_6bx_init(device_t cpu)
+static void model_6bx_init(struct device *cpu)
 {
 	char processor_name[49];
 
@@ -49,7 +44,7 @@ static void model_6bx_init(device_t cpu)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 }
 
@@ -74,4 +69,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
 };
-

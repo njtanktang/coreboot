@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdio.h>
@@ -656,6 +652,23 @@ int print_pmbase(struct pci_dev *sb, struct pci_access *pacc)
 	printf("\n============= PMBASE ============\n\n");
 
 	switch (sb->device_id) {
+	case PCI_DEVICE_ID_INTEL_3400:
+	case PCI_DEVICE_ID_INTEL_3420:
+	case PCI_DEVICE_ID_INTEL_3450:
+	case PCI_DEVICE_ID_INTEL_3400_DESKTOP:
+	case PCI_DEVICE_ID_INTEL_3400_MOBILE:
+	case PCI_DEVICE_ID_INTEL_3400_MOBILE_SFF:
+	case PCI_DEVICE_ID_INTEL_B55_A:
+	case PCI_DEVICE_ID_INTEL_B55_B:
+	case PCI_DEVICE_ID_INTEL_H55:
+	case PCI_DEVICE_ID_INTEL_H57:
+	case PCI_DEVICE_ID_INTEL_HM55:
+	case PCI_DEVICE_ID_INTEL_HM57:
+	case PCI_DEVICE_ID_INTEL_P55:
+	case PCI_DEVICE_ID_INTEL_PM55:
+	case PCI_DEVICE_ID_INTEL_Q57:
+	case PCI_DEVICE_ID_INTEL_QM57:
+	case PCI_DEVICE_ID_INTEL_QS57:
 	case PCI_DEVICE_ID_INTEL_Z68:
 	case PCI_DEVICE_ID_INTEL_P67:
 	case PCI_DEVICE_ID_INTEL_UM67:
@@ -685,6 +698,11 @@ int print_pmbase(struct pci_dev *sb, struct pci_access *pacc)
 	case PCI_DEVICE_ID_INTEL_HM76:
 	case PCI_DEVICE_ID_INTEL_HM75:
 	case PCI_DEVICE_ID_INTEL_HM70:
+	case PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_FULL:
+	case PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_PREM:
+	case PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_BASE:
+	case PCI_DEVICE_ID_INTEL_WILDCATPOINT_LP:
+	case PCI_DEVICE_ID_INTEL_BAYTRAIL_LPC:
 		pmbase = pci_read_word(sb, 0x40) & 0xff80;
 		pm_registers = pch_pm_registers;
 		size = ARRAY_SIZE(pch_pm_registers);
@@ -715,6 +733,7 @@ int print_pmbase(struct pci_dev *sb, struct pci_access *pacc)
 		break;
 	case PCI_DEVICE_ID_INTEL_ICH8:
 	case PCI_DEVICE_ID_INTEL_ICH8M:
+	case PCI_DEVICE_ID_INTEL_ICH8ME:
 		pmbase = pci_read_word(sb, 0x40) & 0xfffc;
 		pm_registers = ich8_pm_registers;
 		size = ARRAY_SIZE(ich8_pm_registers);
@@ -756,28 +775,6 @@ int print_pmbase(struct pci_dev *sb, struct pci_access *pacc)
 		break;
 
 	case PCI_DEVICE_ID_INTEL_I63XX:
-		pmbase = pci_read_word(sb, 0x40) & 0xfffc;
-		pm_registers = i63xx_pm_registers;
-		size = ARRAY_SIZE(i63xx_pm_registers);
-		break;
-
-	case PCI_DEVICE_ID_INTEL_3400_DESKTOP:
-	case PCI_DEVICE_ID_INTEL_3400_MOBILE:
-	case PCI_DEVICE_ID_INTEL_P55:
-	case PCI_DEVICE_ID_INTEL_PM55:
-	case PCI_DEVICE_ID_INTEL_H55:
-	case PCI_DEVICE_ID_INTEL_QM57:
-	case PCI_DEVICE_ID_INTEL_H57:
-	case PCI_DEVICE_ID_INTEL_HM55:
-	case PCI_DEVICE_ID_INTEL_Q57:
-	case PCI_DEVICE_ID_INTEL_HM57:
-	case PCI_DEVICE_ID_INTEL_3400_MOBILE_SFF:
-	case PCI_DEVICE_ID_INTEL_B55_A:
-	case PCI_DEVICE_ID_INTEL_QS57:
-	case PCI_DEVICE_ID_INTEL_3400:
-	case PCI_DEVICE_ID_INTEL_3420:
-	case PCI_DEVICE_ID_INTEL_3450:
-	case PCI_DEVICE_ID_INTEL_B55_B:
 		pmbase = pci_read_word(sb, 0x40) & 0xfffc;
 		pm_registers = i63xx_pm_registers;
 		size = ARRAY_SIZE(i63xx_pm_registers);

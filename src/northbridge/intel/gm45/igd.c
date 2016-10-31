@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -24,6 +19,7 @@
 #include <arch/io.h>
 #include <device/pci_def.h>
 #include <console/console.h>
+#include <pc80/mc146818rtc.h>
 
 #include "gm45.h"
 
@@ -34,9 +30,9 @@
 /* The PEG settings have to be set before ASPM is setup on DMI. */
 static void enable_igd(const sysinfo_t *const sysinfo, const int no_peg)
 {
-	const device_t mch_dev	= PCI_DEV(0, 0, 0);
-	const device_t peg_dev	= PCI_DEV(0, 1, 0);
-	const device_t igd_dev	= PCI_DEV(0, 2, 0);
+	const pci_devfn_t mch_dev = PCI_DEV(0, 0, 0);
+	const pci_devfn_t peg_dev = PCI_DEV(0, 1, 0);
+	const pci_devfn_t igd_dev = PCI_DEV(0, 2, 0);
 
 	u16 reg16;
 	u32 reg32;
@@ -59,16 +55,9 @@ static void enable_igd(const sysinfo_t *const sysinfo, const int no_peg)
 	reg16 |= display_clock_from_f0_and_vco[f0_12][vco];
 	pci_write_config16(igd_dev, 0xcc, reg16);
 
-	/* Graphics Stolen Memory: 2MB GTT (0x0300) when VT-d disabled,
-	                           2MB GTT + 2MB shadow GTT (0x0b00) else. */
-	/* Graphics Mode Select: 32MB framebuffer (0x0050) */
-	/* TODO: We could switch to 64MB (0x0070), config flag? */
-	const u32 capid = pci_read_config32(mch_dev, D0F0_CAPID0 + 4);
 	reg16 = pci_read_config16(mch_dev, D0F0_GGC);
 	reg16 &= 0xf00f;
-	reg16 |= 0x0350;
-	if (!(capid & (1 << (48 - 32))))
-		reg16 |= 0x0800;
+	reg16 |= sysinfo->ggc;
 	pci_write_config16(mch_dev, D0F0_GGC, reg16);
 
 	if ((sysinfo->gfx_type != GMCH_GL40) &&
@@ -121,7 +110,7 @@ static void enable_igd(const sysinfo_t *const sysinfo, const int no_peg)
 
 static void disable_igd(const sysinfo_t *const sysinfo)
 {
-	const device_t mch_dev	= PCI_DEV(0, 0, 0);
+	const pci_devfn_t mch_dev = PCI_DEV(0, 0, 0);
 
 	printk(BIOS_DEBUG, "Disabling IGD.\n");
 
@@ -140,14 +129,38 @@ static void disable_igd(const sysinfo_t *const sysinfo)
 	}
 }
 
-void init_igd(const sysinfo_t *const sysinfo,
-	      const int no_igd, const int no_peg)
+void init_igd(const sysinfo_t *const sysinfo)
 {
-	const device_t mch_dev	= PCI_DEV(0, 0, 0);
+	const pci_devfn_t mch_dev = PCI_DEV(0, 0, 0);
 
 	const u8 capid = pci_read_config8(mch_dev, D0F0_CAPID0 + 4);
-	if (no_igd || (capid & (1 << (33 - 32))))
+	if (!sysinfo->enable_igd || (capid & (1 << (33 - 32))))
 		disable_igd(sysinfo);
 	else
-		enable_igd(sysinfo, no_peg);
+		enable_igd(sysinfo, !sysinfo->enable_peg);
+}
+
+void igd_compute_ggc(sysinfo_t *const sysinfo)
+{
+	const pci_devfn_t mch_dev = PCI_DEV(0, 0, 0);
+
+	const u32 capid = pci_read_config32(mch_dev, D0F0_CAPID0 + 4);
+	if (!sysinfo->enable_igd || (capid & (1 << (33 - 32))))
+		sysinfo->ggc = 0x0002;
+	else {
+		u8 gfxsize;
+
+		/* Graphics Stolen Memory: 2MB GTT (0x0300) when VT-d disabled,
+		   2MB GTT + 2MB shadow GTT (0x0b00) else. */
+		if (get_option(&gfxsize, "gfx_uma_size") != CB_SUCCESS) {
+			/* 4 for 32MB, default if not set in cmos */
+			gfxsize = 4;
+		}
+		/* Handle invalid cmos settings */
+		if (gfxsize > 12)
+			gfxsize = 4;
+		sysinfo->ggc = 0x0300 | ((gfxsize + 1) << 4);
+		if (!(capid & (1 << (48 - 32))))
+			sysinfo->ggc |= 0x0800;
+	}
 }

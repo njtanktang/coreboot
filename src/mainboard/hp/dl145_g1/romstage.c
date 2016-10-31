@@ -12,14 +12,14 @@
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include <delay.h>
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "southbridge/amd/amd8111/early_smbus.c"
-#include "northbridge/amd/amdk8/raminit.h"
+#include <northbridge/amd/amdk8/raminit.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include "northbridge/amd/amdk8/debug.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "southbridge/amd/amd8111/early_ctrl.c"
 
 #define SERIAL_DEV PNP_DEV(0x2e, W83627HF_SP1)
@@ -28,12 +28,12 @@ static void memreset_setup(void)
 {
 	if (is_cpu_pre_c0()) {
 		/* Set the memreset low. */
-		outb((1<<2)|(0<<0), SMBUS_IO_BASE + 0xc0 + 16);
+		outb((1 << 2)|(0 << 0), SMBUS_IO_BASE + 0xc0 + 16);
 		/* Ensure the BIOS has control of the memory lines. */
-		outb((1<<2)|(0<<0), SMBUS_IO_BASE + 0xc0 + 17);
+		outb((1 << 2)|(0 << 0), SMBUS_IO_BASE + 0xc0 + 17);
 	} else {
 		/* Ensure the CPU has control of the memory lines. */
-		outb((1<<2)|(1<<0), SMBUS_IO_BASE + 0xc0 + 17);
+		outb((1 << 2)|(1 << 0), SMBUS_IO_BASE + 0xc0 + 17);
 	}
 }
 
@@ -42,7 +42,7 @@ static void memreset(int controllers, const struct mem_controller *ctrl)
 	if (is_cpu_pre_c0()) {
 		udelay(800);
 		/* Set memreset high. */
-		outb((1<<2)|(1<<0), SMBUS_IO_BASE + 0xc0 + 16);
+		outb((1 << 2)|(1 << 0), SMBUS_IO_BASE + 0xc0 + 16);
 		udelay(90);
 	}
 }
@@ -53,25 +53,25 @@ static inline void activate_spd_rom(const struct mem_controller *ctrl)
 {
 	int ret,i;
 	unsigned device=(ctrl->channel0[0])>>8;
-	/* the very first write always get COL_STS=1 and ABRT_STS=1, so try another time*/
-	i=2;
+	/* the very first write always get COL_STS = 1 and ABRT_STS = 1, so try another time*/
+	i = 2;
 	do {
 		ret = smbus_write_byte(SMBUS_HUB, 0x01, device);
-	} while ((ret!=0) && (i-->0));
+	} while ((ret != 0) && (i-->0));
 	smbus_write_byte(SMBUS_HUB, 0x03, 0);
 }
 
 static inline void change_i2c_mux(unsigned device)
 {
 	int ret, i;
-	print_debug("change_i2c_mux i="); print_debug_hex8(device); print_debug("\n");
-	i=2;
+	printk(BIOS_DEBUG, "change_i2c_mux i=%02x\n", device);
+	i = 2;
 	do {
 		ret = smbus_write_byte(SMBUS_HUB, 0x01, device);
-		print_debug("change_i2c_mux 1 ret="); print_debug_hex32(ret); print_debug("\n");
-	} while ((ret!=0) && (i-->0));
+		printk(BIOS_DEBUG, "change_i2c_mux 1 ret=%08x\n", ret);
+	} while ((ret != 0) && (i-->0));
 	ret = smbus_write_byte(SMBUS_HUB, 0x03, 0);
-	print_debug("change_i2c_mux 2 ret="); print_debug_hex32(ret); print_debug("\n");
+	printk(BIOS_DEBUG, "change_i2c_mux 2 ret=%08x\n", ret);
 }
 
 static inline int spd_read_byte(unsigned device, unsigned address)
@@ -91,8 +91,8 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 #include "cpu/amd/model_fxx/fidvid.c"
 #endif
 
-#define RC0 ((1<<1)<<8)
-#define RC1 ((1<<2)<<8)
+#define RC0 ((1 << 1)<<8)
+#define RC1 ((1 << 2)<<8)
 
 void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 {
@@ -142,8 +142,8 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 		{
 		/* Read FIDVID_STATUS */
 			msr_t msr;
-			msr=rdmsr(0xc0010042);
-			print_debug("begin msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
+			msr = rdmsr(0xc0010042);
+			printk(BIOS_DEBUG, "begin msr fid, vid %08x%08x\n", msr.hi, msr.lo);
 		}
 
 		enable_fid_change();
@@ -153,12 +153,12 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 		// show final fid and vid
 		{
 			msr_t msr;
-			msr=rdmsr(0xc0010042);
-			print_debug("end msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
+			msr = rdmsr(0xc0010042);
+			printk(BIOS_DEBUG, "end msr fid, vid %08x%08x\n", msr.hi, msr.lo);
 		}
 
 	} else {
-		print_debug("Changing FIDVID not supported\n");
+		printk(BIOS_DEBUG, "Changing FIDVID not supported\n");
 	}
 #endif
 
@@ -166,17 +166,17 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
 
 	if (needs_reset) {
-		print_info("ht reset -\n");
+		printk(BIOS_INFO, "ht reset -\n");
 		soft_reset_x(sysinfo->sbbusn, sysinfo->sbdn);
 	}
 
 	enable_smbus();
 
 	int i;
-	for(i=0;i<2;i++) {
+	for(i = 0; i < 2; i++) {
 		activate_spd_rom(&sysinfo->ctrl[i]);
 	}
-	for(i=RC0;i<=RC1;i<<=1) {
+	for(i = RC0; i <= RC1; i<<=1) {
 		change_i2c_mux(i);
 	}
 

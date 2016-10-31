@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -168,7 +164,7 @@ static void SMMGL0Init(struct gliutable *gl)
 	msr.hi = offset << 8 | gl->hi;
 	msr.hi |= SMM_OFFSET >> 24;
 
-	msr.lo = SMM_OFFSET << 8;
+	msr.lo = (SMM_OFFSET & 0x00ffffff) << 8;
 	msr.lo |= ((~(SMM_SIZE * 1024) + 1) >> 12) & 0xfffff;
 
 	wrmsr(gl->desc_name, msr);	// MSR - See table above
@@ -185,7 +181,7 @@ static void SMMGL1Init(struct gliutable *gl)
 	/* I don't think this is needed */
 	msr.hi &= 0xffffff00;
 	msr.hi |= (SMM_OFFSET >> 24);
-	msr.lo = (SMM_OFFSET << 8) & 0xFFF00000;
+	msr.lo = (SMM_OFFSET & 0x00fff000) << 8;
 	msr.lo |= ((~(SMM_SIZE * 1024) + 1) >> 12) & 0xfffff;
 
 	wrmsr(gl->desc_name, msr);	// MSR - See table above
@@ -595,14 +591,14 @@ static void rom_shadow_settings(void)
  *
  *  DEVRC_RCONF_DEFAULT:
  *  ROMRC(63:56) = 04h	 ; write protect ROMBASE
- *  ROMBASE(36:55) = 0FFFC0h ; Top of PCI/bottom of rom chipselect area
+ *  ROMBASE(36:55) = 0FFFC0h ; Top of PCI/bottom of ROM chipselect area
  *  DEVRC(35:28) =  39h	 ; cache disabled in PCI memory + WS bit on + Write Combine + write burst.
  *  SYSTOP(27:8) = top of system memory
  *  SYSRC(7:0) = 00h 		 ; writeback, can set to 08h to make writethrough
  *
  ***************************************************************************/
 #define SYSMEM_RCONF_WRITETHROUGH 8
-#define DEVRC_RCONF_DEFAULT 0x21
+#define DEVRC_RCONF_DEFAULT 0x21ul
 #define ROMBASE_RCONF_DEFAULT 0xFFFC0000
 #define ROMRC_RCONF_DEFAULT 0x25
 
@@ -742,7 +738,7 @@ void northbridge_init_early(void)
 
 	/*  Now that the descriptor to memory is set up. */
 	/*  The memory controller needs one read to synch its lines before it can be used. */
-	i = *(volatile int *)0;
+	read32(zeroptr);
 
 	GeodeLinkPriority();
 

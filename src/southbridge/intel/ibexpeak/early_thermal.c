@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -27,7 +23,7 @@
    which is done at the end of raminit.  */
 void early_thermal_init(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	msr_t msr;
 
 	dev = PCI_DEV(0x0, 0x1f, 0x6);
@@ -43,11 +39,12 @@ void early_thermal_init(void)
 	/* Perform init.  */
 	/* Configure TJmax.  */
 	msr = rdmsr(MSR_TEMPERATURE_TARGET);
-	write16(0x40000012, ((msr.lo >> 16) & 0xff) << 6);
+	write16((u16 *)0x40000012, ((msr.lo >> 16) & 0xff) << 6);
 	/* Northbridge temperature slope and offset.  */
-	write16(0x40000016, 0x7746);
+	write16((u16 *)0x40000016, 0x7746);
 	/* Enable thermal data reporting, processor, PCH and northbridge.  */
-	write16(0x4000001a, (read16(0x4000001a) & ~0xf) | 0x10f0);
+	write16((u16 *)0x4000001a,
+		(read16((u16 *)0x4000001a) & ~0xf) | 0x10f0);
 
 	/* Disable temporary BAR.  */
 	pci_write_config32(dev, 0x40,

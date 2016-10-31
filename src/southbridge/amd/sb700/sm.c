@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -33,12 +30,29 @@
 
 #define NMI_OFF 0
 
-#define MAINBOARD_POWER_OFF 0
-#define MAINBOARD_POWER_ON 1
+#define SB_MMIO_CFG_REG 0x9c
+#define SB_MMIO_BASE_ADDRESS 0xfeb00000
+
+#define PRIMARY_SMBUS_RESOURCE_NUMBER 0x90
+#define AUXILIARY_SMBUS_RESOURCE_NUMBER 0x58
+
+uint8_t amd_sb700_aux_smbus = 0;
+
+enum power_mode {
+	POWER_MODE_OFF = 0,
+	POWER_MODE_ON = 1,
+	POWER_MODE_LAST = 2,
+};
 
 #ifndef CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL
-#define CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL MAINBOARD_POWER_ON
+#define CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL POWER_MODE_ON
 #endif
+
+static const char* power_mode_names[] = {
+	[POWER_MODE_OFF] = "off",
+	[POWER_MODE_ON] = "on",
+	[POWER_MODE_LAST] = "last",
+};
 
 /*
 * SB700 enables all USB controllers by default in SMBUS Control.
@@ -50,23 +64,35 @@ static void sm_init(device_t dev)
 	u8 byte_old;
 	u8 rev;
 	u32 dword;
-	u32 ioapic_base;
-	u32 on;
+	void *ioapic_base;
+	uint32_t power_state;
+	uint32_t enable_legacy_usb;
 	u32 nmi_option;
 
 	printk(BIOS_INFO, "sm_init().\n");
 
 	rev = get_sb700_revision(dev);
-	ioapic_base = pci_read_config32(dev, 0x74) & (0xffffffe0);	/* some like mem resource, but does not have  enable bit */
-	/* Don't rename APIC ID */
-	/* TODO: We should call setup_ioapic() here. But kernel hangs if cpu is K8.
-	 * We need to check out why and change back. */
-	clear_ioapic(ioapic_base);
+	/* This works in a similar fashion to a memory resource, but without an enable bit */
+	ioapic_base = (void *)(pci_read_config32(dev, 0x74) & (0xffffffe0));
+	setup_ioapic(ioapic_base, 0); /* Don't rename IOAPIC ID. */
+
+	enable_legacy_usb = 1;
+	get_option(&enable_legacy_usb, "enable_legacy_usb");
 
 	/* 2.10 Interrupt Routing/Filtering */
-	dword = pci_read_config8(dev, 0x62);
-	dword |= 3;
-	pci_write_config8(dev, 0x62, dword);
+	byte = pci_read_config8(dev, 0x62);
+	if (enable_legacy_usb)
+		byte |= 0x3;
+	else
+		byte &= ~0x3;
+	pci_write_config8(dev, 0x62, byte);
+
+	byte = pci_read_config8(dev, 0x67);
+	if (enable_legacy_usb)
+		byte |= 0x1 << 7;
+	else
+		byte &= ~(0x1 << 7);
+	pci_write_config8(dev, 0x67, byte);
 
 	/* Delay back to back interrupts to the CPU. */
 	dword = pci_read_config16(dev, 0x64);
@@ -114,7 +140,10 @@ static void sm_init(device_t dev)
 	pci_write_config8(dev, 0x41, byte);
 
 	byte = pm_ioread(0x61);
-	byte |= 1 << 1;		/* Set to enable NB/SB handshake during IOAPIC interrupt for AMD K8/K7 */
+	if (IS_ENABLED(CONFIG_CPU_AMD_MODEL_10XXX))
+		byte &= ~(1 << 1);	/* Clear for non-K8 CPUs */
+	else
+		byte |= 1 << 1;		/* Set to enable NB/SB handshake during IOAPIC interrupt for AMD K8/K7 */
 	pm_iowrite(0x61, byte);
 
 	/* disable SMI */
@@ -123,16 +152,23 @@ static void sm_init(device_t dev)
 	pm_iowrite(0x53, byte);
 
 	/* power after power fail */
-	on = CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL;
-	get_option(&on, "power_on_after_fail");
+	power_state = CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL;
+	get_option(&power_state, "power_on_after_fail");
+	if (power_state > 2) {
+		printk(BIOS_WARNING, "Invalid power_on_after_fail setting, using default\n");
+		power_state = CONFIG_MAINBOARD_POWER_ON_AFTER_POWER_FAIL;
+	}
 	byte = pm_ioread(0x74);
 	byte &= ~0x03;
-	if (on) {
-		byte |= 2;
-	}
+	if (power_state == POWER_MODE_OFF)
+		byte |= 0x0;
+	else if (power_state == POWER_MODE_ON)
+		byte |= 0x1;
+	else if (power_state == POWER_MODE_LAST)
+		byte |= 0x2;
 	byte |= 1 << 2;
 	pm_iowrite(0x74, byte);
-	printk(BIOS_INFO, "set power %s after power fail\n", on ? "on" : "off");
+	printk(BIOS_INFO, "set power \"%s\" after power fail\n", power_mode_names[power_state]);
 
 	byte = pm_ioread(0x68);
 	byte &= ~(1 << 1);
@@ -177,16 +213,16 @@ static void sm_init(device_t dev)
 	}
 
 	/*rpr v2.13  2.22 SMBUS PCI Config */
- 	byte = pci_read_config8(dev, 0xE1);
+	byte = pci_read_config8(dev, 0xE1);
 	if ((REV_SB700_A11 == rev) || REV_SB700_A12 == rev) {
 		byte |= 1 << 0;
 	}
-	/*Set bit2 to 1, enable Io port 60h read/wrire SMi trapping and
+	/*Set bit2 to 1, enable Io port 60h read/write SMi trapping and
 	 *Io port 64h write Smi trapping. conflict with ps2 keyboard
 	 */
 	//byte |= 1 << 2 | 1 << 3 | 1 << 4;
 	byte |= 1 << 3 | 1 << 4;
- 	pci_write_config8(dev, 0xE1, byte);
+	pci_write_config8(dev, 0xE1, byte);
 
 	/* 2.5 Enabling Non-Posted Memory Write */
        	axindxc_reg(0x10, 1 << 9, 1 << 9);
@@ -197,7 +233,7 @@ static void sm_init(device_t dev)
 	/* ab index */
 	pci_write_config32(dev, 0xF0, AB_INDX);
 	/* Initialize the real time clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	/* 4.3 Enabling Upstream DMA Access */
 	axcfg_reg(0x04, 1 << 2, 1 << 2);
@@ -242,7 +278,7 @@ static void sm_init(device_t dev)
 		u16 word;
 
 		/* rpr v2.13 4.18 Enabling Posted Pass Non-Posted Downstream */
-        	axindxc_reg(0x02, 1 << 9, 1 << 9);
+		axindxc_reg(0x02, 1 << 9, 1 << 9);
 		abcfg_reg(0x9C, 0x00007CC0, 0x00007CC0);
 		abcfg_reg(0x1009C, 0x00000030, 0x00000030);
 		abcfg_reg(0x10090, 0x00001E00, 0x00001E00);
@@ -251,24 +287,33 @@ static void sm_init(device_t dev)
 		abcfg_reg(0x58, 0x0000F800, 0x0000E800);
 
 		/* rpr v2.13 4.20 64 bit Non-Posted Memory Write Support */
-        	axindxc_reg(0x02, 1 << 10, 1 << 10);
+		axindxc_reg(0x02, 1 << 10, 1 << 10);
 
 		/* rpr v2.13 2.38 Unconditional Shutdown */
- 		byte = pci_read_config8(dev, 0x43);
+		byte = pci_read_config8(dev, 0x43);
 		byte &= ~(1 << 3);
- 		pci_write_config8(dev, 0x43, byte);
+		pci_write_config8(dev, 0x43, byte);
 
 		word = pci_read_config16(dev, 0x38);
 		word |= 1 << 12;
- 		pci_write_config16(dev, 0x38, word);
+		pci_write_config16(dev, 0x38, word);
 
 		byte |= 1 << 3;
- 		pci_write_config8(dev, 0x43, byte);
+		pci_write_config8(dev, 0x43, byte);
+
+		/* Enable southbridge MMIO decode */
+		dword = pci_read_config32(dev, SB_MMIO_CFG_REG);
+		dword &= ~(0xffffff << 8);
+		dword |= SB_MMIO_BASE_ADDRESS;
+		dword |= 0x1;
+		pci_write_config32(dev, SB_MMIO_CFG_REG, dword);
 	}
-	//ACPI_DISABLE_TIMER_IRQ_ENHANCEMENT_FOR_8254_TIMER
- 	byte = pci_read_config8(dev, 0xAE);
-	byte |= 1 << 5;
- 	pci_write_config8(dev, 0xAE, byte);
+	byte = pci_read_config8(dev, 0xAE);
+	if (IS_ENABLED(CONFIG_ENABLE_APIC_EXT_ID))
+	byte |= 1 << 4;
+	byte |= 1 << 5;	/* ACPI_DISABLE_TIMER_IRQ_ENHANCEMENT_FOR_8254_TIMER */
+	byte |= 1 << 6;	/* Enable arbiter between APIC and PIC interrupts */
+	pci_write_config8(dev, 0xAE, byte);
 
 	/* 4.11:Programming Cycle Delay for AB and BIF Clock Gating */
 	/* 4.12: Enabling AB and BIF Clock Gating */
@@ -293,6 +338,10 @@ static void sm_init(device_t dev)
 	byte &= ~(1 << 1);
 	pm_iowrite(0x59, byte);
 
+	/* Enable SCI as irq9. */
+	outb(0x4, 0xC00);
+	outb(0x9, 0xC01);
+
 	printk(BIOS_INFO, "sm_init() end\n");
 
 	/* Enable NbSb virtual channel */
@@ -312,7 +361,10 @@ static int lsmbus_recv_byte(device_t dev)
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
 
-	res = find_resource(pbus->dev, 0x90);
+	if (!amd_sb700_aux_smbus)
+		res = find_resource(pbus->dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	else
+		res = find_resource(pbus->dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
 
 	return do_smbus_recv_byte(res->base, device);
 }
@@ -326,7 +378,10 @@ static int lsmbus_send_byte(device_t dev, u8 val)
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
 
-	res = find_resource(pbus->dev, 0x90);
+	if (!amd_sb700_aux_smbus)
+		res = find_resource(pbus->dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	else
+		res = find_resource(pbus->dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
 
 	return do_smbus_send_byte(res->base, device, val);
 }
@@ -340,7 +395,10 @@ static int lsmbus_read_byte(device_t dev, u8 address)
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
 
-	res = find_resource(pbus->dev, 0x90);
+	if (!amd_sb700_aux_smbus)
+		res = find_resource(pbus->dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	else
+		res = find_resource(pbus->dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
 
 	return do_smbus_read_byte(res->base, device, address);
 }
@@ -354,7 +412,10 @@ static int lsmbus_write_byte(device_t dev, u8 address, u8 val)
 	device = dev->path.i2c.device;
 	pbus = get_pbus_smbus(dev);
 
-	res = find_resource(pbus->dev, 0x90);
+	if (!amd_sb700_aux_smbus)
+		res = find_resource(pbus->dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	else
+		res = find_resource(pbus->dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
 
 	return do_smbus_write_byte(res->base, device, address, val);
 }
@@ -371,12 +432,21 @@ static void sb700_sm_read_resources(device_t dev)
 	struct resource *res;
 
 	/* Get the normal pci resources of this device */
-	/* pci_dev_read_resources(dev); */
+	pci_dev_read_resources(dev);
 
 	/* apic */
 	res = new_resource(dev, 0x74);
 	res->base  = IO_APIC_ADDR;
 	res->size = 256 * 0x10;
+	res->limit = 0xFFFFFFFFUL;	/* res->base + res->size -1; */
+	res->align = 8;
+	res->gran = 8;
+	res->flags = IORESOURCE_MEM | IORESOURCE_FIXED | IORESOURCE_RESERVE | IORESOURCE_ASSIGNED;
+
+	/* SB MMIO / WDT */
+	res = new_resource(dev, SB_MMIO_CFG_REG);
+	res->base  = SB_MMIO_BASE_ADDRESS;
+	res->size = 0x1000;
 	res->limit = 0xFFFFFFFFUL;	/* res->base + res->size -1; */
 	res->align = 8;
 	res->gran = 8;
@@ -393,9 +463,18 @@ static void sb700_sm_read_resources(device_t dev)
 
 	/* dev->command |= PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER; */
 
-	/* smbus */
-	res = new_resource(dev, 0x90);
-	res->base  = 0xB00;
+	/* primary smbus */
+	res = new_resource(dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	res->base  = SMBUS_IO_BASE;
+	res->size = 0x10;
+	res->limit = 0xFFFFUL;	/* res->base + res->size -1; */
+	res->align = 8;
+	res->gran = 8;
+	res->flags = IORESOURCE_IO | IORESOURCE_FIXED | IORESOURCE_RESERVE | IORESOURCE_ASSIGNED;
+
+	/* auxiliary smbus */
+	res = new_resource(dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
+	res->base  = SMBUS_AUX_IO_BASE;
 	res->size = 0x10;
 	res->limit = 0xFFFFUL;	/* res->base + res->size -1; */
 	res->align = 8;
@@ -439,8 +518,11 @@ static void sb700_sm_set_resources(struct device *dev)
 	pci_write_config8(dev, 0x65, byte);
 	/* TODO: End of test hpet */
 
-	res = find_resource(dev, 0x90);
-	pci_write_config32(dev, 0x90, res->base | 1);
+	res = find_resource(dev, PRIMARY_SMBUS_RESOURCE_NUMBER);
+	pci_write_config32(dev, PRIMARY_SMBUS_RESOURCE_NUMBER, res->base | 1);
+
+	res = find_resource(dev, AUXILIARY_SMBUS_RESOURCE_NUMBER);
+	pci_write_config32(dev, AUXILIARY_SMBUS_RESOURCE_NUMBER, res->base | 1);
 }
 
 static struct pci_operations lops_pci = {
@@ -452,7 +534,7 @@ static struct device_operations smbus_ops = {
 	.set_resources = sb700_sm_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = sm_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_smbus,
 	.ops_pci = &lops_pci,
 	.ops_smbus_bus = &lops_smbus_bus,
 };

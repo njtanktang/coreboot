@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 chip northbridge/amd/agesa/family15tn/root_complex
 
 	device cpu_cluster 0 on
@@ -83,8 +79,6 @@ chip northbridge/amd/agesa/family15tn/root_complex
 				device pci 15.1 off end # PCIe 1
 				device pci 15.2 off end # PCIe 2
 				device pci 15.3 off end # PCIe 3
-				register "boot_switch_sata_ide" = "0"	# 0: boot from SATA. 1: IDE
-				register "gpp_configuration" = "4"
 			end	#chip southbridge/amd/hudson
 
 			device pci 18.0 on end

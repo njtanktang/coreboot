@@ -30,6 +30,8 @@
 //#define USB_DEBUG
 
 #include <libpayload.h>
+#include <arch/barrier.h>
+#include <arch/cache.h>
 #include "ehci.h"
 #include "ehci_private.h"
 
@@ -53,7 +55,7 @@ static void dump_td(u32 addr)
 	usb_debug("|:+-----------------------------------------------+:|\n");
 	usb_debug("|:| Alt. Next qTD   [0x%08lx]                  |:|\n", td->alt_next_qtd);
 	usb_debug("|:+-----------------------------------------------+:|\n");
-	usb_debug("|:|       | Bytes to Transfer            | [%04ld] |:|\n", (td->token & (0x7FUL << 16)) >> 16);
+	usb_debug("|:|       | Bytes to Transfer            |[%05ld] |:|\n", (td->token & QTD_TOTAL_LEN_MASK) >> 16);
 	usb_debug("|:|       | PID CODE:                    |    [%ld] |:|\n", (td->token & (3UL << 8)) >> 8);
 	usb_debug("|:|       | Interrupt On Complete (IOC)  |    [%ld] |:|\n", (td->token & (1UL << 15)) >> 15);
 	usb_debug("|:|       | Status Active                |    [%ld] |:|\n", (td->token & (1UL << 7)) >> 7);
@@ -175,45 +177,22 @@ static int ehci_set_periodic_schedule(ehci_t *ehcic, int enable)
 static void ehci_shutdown (hci_t *controller)
 {
 	detach_controller(controller);
+
 	/* Make sure periodic schedule is disabled */
 	ehci_set_periodic_schedule(EHCI_INST(controller), 0);
-	/* Free periodic frame list */
-	free(phys_to_virt(EHCI_INST(controller)->operation->periodiclistbase));
 
-	/* Free dummy QH */
-	free((void *)EHCI_INST(controller)->dummy_qh);
-
+	/* Give all ports back to companion controller */
 	EHCI_INST(controller)->operation->configflag = 0;
 
+	/* Free all dynamic allocations */
+	free(EHCI_INST(controller)->dma_buffer);
+	free(phys_to_virt(EHCI_INST(controller)->operation->periodiclistbase));
+	free((void *)EHCI_INST(controller)->dummy_qh);
 	free(EHCI_INST(controller));
 	free(controller);
 }
 
 enum { EHCI_OUT=0, EHCI_IN=1, EHCI_SETUP=2 };
-
-/*
- * returns the address of the closest USB2.0 hub, which is responsible for
- * split transactions, along with the number of the used downstream port
- */
-static int closest_usb2_hub(const usbdev_t *dev, int *const addr, int *const port)
-{
-	const usbdev_t *usb1dev;
-	do {
-		usb1dev = dev;
-		if ((dev->hub > 0) && (dev->hub < 128))
-			dev = dev->controller->devices[dev->hub];
-		else
-			dev = NULL;
-	} while (dev && (dev->speed < 2));
-	if (dev) {
-		*addr = usb1dev->hub;
-		*port = usb1dev->port;
-		return 0;
-	} else {
-		usb_debug("ehci: Couldn't find closest USB2.0 hub.\n");
-		return 1;
-	}
-}
 
 /* returns handled bytes. assumes that the fields it writes are empty on entry */
 static int fill_td(qtd_t *td, void* data, int datalen)
@@ -270,6 +249,7 @@ static void free_qh_and_tds(ehci_qh_t *qh, qtd_t *cur)
 
 static int wait_for_tds(qtd_t *head)
 {
+	/* returns the amount of bytes *not* transmitted, or -1 for error */
 	int result = 0;
 	qtd_t *cur = head;
 	while (1) {
@@ -291,16 +271,18 @@ static int wait_for_tds(qtd_t *head)
 		if (timeout < 0) {
 			usb_debug("Error: ehci: queue transfer "
 				"processing timed out.\n");
-			return 1;
+			return -1;
 		}
 		if (cur->token & QTD_HALTED) {
 			usb_debug("ERROR with packet\n");
 			dump_td(virt_to_phys(cur));
 			usb_debug("-----------------\n");
-			return 1;
+			return -1;
 		}
+		result += (cur->token & QTD_TOTAL_LEN_MASK)
+				>> QTD_TOTAL_LEN_SHIFT;
 		if (cur->next_qtd & 1) {
-			return 0;
+			break;
 		}
 		if (0) dump_td(virt_to_phys(cur));
 		/* helps debugging the TD chain */
@@ -312,6 +294,14 @@ static int wait_for_tds(qtd_t *head)
 
 static int ehci_set_async_schedule(ehci_t *ehcic, int enable)
 {
+
+	/* Memory barrier to ensure that all memory accesses before we set the
+	 * async schedule are complete. It was observed especially in the case of
+	 * arm64, that netboot and usb stuff resulted in lots of errors possibly
+	 * due to CPU reordering. Hence, enforcing strict CPU ordering.
+	 */
+	mb();
+
 	/* Set async schedule status. */
 	if (enable)
 		ehcic->operation->usbcmd |= HC_OP_ASYNC_SCHED_EN;
@@ -338,13 +328,13 @@ static int ehci_process_async_schedule(
 	int result;
 
 	/* make sure async schedule is disabled */
-	if (ehci_set_async_schedule(ehcic, 0)) return 1;
+	if (ehci_set_async_schedule(ehcic, 0)) return -1;
 
 	/* hook up QH */
 	ehcic->operation->asynclistaddr = virt_to_phys(qhead);
 
 	/* start async schedule */
-	if (ehci_set_async_schedule(ehcic, 1)) return 1;
+	if (ehci_set_async_schedule(ehcic, 1)) return -1;
 
 	/* wait for result */
 	result = wait_for_tds(head);
@@ -355,9 +345,11 @@ static int ehci_process_async_schedule(
 	return result;
 }
 
-static int ehci_bulk (endpoint_t *ep, int size, u8 *data, int finalize)
+static int ehci_bulk (endpoint_t *ep, int size, u8 *src, int finalize)
 {
 	int result = 0;
+	u8 *end = src + size;
+	int remaining = size;
 	int endp = ep->endpoint & 0xf;
 	int pid = (ep->direction==IN)?EHCI_IN:EHCI_OUT;
 
@@ -365,33 +357,45 @@ static int ehci_bulk (endpoint_t *ep, int size, u8 *data, int finalize)
 	if (ep->dev->speed < 2) {
 		/* we need a split transaction */
 		if (closest_usb2_hub(ep->dev, &hubaddr, &hubport))
-			return 1;
+			return -1;
 	}
 
-	qtd_t *head = memalign(64, sizeof(qtd_t));
+	if (!dma_coherent(src)) {
+		end = EHCI_INST(ep->dev->controller)->dma_buffer + size;
+		if (size > DMA_SIZE) {
+			usb_debug("EHCI bulk transfer too large for DMA buffer: %d\n", size);
+			return -1;
+		}
+		if (pid == EHCI_OUT)
+			memcpy(end - size, src, size);
+	}
+
+	ehci_qh_t *qh = dma_memalign(64, sizeof(ehci_qh_t));
+	qtd_t *head = dma_memalign(64, sizeof(qtd_t));
 	qtd_t *cur = head;
+	if (!qh || !head)
+		goto oom;
 	while (1) {
 		memset((void *)cur, 0, sizeof(qtd_t));
 		cur->token = QTD_ACTIVE |
 			(pid << QTD_PID_SHIFT) |
 			(0 << QTD_CERR_SHIFT);
-		u32 chunk = fill_td(cur, data, size);
-		size -= chunk;
-		data += chunk;
+		remaining -= fill_td(cur, end - remaining, remaining);
 
 		cur->alt_next_qtd = QTD_TERMINATE;
-		if (size == 0) {
+		if (remaining <= 0) {
 			cur->next_qtd = virt_to_phys(0) | QTD_TERMINATE;
 			break;
 		} else {
-			qtd_t *next = memalign(64, sizeof(qtd_t));
+			qtd_t *next = dma_memalign(64, sizeof(qtd_t));
+			if (!next)
+				goto oom;
 			cur->next_qtd = virt_to_phys(next);
 			cur = next;
 		}
 	}
 
 	/* create QH */
-	ehci_qh_t *qh = memalign(64, sizeof(ehci_qh_t));
 	memset((void *)qh, 0, sizeof(ehci_qh_t));
 	qh->horiz_link_ptr = virt_to_phys(qh) | QH_QH;
 	qh->epchar = ep->dev->address |
@@ -411,18 +415,31 @@ static int ehci_bulk (endpoint_t *ep, int size, u8 *data, int finalize)
 
 	result = ehci_process_async_schedule(
 			EHCI_INST(ep->dev->controller), qh, head);
+	if (result >= 0) {
+		result = size - result;
+		if (pid == EHCI_IN && end != src + size)
+			memcpy(src, end - size, result);
+	}
 
 	ep->toggle = (cur->token & QTD_TOGGLE_MASK) >> QTD_TOGGLE_SHIFT;
 
 	free_qh_and_tds(qh, head);
+
 	return result;
+
+oom:
+	usb_debug("Not enough DMA memory for EHCI control structures!\n");
+	free_qh_and_tds(qh, head);
+	return -1;
 }
 
 
 /* FIXME: Handle control transfers as 3 QHs, so the 2nd stage can be >0x4000 bytes */
-static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq,
-			 int dalen, u8 *data)
+static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *setup,
+			 int dalen, u8 *src)
 {
+	u8 *data = src;
+	u8 *devreq = setup;
 	int endp = 0; // this is control. always 0 (for now)
 	int toggle = 0;
 	int mlen = dev->endpoints[0].maxpacketsize;
@@ -432,13 +449,30 @@ static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 	if (dev->speed < 2) {
 		/* we need a split transaction */
 		if (closest_usb2_hub(dev, &hubaddr, &hubport))
-			return 1;
+			return -1;
 		non_hs_ctrl_ep = 1;
 	}
 
+	if (!dma_coherent(setup)) {
+		devreq = EHCI_INST(dev->controller)->dma_buffer;
+		memcpy(devreq, setup, drlen);
+	}
+	if (dalen > 0 && !dma_coherent(src)) {
+		data = EHCI_INST(dev->controller)->dma_buffer + drlen;
+		if (drlen + dalen > DMA_SIZE) {
+			usb_debug("EHCI control transfer too large for DMA buffer: %d\n", drlen + dalen);
+			return -1;
+		}
+		if (dir == OUT)
+			memcpy(data, src, dalen);
+	}
+
 	/* create qTDs */
-	qtd_t *head = memalign(64, sizeof(qtd_t));
+	qtd_t *head = dma_memalign(64, sizeof(qtd_t));
+	ehci_qh_t *qh = dma_memalign(64, sizeof(ehci_qh_t));
 	qtd_t *cur = head;
+	if (!qh || !head)
+		goto oom;
 	memset((void *)cur, 0, sizeof(qtd_t));
 	cur->token = QTD_ACTIVE |
 		(toggle?QTD_TOGGLE_DATA1:0) |
@@ -447,9 +481,11 @@ static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 	if (fill_td(cur, devreq, drlen) != drlen) {
 		usb_debug("ERROR: couldn't send the entire device request\n");
 	}
-	qtd_t *next = memalign(64, sizeof(qtd_t));
+	qtd_t *next = dma_memalign(64, sizeof(qtd_t));
 	cur->next_qtd = virt_to_phys(next);
 	cur->alt_next_qtd = QTD_TERMINATE;
+	if (!next)
+		goto oom;
 
 	/* FIXME: We're limited to 16-20K (depending on alignment) for payload for now.
 	 * Figure out, how toggle can be set sensibly in this scenario */
@@ -464,7 +500,9 @@ static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 		if (fill_td(cur, data, dalen) != dalen) {
 			usb_debug("ERROR: couldn't send the entire control payload\n");
 		}
-		next = memalign(64, sizeof(qtd_t));
+		next = dma_memalign(64, sizeof(qtd_t));
+		if (!next)
+			goto oom;
 		cur->next_qtd = virt_to_phys(next);
 		cur->alt_next_qtd = QTD_TERMINATE;
 	}
@@ -481,7 +519,6 @@ static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 	cur->alt_next_qtd = QTD_TERMINATE;
 
 	/* create QH */
-	ehci_qh_t *qh = memalign(64, sizeof(ehci_qh_t));
 	memset((void *)qh, 0, sizeof(ehci_qh_t));
 	qh->horiz_link_ptr = virt_to_phys(qh) | QH_QH;
 	qh->epchar = dev->address |
@@ -499,9 +536,19 @@ static int ehci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 
 	result = ehci_process_async_schedule(
 			EHCI_INST(dev->controller), qh, head);
+	if (result >= 0) {
+		result = dalen - result;
+		if (dir == IN && data != src)
+			memcpy(src, data, result);
+	}
 
 	free_qh_and_tds(qh, head);
 	return result;
+
+oom:
+	usb_debug("Not enough DMA memory for EHCI control structures!\n");
+	free_qh_and_tds(qh, head);
+	return -1;
 }
 
 
@@ -572,13 +619,13 @@ static void *ehci_create_intr_queue(
 			return NULL;
 	}
 
-	intr_queue_t *const intrq =
-		(intr_queue_t *)memalign(64, sizeof(intr_queue_t));
+	intr_queue_t *const intrq = (intr_queue_t *)dma_memalign(64,
+		sizeof(intr_queue_t));
 	/*
 	 * reqcount data chunks
 	 * plus one more spare, which we'll leave out of queue
 	 */
-	u8 *data = (u8 *)malloc(reqsize * (reqcount + 1));
+	u8 *data = (u8 *)dma_malloc(reqsize * (reqcount + 1));
 	if (!intrq || !data)
 		fatal("Not enough memory to create USB interrupt queue.\n");
 	intrq->data = data;
@@ -586,7 +633,7 @@ static void *ehci_create_intr_queue(
 	intrq->reqsize = reqsize;
 
 	/* create #reqcount transfer descriptors (qTDs) */
-	intrq->head = (intr_qtd_t *)memalign(64, sizeof(intr_qtd_t));
+	intrq->head = (intr_qtd_t *)dma_memalign(64, sizeof(intr_qtd_t));
 	intr_qtd_t *cur_td = intrq->head;
 	for (i = 0; i < reqcount; ++i) {
 		fill_intr_queue_td(intrq, cur_td, data);
@@ -594,7 +641,7 @@ static void *ehci_create_intr_queue(
 		if (i < reqcount - 1) {
 			/* create one more qTD */
 			intr_qtd_t *const next_td =
-				(intr_qtd_t *)memalign(64, sizeof(intr_qtd_t));
+				(intr_qtd_t *)dma_memalign(64, sizeof(intr_qtd_t));
 			cur_td->td.next_qtd = virt_to_phys(&next_td->td);
 			cur_td->next = next_td;
 			cur_td = next_td;
@@ -603,8 +650,8 @@ static void *ehci_create_intr_queue(
 	intrq->tail = cur_td;
 
 	/* create spare qTD */
-	intrq->spare = (intr_qtd_t *)memalign(64, sizeof(intr_qtd_t));
-	fill_intr_queue_td(intrq, intrq->spare, data);
+	intrq->spare = (intr_qtd_t *)dma_memalign(64, sizeof(intr_qtd_t));
+	intrq->spare->data = data;
 
 	/* initialize QH */
 	const int endp = ep->endpoint & 0xf;
@@ -724,20 +771,12 @@ static u8 *ehci_poll_intr_queue(void *const queue)
 }
 
 hci_t *
-ehci_init (void *bar)
+ehci_init (unsigned long physical_bar)
 {
 	int i;
 	hci_t *controller = new_controller ();
-
-	if (!controller)
-		fatal("Could not create USB controller instance.\n");
-
-	controller->instance = malloc (sizeof (ehci_t));
-	if(!controller->instance)
-		fatal("Not enough memory creating USB controller instance.\n");
-
+	controller->instance = xzalloc(sizeof (ehci_t));
 	controller->type = EHCI;
-
 	controller->start = ehci_start;
 	controller->stop = ehci_stop;
 	controller->reset = ehci_reset;
@@ -751,14 +790,10 @@ ehci_init (void *bar)
 	controller->create_intr_queue = ehci_create_intr_queue;
 	controller->destroy_intr_queue = ehci_destroy_intr_queue;
 	controller->poll_intr_queue = ehci_poll_intr_queue;
-	controller->reg_base = (u32)(unsigned long)bar;
-	for (i = 0; i < 128; i++) {
-		controller->devices[i] = 0;
-	}
 	init_device_entry (controller, 0);
 
-	EHCI_INST(controller)->capabilities = phys_to_virt(controller->reg_base);
-	EHCI_INST(controller)->operation = (hc_op_t *)(phys_to_virt(controller->reg_base) + EHCI_INST(controller)->capabilities->caplength);
+	EHCI_INST(controller)->capabilities = phys_to_virt(physical_bar);
+	EHCI_INST(controller)->operation = (hc_op_t *)(phys_to_virt(physical_bar) + EHCI_INST(controller)->capabilities->caplength);
 
 	/* Set the high address word (aka segment) if controller is 64-bit */
 	if (EHCI_INST(controller)->capabilities->hccparams & 1)
@@ -772,19 +807,27 @@ ehci_init (void *bar)
 
 	/* Initialize periodic frame list */
 	/* 1024 32-bit pointers, 4kb aligned */
-	u32 *const periodic_list = (u32 *)memalign(4096, 1024 * sizeof(u32));
+	u32 *const periodic_list = (u32 *)dma_memalign(4096, 1024 * sizeof(u32));
 	if (!periodic_list)
 		fatal("Not enough memory creating EHCI periodic frame list.\n");
+
+	if (dma_initialized()) {
+		EHCI_INST(controller)->dma_buffer = dma_memalign(4096, DMA_SIZE);
+		if (!EHCI_INST(controller)->dma_buffer)
+			fatal("Not enough DMA memory for EHCI bounce buffer.\n");
+	}
 
 	/*
 	 * Insert dummy QH in periodic frame list
 	 * This helps with broken host controllers
 	 * and doesn't violate the standard.
 	 */
-	EHCI_INST(controller)->dummy_qh = (ehci_qh_t *)memalign(64, sizeof(ehci_qh_t));
+	EHCI_INST(controller)->dummy_qh = (ehci_qh_t *)dma_memalign(64, sizeof(ehci_qh_t));
 	memset((void *)EHCI_INST(controller)->dummy_qh, 0,
 		sizeof(*EHCI_INST(controller)->dummy_qh));
 	EHCI_INST(controller)->dummy_qh->horiz_link_ptr = QH_TERMINATE;
+	EHCI_INST(controller)->dummy_qh->td.next_qtd = QH_TERMINATE;
+	EHCI_INST(controller)->dummy_qh->td.alt_next_qtd = QH_TERMINATE;
 	for (i = 0; i < 1024; ++i)
 		periodic_list[i] = virt_to_phys(EHCI_INST(controller)->dummy_qh)
 				   | PS_TYPE_QH;
@@ -806,7 +849,7 @@ ehci_init (void *bar)
 	return controller;
 }
 
-#ifdef CONFIG_USB_PCI
+#if IS_ENABLED(CONFIG_LP_USB_PCI)
 hci_t *
 ehci_pci_init (pcidev_t addr)
 {
@@ -822,7 +865,7 @@ ehci_pci_init (pcidev_t addr)
 	/* default value for frame length adjust */
 	pci_write_config8(addr, FLADJ, FLADJ_framelength(60000));
 
-	controller = ehci_init((void *)(unsigned long)reg_base);
+	controller = ehci_init((unsigned long)reg_base);
 
 	return controller;
 }

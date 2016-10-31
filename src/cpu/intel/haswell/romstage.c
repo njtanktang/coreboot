@@ -11,34 +11,28 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <stdint.h>
 #include <string.h>
-#include <cbmem.h>
+#include <cbfs.h>
 #include <console/console.h>
 #include <arch/cpu.h>
 #include <cpu/x86/bist.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
-#include <cpu/x86/stack.h>
+#include <halt.h>
 #include <lib.h>
 #include <timestamp.h>
+#include <arch/acpi.h>
 #include <arch/io.h>
-#include <arch/stages.h>
 #include <device/pci_def.h>
 #include <cpu/x86/lapic.h>
-#include <cbfs.h>
-#include <ramstage_cache.h>
+#include <cbmem.h>
+#include <program_loading.h>
 #include <romstage_handoff.h>
 #include <reset.h>
-#if CONFIG_CHROMEOS
 #include <vendorcode/google/chromeos/chromeos.h>
-#endif
 #if CONFIG_EC_GOOGLE_CHROMEEC
 #include <ec/google/chromeec/ec.h>
 #endif
@@ -47,14 +41,12 @@
 #include "northbridge/intel/haswell/raminit.h"
 #include "southbridge/intel/lynxpoint/pch.h"
 #include "southbridge/intel/lynxpoint/me.h"
-
+#include <tpm.h>
 
 static inline void reset_system(void)
 {
 	hard_reset();
-	while (1) {
-		hlt();
-	}
+	halt();
 }
 
 /* The cache-as-ram assembly file calls romstage_main() after setting up
@@ -73,41 +65,24 @@ static inline u32 *stack_push(u32 *stack, u32 value)
 	return stack;
 }
 
-/* Romstage needs quite a bit of stack for decompressing images since the lzma
- * lib keeps its state on the stack during romstage. */
-#define ROMSTAGE_RAM_STACK_SIZE 0x5000
-static unsigned long choose_top_of_stack(void)
-{
-	unsigned long stack_top;
-#if CONFIG_DYNAMIC_CBMEM
-	/* cbmem_add() does a find() before add(). */
-	stack_top = (unsigned long)cbmem_add(CBMEM_ID_ROMSTAGE_RAM_STACK,
-	                                     ROMSTAGE_RAM_STACK_SIZE);
-	stack_top += ROMSTAGE_RAM_STACK_SIZE;
-#else
-	stack_top = ROMSTAGE_STACK;
-#endif
-	return stack_top;
-}
-
 /* setup_romstage_stack_after_car() determines the stack to use after
  * cache-as-ram is torn down as well as the MTRR settings to use. */
 static void *setup_romstage_stack_after_car(void)
 {
-	unsigned long top_of_stack;
+	uintptr_t top_of_stack;
 	int num_mtrrs;
 	u32 *slot;
 	u32 mtrr_mask_upper;
 	u32 top_of_ram;
 
 	/* Top of stack needs to be aligned to a 4-byte boundary. */
-	top_of_stack = choose_top_of_stack() & ~3;
+	top_of_stack = romstage_ram_stack_top() & ~3;
 	slot = (void *)top_of_stack;
 	num_mtrrs = 0;
 
 	/* The upper bits of the MTRR mask need to set according to the number
 	 * of physical address bits. */
-	mtrr_mask_upper = (1 << ((cpuid_eax(0x80000008) & 0xff) - 32)) - 1;
+	mtrr_mask_upper = (1 << (cpu_phys_address_size() - 32)) - 1;
 
 	/* The order for each MTRR is value then base with upper 32-bits of
 	 * each value coming before the lower 32-bits. The reasoning for
@@ -125,36 +100,36 @@ static void *setup_romstage_stack_after_car(void)
 
 	/* Cache the ROM as WP just below 4GiB. */
 	slot = stack_push(slot, mtrr_mask_upper); /* upper mask */
-	slot = stack_push(slot, ~(CACHE_ROM_SIZE - 1) | MTRRphysMaskValid);
+	slot = stack_push(slot, ~(CACHE_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID);
 	slot = stack_push(slot, 0); /* upper base */
 	slot = stack_push(slot, ~(CACHE_ROM_SIZE - 1) | MTRR_TYPE_WRPROT);
 	num_mtrrs++;
 
-	/* Cache RAM as WB from 0 -> CONFIG_RAMTOP. */
+	/* Cache RAM as WB from 0 -> CACHE_TMP_RAMTOP. */
 	slot = stack_push(slot, mtrr_mask_upper); /* upper mask */
-	slot = stack_push(slot, ~(CONFIG_RAMTOP - 1) | MTRRphysMaskValid);
+	slot = stack_push(slot, ~(CACHE_TMP_RAMTOP - 1) | MTRR_PHYS_MASK_VALID);
 	slot = stack_push(slot, 0); /* upper base */
 	slot = stack_push(slot, 0 | MTRR_TYPE_WRBACK);
 	num_mtrrs++;
 
-	top_of_ram = get_top_of_ram();
-	/* Cache 8MiB below the top of ram. On haswell systems the top of
-	 * ram under 4GiB is the start of the TSEG region. It is required to
+	top_of_ram = (uint32_t)cbmem_top();
+	/* Cache 8MiB below the top of RAM. On haswell systems the top of
+	 * RAM under 4GiB is the start of the TSEG region. It is required to
 	 * be 8MiB aligned. Set this area as cacheable so it can be used later
 	 * for ramstage before setting up the entire RAM as cacheable. */
 	slot = stack_push(slot, mtrr_mask_upper); /* upper mask */
-	slot = stack_push(slot, ~((8 << 20) - 1) | MTRRphysMaskValid);
+	slot = stack_push(slot, ~((8 << 20) - 1) | MTRR_PHYS_MASK_VALID);
 	slot = stack_push(slot, 0); /* upper base */
 	slot = stack_push(slot, (top_of_ram - (8 << 20)) | MTRR_TYPE_WRBACK);
 	num_mtrrs++;
 
-	/* Cache 8MiB at the top of ram. Top of ram on haswell systems
+	/* Cache 8MiB at the top of RAM. Top of RAM on haswell systems
 	 * is where the TSEG region resides. However, it is not restricted
 	 * to SMM mode until SMM has been relocated. By setting the region
 	 * to cacheable it provides faster access when relocating the SMM
 	 * handler as well as using the TSEG region for other purposes. */
 	slot = stack_push(slot, mtrr_mask_upper); /* upper mask */
-	slot = stack_push(slot, ~((8 << 20) - 1) | MTRRphysMaskValid);
+	slot = stack_push(slot, ~((8 << 20) - 1) | MTRR_PHYS_MASK_VALID);
 	slot = stack_push(slot, 0); /* upper base */
 	slot = stack_push(slot, top_of_ram | MTRR_TYPE_WRBACK);
 	num_mtrrs++;
@@ -279,53 +254,20 @@ void romstage_common(const struct romstage_params *params)
 		printk(BIOS_DEBUG, "Romstage handoff structure not added!\n");
 
 	post_code(0x3f);
-#if CONFIG_CHROMEOS
-	init_chromeos(boot_mode);
-#endif
-	timestamp_add_now(TS_END_ROMSTAGE);
-}
-
-static inline void prepare_for_resume(struct romstage_handoff *handoff)
-{
-/* Only need to save memory when ramstage isn't relocatable. */
-#if !CONFIG_RELOCATABLE_RAMSTAGE
-#if CONFIG_HAVE_ACPI_RESUME
-	/* Back up the OS-controlled memory where ramstage will be loaded. */
-	if (handoff != NULL && handoff->s3_resume) {
-		void *src = (void *)CONFIG_RAMBASE;
-		void *dest = cbmem_find(CBMEM_ID_RESUME);
-		if (dest != NULL)
-			memcpy(dest, src, HIGH_MEMORY_SAVE);
+	if (IS_ENABLED(CONFIG_LPC_TPM)) {
+		init_tpm(wake_from_s3);
 	}
-#endif
-#endif
 }
 
-void romstage_after_car(void)
+void asmlinkage romstage_after_car(void)
 {
-	struct romstage_handoff *handoff;
-
-	handoff = romstage_handoff_find_or_add();
-
-	prepare_for_resume(handoff);
-
 	/* Load the ramstage. */
-	copy_and_run();
+	run_ramstage();
 }
 
 
-#if CONFIG_RELOCATABLE_RAMSTAGE
-#include <ramstage_cache.h>
-
-struct ramstage_cache *ramstage_cache_location(long *size)
-{
-	/* The ramstage cache lives in the TSEG region at RESERVED_SMM_OFFSET.
-	 * The top of ram is defined to be the TSEG base address. */
-	*size = RESERVED_SMM_SIZE;
-	return (void *)(get_top_of_ram() + RESERVED_SMM_OFFSET);
-}
-
-void ramstage_cache_invalid(struct ramstage_cache *cache)
+#if IS_ENABLED(CONFIG_CACHE_RELOCATED_RAMSTAGE_OUTSIDE_CBMEM)
+void ramstage_cache_invalid(void)
 {
 #if CONFIG_RESET_ON_INVALID_RAMSTAGE_CACHE
 	reset_system();

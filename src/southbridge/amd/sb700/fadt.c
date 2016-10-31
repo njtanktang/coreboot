@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -26,6 +23,7 @@
 #include <arch/acpi.h>
 #include <arch/io.h>
 #include <device/device.h>
+#include <cpu/amd/powernow.h>
 #include "sb700.h"
 
 void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
@@ -62,7 +60,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->pm2_cnt_blk = ACPI_PMA_CNT_BLK;
 	fadt->pm_tmr_blk = ACPI_PM_TMR_BLK;
 	fadt->gpe0_blk = ACPI_GPE0_BLK;
-	fadt->gpe1_blk = 0x0000;	/* we dont have gpe1 block, do we? */
+	fadt->gpe1_blk = 0x0000;	/* we don't have gpe1 block, do we? */
 
 	fadt->pm1_evt_len = 4;
 	fadt->pm1_cnt_len = 2;
@@ -81,7 +79,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->duty_width = 3;
 	fadt->day_alrm = 0;	/* 0x7d these have to be */
 	fadt->mon_alrm = 0;	/* 0x7e added to cmos.layout */
-	fadt->century = 0;	/* 0x7f to make rtc alrm work */
+	fadt->century = 0;	/* 0x7f to make rtc alarm work */
 	fadt->iapc_boot_arch = 0x3;	/* See table 5-11 */
 	fadt->flags = 0x0001c1a5;/* 0x25; */
 
@@ -129,7 +127,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->x_pm1b_cnt_blk.addrh = 0x0;
 
 	fadt->x_pm2_cnt_blk.space_id = 1;
-	fadt->x_pm2_cnt_blk.bit_width = 0;
+	fadt->x_pm2_cnt_blk.bit_width = 8;
 	fadt->x_pm2_cnt_blk.bit_offset = 0;
 	fadt->x_pm2_cnt_blk.resv = 0;
 	fadt->x_pm2_cnt_blk.addrl = ACPI_PMA_CNT_BLK;
@@ -143,7 +141,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->x_pm_tmr_blk.addrh = 0x0;
 
 	fadt->x_gpe0_blk.space_id = 1;
-	fadt->x_gpe0_blk.bit_width = 32;
+	fadt->x_gpe0_blk.bit_width = 64;
 	fadt->x_gpe0_blk.bit_offset = 0;
 	fadt->x_gpe0_blk.resv = 0;
 	fadt->x_gpe0_blk.addrl = ACPI_GPE0_BLK;
@@ -155,6 +153,9 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->x_gpe1_blk.resv = 0;
 	fadt->x_gpe1_blk.addrl = 0;
 	fadt->x_gpe1_blk.addrh = 0x0;
+
+	if (IS_ENABLED(CONFIG_CPU_AMD_MODEL_10XXX))
+		amd_powernow_update_fadt(fadt);
 
 	header->checksum = acpi_checksum((void *)fadt, sizeof(acpi_fadt_t));
 }

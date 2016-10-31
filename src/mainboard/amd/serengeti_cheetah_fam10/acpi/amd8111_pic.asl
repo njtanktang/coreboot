@@ -12,10 +12,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-//
 
 //AMD8111 pic LNKA B C D
 
@@ -43,7 +39,6 @@
 		{
 			Store (0x01, Local3)
 			And (\_SB.PCI0.SBC3.PIBA, 0x0F, Local1)
-			Store (Local1, Local2)
 			If (LGreater (Local1, 0x07))
 			{
 				Subtract (Local1, 0x08, Local1)
@@ -131,7 +126,6 @@
 			Store (0x01, Local3)
 			And (\_SB.PCI0.SBC3.PIBA, 0xF0, Local1)
 			ShiftRight (Local1, 0x04, Local1)
-			Store (Local1, Local2)
 			If (LGreater (Local1, 0x07))
 			{
 				Subtract (Local1, 0x08, Local1)
@@ -220,7 +214,6 @@
 		{
 			Store (0x01, Local3)
 			And (\_SB.PCI0.SBC3.PIDC, 0x0F, Local1)
-			Store (Local1, Local2)
 			If (LGreater (Local1, 0x07))
 			{
 				Subtract (Local1, 0x08, Local1)
@@ -308,7 +301,6 @@
 			Store (0x01, Local3)
 			And (\_SB.PCI0.SBC3.PIDC, 0xF0, Local1)
 			ShiftRight (Local1, 0x04, Local1)
-			Store (Local1, Local2)
 			If (LGreater (Local1, 0x07))
 			{
 				Subtract (Local1, 0x08, Local1)
@@ -372,5 +364,3 @@
 			Or (\_SB.PCI0.SBC3.PIDC, Local1, \_SB.PCI0.SBC3.PIDC)
 		}
 	}
-
-

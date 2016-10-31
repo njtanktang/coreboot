@@ -11,16 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <cbfs.h>
+#include <boot_device.h>
 
-int init_default_cbfs_media(struct cbfs_media *media)
+const struct region_device *boot_device_ro(void)
 {
-        /* FIXME: add support for reading coreboot from NAND */
-	return 0;
+	/* FIXME: add support for reading coreboot from NAND */
+	return NULL;
 }

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,15 +20,15 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <cpu/x86/lapic.h>
-#include <baytrail/iomap.h>
-#include <baytrail/iosf.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/iomap.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
 #include <device/pci.h>
 #include <cbmem.h>
-#include <baytrail/baytrail.h>
-#include <drivers/intel/fsp/fsp_util.h>
-
+#include <soc/baytrail.h>
+#include <drivers/intel/fsp1_0/fsp_util.h>
+#include <arch/acpi.h>
 
 static const int legacy_hole_base_k = 0xa0000 / 1024;
 static const int legacy_hole_size_k = 384;
@@ -149,8 +145,7 @@ static void mc_add_dram_resources(device_t dev)
 	uint32_t fsp_mem_base = 0;
 
 	GetHighMemorySize(&highmem_size);
-	GetLowMemorySize(&fsp_mem_base);
-
+	fsp_mem_base=(uint32_t)cbmem_top();
 
 	bmbound = iosf_bunit_read(BUNIT_BMBOUND);
 	bsmmrrl = iosf_bunit_read(BUNIT_SMRRL) << 20;
@@ -162,10 +157,6 @@ static void mc_add_dram_resources(device_t dev)
 
 		printk(BIOS_DEBUG, "FSP memory location: 0x%x\nFSP memory size: %dM\n",
 				fsp_mem_base, (bsmmrrl - fsp_mem_base) >> 20);
-
-		if ((bsmmrrl - fsp_mem_base ) != FSP_RESERVE_MEMORY_SIZE)
-			printk(BIOS_WARNING, "Warning: Fsp memory size does not match "
-					"expected memory size (%x).\n", FSP_RESERVE_MEMORY_SIZE);
 	}
 
 	printk(BIOS_INFO, "Available memory below 4GB: 0x%08x (%dM)\n",
@@ -206,7 +197,8 @@ static void nc_enable(device_t dev)
 
 static struct device_operations nc_ops = {
 	.read_resources   = nc_read_resources,
-	.set_resources    = NULL,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
+	.set_resources    = DEVICE_NOOP,
 	.enable_resources = NULL,
 	.init             = NULL,
 	.enable           = &nc_enable,
@@ -219,4 +211,3 @@ static const struct pci_driver nc_driver __pci_driver = {
 	.vendor = PCI_VENDOR_ID_INTEL,
 	.device = SOC_DEVID,
 };
-

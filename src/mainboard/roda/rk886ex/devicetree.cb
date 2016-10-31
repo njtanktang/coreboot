@@ -13,13 +13,11 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-## MA 02110-1301 USA
-##
 
 chip northbridge/intel/i945
+	# IGD Displays
+	register "gfx.ndid" = "3"
+	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
 
         device cpu_cluster 0 on
                 chip cpu/intel/socket_mFCPGA478
@@ -53,6 +51,10 @@ chip northbridge/intel/i945
 			register "gpi8_routing"  = "1"
 			register "gpi7_routing"  = "2"
 			register "gpe0_en" = "0x20800007"
+
+			register "c3_latency" = "0x23"
+			register "docking_supported" = "1"
+			register "p_cnt_throttling_supported" = "1"
 
                         register "ide_legacy_combined" = "0x1"
                         register "ide_enable_primary" = "0x1"

@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "vx900.h"
@@ -36,7 +33,7 @@ static uint64_t uma_memory_base = 0;
 static uint64_t uma_memory_size = 0;
 
 /**
- * @file northbridge.c
+ * @file vx900/northbridge.c
  *
  * STATUS: Pretty good
  * One thing that needs to be thoroughly tested is the remap above 4G logic.
@@ -80,13 +77,13 @@ static u64 vx900_get_top_of_ram(device_t mcu)
 static void killme_debug_4g_remap_reg(u32 reg32)
 {
 	if (reg32 & (1 << 0))
-		print_debug("Mem remapping enabled\n");
+		printk(BIOS_DEBUG, "Mem remapping enabled\n");
 	u64 remapstart = (reg32 >> 2) & 0x3ff;
 	u64 remapend = (reg32 >> 14) & 0x3ff;
 	remapstart <<= 26;
 	remapend <<= 26;
-	printk(BIOS_DEBUG, "Remapstart %lld(MB) \n", remapstart >> 20);
-	printk(BIOS_DEBUG, "Remapend   %lld(MB) \n", remapend >> 20);
+	printk(BIOS_DEBUG, "Remapstart %lld(MB)\n", remapstart >> 20);
+	printk(BIOS_DEBUG, "Remapend   %lld(MB)\n", remapend >> 20);
 }
 
 /**
@@ -122,7 +119,7 @@ static u64 vx900_remap_above_4g(device_t mcu, u32 tolm)
 	 * becomes accessible at "to" to "until"
 	 */
 	if (tolm >= vx900_get_top_of_ram(mcu)) {
-		print_debug("Nothing to remap\n");
+		printk(BIOS_DEBUG, "Nothing to remap\n");
 	}
 
 	/* This is how the Vendor BIOS. Keep it for comparison for now */
@@ -220,11 +217,11 @@ static void vx900_set_resources(device_t dev)
 {
 	u32 pci_tolm, tomk, vx900_tolm, full_tolmk, fbufk, tolmk;
 
-	print_debug("========================================"
+	printk(BIOS_DEBUG, "========================================"
 		    "========================================\n");
-	print_debug("============= VX900 memory sizing & Co. "
+	printk(BIOS_DEBUG, "============= VX900 memory sizing & Co. "
 		    "========================================\n");
-	print_debug("========================================"
+	printk(BIOS_DEBUG, "========================================"
 		    "========================================\n");
 
 	int idx = 10;
@@ -262,7 +259,7 @@ static void vx900_set_resources(device_t dev)
 	tolmk = MIN(full_tolmk, tomk);
 	tolmk -= fbufk;
 	ram_resource(dev, idx++, 0, 640);
-	printk(BIOS_SPEW, "System ram left:            %dMB\n", tolmk >> 10);
+	printk(BIOS_SPEW, "System RAM left:            %dMB\n", tolmk >> 10);
 	/* FIXME: how can we avoid leaving this hole?
 	 * Leave a hole for VGA, 0xa0000 - 0xc0000  ?? */
 	/* TODO: VGA Memory hole can be disabled in SNMIC. Upper 64k of ROM seem
@@ -282,7 +279,7 @@ static void vx900_set_resources(device_t dev)
 
 	set_top_of_ram(tolmk << 10);
 
-	print_debug("======================================================\n");
+	printk(BIOS_DEBUG, "======================================================\n");
 	assign_resources(dev->link_list);
 }
 
@@ -322,14 +319,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources = cpu_bus_noop,
-	.set_resources = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = cpu_bus_init,
 	.scan_bus = 0,
 };

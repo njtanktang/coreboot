@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -39,16 +35,16 @@
 
 static int via_cn700_int15_handler(void)
 {
-	int res=0;
+	int res = 0;
 	printk(BIOS_DEBUG, "via_cn700_int15_handler\n");
 	switch(X86_EAX & 0xffff) {
 	case 0x5f19:
 		break;
 	case 0x5f18:
-		X86_EAX=0x5f;
-		X86_EBX=0x545; // MCLK = 133, 32M frame buffer, 256 M main memory
-		X86_ECX=0x060;
-		res=1;
+		X86_EAX = 0x5f;
+		X86_EBX = 0x545; // MCLK = 133, 32M frame buffer, 256 M main memory
+		X86_ECX = 0x060;
+		res = 1;
 		break;
 	case 0x5f00:
 		X86_EAX = 0x8600;
@@ -59,16 +55,16 @@ static int via_cn700_int15_handler(void)
 		res = 1;
 		break;
 	case 0x5f02:
-		X86_EAX=0x5f;
-		X86_EBX= (X86_EBX & 0xffff0000) | 2;
-		X86_ECX= (X86_ECX & 0xffff0000) | 0x401;  // PAL + crt only
-		X86_EDX= (X86_EDX & 0xffff0000) | 0;  // TV Layout - default
-		res=1;
+		X86_EAX = 0x5f;
+		X86_EBX = (X86_EBX & 0xffff0000) | 2;
+		X86_ECX = (X86_ECX & 0xffff0000) | 0x401;  // PAL + crt only
+		X86_EDX = (X86_EDX & 0xffff0000) | 0;  // TV Layout - default
+		res = 1;
 		break;
 	case 0x5f0f:
-		X86_EAX=0x860f;
+		X86_EAX = 0x860f;
 		break;
-        default:
+	default:
 		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n",
 				X86_EAX & 0xffff);
 		break;
@@ -84,7 +80,7 @@ static void vga_init(device_t dev)
 
 #undef OLD_BOCHS_METHOD
 #ifdef OLD_BOCHS_METHOD
-	print_debug("Copying BOCHS BIOS to 0xf000\n");
+	printk(BIOS_DEBUG, "Copying BOCHS BIOS to 0xf000\n");
 	/*
 	 * Copy BOCHS BIOS from 4G-CONFIG_ROM_SIZE-64k (in flash) to 0xf0000 (in RAM)
 	 * This is for compatibility with the VGA ROM's BIOS callbacks.

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -46,7 +42,7 @@
 #define FINTEK_EXIT_KEY 0xAA
 
 /* Enable configuration: pass entry key '0x87' into index port dev. */
-static void pnp_enter_conf_state(device_t dev)
+static void pnp_enter_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(FINTEK_ENTRY_KEY, port);
@@ -54,14 +50,14 @@ static void pnp_enter_conf_state(device_t dev)
 }
 
 /* Disable configuration: pass exit key '0xAA' into index port dev. */
-static void pnp_exit_conf_state(device_t dev)
+static void pnp_exit_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(FINTEK_EXIT_KEY, port);
 }
 
 /* Bring up early serial debugging output before the RAM is initialized. */
-void fintek_enable_serial(device_t dev, u16 iobase)
+void fintek_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	pnp_enter_conf_state(dev);
 	pnp_set_logical_device(dev);

@@ -13,10 +13,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 ifeq ($(CONFIG_AHCI_BIOS),y)
 stripped_ahcibios_id = $(call strip_quotes,$(CONFIG_AHCI_BIOS_ID))
@@ -26,15 +22,12 @@ pci$(stripped_ahcibios_id).rom-type := optionrom
 endif
 
 romstage-y += buildOpts.c
-romstage-y += agesawrapper.c
 romstage-y += BiosCallOuts.c
-romstage-y += PlatformGnbPcie.c
-romstage-y += ../../../device/dram/ddr3.c
+romstage-y += OemCustomize.c
 
 ramstage-y += buildOpts.c
-ramstage-y += agesawrapper.c
 ramstage-y += BiosCallOuts.c
-ramstage-y += PlatformGnbPcie.c
+ramstage-y += OemCustomize.c
 
 ## DIMM SPD for on-board memory
 SPD_BIN = $(obj)/spd.bin
@@ -44,14 +37,14 @@ SPD_SOURCES  = Elpida_EDJ2116DEBG
 
 SPD_DEPS := $(foreach f, $(SPD_SOURCES), src/mainboard/$(MAINBOARDDIR)/$(f).spd.hex)
 
-# Include spd rom data
+# Include spd ROM data
 $(SPD_BIN): $(SPD_DEPS)
 	for f in $+; \
 	  do for c in $$(cat $$f | grep -v ^#); \
-	    do echo -e -n "\\x$$c"; \
+	    do printf $$(printf '\%o' 0x$$c); \
 	  done; \
 	done > $@
 
 cbfs-files-y += spd.bin
 spd.bin-file := $(SPD_BIN)
-spd.bin-type := 0xab
+spd.bin-type := spd

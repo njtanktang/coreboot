@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,6 +25,9 @@
 #include <pc80/isa-dma.h>
 #include <arch/io.h>
 #include <arch/ioapic.h>
+#include <arch/acpi.h>
+#include <pc80/i8254.h>
+#include <pc80/i8259.h>
 #include "hudson.h"
 
 static void lpc_init(device_t dev)
@@ -64,20 +63,26 @@ static void lpc_init(device_t dev)
 				   interrupt and visit LPC. */
 	pci_write_config8(dev, 0x78, byte);
 
-	/* bit0: Enable prefetch a cacheline (64 bytes) when Host reads code from SPI rom */
+	/* bit0: Enable prefetch a cacheline (64 bytes) when Host reads code from SPI ROM */
 	/* bit3: Fix SPI_CS# timing issue when running at 66M. TODO:A12. */
 	byte = pci_read_config8(dev, 0xBB);
 	byte |= 1 << 0 | 1 << 3;
 	pci_write_config8(dev, 0xBB, byte);
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
 
 	/* Initialize the real time clock.
-	 * The 0 argument tells rtc_init not to
+	 * The 0 argument tells cmos_init not to
 	 * update CMOS unless it is invalid.
-	 * 1 tells rtc_init to always initialize the CMOS.
+	 * 1 tells cmos_init to always initialize the CMOS.
 	 */
-	rtc_init(0);
+	cmos_init(0);
+
+	/* Initialize i8259 pic */
+	setup_i8259 ();
+
+	/* Initialize i8254 timers */
+	setup_i8254 ();
 }
 
 static void hudson_lpc_read_resources(device_t dev)
@@ -125,7 +130,7 @@ static void hudson_lpc_set_resources(struct device *dev)
 /**
  * @brief Enable resources for children devices
  *
- * @param dev the device whos children's resources are to be enabled
+ * @param dev the device whose children's resources are to be enabled
  *
  */
 static void hudson_lpc_enable_childrens_resources(device_t dev)
@@ -230,6 +235,7 @@ static void hudson_lpc_enable_childrens_resources(device_t dev)
 					case 0x480:
 						set_x |= (1 << 17);
 						rsize = 0x40;
+						break;
 					case 0x500:
 						set_x |= (1 << 18);
 						rsize = 0x40;
@@ -312,6 +318,12 @@ static void hudson_lpc_enable_resources(device_t dev)
 	hudson_lpc_enable_childrens_resources(dev);
 }
 
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
+
 static struct pci_operations lops_pci = {
 	.set_subsystem = pci_dev_set_subsystem,
 };
@@ -320,8 +332,11 @@ static struct device_operations lpc_ops = {
 	.read_resources = hudson_lpc_read_resources,
 	.set_resources = hudson_lpc_set_resources,
 	.enable_resources = hudson_lpc_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables = acpi_write_hpet,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 	.ops_pci = &lops_pci,
 };
 static const struct pci_driver lpc_driver __pci_driver = {

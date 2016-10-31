@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -26,9 +22,8 @@
 #include <pc80/keyboard.h>
 #include "pc97317.h"
 
-static void init(device_t dev)
+static void init(struct device *dev)
 {
-
 	if (!dev->enabled)
 		return;
 
@@ -38,7 +33,7 @@ static void init(device_t dev)
 		pnp_set_enable(dev, 0);		   /* Disable keyboard */
 		pnp_write_config(dev, 0xf0, 0x40); /* Set KBC clock to 8 MHz. */
 		pnp_set_enable(dev, 1);		   /* Enable keyboard */
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	default:
 		break;

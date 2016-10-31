@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* FIXME this should go away */
@@ -55,8 +51,6 @@ CB_STATUS DRAMDetect(DRAM_SYS_ATTR *DramAttr)
 	Status = GetInfoFromSPD(DramAttr);
 	if (CB_SUCCESS == Status) {
 		/* 64bit or 128Bit */
-
-		// if (RAMTYPE_SDRAMDDR == DramAttr->DramType)
 
 		/* Select command rate. */
 		DRAMCmdRate(DramAttr);
@@ -150,16 +144,16 @@ CB_STATUS GetInfoFromSPD(DRAM_SYS_ATTR *DramAttr)
 			LoadNum = (u8) (ModuleDataWidth / ChipWidth);
 
 			/* Set the RANK map. */
-                        /* Get bit0,1, the most number of supported RANK is 2. */
+			/* Get bit0,1, the most number of supported RANK is 2. */
 			RankNum = (u8) (pSPDDataBuf[SPD_SDRAM_DIMM_RANKS] & 0x3);
 			if (RAMTYPE_SDRAMDDR2 == DramAttr->DramType)
-                                /*
-                                 * For DDR bit[0,1]: 01->1 RANK, 10->2 RANK
-                                 * For DDR2 bit[0,1]: 00->1 RANK, 01->2 RANK
-                                 */
+				/*
+				 * For DDR bit[0,1]: 01->1 RANK, 10->2 RANK
+				 * For DDR2 bit[0,1]: 00->1 RANK, 01->2 RANK
+				 */
 				RankNum++;
 
-                        /* Every DIMM have 1 or 2 ranks. */
+			/* Every DIMM have 1 or 2 ranks. */
 			if (RankNum != 2 && RankNum != 1) {
 				Status = CB_DEVICE_ERROR;
 				PRINT_DEBUG_MEM("Memory Device ERROR: Number "

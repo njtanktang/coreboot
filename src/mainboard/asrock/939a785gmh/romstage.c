@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -27,18 +23,18 @@
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
 #include <spd.h>
-#include "cpu/x86/lapic.h"
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627dhg/w83627dhg.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include "southbridge/amd/rs780/early_setup.c"
-#include "southbridge/amd/sb700/sb700.h"
-#include "southbridge/amd/sb700/smbus.h"
+#include <southbridge/amd/sb700/sb700.h>
+#include <southbridge/amd/sb700/smbus.h>
 #include "northbridge/amd/amdk8/debug.c" /* After sb700/early_setup.c! */
 
 #define SERIAL_DEV PNP_DEV(0x2e, W83627DHG_SP1)
@@ -52,7 +48,7 @@ static inline int spd_read_byte(u32 device, u32 address)
 	return do_smbus_read_byte(SMBUS_IO_BASE, device, address);
 }
 
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/raminit.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
@@ -179,7 +175,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	cpuid1 = cpuid(0x80000007);
 	if ((cpuid1.edx & 0x6) == 0x6) {
 		/* Read FIDVID_STATUS */
-		msr=rdmsr(0xc0010042);
+		msr = rdmsr(0xc0010042);
 		printk(BIOS_DEBUG, "begin msr fid, vid: hi=0x%x, lo=0x%x\n", msr.hi, msr.lo);
 
 		enable_fid_change();
@@ -187,7 +183,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 		init_fidvid_bsp(bsp_apicid);
 
 		/* show final fid and vid */
-		msr=rdmsr(0xc0010042);
+		msr = rdmsr(0xc0010042);
 		printk(BIOS_DEBUG, "end msr fid, vid: hi=0x%x, lo=0x%x\n", msr.hi, msr.lo);
 	} else {
 		printk(BIOS_DEBUG, "Changing FIDVID not supported\n");
@@ -199,7 +195,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	printk(BIOS_DEBUG, "needs_reset=0x%x\n", needs_reset);
 
 	if (needs_reset) {
-		print_info("ht reset -\n");
+		printk(BIOS_INFO, "ht reset -\n");
 		soft_reset();
 	}
 

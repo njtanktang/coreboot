@@ -7,9 +7,7 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdk8_sysconf.h>
 #include <stdlib.h>
@@ -54,7 +52,7 @@ void get_bus_conf(void)
 	device_t dev;
 	int i;
 
-	if(get_bus_conf_done==1) return; //do it only once
+	if(get_bus_conf_done == 1) return; //do it only once
 
 	get_bus_conf_done = 1;
 
@@ -62,7 +60,7 @@ void get_bus_conf(void)
 	struct mb_sysconf_t *m = sysconf.mb;
 
 	sysconf.hc_possible_num = ARRAY_SIZE(pci1234x);
-	for(i=0;i<sysconf.hc_possible_num; i++) {
+	for(i = 0; i < sysconf.hc_possible_num; i++) {
 		sysconf.pci1234[i] = pci1234x[i];
 		sysconf.hcdn[i] = hcdnx[i];
 	}
@@ -104,11 +102,10 @@ void get_bus_conf(void)
 
 
 /*I/O APICs:	APIC ID	Version	State		Address*/
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(3);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(3);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	m->apicid_8111 = apicid_base+0;
 	m->apicid_8131_1 = apicid_base+1;
 	m->apicid_8131_2 = apicid_base+2;

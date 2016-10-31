@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef  _RD890_CFG_H_
@@ -67,7 +63,7 @@
 /**
  * Bitmap of ports that have slot or onboard device connected.
  * Example force PCIe Gen1 supporton port 2 and 4  (DEFAULT_PORT_ENABLE_MAP = BIT2 | BIT4)
- * #define DEFAULT_PORT_FORCE_GEN1        0x604
+ * define DEFAULT_PORT_FORCE_GEN1        0x604
  */
 #ifndef DEFAULT_PORT_FORCE_GEN1
 #define DEFAULT_PORT_FORCE_GEN1		0x0

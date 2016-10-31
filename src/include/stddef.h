@@ -1,6 +1,8 @@
 #ifndef STDDEF_H
 #define STDDEF_H
 
+#include <commonlib/helpers.h>
+
 typedef long ptrdiff_t;
 #ifndef __SIZE_TYPE__
 #define __SIZE_TYPE__ unsigned long
@@ -19,19 +21,25 @@ typedef unsigned int wint_t;
 
 #define NULL ((void *)0)
 
-/* Standard units. */
-#define KiB (1<<10)
-#define MiB (1<<20)
-#define GiB (1<<30)
-/* Could we ever run into this one? I hope we get this much memory! */
-#define TiB (1<<40)
-
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
-
 #ifdef __PRE_RAM__
 #define ROMSTAGE_CONST const
 #else
 #define ROMSTAGE_CONST
+#endif
+
+/* Work around non-writable data segment in execute-in-place romstage on x86. */
+#if defined(__PRE_RAM__) && CONFIG_ARCH_X86
+#define MAYBE_STATIC
+#else
+#define MAYBE_STATIC static
+#endif
+
+#ifndef __ROMCC__
+/* Provide a pointer to address 0 that thwarts any "accessing this is
+ * undefined behaviour and do whatever" trickery in compilers.
+ * Use when you _really_ need to read32(zeroptr) (ie. read address 0).
+ */
+extern char zeroptr[];
 #endif
 
 #endif /* STDDEF_H */

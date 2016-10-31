@@ -33,6 +33,7 @@
 struct pci_operations {
 	/* set the Subsystem IDs for the PCI device */
 	void (*set_subsystem)(device_t dev, unsigned vendor, unsigned device);
+	void (*set_L1_ss_latency)(device_t dev, unsigned int off);
 };
 
 /* Common pci bus operations */
@@ -54,9 +55,9 @@ struct pci_driver {
 
 #define __pci_driver __attribute__ ((used,__section__(".rodata.pci_driver")))
 /** start of compile time generated pci driver array */
-extern struct pci_driver pci_drivers[];
+extern struct pci_driver _pci_drivers[];
 /** end of compile time generated pci driver array */
-extern struct pci_driver epci_drivers[];
+extern struct pci_driver _epci_drivers[];
 
 
 extern struct device_operations default_pci_ops_dev;
@@ -69,11 +70,14 @@ void pci_dev_enable_resources(device_t dev);
 void pci_bus_enable_resources(device_t dev);
 void pci_bus_reset(struct bus *bus);
 device_t pci_probe_dev(device_t dev, struct bus *bus, unsigned devfn);
-unsigned int do_pci_scan_bridge(device_t bus, unsigned int max,
-	unsigned int (*do_scan_bus)(struct bus *bus,
-		unsigned min_devfn, unsigned max_devfn, unsigned int max));
-unsigned int pci_scan_bridge(device_t bus, unsigned int max);
-unsigned int pci_scan_bus(struct bus *bus, unsigned min_devfn, unsigned max_devfn, unsigned int max);
+
+void do_pci_scan_bridge(device_t bus,
+	void (*do_scan_bus)(struct bus *bus,
+		unsigned min_devfn, unsigned max_devfn));
+
+void pci_scan_bridge(device_t bus);
+void pci_scan_bus(struct bus *bus, unsigned min_devfn, unsigned max_devfn);
+
 uint8_t pci_moving_config8(struct device *dev, unsigned reg);
 uint16_t pci_moving_config16(struct device *dev, unsigned reg);
 uint32_t pci_moving_config32(struct device *dev, unsigned reg);
@@ -86,6 +90,8 @@ const char * pin_to_str(int pin);
 int get_pci_irq_pins(device_t dev, device_t *parent_bdg);
 void pci_assign_irqs(unsigned bus, unsigned slot,
 		     const unsigned char pIntAtoD[4]);
+const char *get_pci_class_name(device_t dev);
+const char *get_pci_subclass_name(device_t dev);
 
 #define PCI_IO_BRIDGE_ALIGN 4096
 #define PCI_MEM_BRIDGE_ALIGN (1024*1024)
@@ -102,10 +108,23 @@ static inline const struct pci_operations *ops_pci(device_t dev)
 
 #endif /* ! __SIMPLE_DEVICE__ */
 
+#ifdef __SIMPLE_DEVICE__
+unsigned pci_find_next_capability(pci_devfn_t dev, unsigned cap, unsigned last);
+unsigned pci_find_capability(pci_devfn_t dev, unsigned cap);
+#else /* !__SIMPLE_DEVICE__ */
 unsigned pci_find_next_capability(device_t dev, unsigned cap, unsigned last);
 unsigned pci_find_capability(device_t dev, unsigned cap);
+#endif /* __SIMPLE_DEVICE__ */
+
 void pci_early_bridge_init(void);
 int pci_early_device_probe(u8 bus, u8 dev, u32 mmio_base);
+
+#ifndef __ROMCC__
+static inline int pci_base_address_is_memory_space(unsigned int attr)
+{
+	return (attr & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_MEMORY;
+}
+#endif
 
 #endif /* CONFIG_PCI */
 

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdint.h>
@@ -28,11 +24,36 @@
 #define __DARWIN__
 #include <DirectHW/DirectHW.h>
 #endif
+#ifdef __NetBSD__
+#include <pciutils/pci.h>
+#else
 #include <pci/pci.h>
+#endif
 
 /* This #include is needed for freebsd_{rd,wr}msr. */
 #if defined(__FreeBSD__)
 #include <machine/cpufunc.h>
+#endif
+
+#ifdef __NetBSD__
+static inline uint8_t inb(unsigned port)
+{
+	uint8_t data;
+	__asm volatile("inb %w1,%0" : "=a" (data) : "d" (port));
+	return data;
+}
+static inline uint16_t inw(unsigned port)
+{
+	uint16_t data;
+	__asm volatile("inw %w1,%0": "=a" (data) : "d" (port));
+	return data;
+}
+static inline uint32_t inl(unsigned port)
+{
+	uint32_t data;
+	__asm volatile("inl %w1,%0": "=a" (data) : "d" (port));
+	return data;
+}
 #endif
 
 #define INTELTOOL_VERSION "1.0"
@@ -53,6 +74,7 @@
 #define PCI_DEVICE_ID_INTEL_NM10		0x27bc
 #define PCI_DEVICE_ID_INTEL_ICH8		0x2810
 #define PCI_DEVICE_ID_INTEL_ICH8M		0x2815
+#define PCI_DEVICE_ID_INTEL_ICH8ME		0x2811
 #define PCI_DEVICE_ID_INTEL_ICH9DH		0x2912
 #define PCI_DEVICE_ID_INTEL_ICH9DO		0x2914
 #define PCI_DEVICE_ID_INTEL_ICH9R		0x2916
@@ -108,7 +130,10 @@
 #define PCI_DEVICE_ID_INTEL_HM75		0x1e5d
 #define PCI_DEVICE_ID_INTEL_HM70		0x1e5e
 #define PCI_DEVICE_ID_INTEL_NM70		0x1e5f
-
+#define PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_FULL	0x9c41
+#define PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_PREM	0x9c43
+#define PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_BASE	0x9c45
+#define PCI_DEVICE_ID_INTEL_WILDCATPOINT_LP	0x9cc5
 #define PCI_DEVICE_ID_INTEL_82810		0x7120
 #define PCI_DEVICE_ID_INTEL_82810_DC	0x7122
 #define PCI_DEVICE_ID_INTEL_82810E_DC	0x7124
@@ -128,7 +153,13 @@
 #define PCI_DEVICE_ID_INTEL_82Q33		0x29d0
 #define PCI_DEVICE_ID_INTEL_82X38 		0x29e0
 #define PCI_DEVICE_ID_INTEL_32X0		0x29f0
-#define PCI_DEVICE_ID_INTEL_82X4X		0x2a40
+#define PCI_DEVICE_ID_INTEL_82XX4X		0x2a40
+#define PCI_DEVICE_ID_INTEL_82Q45		0x2e10
+#define PCI_DEVICE_ID_INTEL_82G45		0x2e20
+#define PCI_DEVICE_ID_INTEL_82G41		0x2e30
+#define PCI_DEVICE_ID_INTEL_82B43		0x2e40
+#define PCI_DEVICE_ID_INTEL_82B43_2		0x2e90
+
 #define PCI_DEVICE_ID_INTEL_82X58		0x3405
 #define PCI_DEVICE_ID_INTEL_SCH_POULSBO	0x8100
 #define PCI_DEVICE_ID_INTEL_ATOM_DXXX	0xa000
@@ -150,15 +181,27 @@
 /* 82371AB/EB/MB use the same device ID value. */
 #define PCI_DEVICE_ID_INTEL_82371XX		0x7110
 
+/* Bay Trail */
+#define PCI_DEVICE_ID_INTEL_BAYTRAIL		0x0f00 /* SOC Transaction Router */
+#define PCI_DEVICE_ID_INTEL_BAYTRAIL_LPC	0x0f1c
+#define PCI_DEVICE_ID_INTEL_BAYTRAIL_GFX	0x0f31
+#define CPUID_BAYTRAIL						0x30670
+
 /* Intel starts counting these generations with the integration of the DRAM controller */
 #define PCI_DEVICE_ID_INTEL_CORE_0TH_GEN	0xd132 /* Nehalem */
 #define PCI_DEVICE_ID_INTEL_CORE_1ST_GEN	0x0044 /* Westmere */
-#define PCI_DEVICE_ID_INTEL_CORE_2ND_GEN	0x0104 /* Sandy Bridge */
-#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_A	0x0150 /* Ivy Bridge */
-#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_B	0x0154 /* Ivy Bridge */
-#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_C	0x0158 /* Ivy Bridge */
-#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_D	0x015c /* Ivy Bridge */
-#define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN	0x0c04 /* Haswell */
+#define PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_D	0x0100 /* Sandy Bridge (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_M	0x0104 /* Sandy Bridge (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_E3	0x0108 /* Sandy Bridge (Xeon E3) */
+#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_D	0x0150 /* Ivy Bridge (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_M	0x0154 /* Ivy Bridge (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_E3	0x0158 /* Ivy Bridge (Xeon E3 v2) */
+#define PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_015c	0x015c /* Ivy Bridge (?) */
+#define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_D	0x0c00 /* Haswell (Desktop) */
+#define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_M	0x0c04 /* Haswell (Mobile) */
+#define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_E3	0x0c08 /* Haswell (Xeon E3 v3) */
+#define PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_U	0x0a04 /* Haswell-ULT */
+#define PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_U	0x1604 /* Broadwell-ULT */
 
 #define ARRAY_SIZE(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
@@ -182,7 +225,7 @@ void unmap_physical(void *virt_addr, size_t len);
 
 unsigned int cpuid(unsigned int op);
 int print_intel_core_msrs(void);
-int print_mchbar(struct pci_dev *nb, struct pci_access *pacc);
+int print_mchbar(struct pci_dev *nb, struct pci_access *pacc, const char *dump_spd_file);
 int print_pmbase(struct pci_dev *sb, struct pci_access *pacc);
 int print_rcba(struct pci_dev *sb);
 int print_gpios(struct pci_dev *sb, int show_all, int show_diffs);
@@ -190,3 +233,7 @@ int print_epbar(struct pci_dev *nb);
 int print_dmibar(struct pci_dev *nb);
 int print_pciexbar(struct pci_dev *nb);
 int print_ambs(struct pci_dev *nb, struct pci_access *pacc);
+int print_spi(struct pci_dev *sb);
+int print_gfx(struct pci_dev *gfx);
+int print_ahci(struct pci_dev *ahci);
+void ivybridge_dump_timings(const char *dump_spd_file);

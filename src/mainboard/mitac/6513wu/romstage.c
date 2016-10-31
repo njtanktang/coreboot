@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,19 +19,18 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
-#include "southbridge/intel/i82801ax/i82801ax.h"
-#include "northbridge/intel/i82810/raminit.h"
-#include "drivers/pc80/udelay_io.c"
-#include "lib/delay.c"
-#include "cpu/x86/bist.h"
+#include <southbridge/intel/i82801ax/i82801ax.h>
+#include <northbridge/intel/i82810/raminit.h>
+#include <delay.h>
+#include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <superio/smsc/smscsuperio/smscsuperio.h>
 #include <lib.h>
 
 #define SERIAL_DEV PNP_DEV(0x4e, SMSCSUPERIO_SP1)
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	smscsuperio_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
 	console_init();

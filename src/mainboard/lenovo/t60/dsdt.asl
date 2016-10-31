@@ -12,16 +12,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #define THINKPAD_EC_GPE 28
-#define BRIGHTNESS_UP \DSPC.BRTU
-#define BRIGHTNESS_DOWN \DSPC.BRTD
+#define BRIGHTNESS_UP \BRTU
+#define BRIGHTNESS_DOWN \BRTD
 #define ACPI_VIDEO_DEVICE \_SB.PCI0.GFX0
 
 DefinitionBlock(
@@ -38,12 +33,21 @@ DefinitionBlock(
 
 	// global NVS and variables
 	#include <southbridge/intel/i82801gx/acpi/globalnvs.asl>
+	#include <southbridge/intel/common/acpi/platform.asl>
 
 	// General Purpose Events
 	#include "acpi/gpe.asl"
 
 	// mainboard specific devices
 	#include "acpi/mainboard.asl"
+
+	Scope (\)
+	{
+		// backlight control, display switching, lid
+		#include "acpi/video.asl"
+	}
+
+	#include <cpu/intel/common/acpi/cpu.asl>
 
 	Scope (\_SB) {
 		Device (PCI0)

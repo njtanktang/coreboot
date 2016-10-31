@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -50,7 +46,7 @@
 #define WRITE_COMBINE (1<<4)
 #define WRITE_SERIALIZE (1<<5)
 
-/* ram has none of this stuff */
+/* RAM has none of this stuff */
 #define RAM_PROPERTIES (0)
 #define DEVICE_PROPERTIES (WRITE_SERIALIZE|CACHE_DISABLE)
 #define ROM_PROPERTIES (WRITE_SERIALIZE|WRITE_PROTECT|CACHE_DISABLE)
@@ -90,12 +86,12 @@ struct msr_defaults {
 	    /* for 180a, for now, we assume VSM will configure it */
 	    /* 180b is left at reset value,a0000-bffff is non-cacheable */
 	    /* 180c, c0000-dffff is set to write serialize and non-cachable */
-	    /* oops, 180c will be set by cpu bug handling in cpubug.c */
+	    /* oops, 180c will be set by CPU bug handling in cpubug.c */
 	    //{0x180c, {.hi = MSR_WS_CD_DEFAULT, .lo = MSR_WS_CD_DEFAULT}},
 	    /* 180d is left at default, e0000-fffff is non-cached */
 	    /* we will assume 180e, the ssm region configuration, is left at default or set by VSM */
 	    /* we will not set 0x180f, the DMM,yet */
-	    //{0x1810, {.hi=0xee7ff000, .lo=RRCF_LOW(0xee000000, WRITE_COMBINE|CACHE_DISABLE)}},
+	    //{0x1810, {.hi = 0xee7ff000, .lo = RRCF_LOW(0xee000000, WRITE_COMBINE|CACHE_DISABLE)}},
 	    //{0x1811, {.hi = 0xefffb000, .lo = RRCF_LOW_CD(0xefff8000)}},
 	    //{0x1812, {.hi = 0xefff7000, .lo = RRCF_LOW_CD(0xefff4000)}},
 	    //{0x1813, {.hi = 0xefff3000, .lo = RRCF_LOW_CD(0xefff0000)}},
@@ -297,36 +293,16 @@ static void enable_shadow(device_t dev)
 
 static void northbridge_init(device_t dev)
 {
-	//msr_t msr;
 
 	printk(BIOS_SPEW, ">> Entering northbridge.c: %s\n", __func__);
 
 	enable_shadow(dev);
-	/*
-	 * Swiss cheese
-	 */
-	//msr = rdmsr(MSR_GLIU0_SHADOW);
 
-	//msr.hi |= 0x3;
-	//msr.lo |= 0x30000;
-
-	//printk(BIOS_DEBUG, "MSR 0x%08X is now 0x%08X:0x%08X\n", MSR_GLIU0_SHADOW, msr.hi, msr.lo);
-	//printk(BIOS_DEBUG, "MSR 0x%08X is now 0x%08X:0x%08X\n", MSR_GLIU1_SHADOW, msr.hi, msr.lo);
 }
 
 static void northbridge_set_resources(struct device *dev)
 {
 	uint8_t line;
-
-#if 0
-	struct resource *res;
-	for (res = dev->resource_list; res; res = res->next) {
-
-		// andrei: do not change the base address, it will make the VSA virtual registers unusable
-		//pci_set_resource(dev, res);
-		// FIXME: static allocation may conflict with dynamic mappings!
-	}
-#endif
 
 	struct bus *bus;
 	for (bus = dev->link_list; bus; bus = bus->next) {
@@ -404,11 +380,7 @@ static void pci_domain_enable(device_t dev)
 	cpubug();
 	chipsetinit();
 
-	// print_conf();
-
-	do_vsmbios();		// do the magic stuff here, so prepare your tambourine ;)
-
-	// print_conf();
+	do_vsmbios();		// do the magic stuff here, so prepare your tambourine;)
 
 	graphics_init();
 }
@@ -429,14 +401,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources = cpu_bus_noop,
-	.set_resources = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = cpu_bus_init,
 	.scan_bus = 0,
 };

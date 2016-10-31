@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,9 +20,7 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdfam10_sysconf.h>
 
@@ -74,7 +68,7 @@ void get_bus_conf(void)
 	device_t dev;
 	int i;
 
-	if(get_bus_conf_done==1) return; //do it only once
+	if(get_bus_conf_done == 1) return; //do it only once
 
 	get_bus_conf_done = 1;
 
@@ -84,7 +78,7 @@ void get_bus_conf(void)
 	memset(m, 0, sizeof(struct mb_sysconf_t));
 
 	sysconf.hc_possible_num = ARRAY_SIZE(pci1234x);
-	for(i=0;i<sysconf.hc_possible_num; i++) {
+	for(i = 0; i < sysconf.hc_possible_num; i++) {
 		sysconf.pci1234[i] = pci1234x[i];
 		sysconf.hcdn[i] = hcdnx[i];
 	}
@@ -103,7 +97,7 @@ void get_bus_conf(void)
 			printk(BIOS_DEBUG, "ERROR - could not find PCI 1:%02x.0, using defaults\n", sysconf.sbdn + 0x06);
 		}
 
-		for(i=2; i<8;i++) {
+		for(i = 2; i < 8; i++) {
 			dev = dev_find_slot(m->bus_mcp55[0], PCI_DEVFN(sysconf.sbdn + 0x0a + i - 2 , 0));
 			if (dev) {
 				m->bus_mcp55[i] = pci_read_config8(dev, PCI_SECONDARY_BUS);
@@ -114,10 +108,9 @@ void get_bus_conf(void)
 		}
 
 /*I/O APICs:	APIC ID	Version	State		Address*/
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(1);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(1);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	m->apicid_mcp55 = apicid_base+0;
 }

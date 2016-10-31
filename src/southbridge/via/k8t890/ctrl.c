@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -122,7 +118,7 @@ static void vt8237r_vlink_init(struct device *dev)
 
 	/*
 	 * This init code is valid only for the VT8237R! For different
-	 * sounthbridges (e.g. VT8237A, VT8237S, VT8237 (without plus R)
+	 * southbridges (e.g. VT8237A, VT8237S, VT8237 (without plus R)
 	 * and VT8251) a different init code is required.
 	 */
 
@@ -152,8 +148,8 @@ static void vt8237r_vlink_init(struct device *dev)
 static void ctrl_init(struct device *dev)
 {
 
-	print_debug("K8x8xx: Initializing V-Link to VT8237R sb: ");
-	/* TODO: Fix some ordering issue fo V-link set Rx77[6] and PCI1_Rx4F[0]
+	printk(BIOS_DEBUG, "K8x8xx: Initializing V-Link to VT8237R sb: ");
+	/* TODO: Fix some ordering issue for V-link set Rx77[6] and PCI1_Rx4F[0]
 	   should to 1 */
 
 	/* C2P Read ACK Return Priority */
@@ -172,11 +168,11 @@ static void ctrl_init(struct device *dev)
 		vt8237r_vlink_init(dev);
 		k8x8xx_vt8237r_cfg(dev, devsb);
 	} else {
-		print_debug("VT8237R LPC not found !\n");
+		printk(BIOS_DEBUG, "VT8237R LPC not found !\n");
 		return;
 	}
-	print_debug(" Done\n");
-	print_debug(" VIA_X_7 device dump:\n");
+	printk(BIOS_DEBUG, " Done\n");
+	printk(BIOS_DEBUG, " VIA_X_7 device dump:\n");
 	dump_south(dev);
 
 }

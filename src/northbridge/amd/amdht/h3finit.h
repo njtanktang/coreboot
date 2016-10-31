@@ -1,6 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef H3FINIT_H
@@ -52,6 +49,9 @@
 #define HT_FREQUENCY_2200M	12
 #define HT_FREQUENCY_2400M	13
 #define HT_FREQUENCY_2600M	14
+#define HT_FREQUENCY_2800M	17
+#define HT_FREQUENCY_3000M	18
+#define HT_FREQUENCY_3200M	19
 
 /* Frequency Limit equates for call backs which take a frequency supported mask. */
 #define HT_FREQUENCY_LIMIT_200M	1
@@ -68,6 +68,9 @@
 #define HT_FREQUENCY_LIMIT_2200M	0x1FFF
 #define HT_FREQUENCY_LIMIT_2400M	0x3FFF
 #define HT_FREQUENCY_LIMIT_2600M	0x7FFF
+#define HT_FREQUENCY_LIMIT_2800M	0x3FFFF
+#define HT_FREQUENCY_LIMIT_3000M	0x7FFFF
+#define HT_FREQUENCY_LIMIT_3200M	0xFFFFF
 
 /*
  * Event Notify definitions
@@ -223,7 +226,8 @@ typedef struct {
 	 *	@param[in]  u8  Link      = The Device's link number (0 or 1)
 	 *	@param[in,out] u8*  LinkWidthIn  = modify to change the Link Witdh In
 	 *	@param[in,out] u8*  LinkWidthOut  = modify to change the Link Witdh Out
-	 *	@param[in,out] u16* FreqCap = modify to change the link's frequency capability
+	 *	@param[in,out] u32* FreqCap = modify to change the link's frequency capability
+	 *	@param[in,out] u32* FeatureCap = modify to change the link's feature capability
 	 *
 	 * ---------------------------------------------------------------------------------------
 	 */
@@ -238,7 +242,8 @@ typedef struct {
 		u8 Link,
 		u8 *LinkWidthIn,
 		u8 *LinkWidthOut,
-		u16 *FreqCap
+		u32 *FreqCap,
+		u32 *FeatureCap
 	);
 
 	/**----------------------------------------------------------------------------------------
@@ -261,7 +266,7 @@ typedef struct {
 	 *	@param[in]  u8  linkB  = The link on that node
 	 *	@param[in,out]  u8*  ABLinkWidthLimit = modify to change the Link Witdh In
 	 *	@param[in,out]  u8*  BALinkWidthLimit = modify to change the Link Witdh Out
-	 *	@param[in,out]  u16* PCBFreqCap  = modify to change the link's frequency capability
+	 *	@param[in,out]  u32* PCBFreqCap  = modify to change the link's frequency capability
 	 *
 	 * ---------------------------------------------------------------------------------------
 	 */
@@ -272,7 +277,7 @@ typedef struct {
 		u8 LinkB,
 		u8 *ABLinkWidthLimit,
 		u8 *BALinkWidthLimit,
-		u16 *PCBFreqCap
+		u32 *PCBFreqCap
 	);
 
 	/**----------------------------------------------------------------------------------------
@@ -294,7 +299,7 @@ typedef struct {
 	 *	@param[in]  u8  Depth  = The depth in the I/O chain from the Host
 	 *	@param[in,out]  u8* DownstreamLinkWidthLimit = modify to change the Link Witdh In
 	 *	@param[in,out]  u8* UpstreamLinkWidthLimit  = modify to change the Link Witdh Out
-	 *	@param[in,out]  u16* PCBFreqCap = modify to change the link's frequency capability
+	 *	@param[in,out]  u32* PCBFreqCap = modify to change the link's frequency capability
 	 *
 	 * ---------------------------------------------------------------------------------------
 	 */
@@ -304,7 +309,7 @@ typedef struct {
 		u8 Depth,
 		u8 *DownstreamLinkWidthLimit,
 		u8 *UpstreamLinkWidthLimit,
-		u16 *PCBFreqCap
+		u32 *PCBFreqCap
 	);
 
 	/**----------------------------------------------------------------------------------------
@@ -353,7 +358,7 @@ typedef struct {
 	 *
 	 * ---------------------------------------------------------------------------------------
 	 */
-	BOOL (*AMD_CB_CustomizeTrafficDistribution)( void );
+	BOOL (*AMD_CB_CustomizeTrafficDistribution)(void);
 
 
 	/**----------------------------------------------------------------------------------------
@@ -374,7 +379,7 @@ typedef struct {
 	 *
 	 * ---------------------------------------------------------------------------------------
 	 */
-	BOOL (*AMD_CB_CustomizeBuffers)( u8 node );
+	BOOL (*AMD_CB_CustomizeBuffers)(u8 node);
 
 	/**----------------------------------------------------------------------------------------
 	 *
@@ -461,6 +466,8 @@ typedef struct {
 		u16 event,
 		const u8 *pEventData0
 	);
+
+	const struct ht_link_config *ht_link_configuration;
 
 } AMD_HTBLOCK;
 
@@ -609,5 +616,3 @@ void amdHtInitialize(AMD_HTBLOCK *pBlock);
 
 
 #endif	 /* H3FINIT_H */
-
-

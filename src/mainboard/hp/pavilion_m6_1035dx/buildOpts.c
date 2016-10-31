@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
@@ -27,19 +23,16 @@
  *
  * For Information about this file, see @ref platforminstall.
  *
- * @xrefitem bom "File Content Label" "Release Content"
- * @e project:      AGESA
- * @e sub-project:  Core
- * @e \$Revision: 23714 $   @e \$Date: 2009-12-09 17:28:37 -0600 (Wed, 09 Dec 2009) $
  */
 
 #include "mainboard.h"
+
+#include <stdlib.h>
 
 #include <vendorcode/amd/agesa/f15tn/AGESA.h>
 
 /*  Include the files that instantiate the configuration definitions.  */
 #include <vendorcode/amd/agesa/f15tn/Include/AdvancedApi.h>
-#include <vendorcode/amd/agesa/f15tn/Include/CommonReturns.h>
 #include <vendorcode/amd/agesa/f15tn/Proc/CPU/cpuFamilyTranslation.h>
 #include <vendorcode/amd/agesa/f15tn/Proc/CPU/Feature/cpuFeatures.h>
 #include <vendorcode/amd/agesa/f15tn/Proc/CPU/heapManager.h>
@@ -52,13 +45,13 @@
 
 #define FILECODE PLATFORM_SPECIFIC_OPTIONS_FILECODE
 
-/*  Select the cpu family.  */
+/*  Select the CPU family.  */
 #define INSTALL_FAMILY_10_SUPPORT FALSE
 #define INSTALL_FAMILY_12_SUPPORT FALSE
 #define INSTALL_FAMILY_14_SUPPORT FALSE
 #define INSTALL_FAMILY_15_MODEL_1x_SUPPORT TRUE
 
-/*  Select the cpu socket type.  */
+/*  Select the CPU socket type.  */
 #define INSTALL_G34_SOCKET_SUPPORT  FALSE
 #define INSTALL_C32_SOCKET_SUPPORT  FALSE
 #define INSTALL_S1G3_SOCKET_SUPPORT FALSE
@@ -184,7 +177,7 @@
 #define BLDCFG_UMA_ABOVE4G_SUPPORT                FALSE
 #endif
 
-#define BLDCFG_IOMMU_SUPPORT    FALSE
+#define BLDCFG_IOMMU_SUPPORT    TRUE
 
 #define BLDCFG_CFG_GNB_HD_AUDIO TRUE
 //#define BLDCFG_IGPU_SUBSYSTEM_ID            OEM_IGPU_SSID
@@ -194,17 +187,6 @@
 /*  Process the options...
  * This file include MUST occur AFTER the user option selection settings
  */
-#define AGESA_ENTRY_INIT_RESET                    TRUE
-#define AGESA_ENTRY_INIT_RECOVERY                 FALSE
-#define AGESA_ENTRY_INIT_EARLY                    TRUE
-#define AGESA_ENTRY_INIT_POST                     TRUE
-#define AGESA_ENTRY_INIT_ENV                      TRUE
-#define AGESA_ENTRY_INIT_MID                      TRUE
-#define AGESA_ENTRY_INIT_LATE                     TRUE
-#define AGESA_ENTRY_INIT_S3SAVE                   TRUE
-#define AGESA_ENTRY_INIT_RESUME                   TRUE //TRUE
-#define AGESA_ENTRY_INIT_LATE_RESTORE             TRUE
-#define AGESA_ENTRY_INIT_GENERAL_SERVICES         TRUE
 /*
  * Customized OEM build configurations for FCH component
  */
@@ -407,34 +389,3 @@ SCI_MAP_CONTROL m6_1035dx_sci_map[] = {
 
 /* AGESA nonsense: this header depends on the definitions above */
 #include <vendorcode/amd/agesa/f15tn/Include/PlatformInstall.h>
-
-/*----------------------------------------------------------------------------------------
- *                        CUSTOMER OVERIDES MEMORY TABLE
- *----------------------------------------------------------------------------------------
- */
-
-/*
- * Platform Specific Overriding Table allows IBV/OEM to pass in platform
- * information to AGESA
- * (e.g. MemClk routing, the number of DIMM slots per channel,...).
- * If PlatformSpecificTable is populated, AGESA will base its settings on the
- * data from the table. Otherwise, it will use its default conservative settings
- */
-CONST PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {
-
-  NUMBER_OF_DIMMS_SUPPORTED (ANY_SOCKET, ANY_CHANNEL, 1),
-  NUMBER_OF_CHANNELS_SUPPORTED (ANY_SOCKET, 2),
-  MEMCLK_DIS_MAP (ANY_SOCKET, ANY_CHANNEL, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
-  CKE_TRI_MAP (ANY_SOCKET, ANY_CHANNEL, 0x05, 0x0A),
-  ODT_TRI_MAP (ANY_SOCKET, ANY_CHANNEL, 0x01, 0x02, 0x00, 0x00),
-  CS_TRI_MAP (ANY_SOCKET, ANY_CHANNEL, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
-
-  PSO_END
-};
-
-// Customer table
-UINT8 AGESA_MEM_TABLE_TN[][sizeof (MEM_TABLE_ALIAS)] =
-{
-  NBACCESS (MTEnd, 0,  0, 0, 0, 0),      // End of Table
-};
-UINT8 SizeOfTableTN = sizeof (AGESA_MEM_TABLE_TN) / sizeof (AGESA_MEM_TABLE_TN[0]);

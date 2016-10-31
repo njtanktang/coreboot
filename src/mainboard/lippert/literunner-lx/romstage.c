@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Based on romstage.c from the SpaceRunner-LX mainboard. */
@@ -27,17 +23,17 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/lxdef.h>
-#include "southbridge/amd/cs5536/cs5536.h"
+#include <southbridge/amd/cs5536/cs5536.h>
 #include "southbridge/amd/cs5536/early_smbus.c"
 #include "southbridge/amd/cs5536/early_setup.c"
 #include <superio/ite/common/ite.h>
 #include <superio/ite/it8712f/it8712f.h>
-#include "northbridge/amd/lx/raminit.h"
+#include <northbridge/amd/lx/raminit.h>
 
 #define SERIAL_DEV PNP_DEV(0x2e, IT8712F_SP1)
 #define GPIO_DEV PNP_DEV(0x2e, IT8712F_GPIO)
@@ -85,11 +81,9 @@ int spd_read_byte(unsigned int device, unsigned int address)
 		return 0xFF;	/* No DIMM1, don't even try. */
 
 #if CONFIG_DEBUG_SMBUS
-	if (address >= sizeof(spdbytes) || spdbytes[address] == 0xFF) {
-		print_err("ERROR: spd_read_byte(DIMM0, 0x");
-		print_err_hex8(address);
-		print_err(") returns 0xff\n");
-	}
+	if (address >= sizeof(spdbytes) || spdbytes[address] == 0xFF)
+		printk(BIOS_ERR, "ERROR: spd_read_byte(DIMM0, 0x%02x) "
+			"returns 0xff\n", address);
 #endif
 
 	/* Fake SPD ROM value */
@@ -121,7 +115,7 @@ static int smc_send_config(unsigned char config_data)
 #include "cpu/amd/geode_lx/syspreinit.c"
 #include "cpu/amd/geode_lx/msrinit.c"
 
-static const u16 sio_init_table[] = { // hi=data, lo=index
+static const u16 sio_init_table[] = { // hi = data, lo = index
 	0x072C,		// VIN6 enabled, FAN4/5 disabled, VIN7,VIN3 internal
 	0x1423,		// don't delay PoWeROK1/2
 	0x9072,		// watchdog triggers PWROK, counts seconds
@@ -129,7 +123,7 @@ static const u16 sio_init_table[] = { // hi=data, lo=index
 	0x0073, 0x0074,	// disarm watchdog by changing 56 s timeout to 0
 #endif
 	0xBF25, 0x172A, 0xF326,	// select GPIO function for most pins
-	0xFF27, 0xDF28, 0x2729,	// (GP45=SUSB, GP23,22,16,15=SPI, GP13=PWROK1)
+	0xFF27, 0xDF28, 0x2729,	// (GP45 = SUSB, GP23,22,16,15 = SPI, GP13 = PWROK1)
 	0x66B8, 0x0FB9,	// enable pullups on SPI, RS485_EN, COM3_R/TX_EN
 	0x07C0,		// enable Simple-I/O for GP12-10= RS485_EN2,1, LIVE_LED
 	0x03C1,		// enable Simple-I/O for GP21-20= COM3_RX_EN,TX_EN
@@ -137,7 +131,7 @@ static const u16 sio_init_table[] = { // hi=data, lo=index
 	0x07C8,		// config GP12-10 as output
 	0x03C9,		// config GP21-20 as output
 	0x2DF5,		// map Hw Monitor Thermal Output to GP55
-	0x08F8,		// map GP LED Blinking 1 to GP10=LIVE_LED (deactivate Simple I/O to use)
+	0x08F8,		// map GP LED Blinking 1 to GP10 = LIVE_LED (deactivate Simple I/O to use)
 };
 
 /* Early mainboard specific GPIO setup. */
@@ -182,9 +176,7 @@ void main(unsigned long bist)
 
 	/* bit1 = on-board IDE is slave, bit0 = Spread Spectrum */
 	if ((err = smc_send_config(SMC_CONFIG))) {
-		print_err("ERROR ");
-		print_err_char('0'+err);
-		print_err(" sending config data to SMC\n");
+		printk(BIOS_ERR, "ERROR %d sending config data to SMC\n", err);
 	}
 
 	sdram_initialize(1, memctrl);

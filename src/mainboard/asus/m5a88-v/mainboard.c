@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -37,10 +33,6 @@ void enable_int_gfx(void)
 {
 	volatile u8 *gpio_reg;
 
-#ifdef UNUSED_CODE
-	RWPMIO(SB_PMIOA_REGEA, AccWidthUint8, ~(BIT0), BIT0); /* Disable the PCIB */
-	RWPMIO(SB_PMIOA_REGF6, AccWidthuint8, ~(BIT0), BIT0); /* Disable Gec */
-#endif
 	/* make sure the MMIO(fed80000) is accessible */
 	RWPMIO(SB_PMIOA_REG24, AccWidthUint8, ~(BIT0), BIT0);
 

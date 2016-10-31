@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __CHROMEOS_H__
@@ -23,23 +19,23 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <bootmode.h>
+#include <device/device.h>
+#include <rules.h>
+#include <vboot/misc.h>
+#include <vboot/vboot_common.h>
 
-/* functions implemented in vbnv.c: */
-int get_recovery_mode_from_vbnv(void);
-int vboot_wants_oprom(void);
+void save_chromeos_gpios(void);
 
-void read_vbnv(uint8_t *vbnv_copy);
-void save_vbnv(const uint8_t *vbnv_copy);
+#if CONFIG_CHROMEOS
+/* functions implemented in watchdog.c */
+void mark_watchdog_tombstone(void);
+void reboot_from_watchdog(void);
+#else
+static inline void mark_watchdog_tombstone(void) { return; }
+static inline void reboot_from_watchdog(void) { return; }
+#endif /* CONFIG_CHROMEOS */
 
-/* functions implemented in vboot.c */
-void init_chromeos(int bootmode);
-
-#if CONFIG_VBOOT_VERIFY_FIRMWARE
-/* Returns 0 on success < 0 on error. */
-int vboot_get_handoff_info(void **addr, uint32_t *size);
-int vboot_enable_developer(void);
-int vboot_enable_recovery(void);
-#endif
+struct romstage_handoff;
 
 #include "gnvs.h"
 struct device;
@@ -56,4 +52,77 @@ static inline void chromeos_ram_oops_init(chromeos_acpi_t *chromeos) {}
 static inline void chromeos_reserve_ram_oops(struct device *dev, int idx) {}
 #endif /* CONFIG_CHROMEOS_RAMOOPS */
 
+void cbmem_add_vpd_calibration_data(void);
+
+/*
+ * Create the OIPG package containing the Chrome OS gpios described by
+ * the chromeos_gpio array.
+ */
+struct cros_gpio;
+void chromeos_acpi_gpio_generate(const struct cros_gpio *gpios, size_t num);
+
+/*
+ * Common helper function and delcarations for mainboards to use to generate
+ * ACPI-specific Chrome OS needs.
+ */
+void mainboard_chromeos_acpi_generate(void);
+#if IS_ENABLED(CONFIG_CHROMEOS)
+void chromeos_dsdt_generator(struct device *dev);
+#else
+#define chromeos_dsdt_generator DEVICE_NOOP
 #endif
+
+enum {
+	CROS_GPIO_REC = 1, /* Recovery */
+	CROS_GPIO_DEV = 2, /* Developer */
+	CROS_GPIO_WP = 3, /* Write Protect */
+
+	CROS_GPIO_ACTIVE_LOW = 0,
+	CROS_GPIO_ACTIVE_HIGH = 1,
+
+	CROS_GPIO_VIRTUAL = -1,
+};
+
+struct cros_gpio {
+	int type;
+	int polarity;
+	int gpio_num;
+	const char *device;
+};
+
+#define CROS_GPIO_INITIALIZER(typ, pol, num, dev) \
+	{				\
+		.type = (typ),		\
+		.polarity = (pol),	\
+		.gpio_num = (num),	\
+		.device = (dev),	\
+	}
+
+#define CROS_GPIO_REC_INITIALIZER(pol, num, dev) \
+	CROS_GPIO_INITIALIZER(CROS_GPIO_REC, pol, num, dev)
+
+#define CROS_GPIO_REC_AL(num, dev) \
+	CROS_GPIO_REC_INITIALIZER(CROS_GPIO_ACTIVE_LOW, num, dev)
+
+#define CROS_GPIO_REC_AH(num, dev) \
+	CROS_GPIO_REC_INITIALIZER(CROS_GPIO_ACTIVE_HIGH, num, dev)
+
+#define CROS_GPIO_DEV_INITIALIZER(pol, num, dev) \
+	CROS_GPIO_INITIALIZER(CROS_GPIO_DEV, pol, num, dev)
+
+#define CROS_GPIO_DEV_AL(num, dev) \
+	CROS_GPIO_DEV_INITIALIZER(CROS_GPIO_ACTIVE_LOW, num, dev)
+
+#define CROS_GPIO_DEV_AH(num, dev) \
+	CROS_GPIO_DEV_INITIALIZER(CROS_GPIO_ACTIVE_HIGH, num, dev)
+
+#define CROS_GPIO_WP_INITIALIZER(pol, num, dev) \
+	CROS_GPIO_INITIALIZER(CROS_GPIO_WP, pol, num, dev)
+
+#define CROS_GPIO_WP_AL(num, dev) \
+	CROS_GPIO_WP_INITIALIZER(CROS_GPIO_ACTIVE_LOW, num, dev)
+
+#define CROS_GPIO_WP_AH(num, dev) \
+	CROS_GPIO_WP_INITIALIZER(CROS_GPIO_ACTIVE_HIGH, num, dev)
+
+#endif /* __CHROMEOS_H__ */

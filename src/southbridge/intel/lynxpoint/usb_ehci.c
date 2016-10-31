@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -64,19 +60,19 @@ void usb_ehci_disable(device_t dev)
 void usb_ehci_sleep_prepare(device_t dev, u8 slp_typ)
 {
 	u32 reg32;
-	u32 bar0_base;
+	u8 *bar0_base;
 	u16 pwr_state;
 	u16 pci_cmd;
 
 	/* Check if the controller is disabled or not present */
-	bar0_base = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
-	if (bar0_base == 0 || bar0_base == 0xffffffff)
+	bar0_base = (u8 *)pci_read_config32(dev, PCI_BASE_ADDRESS_0);
+	if (bar0_base == 0 || bar0_base == (u8 *)0xffffffff)
 		return;
 	pci_cmd = pci_read_config32(dev, PCI_COMMAND);
 
 	switch (slp_typ) {
-	case SLP_TYP_S4:
-	case SLP_TYP_S5:
+	case ACPI_S4:
+	case ACPI_S5:
 		/* Check if controller is in D3 power state */
 		pwr_state = pci_read_config16(dev, EHCI_PWR_CTL_STS);
 		if ((pwr_state & PWR_CTL_SET_MASK) == PWR_CTL_SET_D3) {
@@ -86,7 +82,7 @@ void usb_ehci_sleep_prepare(device_t dev, u8 slp_typ)
 			pci_write_config16(dev, EHCI_PWR_CTL_STS, new_state);
 
 			/* Make sure memory bar is set */
-			pci_write_config32(dev, PCI_BASE_ADDRESS_0, bar0_base);
+			pci_write_config32(dev, PCI_BASE_ADDRESS_0, (u32)bar0_base);
 
 			/* Make sure memory space is enabled */
 			pci_write_config16(dev, PCI_COMMAND, pci_cmd |

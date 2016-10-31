@@ -32,6 +32,7 @@ AGESA_ROOT = src/vendorcode/amd/agesa/f14
 
 AGESA_INC =  -Isrc/mainboard/$(MAINBOARDDIR)
 AGESA_INC += -I$(AGESA_ROOT)
+AGESA_INC += -I$(AGESA_ROOT)/../common
 AGESA_INC += -I$(AGESA_ROOT)/Include
 AGESA_INC += -I$(AGESA_ROOT)/Lib
 AGESA_INC += -I$(AGESA_ROOT)/Legacy
@@ -63,17 +64,15 @@ AGESA_INC += -I$(AGESA_ROOT)/Proc/Recovery/CPU
 AGESA_INC += -I$(AGESA_ROOT)/Proc/Recovery/Mem
 
 CFLAGS_x86_32 += -march=k8-sse3 -mtune=k8-sse3 -fno-zero-initialized-in-bss -fno-strict-aliasing
+CFLAGS_x86_64 += -march=k8-sse3 -mtune=k8-sse3 -fno-zero-initialized-in-bss -fno-strict-aliasing
 
 export AGESA_ROOT := $(AGESA_ROOT)
 export AGESA_INC  := $(AGESA_INC)
 CPPFLAGS_x86_32 += $(AGESA_INC)
+CPPFLAGS_x86_64 += $(AGESA_INC)
 #######################################################################
 
-classes-y += libagesa
-
-$(eval $(call create_class_compiler,libagesa,x86_32))
-
-libagesa-y  = Proc/GNB/Modules/GnbGfxConfig/GfxConfigPost.c
+libagesa-y += Proc/GNB/Modules/GnbGfxConfig/GfxConfigPost.c
 libagesa-y += Proc/GNB/Modules/GnbGfxConfig/GfxConfigEnv.c
 libagesa-y += Proc/GNB/Nb/Family/0x14/F14NbLclkDpm.c
 libagesa-y += Proc/GNB/Modules/GnbPcieAlibV1/PcieAlib.c
@@ -116,8 +115,8 @@ libagesa-y += Proc/CPU/Feature/cpuIoCstate.c
 libagesa-y += Proc/Mem/NB/ON/mnprotoon.c
 libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch0500000B.c
 libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch0500001A.c
-libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch05000028.c
-libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch05000101.c
+libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch05000029.c
+libagesa-y += Proc/CPU/Family/0x14/F14MicrocodePatch05000119.c
 libagesa-y += Proc/GNB/PCIe/Family/0x14/F14PciePifServices.c
 libagesa-y += Proc/CPU/Family/0x14/ON/F14OnInitEarlyTable.c
 libagesa-y += Proc/CPU/cpuInitEarlyTable.c
@@ -191,7 +190,6 @@ libagesa-y += Proc/CPU/Family/0x14/cpuF14Utilities.c
 libagesa-y += Proc/HT/htInterface.c
 libagesa-y += Proc/GNB/Gfx/GfxStrapsInit.c
 libagesa-y += Proc/GNB/Nb/NbInitAtEarly.c
-libagesa-y += Lib/amdlib.c
 libagesa-y += Proc/CPU/Feature/cpuCacheFlushOnHalt.c
 libagesa-y += Proc/CPU/Feature/cpuCpb.c
 libagesa-y += Proc/Mem/Main/minit.c
@@ -229,7 +227,6 @@ libagesa-y += Proc/CPU/Feature/cpuHwC1e.c
 libagesa-y += Proc/CPU/cpuLateInit.c
 libagesa-y += Proc/Common/CreateStruct.c
 libagesa-y += Proc/CPU/Feature/cpuWhea.c
-libagesa-y += Lib/helper.c
 libagesa-y += Proc/Mem/Feat/CSINTLV/mfcsi.c
 libagesa-y += Proc/Mem/Feat/ECC/mfecc.c
 libagesa-y += Proc/Mem/Feat/DMI/mfDMI.c
@@ -326,7 +323,7 @@ libagesa-y += Proc/Mem/Main/mu.c
 
 $(obj)/libagesa.fam14.a: $$(libagesa-objs)
 	@printf " AGESA $(subst $(obj)/,,$(@))\n"
-	ar rcs $@ $+
+	$(AR_romstage) rcs $@ $+
 
 romstage-libs += $(obj)/libagesa.fam14.a
 ramstage-libs += $(obj)/libagesa.fam14.a

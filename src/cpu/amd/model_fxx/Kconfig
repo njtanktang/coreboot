@@ -1,6 +1,7 @@
 config CPU_AMD_MODEL_FXX
 	bool
 	select ARCH_BOOTBLOCK_X86_32
+	select ARCH_VERSTAGE_X86_32
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_RAMSTAGE_X86_32
 	select MMX
@@ -8,11 +9,12 @@ config CPU_AMD_MODEL_FXX
 	select SSE2
 	select TSC_SYNC_LFENCE
 	select UDELAY_LAPIC
+	select SUPPORT_CPU_UCODE_IN_CBFS
 
 if CPU_AMD_MODEL_FXX
-config UDELAY_IO
-	bool
-	default n
+config CPU_ADDR_BITS
+	int
+	default 40
 
 config MAX_PHYSICAL_CPUS
 	int
@@ -24,8 +26,8 @@ config LIFT_BSP_APIC_ID
 
 config SET_FIDVID
 	bool
-	default n
 	default y if K8_REV_F_SUPPORT
+	default n
 
 config HW_SCRUBBER
 	bool

@@ -13,19 +13,21 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config CPU_INTEL_SOCKET_FC_PGA370
 	bool
 	select CPU_INTEL_MODEL_68X
 	select MMX
 	select SSE
-	select CACHE_AS_RAM
+
+if CPU_INTEL_SOCKET_FC_PGA370
+
+config DCACHE_RAM_BASE
+	hex
+	default 0xc8000
 
 config DCACHE_RAM_SIZE
 	hex
-	default 0x8000
-	depends on CPU_INTEL_SOCKET_FC_PGA370
+	default 0x08000
+
+endif

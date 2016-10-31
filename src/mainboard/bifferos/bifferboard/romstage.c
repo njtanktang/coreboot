@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -22,8 +18,8 @@
 #include <device/pci_ids.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <pc80/mc146818rtc.h>
+#include "arch/x86/romcc_console.c"
 #include <console/console.h>
 #include <cpu/x86/cache.h>
 
@@ -60,4 +56,3 @@ static void main(void)
 	/* Route Cseg, Dseg, Eseg and Fseg to RAM */
 	pci_write_config32(PCI_DEV(0,0,0), 0x84, 0x3ffffff0);
 }
-

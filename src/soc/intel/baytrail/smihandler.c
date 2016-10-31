@@ -11,25 +11,23 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <arch/hlt.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/smm.h>
 #include <device/pci_def.h>
 #include <elog.h>
+#include <halt.h>
+#include <spi-generic.h>
 
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
-#include <baytrail/nvs.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/nvs.h>
 
 /* GNVS needs to be set by coreboot initiating a software SMI. */
 static global_nvs_t *gnvs;
@@ -109,37 +107,37 @@ static void southbridge_smi_sleep(void)
 	/* Figure out SLP_TYP */
 	reg32 = inl(pmbase + PM1_CNT);
 	printk(BIOS_SPEW, "SMI#: SLP = 0x%08x\n", reg32);
-	slp_typ = (reg32 >> 10) & 7;
+	slp_typ = acpi_sleep_from_pm1(reg32);
 
 	/* Do any mainboard sleep handling */
-	mainboard_smi_sleep(slp_typ-2);
+	mainboard_smi_sleep(slp_typ);
 
 #if CONFIG_ELOG_GSMI
 	/* Log S3, S4, and S5 entry */
-	if (slp_typ >= 5)
-		elog_add_event_byte(ELOG_TYPE_ACPI_ENTER, slp_typ-2);
+	if (slp_typ >= ACPI_S3)
+		elog_add_event_byte(ELOG_TYPE_ACPI_ENTER, slp_typ);
 #endif
 
 	/* Next, do the deed.
 	 */
 
 	switch (slp_typ) {
-	case SLP_TYP_S0:
+	case ACPI_S0:
 		printk(BIOS_DEBUG, "SMI#: Entering S0 (On)\n");
 		break;
-	case SLP_TYP_S1:
+	case ACPI_S1:
 		printk(BIOS_DEBUG, "SMI#: Entering S1 (Assert STPCLK#)\n");
 		break;
-	case SLP_TYP_S3:
+	case ACPI_S3:
 		printk(BIOS_DEBUG, "SMI#: Entering S3 (Suspend-To-RAM)\n");
 
 		/* Invalidate the cache before going to S3 */
 		wbinvd();
 		break;
-	case SLP_TYP_S4:
+	case ACPI_S4:
 		printk(BIOS_DEBUG, "SMI#: Entering S4 (Suspend-To-Disk)\n");
 		break;
-	case SLP_TYP_S5:
+	case ACPI_S5:
 		printk(BIOS_DEBUG, "SMI#: Entering S5 (Soft Power off)\n");
 
 		/* Disable all GPE */
@@ -160,8 +158,8 @@ static void southbridge_smi_sleep(void)
 	enable_pm1_control(SLP_EN);
 
 	/* Make sure to stop executing code here for S3/S4/S5 */
-	if (slp_typ > 1)
-		hlt();
+	if (slp_typ >= ACPI_S3)
+		halt();
 
 	/* In most sleep states, the code flow of this function ends at
 	 * the line above. However, if we entered sleep state S1 and wake
@@ -232,6 +230,77 @@ static void southbridge_smi_gsmi(void)
 	*ret = gsmi_exec(sub_command, param);
 }
 #endif
+
+static void finalize(void)
+{
+	static int finalize_done;
+
+	if (finalize_done) {
+		printk(BIOS_DEBUG, "SMM already finalized.\n");
+		return;
+	}
+	finalize_done = 1;
+
+#if CONFIG_SPI_FLASH_SMM
+	/* Re-init SPI driver to handle locked BAR */
+	spi_init();
+#endif
+}
+
+/*
+ * soc_legacy: A payload (Depthcharge) has indicated that the
+ *   legacy payload (SeaBIOS) is being loaded. Switch devices that are
+ *   in ACPI mode to PCI mode so that non-ACPI drivers may work.
+ *
+ */
+static void soc_legacy(void)
+{
+	u32 reg32;
+
+	/* LPE Device */
+	 if (gnvs->dev.lpe_en) {
+		reg32 = iosf_port58_read(LPE_PCICFGCTR1);
+		reg32 &=
+		~(LPE_PCICFGCTR1_PCI_CFG_DIS | LPE_PCICFGCTR1_ACPI_INT_EN);
+		iosf_port58_write(LPE_PCICFGCTR1, reg32);
+	}
+
+	/* SCC Devices */
+#define SCC_ACPI_MODE_DISABLE(name_) \
+	do { if (gnvs->dev.scc_en[SCC_NVS_ ## name_]) { \
+		reg32 = iosf_scc_read(SCC_ ## name_ ## _CTL); \
+		reg32 &= ~(SCC_CTL_PCI_CFG_DIS | SCC_CTL_ACPI_INT_EN); \
+		iosf_scc_write(SCC_ ## name_ ## _CTL, reg32); \
+	} } while (0)
+
+	SCC_ACPI_MODE_DISABLE(MMC);
+	SCC_ACPI_MODE_DISABLE(SD);
+	SCC_ACPI_MODE_DISABLE(SDIO);
+
+	 /* LPSS Devices */
+#define LPSS_ACPI_MODE_DISABLE(name_) \
+	do { if (gnvs->dev.lpss_en[LPSS_NVS_ ## name_]) { \
+		reg32 = iosf_lpss_read(LPSS_ ## name_ ## _CTL); \
+		reg32 &= ~LPSS_CTL_PCI_CFG_DIS | ~LPSS_CTL_ACPI_INT_EN; \
+		iosf_lpss_write(LPSS_ ## name_ ## _CTL, reg32); \
+	} } while (0)
+
+	LPSS_ACPI_MODE_DISABLE(SIO_DMA1);
+	LPSS_ACPI_MODE_DISABLE(I2C1);
+	LPSS_ACPI_MODE_DISABLE(I2C2);
+	LPSS_ACPI_MODE_DISABLE(I2C3);
+	LPSS_ACPI_MODE_DISABLE(I2C4);
+	LPSS_ACPI_MODE_DISABLE(I2C5);
+	LPSS_ACPI_MODE_DISABLE(I2C6);
+	LPSS_ACPI_MODE_DISABLE(I2C7);
+	LPSS_ACPI_MODE_DISABLE(SIO_DMA2);
+	LPSS_ACPI_MODE_DISABLE(PWM1);
+	LPSS_ACPI_MODE_DISABLE(PWM2);
+	LPSS_ACPI_MODE_DISABLE(HSUART1);
+	LPSS_ACPI_MODE_DISABLE(HSUART2);
+	LPSS_ACPI_MODE_DISABLE(SPI);
+}
+
 static void southbridge_smi_apmc(void)
 {
 	uint8_t reg8;
@@ -282,6 +351,13 @@ static void southbridge_smi_apmc(void)
 		southbridge_smi_gsmi();
 		break;
 #endif
+	case APM_CNT_FINALIZE:
+		finalize();
+		break;
+
+	case APM_CNT_LEGACY:
+		soc_legacy();
+		break;
 	}
 
 	mainboard_smi_apmc(reg8);
@@ -392,7 +468,7 @@ void southbridge_smi_handler(void)
 			southbridge_smi[i]();
 		} else {
 			printk(BIOS_DEBUG,
-			       "SMI_STS[%d] occured, but no "
+			       "SMI_STS[%d] occurred, but no "
 			       "handler available.\n", i);
 		}
 	}

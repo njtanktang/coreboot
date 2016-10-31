@@ -11,20 +11,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <arch/io.h>
 #include <console/console.h>
 
-#include <baytrail/iomap.h>
-#include <baytrail/lpc.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
+#include <soc/iomap.h>
+#include <soc/lpc.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
 
 #if defined(__SMM__)
 
@@ -355,10 +351,10 @@ void clear_pmc_status(void)
 	uint32_t prsts;
 	uint32_t gen_pmcon1;
 
-	prsts = read32(PMC_BASE_ADDRESS + PRSTS);
-	gen_pmcon1 = read32(PMC_BASE_ADDRESS + GEN_PMCON1);
+	prsts = read32((u32 *)(PMC_BASE_ADDRESS + PRSTS));
+	gen_pmcon1 = read32((u32 *)(PMC_BASE_ADDRESS + GEN_PMCON1));
 
 	/* Clear the status bits. The RPS field is cleared on a 0 write. */
-	write32(PMC_BASE_ADDRESS + GEN_PMCON1, gen_pmcon1 & ~RPS);
-	write32(PMC_BASE_ADDRESS + PRSTS, prsts);
+	write32((u32 *)(PMC_BASE_ADDRESS + GEN_PMCON1), gen_pmcon1 & ~RPS);
+	write32((u32 *)(PMC_BASE_ADDRESS + PRSTS), prsts);
 }

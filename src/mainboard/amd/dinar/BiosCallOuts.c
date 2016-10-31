@@ -11,34 +11,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/agesawrapper.h>
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include "Ids.h"
-#include "OptionsIds.h"
 #include "heapManager.h"
 #include "SB700.h"
-#include <northbridge/amd/agesa/family15/dimmSpd.h>
 #include "OEM.h"		/* SMBUS0_BASE_ADDRESS */
 #include <stdlib.h>
 
-#ifndef SB_GPIO_REG01
-#define SB_GPIO_REG01   1
-#endif
-
-#ifndef SB_GPIO_REG24
-#define SB_GPIO_REG24   24
-#endif
-
-#ifndef SB_GPIO_REG27
-#define SB_GPIO_REG27   27
-#endif
+#include <southbridge/amd/cimx/sb700/smbus_spd.h>
 
 #ifdef __PRE_RAM__
 /* This define is used when selecting the appropriate socket for the SPD read
@@ -60,7 +45,7 @@ static void select_socket(UINT8 socket_id)
 
 	/* Enable SMBus MMIO. */
 	PciAddress.AddressValue = MAKE_SBDFO (0, 0, 20, 0, 0xD2);
-	LibAmdPciRead(AccessWidth8, PciAddress, &PciData8, &StdHeader); ;
+	LibAmdPciRead(AccessWidth8, PciAddress, &PciData8, &StdHeader);
 	PciData8 |= BIT0;
 	LibAmdPciWrite(AccessWidth8, PciAddress, &PciData8, &StdHeader);
 
@@ -87,13 +72,10 @@ static void restore_socket(void)
 }
 #endif
 
-static AGESA_STATUS board_ReadSpd (UINT32 Func,UINT32	Data,VOID *ConfigPtr);
+static AGESA_STATUS board_ReadSpd (UINT32 Func, UINTN Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,			agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,		agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,			agesa_LocateBuffer},
 	{AGESA_DO_RESET,			agesa_Reset },
 	{AGESA_READ_SPD,			board_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,		agesa_NoopUnsupported },
@@ -108,7 +90,7 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
 
 
-static AGESA_STATUS board_ReadSpd (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+static AGESA_STATUS board_ReadSpd (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	AGESA_STATUS Status;
 #ifdef __PRE_RAM__
@@ -117,7 +99,7 @@ static AGESA_STATUS board_ReadSpd (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
 
 	select_socket(((AGESA_READ_SPD_PARAMS *)ConfigPtr)->SocketId);
 
-	Status = agesa_ReadSPD (Func, Data, ConfigPtr);
+	Status = agesa_ReadSpd (Func, Data, ConfigPtr);
 
 	restore_socket();
 #else

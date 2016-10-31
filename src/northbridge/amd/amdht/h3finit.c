@@ -1,6 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -50,6 +47,71 @@
 /* APIC defines from amdgesa.inc, which can't be included in to c code. */
 #define APIC_Base_BSP	8
 #define APIC_Base	0x1b
+
+#define NVRAM_LIMIT_HT_SPEED_200  0x12
+#define NVRAM_LIMIT_HT_SPEED_300  0x11
+#define NVRAM_LIMIT_HT_SPEED_400  0x10
+#define NVRAM_LIMIT_HT_SPEED_500  0xf
+#define NVRAM_LIMIT_HT_SPEED_600  0xe
+#define NVRAM_LIMIT_HT_SPEED_800  0xd
+#define NVRAM_LIMIT_HT_SPEED_1000 0xc
+#define NVRAM_LIMIT_HT_SPEED_1200 0xb
+#define NVRAM_LIMIT_HT_SPEED_1400 0xa
+#define NVRAM_LIMIT_HT_SPEED_1600 0x9
+#define NVRAM_LIMIT_HT_SPEED_1800 0x8
+#define NVRAM_LIMIT_HT_SPEED_2000 0x7
+#define NVRAM_LIMIT_HT_SPEED_2200 0x6
+#define NVRAM_LIMIT_HT_SPEED_2400 0x5
+#define NVRAM_LIMIT_HT_SPEED_2600 0x4
+#define NVRAM_LIMIT_HT_SPEED_2800 0x3
+#define NVRAM_LIMIT_HT_SPEED_3000 0x2
+#define NVRAM_LIMIT_HT_SPEED_3200 0x1
+#define NVRAM_LIMIT_HT_SPEED_AUTO 0x0
+
+static const uint32_t ht_speed_limit[20] =
+	{0xFFFFF, 0xFFFFF, 0x7FFFF, 0x3FFFF,
+	 0x0FFFF, 0x07FFF, 0x03FFF, 0x01FFF,
+	 0x00FFF, 0x007FF, 0x003FF, 0x001FF,
+	 0x000FF, 0x0007F, 0x0003F, 0x0001F,
+	 0x0000F, 0x00007, 0x00003, 0x00001};
+
+static const struct ht_speed_limit_map_t {
+	uint16_t mhz;
+	uint8_t nvram;
+} ht_speed_limit_map[] = {
+	{0, NVRAM_LIMIT_HT_SPEED_AUTO},
+	{200, NVRAM_LIMIT_HT_SPEED_200},
+	{300, NVRAM_LIMIT_HT_SPEED_300},
+	{400, NVRAM_LIMIT_HT_SPEED_400},
+	{500, NVRAM_LIMIT_HT_SPEED_500},
+	{600, NVRAM_LIMIT_HT_SPEED_600},
+	{800, NVRAM_LIMIT_HT_SPEED_800},
+	{1000, NVRAM_LIMIT_HT_SPEED_1000},
+	{1200, NVRAM_LIMIT_HT_SPEED_1200},
+	{1400, NVRAM_LIMIT_HT_SPEED_1400},
+	{1600, NVRAM_LIMIT_HT_SPEED_1600},
+	{1800, NVRAM_LIMIT_HT_SPEED_1800},
+	{2000, NVRAM_LIMIT_HT_SPEED_2000},
+	{2200, NVRAM_LIMIT_HT_SPEED_2200},
+	{2400, NVRAM_LIMIT_HT_SPEED_2400},
+	{2600, NVRAM_LIMIT_HT_SPEED_2600},
+	{2800, NVRAM_LIMIT_HT_SPEED_2800},
+	{3000, NVRAM_LIMIT_HT_SPEED_3000},
+	{3200, NVRAM_LIMIT_HT_SPEED_3200},
+};
+
+static const uint32_t ht_speed_mhz_to_hw(uint16_t mhz)
+{
+	size_t i;
+	for (i = 0; i < ARRAY_SIZE(ht_speed_limit_map); i++)
+		if (ht_speed_limit_map[i].mhz == mhz)
+			return ht_speed_limit[ht_speed_limit_map[i].nvram];
+
+	printk(BIOS_WARNING,
+		"WARNING: Invalid HT link limit frequency %d specified, ignoring...\n",
+		 mhz);
+	return ht_speed_limit[NVRAM_LIMIT_HT_SPEED_AUTO];
+}
 
 /*----------------------------------------------------------------------------
  *			TYPEDEFS AND STRUCTURES
@@ -119,8 +181,8 @@
  *	 Returns the number of nodes in the compressed graph
  *
  *  Parameters:
- *	@param[in] u8 graph = a compressed graph
- *	@param[out] u8 results = the number of nodes in the graph
+ *	@param[in] graph = a compressed graph
+ *	@param[out] results = the number of nodes in the graph
  * ---------------------------------------------------------------------------------------
  */
 static u8 graphHowManyNodes(u8 *graph)
@@ -138,10 +200,10 @@ static u8 graphHowManyNodes(u8 *graph)
  * Relies on rule that directly connected nodes always route requests directly.
  *
  *  Parameters:
- *	@param[in]    u8    graph   = the graph to examine
- *	@param[in]    u8    nodeA   = the node number of the first node
- *	@param[in]    u8    nodeB   = the node number of the second node
- *	@param[out]   BOOL    results  = true if nodeA connects to nodeB false if not
+ *	@param[in]   graph   = the graph to examine
+ *	@param[in]   nodeA   = the node number of the first node
+ *	@param[in]   nodeB   = the node number of the second node
+ *	@param[out]    results  = true if nodeA connects to nodeB false if not
  * ---------------------------------------------------------------------------------------
  */
 static BOOL graphIsAdjacent(u8 *graph, u8 nodeA, u8 nodeB)
@@ -190,10 +252,10 @@ static u8 graphGetRsp(u8 *graph, u8 nodeA, u8 nodeB)
  *	it is the responsibility of the caller to apply any permutation needed.
  *
  *  Parameters:
- *	@param[in]    u8    graph   = the graph to examine
- *	@param[in]    u8    nodeA   = the node number of the first node
- *	@param[in]    u8    nodeB   = the node number of the second node
- *	@param[out]   u8    results = The request route node
+ *	@param[in]   graph   = the graph to examine
+ *	@param[in]   nodeA   = the node number of the first node
+ *	@param[in]   nodeB   = the node number of the second node
+ *	@param[out]  results = The request route node
  * ---------------------------------------------------------------------------------------
  */
 static u8 graphGetReq(u8 *graph, u8 nodeA, u8 nodeB)
@@ -213,10 +275,10 @@ static u8 graphGetReq(u8 *graph, u8 nodeA, u8 nodeB)
  *	 nodeB towards
  *
  *  Parameters:
- *	@param[in]    u8    graph   = the graph to examine
- *	@param[in]    u8    nodeA   = the node number of the first node
- *	@param[in]    u8    nodeB   = the node number of the second node
- *	OU    u8    results = the broadcast routes for nodeA from nodeB
+ *	@param[in]    graph   = the graph to examine
+ *	@param[in]    nodeA   = the node number of the first node
+ *	@param[in]    nodeB   = the node number of the second node
+ *	OU    results = the broadcast routes for nodeA from nodeB
  * ---------------------------------------------------------------------------------------
  */
 static u8 graphGetBc(u8 *graph, u8 nodeA, u8 nodeB)
@@ -273,19 +335,21 @@ static void routeFromBSP(u8 targetNode, u8 actualTarget, sMainData *pDat)
 	pDat->nb->writeRoutingTable(predecessorNode, actualTarget, predecessorLink, pDat->nb);
 }
 
-/*----------------------------------------------------------------------------------------
- * u8
+/*---------------------------------------------------------------------------*/
+
+/**
+ *  u8
  * convertNodeToLink(u8 srcNode, u8 targetNode, sMainData *pDat)
  *
  *  Description:
  *	 Return the link on source node which connects to target node
  *
  *  Parameters:
- *	@param[in]    u8    srcNode    = the source node
- *	@param[in]    u8    targetNode = the target node to find the link to
- *	@param[in]    sMainData*  pDat = our global state
- *	@param[out]   u8    results    = the link on source which connects to target
- * ---------------------------------------------------------------------------------------
+ *	@param[in]    srcNode    = the source node
+ *	@param[in]    targetNode = the target node to find the link to
+ *	@param[in]    pDat = our global state
+ *	@return       the link on source which connects to target
+ *
  */
 static u8 convertNodeToLink(u8 srcNode, u8 targetNode, sMainData *pDat)
 {
@@ -328,13 +392,49 @@ static u8 convertNodeToLink(u8 srcNode, u8 targetNode, sMainData *pDat)
  */
 static void htDiscoveryFloodFill(sMainData *pDat)
 {
-	u8 currentNode = 0;
-	u8 currentLink;
+	uint8_t currentNode = 0;
+	uint8_t currentLink;
+	uint8_t currentLinkID;
+
+	/* NOTE
+	 * Each node inside a dual node (socket G34) processor must share
+	 * an adjacent node ID.  Alter the link scan order such that the
+	 * other internal node is always scanned first...
+	 */
+	uint8_t currentLinkScanOrder_Default[8] = {0, 1, 2, 3, 4, 5, 6, 7};
+	uint8_t currentLinkScanOrder_G34_Fam10[8] = {1, 0, 2, 3, 4, 5, 6, 7};
+	uint8_t currentLinkScanOrder_G34_Fam15[8] = {2, 0, 1, 3, 4, 5, 6, 7};
+
+	uint8_t fam15h = 0;
+	uint8_t rev_gte_d = 0;
+	uint8_t dual_node = 0;
+	uint32_t f3xe8;
+	uint32_t family;
+	uint32_t model;
+
+	f3xe8 = pci_read_config32(NODE_PCI(0, 3), 0xe8);
+
+	family = model = cpuid_eax(0x80000001);
+	model = ((model & 0xf0000) >> 12) | ((model & 0xf0) >> 4);
+	family = ((family & 0xf00000) >> 16) | ((family & 0xf00) >> 8);
+
+	if (family >= 0x6f) {
+		/* Family 15h or later */
+		fam15h = 1;
+	}
+
+	if ((model >= 0x8) || fam15h)
+		/* Revision D or later */
+		rev_gte_d = 1;
+
+	if (rev_gte_d)
+		 /* Check for dual node capability */
+		if (f3xe8 & 0x20000000)
+			dual_node = 1;
 
 	/* Entries are always added in pairs, the even indices are the 'source'
 	 * side closest to the BSP, the odd indices are the 'destination' side
 	 */
-
 	while (currentNode <= pDat->NodesDiscovered)
 	{
 		u32 temp;
@@ -359,13 +459,26 @@ static void htDiscoveryFloodFill(sMainData *pDat)
 		/* Set currentNode's NodeID field to currentNode */
 		pDat->nb->writeNodeID(currentNode, currentNode, pDat->nb);
 
-		/* Enable routing tables on currentNode*/
+		/* Enable routing tables on currentNode */
 		pDat->nb->enableRoutingTables(currentNode, pDat->nb);
 
-		for (currentLink = 0; currentLink < pDat->nb->maxLinks; currentLink++)
+		for (currentLinkID = 0; currentLinkID < pDat->nb->maxLinks; currentLinkID++)
 		{
 			BOOL linkfound;
 			u8 token;
+
+			if (currentLinkID < 8) {
+				if (dual_node) {
+					if (fam15h)
+						currentLink = currentLinkScanOrder_G34_Fam15[currentLinkID];
+					else
+						currentLink = currentLinkScanOrder_G34_Fam10[currentLinkID];
+				} else {
+					currentLink = currentLinkScanOrder_Default[currentLinkID];
+				}
+			} else {
+				currentLink = currentLinkID;
+			}
 
 			if (pDat->HtBlock->AMD_CB_IgnoreLink && pDat->HtBlock->AMD_CB_IgnoreLink(currentNode, currentLink))
 				continue;
@@ -558,7 +671,7 @@ static void htDiscoveryFloodFill(sMainData *pDat)
 
 			pDat->TotalLinks++;
 
-			if ( !pDat->sysMatrix[currentNode][token] )
+			if (!pDat->sysMatrix[currentNode][token])
 			{
 				pDat->sysDegree[currentNode]++;
 				pDat->sysDegree[token]++;
@@ -632,8 +745,8 @@ static BOOL isoMorph(u8 i, sMainData *pDat)
 		{
 			for (k = 0; k < nodecnt; k++)
 			{
-				if ( pDat->sysMatrix[j][k] !=
-				   pDat->dbMatrix[pDat->Perm[j]][pDat->Perm[k]] )
+				if (pDat->sysMatrix[j][k] !=
+				   pDat->dbMatrix[pDat->Perm[j]][pDat->Perm[k]])
 					return FALSE;
 			}
 		}
@@ -804,7 +917,7 @@ static void lookupComputeAndLoadRoutingTables(sMainData *pDat)
  *
  *  Description:
  *	 Find the total number of cores and update the number of nodes and cores in all cpus.
- *	 Limit cpu config access to installed cpus.
+ *	 Limit CPU config access to installed cpus.
  *
  *  Parameters:
  *	@param[in] sMainData* pDat = our global state, number of nodes discovered.
@@ -961,6 +1074,7 @@ static void processLink(u8 node, u8 link, sMainData *pDat)
 	 && pDat->HtBlock->AMD_CB_ManualBUIDSwapList(node, link, &pSwapPtr))
 	{
 		/* Manual non-coherent BUID assignment */
+		currentBUID = 1;
 
 		/* Assign BUID's per manual override */
 		while (*pSwapPtr != 0xFF)
@@ -1242,13 +1356,13 @@ static void regangLinks(sMainData *pDat)
 		pDat->PortList[i].SelRegang = FALSE;
 		pDat->PortList[i+1].SelRegang = FALSE;
 
-		if ( (pDat->PortList[i].Type != PORTLIST_TYPE_CPU) || (pDat->PortList[i+1].Type != PORTLIST_TYPE_CPU))
-			continue;   /*  Only process cpu to cpu links */
+		if ((pDat->PortList[i].Type != PORTLIST_TYPE_CPU) || (pDat->PortList[i+1].Type != PORTLIST_TYPE_CPU))
+			continue;   /*  Only process CPU to CPU links */
 
 		for (j = i+2; j < pDat->TotalLinks*2; j += 2)
 		{
-			if ( (pDat->PortList[j].Type != PORTLIST_TYPE_CPU) || (pDat->PortList[j+1].Type != PORTLIST_TYPE_CPU) )
-				continue;   /*  Only process cpu to cpu links */
+			if ((pDat->PortList[j].Type != PORTLIST_TYPE_CPU) || (pDat->PortList[j+1].Type != PORTLIST_TYPE_CPU))
+				continue;   /*  Only process CPU to CPU links */
 
 			if (pDat->PortList[i].NodeID != pDat->PortList[j].NodeID)
 				continue;   /*  Links must be from the same source */
@@ -1301,6 +1415,38 @@ static void regangLinks(sMainData *pDat)
 #endif /* HT_BUILD_NC_ONLY */
 }
 
+static void detectIoLinkIsochronousCapable(sMainData *pDat)
+{
+	uint8_t i;
+	unsigned char iommu;
+	uint8_t isochronous_capable = 0;
+
+	iommu = 1;
+	get_option(&iommu, "iommu");
+
+	for (i = 0; i < pDat->TotalLinks*2; i += 2) {
+		if ((pDat->PortList[i].Type == PORTLIST_TYPE_CPU) && (pDat->PortList[i+1].Type == PORTLIST_TYPE_IO)) {
+			if ((pDat->PortList[i].PrvFeatureCap & 0x1) && (pDat->PortList[i+1].PrvFeatureCap & 0x1)) {
+				pDat->PortList[i].enable_isochronous_mode = 1;
+				pDat->PortList[i+1].enable_isochronous_mode = 1;
+				isochronous_capable = 1;
+			} else {
+				pDat->PortList[i].enable_isochronous_mode = 0;
+				pDat->PortList[i+1].enable_isochronous_mode = 0;
+			}
+		}
+	}
+
+	if (isochronous_capable && iommu) {
+		printk(BIOS_DEBUG, "Forcing HT links to isochronous mode due to enabled IOMMU\n");
+		/* Isochronous mode must be set on all links if the IOMMU is enabled */
+		for (i = 0; i < pDat->TotalLinks*2; i += 2) {
+			pDat->PortList[i].enable_isochronous_mode = 1;
+			pDat->PortList[i+1].enable_isochronous_mode = 1;
+		}
+	}
+}
+
 /*----------------------------------------------------------------------------------------
  * void
  * selectOptimalWidthAndFrequency(sMainData *pDat)
@@ -1320,60 +1466,47 @@ static void regangLinks(sMainData *pDat)
 static void selectOptimalWidthAndFrequency(sMainData *pDat)
 {
 	u8 i, j;
-	u32 temp;
-	u16 cbPCBFreqLimit;
+	uint32_t temp;
+	uint32_t cbPCBFreqLimit;
+	uint32_t cbPCBFreqLimit_NVRAM;
 	u8 cbPCBABDownstreamWidth;
 	u8 cbPCBBAUpstreamWidth;
 
+	cbPCBFreqLimit_NVRAM = 0xfffff;
+	if (get_option(&temp, "hypertransport_speed_limit") == CB_SUCCESS)
+		cbPCBFreqLimit_NVRAM = ht_speed_limit[temp & 0xf];
+
+	if (!is_fam15h()) {
+		/* FIXME
+		 * By default limit frequency to 2.6 GHz as there are residual
+		 * problems with HT v3.1 implementation on at least some Socket G34
+		 * mainboards / Fam10h CPUs.
+		 * Debug the issues and reenable this...
+		 */
+		if (cbPCBFreqLimit_NVRAM > 0xffff)
+			cbPCBFreqLimit_NVRAM = 0xffff;
+	}
+
 	for (i = 0; i < pDat->TotalLinks*2; i += 2)
 	{
-#if CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_200
-		cbPCBFreqLimit = 0x0001;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_300
-		cbPCBFreqLimit = 0x0003;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_400
-		cbPCBFreqLimit = 0x0007;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_500
-		cbPCBFreqLimit = 0x000F;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_600
-		cbPCBFreqLimit = 0x001F;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_800
-		cbPCBFreqLimit = 0x003F;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_1000
-		cbPCBFreqLimit = 0x007F;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_1200
-		cbPCBFreqLimit = 0x00FF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_1400
-		cbPCBFreqLimit = 0x01FF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_1600
-		cbPCBFreqLimit = 0x03FF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_1800
-		cbPCBFreqLimit = 0x07FF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_2000
-		cbPCBFreqLimit = 0x0FFF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_2200
-		cbPCBFreqLimit = 0x1FFF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_2400
-		cbPCBFreqLimit = 0x3FFF;
-#elif CONFIG_EXPERT && CONFIG_LIMIT_HT_SPEED_2600
-		cbPCBFreqLimit = 0x7FFF;
-#else
-		cbPCBFreqLimit = 0xFFFF;		// Maximum allowed by autoconfiguration
-#endif
+		cbPCBFreqLimit = 0xfffff;		// Maximum allowed by autoconfiguration
+		if (pDat->HtBlock->ht_link_configuration)
+			cbPCBFreqLimit = ht_speed_mhz_to_hw(pDat->HtBlock->ht_link_configuration->ht_speed_limit);
+		cbPCBFreqLimit = min(cbPCBFreqLimit, cbPCBFreqLimit_NVRAM);
 
-#if CONFIG_EXPERT && CONFIG_LIMIT_HT_DOWN_WIDTH_8
+#if CONFIG_LIMIT_HT_DOWN_WIDTH_8
 		cbPCBABDownstreamWidth = 8;
 #else
 		cbPCBABDownstreamWidth = 16;
 #endif
 
-#if CONFIG_EXPERT && CONFIG_LIMIT_HT_UP_WIDTH_8
+#if CONFIG_LIMIT_HT_UP_WIDTH_8
 		cbPCBBAUpstreamWidth = 8;
 #else
 		cbPCBBAUpstreamWidth = 16;
 #endif
 
-		if ( (pDat->PortList[i].Type == PORTLIST_TYPE_CPU) && (pDat->PortList[i+1].Type == PORTLIST_TYPE_CPU))
+		if ((pDat->PortList[i].Type == PORTLIST_TYPE_CPU) && (pDat->PortList[i+1].Type == PORTLIST_TYPE_CPU))
 		{
 			if (pDat->HtBlock->AMD_CB_Cpu2CpuPCBLimits)
 			{
@@ -1401,17 +1534,18 @@ static void selectOptimalWidthAndFrequency(sMainData *pDat)
 			}
 		}
 
-
 		temp = pDat->PortList[i].PrvFrequencyCap;
 		temp &= pDat->PortList[i+1].PrvFrequencyCap;
 		temp &= cbPCBFreqLimit;
-		pDat->PortList[i].CompositeFrequencyCap = (u16)temp;
-		pDat->PortList[i+1].CompositeFrequencyCap = (u16)temp;
+		pDat->PortList[i].CompositeFrequencyCap = temp;
+		pDat->PortList[i+1].CompositeFrequencyCap = temp;
 
 		ASSERT (temp != 0);
-		for (j = 15; ; j--)
+		for (j = 19;; j--)
 		{
-			if (temp & ((u32)1 << j))
+			if ((j == 16) || (j == 15))
+				continue;
+			if (temp & ((uint32_t)1 << j))
 				break;
 		}
 
@@ -1433,7 +1567,6 @@ static void selectOptimalWidthAndFrequency(sMainData *pDat)
 			temp = cbPCBBAUpstreamWidth;
 		pDat->PortList[i].SelWidthIn = (u8)temp;
 		pDat->PortList[i+1].SelWidthOut = (u8)temp;
-
 	}
 }
 
@@ -1506,7 +1639,7 @@ static void hammerSublinkFixup(sMainData *pDat)
 				{
 					if ((loFreq != 7) &&  /* {13, 7} 2400MHz / 1200MHz 2:1 */
 						(loFreq != 4) &&  /* {13, 4} 2400MHz /  600MHz 4:1 */
-						(loFreq != 2) )   /* {13, 2} 2400MHz /  400MHz 6:1 */
+						(loFreq != 2))   /* {13, 2} 2400MHz /  400MHz 6:1 */
 						downgrade = TRUE;
 				}
 				else if (hiFreq == 11)
@@ -1518,19 +1651,19 @@ static void hammerSublinkFixup(sMainData *pDat)
 				{
 					if ((loFreq != 5) &&  /* { 9, 5} 1600MHz /  800MHz 2:1 */
 						(loFreq != 2) &&  /* { 9, 2} 1600MHz /  400MHz 4:1 */
-						(loFreq != 0) )   /* { 9, 0} 1600MHz /  200Mhz 8:1 */
+						(loFreq != 0))   /* { 9, 0} 1600MHz /  200MHz 8:1 */
 						downgrade = TRUE;
 				}
 				else if (hiFreq == 7)
 				{
 					if ((loFreq != 4) &&  /* { 7, 4} 1200MHz /  600MHz 2:1 */
-						(loFreq != 0) )   /* { 7, 0} 1200MHz /  200MHz 6:1 */
+						(loFreq != 0))   /* { 7, 0} 1200MHz /  200MHz 6:1 */
 						downgrade = TRUE;
 				}
 				else if (hiFreq == 5)
 				{
 					if ((loFreq != 2) &&  /* { 5, 2}  800MHz /  400MHz 2:1 */
-						(loFreq != 0) )   /* { 5, 0}  800MHz /  200MHz 4:1 */
+						(loFreq != 0))   /* { 5, 0}  800MHz /  200MHz 4:1 */
 						downgrade = TRUE;
 				}
 				else if (hiFreq == 2)
@@ -1555,12 +1688,14 @@ static void hammerSublinkFixup(sMainData *pDat)
 					/*  Remove hiFreq from the list of valid frequencies */
 					temp = temp & ~((uint32)1 << hiFreq);
 					ASSERT (temp != 0);
-					pDat->PortList[hiIndex].CompositeFrequencyCap = (uint16)temp;
-					pDat->PortList[hiIndex+1].CompositeFrequencyCap = (uint16)temp;
+					pDat->PortList[hiIndex].CompositeFrequencyCap = temp;
+					pDat->PortList[hiIndex+1].CompositeFrequencyCap = temp;
 
-					for (k = 15; ; k--)
+					for (k = 19;; k--)
 					{
-						if (temp & ((u32)1 << k))
+						if ((j == 16) || (j == 15))
+							continue;
+						if (temp & ((uint32_t)1 << k))
 							break;
 					}
 
@@ -1593,6 +1728,8 @@ static void linkOptimization(sMainData *pDat)
 {
 	pDat->nb->gatherLinkData(pDat, pDat->nb);
 	regangLinks(pDat);
+	if (is_fam15h())
+		detectIoLinkIsochronousCapable(pDat);
 	selectOptimalWidthAndFrequency(pDat);
 	hammerSublinkFixup(pDat);
 	pDat->nb->setLinkData(pDat, pDat->nb);
@@ -1670,7 +1807,7 @@ static void tuning(sMainData *pDat)
 	/* For each node, invoke northbridge specific buffer tunings or
 	 * system specific customizations.
 	 */
-	for (i=0; i < pDat->NodesDiscovered + 1; i++)
+	for (i = 0; i < pDat->NodesDiscovered + 1; i++)
 	{
 		if ((pDat->HtBlock->AMD_CB_CustomizeBuffers == NULL)
 		   || !pDat->HtBlock->AMD_CB_CustomizeBuffers(i))

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,16 +19,15 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
-#include "drivers/pc80/udelay_io.c"
 #include <console/console.h>
 #include <lib.h>
 #include <superio/smsc/smscsuperio/smscsuperio.h>
-#include "northbridge/intel/i82830/raminit.h"
+#include <northbridge/intel/i82830/raminit.h>
 #include "northbridge/intel/i82830/memory_initialized.c"
-#include "southbridge/intel/i82801dx/i82801dx.h"
+#include <southbridge/intel/i82801dx/i82801dx.h>
 #include "southbridge/intel/i82801dx/reset.c"
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include "spd_table.h"
 #include "gpio.c"
 #include "southbridge/intel/i82801dx/tco_timer.c"
@@ -94,7 +89,7 @@ static void mb_early_setup(void)
 	pci_write_config8(PCI_DEV(0, 0x1f, 0), ACPI_CNTL, 0x10);
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	if (bist == 0) {
 		if (memory_initialized())

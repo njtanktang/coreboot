@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -25,6 +21,8 @@
 #include <device/pci.h>
 
 #include <southbridge/intel/bd82x6x/pch.h>
+#include <southbridge/intel/common/gpio.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 #include "ec.h"
 #include <ec/quanta/it8518/ec.h>
 
@@ -35,21 +33,13 @@
 
 void fill_lb_gpios(struct lb_gpios *gpios)
 {
-	device_t dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
-	u16 gpio_base = pci_read_config32(dev, GPIOBASE) & 0xfffe;
-
-	if (!gpio_base)
-		return;
-
-	u32 gp_lvl = inl(gpio_base + GP_LVL);
-
 	gpios->size = sizeof(*gpios) + (GPIO_COUNT * sizeof(struct lb_gpio));
 	gpios->count = GPIO_COUNT;
 
 	/* Write Protect: GPIO7 */
 	gpios->gpios[0].port = 7;
 	gpios->gpios[0].polarity = ACTIVE_LOW;
-	gpios->gpios[0].value = (gp_lvl >> 7) & 1;
+	gpios->gpios[0].value = !get_write_protect_state();
 	strncpy((char *)gpios->gpios[0].name,"write protect",
 							GPIO_MAX_NAME_LENGTH);
 
@@ -68,7 +58,7 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	/* Lid Switch: Virtual switch */
 	gpios->gpios[3].port = -1;
 	gpios->gpios[3].polarity = ACTIVE_HIGH;
-	gpios->gpios[3].value = 1; /* Hard-code to open */
+	gpios->gpios[3].value = get_lid_switch();
 	strncpy((char *)gpios->gpios[3].name,"lid", GPIO_MAX_NAME_LENGTH);
 
 	/* Power Button: Virtual switch */
@@ -90,6 +80,17 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	strncpy((char *)gpios->gpios[6].name,"ec_in_rw", GPIO_MAX_NAME_LENGTH);
 }
 #endif
+
+int get_write_protect_state(void)
+{
+	return !get_gpio(7);
+}
+
+int get_lid_switch(void)
+{
+	/* hard-code to open */
+	return 1;
+}
 
 /* The dev-switch is virtual on Stout (and so handled elsewhere). */
 int get_developer_mode_switch(void)
@@ -132,4 +133,15 @@ int get_recovery_mode_switch(void)
 	}
 	return ec_in_rec_mode;
 #endif
+}
+
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AH(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_REC_AH(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AL(7, CROS_GPIO_DEVICE_NAME),
+};
+
+void mainboard_chromeos_acpi_generate(void)
+{
+	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
 }

@@ -1,4 +1,7 @@
 chip northbridge/intel/sandybridge
+	# IGD Displays
+	register "gfx.ndid" = "3"
+	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
 
 	device cpu_cluster 0 on
 		chip cpu/intel/socket_rPGA989
@@ -7,9 +10,6 @@ chip northbridge/intel/sandybridge
 		chip cpu/intel/model_206ax
 			# Magic APIC ID to locate this chip
 			device lapic 0xACAC off end
-
-			# Coordinate with HW_ALL
-			register "pstate_coord_type" = "0xfe" # TODO: This is never read.
 
 			register "c1_acpower" = "1"	# ACPI(C1) = MWAIT(C1)
 			register "c2_acpower" = "4"	# ACPI(C2) = MWAIT(C3)
@@ -27,15 +27,6 @@ chip northbridge/intel/sandybridge
 		device pci 02.0 on end # vga controller
 
 		chip southbridge/intel/bd82x6x # Intel Series 6 Cougar Point PCH
-			register "pirqa_routing" = "0x8b"
-			register "pirqb_routing" = "0x8b"
-			register "pirqc_routing" = "0x8b"
-			register "pirqd_routing" = "0x8b"
-			register "pirqe_routing" = "0x8b"
-			register "pirqf_routing" = "0x8b"
-			register "pirqg_routing" = "0x8b"
-			register "pirqh_routing" = "0x8b"
-
 			# Enable all SATA ports 0-5
 			register "sata_port_map" = "0x3f"
 			# Set max SATA speed to 6.0 Gb/s (should be the default, anyway)
@@ -49,6 +40,12 @@ chip northbridge/intel/sandybridge
 
 			# Disable root port coalescing
 			register "pcie_port_coalesce" = "0"
+
+			register "c2_latency" = "101"  # c2 not supported
+			register "p_cnt_throttling_supported" = "1"
+
+			register "xhci_switchable_ports"	= "0x0f"
+			register "superspeed_capable_ports"	= "0x0f"
 
 			device pci 14.0 on end # USB 3.0 Controller
 			device pci 16.0 on end # Management Engine Interface 1

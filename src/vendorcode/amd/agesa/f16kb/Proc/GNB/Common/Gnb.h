@@ -45,6 +45,8 @@
 #ifndef _GNB_H_
 #define _GNB_H_
 
+#include <stdlib.h>
+
 #include  "Ids.h"
 
 #pragma pack (push, 1)
@@ -71,17 +73,9 @@
   #endif
 #endif
 
-#ifndef MIN
-  #define MIN(x, y) (((x) > (y))? (y):(x))
-#endif
-
-#ifndef MAX
-  #define MAX(x, y) (((x) > (y))? (x):(y))
-#endif
-
 #define OFF 0
 
-#define PVOID UINT32
+#define PVOID UINTN
 
 #define STRING_TO_UINT32(a, b, c, d) ((UINT32) ((d << 24) | (c << 16) | (b << 8) | a))
 

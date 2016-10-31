@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -24,6 +20,8 @@
 #include <device/pci.h>
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <southbridge/intel/bd82x6x/pch.h>
+#include <southbridge/intel/common/gpio.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 #define GPIO_SPI_WP	24
 #define GPIO_REC_MODE	42
@@ -52,9 +50,7 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	/* Write Protect: GPIO24 = KBC3_SPI_WP# */
 	gpios->gpios[0].port = GPIO_SPI_WP;
 	gpios->gpios[0].polarity = ACTIVE_HIGH;
-	gpios->gpios[0].value =
-		(pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x1f, 2)),
-						 SATA_SP) >> FLAG_SPI_WP) & 1;
+	gpios->gpios[0].value = get_write_protect_state();
 	strncpy((char *)gpios->gpios[0].name,"write protect",
 							GPIO_MAX_NAME_LENGTH);
 
@@ -89,6 +85,17 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 }
 #endif
 
+int get_write_protect_state(void)
+{
+	device_t dev;
+#ifdef __PRE_RAM__
+	dev = PCI_DEV(0, 0x1f, 2);
+#else
+	dev = dev_find_slot(0, PCI_DEVFN(0x1f, 2));
+#endif
+	return (pci_read_config32(dev, SATA_SP) >> FLAG_SPI_WP) & 1;
+}
+
 int get_developer_mode_switch(void)
 {
 	device_t dev;
@@ -114,21 +121,29 @@ int get_recovery_mode_switch(void)
 void init_bootmode_straps(void)
 {
 #ifdef __PRE_RAM__
-	u16 gpio_base = pci_read_config32(PCH_LPC_DEV, GPIO_BASE) & 0xfffe;
-	u32 gp_lvl2 = inl(gpio_base + GP_LVL2);
-	u32 gp_lvl = inl(gpio_base + GP_LVL);
 	u32 flags = 0;
 
 	/* Write Protect: GPIO24 = KBC3_SPI_WP#, active high */
-	if (gp_lvl & (1 << GPIO_SPI_WP))
+	if (get_gpio(GPIO_SPI_WP))
 		flags |= (1 << FLAG_SPI_WP);
 	/* Recovery: GPIO42 = CHP3_REC_MODE#, active low */
-	if (!(gp_lvl2 & (1 << (GPIO_REC_MODE-32))))
+	if (!get_gpio(GPIO_REC_MODE))
 		flags |= (1 << FLAG_REC_MODE);
 	/* Developer: GPIO17 = KBC3_DVP_MODE, active high */
-	if (gp_lvl & (1 << GPIO_DEV_MODE))
+	if (get_gpio(GPIO_DEV_MODE))
 		flags |= (1 << FLAG_DEV_MODE);
 
 	pci_write_config32(PCI_DEV(0, 0x1f, 2), SATA_SP, flags);
 #endif
+}
+
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AL(GPIO_REC_MODE, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_DEV_AH(GPIO_DEV_MODE, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AH(GPIO_SPI_WP, CROS_GPIO_DEVICE_NAME),
+};
+
+void mainboard_chromeos_acpi_generate(void)
+{
+	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
 }

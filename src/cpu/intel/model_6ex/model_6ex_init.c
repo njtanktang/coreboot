@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -74,7 +69,7 @@ static void configure_c_states(void)
 	msr.lo |= (1 << 15); // config lock until next reset.
 	msr.lo |= (1 << 10); // Enable I/O MWAIT redirection for C-States
 	msr.lo &= ~(1 << 9); // Issue a single stop grant cycle upon stpclk
-	// TODO Do we want Deep C4 and  Dynamic L2 shrinking?
+	msr.lo |= (1 << 3); //dynamic L2
 
 	/* Number of supported C-States */
 	msr.lo &= ~7;
@@ -108,7 +103,13 @@ static void configure_misc(void)
 	// TODO: Only if  IA32_PLATFORM_ID[17] = 0 and IA32_PLATFORM_ID[50] = 1
 	msr.lo |= (1 << 16);	/* Enhanced SpeedStep Enable */
 
-	// TODO Do we want Deep C4 and  Dynamic L2 shrinking?
+	/* Enable C2E */
+	msr.lo |= (1 << 26);
+
+	/* Enable C4E */
+	msr.hi |= (1 << (32 - 32)); // C4E
+	msr.hi |= (1 << (33 - 32)); // Hard C4E
+
 	wrmsr(IA32_MISC_ENABLE, msr);
 
 	msr.lo |= (1 << 20);	/* Lock Enhanced SpeedStep Enable */
@@ -141,7 +142,7 @@ static void configure_pic_thermal_sensors(void)
 	wrmsr(PIC_SENS_CFG, msr);
 }
 
-static void model_6ex_init(device_t cpu)
+static void model_6ex_init(struct device *cpu)
 {
 	char processor_name[49];
 
@@ -159,7 +160,7 @@ static void model_6ex_init(device_t cpu)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 	/* Enable virtualization */
@@ -174,7 +175,7 @@ static void model_6ex_init(device_t cpu)
 	/* PIC thermal sensor control */
 	configure_pic_thermal_sensors();
 
-	/* Start up my cpu siblings */
+	/* Start up my CPU siblings */
 	intel_sibling_init(cpu);
 }
 
@@ -193,4 +194,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
 };
-

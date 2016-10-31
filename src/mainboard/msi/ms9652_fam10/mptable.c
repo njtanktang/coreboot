@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -57,7 +53,8 @@ static void *smp_write_config_table(void *v)
 		if (dev) {
 			res = find_resource(dev, PCI_BASE_ADDRESS_1);
 			if (res) {
-				smp_write_ioapic(mc, m->apicid_mcp55, 0x11, res->base);
+				smp_write_ioapic(mc, m->apicid_mcp55, 0x11,
+						 res2mmio(res, 0, 0));
 			}
 
 			dword = 0x43c6c643;
@@ -91,15 +88,15 @@ static void *smp_write_config_table(void *v)
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_mcp55[0], ((sbdn+8)<<2)|0, m->apicid_mcp55, 0x16); // 22
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_mcp55[0], ((sbdn+9)<<2)|0, m->apicid_mcp55, 0x15); // 21
 
-	for(j=7; j>=2; j--) {
+	for(j = 7; j >= 2; j--) {
 		if(!m->bus_mcp55[j]) continue;
-		for(i=0;i<4;i++) {
-			smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_mcp55[j], (0x00<<2)|i, m->apicid_mcp55, 0x10 + (2+j+i+4-sbdn%4)%4);
+		for(i = 0; i < 4; i++) {
+			smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_mcp55[j], (0x00 << 2)|i, m->apicid_mcp55, 0x10 + (2+j+i+4-sbdn%4)%4);
 		}
 	}
 
-	for(j=0; j<1; j++)
-		for(i=0;i<4;i++) {
+	for(j = 0; j < 1; j++)
+		for(i = 0; i < 4; i++) {
 			smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_mcp55[1], ((0x04+j)<<2)|i, m->apicid_mcp55, 0x10 + (2+i+j)%4);
 		}
 

@@ -25,13 +25,29 @@ typedef struct msr_struct
 
 typedef struct msrinit_struct
 {
-        unsigned index;
-        msr_t msr;
+	unsigned index;
+	msr_t msr;
 } msrinit_t;
+
+#if IS_ENABLED(CONFIG_SOC_SETS_MSRS)
+msr_t soc_msr_read(unsigned index);
+void soc_msr_write(unsigned index, msr_t msr);
+
+/* Handle MSR references in the other source code */
+static inline __attribute__((always_inline)) msr_t rdmsr(unsigned index)
+{
+	return soc_msr_read(index);
+}
+
+static inline __attribute__((always_inline)) void wrmsr(unsigned index, msr_t msr)
+{
+	soc_msr_write(index, msr);
+}
+#else /* CONFIG_SOC_SETS_MSRS */
 
 /* The following functions require the always_inline due to AMD
  * function STOP_CAR_AND_CPU that disables cache as
- * ram, the cache as ram stack can no longer be used. Called
+ * RAM, the cache as RAM stack can no longer be used. Called
  * functions must be inlined to avoid stack usage. Also, the
  * compiler must keep local variables register based and not
  * allocated them from the stack. With gcc 4.5.0, some functions
@@ -59,6 +75,7 @@ static inline __attribute__((always_inline)) void wrmsr(unsigned index, msr_t ms
 		);
 }
 
+#endif /* CONFIG_SOC_SETS_MSRS */
 #endif /* __ROMCC__ */
 
 #endif /* CPU_X86_MSR_H */

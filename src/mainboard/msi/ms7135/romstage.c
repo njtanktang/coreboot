@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -29,18 +25,18 @@
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <pc80/mc146818rtc.h>
-#include "cpu/x86/lapic.h"
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627thg/w83627thg.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include <console/console.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
-#include "southbridge/nvidia/ck804/early_smbus.h"
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
+#include <southbridge/nvidia/ck804/early_smbus.h>
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
 #include "northbridge/amd/amdk8/debug.c"
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "cpu/amd/dualcore/dualcore.c"
@@ -62,7 +58,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 
 #include "northbridge/amd/amdk8/raminit.c"
 #include "lib/generic_sdram.c"
-#include "southbridge/nvidia/ck804/early_setup_ss.h"
+#include <southbridge/nvidia/ck804/early_setup_ss.h>
 #include "southbridge/nvidia/ck804/early_setup_car.c"
 #include "cpu/amd/model_fxx/init_cpus.c"
 #include "northbridge/amd/amdk8/early_ht.c"
@@ -146,7 +142,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	needs_reset |= ht_setup_chains_x();
 	needs_reset |= ck804_early_setup_x();
 	if (needs_reset) {
-		print_info("ht reset -\n");
+		printk(BIOS_INFO, "ht reset -\n");
 		soft_reset();
 	}
 

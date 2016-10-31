@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -93,7 +89,7 @@ static struct smbus_bus_operations lops_smbus_bus = {
 	.write_byte	= lsmbus_write_byte,
 };
 
-#if CONFIG_GENERATE_ACPI_TABLES
+#if CONFIG_HAVE_ACPI_TABLES
 unsigned pm_base;
 #endif
 
@@ -112,7 +108,7 @@ static void mcp55_sm_read_resources(device_t dev)
 
 static void mcp55_sm_init(device_t dev)
 {
-#if CONFIG_GENERATE_ACPI_TABLES
+#if CONFIG_HAVE_ACPI_TABLES
 	struct resource *res;
 
 	res = find_resource(dev, 0x60);
@@ -127,7 +123,7 @@ static struct device_operations smbus_ops = {
 	.set_resources	= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init		= mcp55_sm_init,
-	.scan_bus	= scan_static_bus,
+	.scan_bus	= scan_smbus,
 //	.enable		= mcp55_enable,
 	.ops_pci	= &mcp55_pci_ops,
 	.ops_smbus_bus	= &lops_smbus_bus,
@@ -137,4 +133,3 @@ static const struct pci_driver smbus_driver __pci_driver = {
 	.vendor	= PCI_VENDOR_ID_NVIDIA,
 	.device	= PCI_DEVICE_ID_NVIDIA_MCP55_SM2,
 };
-

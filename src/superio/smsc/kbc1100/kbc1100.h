@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_SMSC_KBC1100_H
@@ -36,7 +32,7 @@
 #define KBC1100_EC1              0x0D         /* EC Channel 1 */
 #define KBC1100_EC2              0x0E         /* EC Channel 2 */
 
-void kbc1100_early_serial(device_t dev, u16 iobase);
+void kbc1100_early_serial(pnp_devfn_t dev, u16 iobase);
 void kbc1100_early_init(u16 port);
 
 #endif /* SUPERIO_SMSC_KBC1100_H */

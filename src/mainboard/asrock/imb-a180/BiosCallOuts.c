@@ -11,30 +11,24 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/azalia.h>
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include "Ids.h"
-#include "OptionsIds.h"
 #include "heapManager.h"
 #include "FchPlatform.h"
 #include "cbfs.h"
 #include <stdlib.h>
 
+static AGESA_STATUS Fch_Oem_config(UINT32 Func, UINTN FchData, VOID *ConfigPtr);
+
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,          agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,        agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,            agesa_LocateBuffer },
-	{AGESA_READ_SPD,                 fam16kb_ReadSpd },
 	{AGESA_DO_RESET,                 agesa_Reset },
+	{AGESA_READ_SPD,                 agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,        agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,             agesa_RunFuncOnAp },
 	{AGESA_GET_IDS_INIT_DATA,        agesa_EmptyIdsInitData },
@@ -160,7 +154,7 @@ static const CODEC_TBL_LIST CodecTableList[] =
 static void oem_fan_control(FCH_DATA_BLOCK *FchParams)
 {
 	FCH_HWM_FAN_CTR oem_factl[5] = {
-		/*temperatuer input, fan mode, frequency, low_duty, med_duty, multiplier, lowtemp, medtemp, hightemp, LinearRange, LinearHoldCount */
+		/* temperature input, fan mode, frequency, low_duty, med_duty, multiplier, lowtemp, medtemp, hightemp, LinearRange, LinearHoldCount */
 		/* imb_a180 FanOUT0 Fan header J32 */
 		{FAN_INPUT_INTERNAL_DIODE, (FAN_STEPMODE | FAN_POLARITY_HIGH), FREQ_100HZ, 40, 60,  0, 40, 65, 85, 0, 0},
 		/* imb_a180 FanOUT1 Fan header J31*/
@@ -169,7 +163,7 @@ static void oem_fan_control(FCH_DATA_BLOCK *FchParams)
 		{FAN_INPUT_INTERNAL_DIODE, (FAN_STEPMODE | FAN_POLARITY_HIGH), FREQ_100HZ, 40, 60,  0, 40, 65, 85, 0, 0},
 		{FAN_INPUT_INTERNAL_DIODE, (FAN_STEPMODE | FAN_POLARITY_HIGH), FREQ_100HZ, 40, 60,  0, 40, 65, 85, 0, 0},
 	};
-	LibAmdMemCopy ((VOID *)(FchParams->Hwm.HwmFanControl), &oem_factl, (sizeof (FCH_HWM_FAN_CTR) * 5), FchParams->StdHeader);
+	LibAmdMemCopy ((VOID *)(FchParams->Hwm.HwmFanControl), &oem_factl, (sizeof(FCH_HWM_FAN_CTR) * 5), FchParams->StdHeader);
 
 	/* Enable IMC fan control. the recommand way */
 #if defined CONFIG_HUDSON_IMC_FWM && (CONFIG_HUDSON_IMC_FWM == 1)
@@ -302,15 +296,17 @@ static void oem_fan_control(FCH_DATA_BLOCK *FchParams)
  *  Configure platform specific Hudson device,
  *   such Azalia, SATA, IMC etc.
  */
-AGESA_STATUS Fch_Oem_config(UINT32 Func, UINT32 FchData, VOID *ConfigPtr)
+static AGESA_STATUS Fch_Oem_config(UINT32 Func, UINTN FchData, VOID *ConfigPtr)
 {
-	FCH_RESET_DATA_BLOCK *FchParams = (FCH_RESET_DATA_BLOCK *)FchData;
+	AMD_CONFIG_PARAMS *StdHeader = ConfigPtr;
 
-	if (FchParams->StdHeader->Func == AMD_INIT_RESET) {
-		//FCH_RESET_DATA_BLOCK *FchParams_reset =  (FCH_RESET_DATA_BLOCK *) FchData;
+	if (StdHeader->Func == AMD_INIT_RESET) {
+		FCH_RESET_DATA_BLOCK *FchParams_reset = (FCH_RESET_DATA_BLOCK *)FchData;
 		printk(BIOS_DEBUG, "Fch OEM config in INIT RESET ");
 		//FchParams_reset->EcChannel0 = TRUE; /* logical devicd 3 */
-	} else if (FchParams->StdHeader->Func == AMD_INIT_ENV) {
+		FchParams_reset->FchReset.Xhci0Enable = IS_ENABLED(CONFIG_HUDSON_XHCI_ENABLE);
+		FchParams_reset->FchReset.Xhci1Enable = FALSE;
+	} else if (StdHeader->Func == AMD_INIT_ENV) {
 		FCH_DATA_BLOCK *FchParams_env = (FCH_DATA_BLOCK *)FchData;
 		printk(BIOS_DEBUG, "Fch OEM config in INIT ENV ");
 
@@ -322,11 +318,7 @@ AGESA_STATUS Fch_Oem_config(UINT32 Func, UINT32 FchData, VOID *ConfigPtr)
 		//oem_fan_control(FchParams_env);
 
 		/* XHCI configuration */
-#if CONFIG_HUDSON_XHCI_ENABLE
-		FchParams_env->Usb.Xhci0Enable = TRUE;
-#else
-		FchParams_env->Usb.Xhci0Enable = FALSE;
-#endif
+		FchParams_env->Usb.Xhci0Enable = IS_ENABLED(CONFIG_HUDSON_XHCI_ENABLE);
 		FchParams_env->Usb.Xhci1Enable = FALSE;
 
 		/* sata configuration */

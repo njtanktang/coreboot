@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -255,6 +251,18 @@ static int dec_checkmarker(void)
 	for (i = 0; i < info.ns; i++)
 		dscans[i].dc = 0;
 	return 0;
+}
+
+void jpeg_fetch_size(unsigned char *buf, int *width, int *height)
+{
+	datap = buf;
+	getbyte();
+	getbyte();
+	readtables(M_SOF0);
+	getword();
+	getbyte();
+	*height = getword();
+	*width = getword();
 }
 
 int jpeg_check_size(unsigned char *buf, int width, int height)

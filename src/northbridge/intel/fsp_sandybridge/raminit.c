@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
@@ -73,12 +69,4 @@ void report_memory_config(void)
 		       ((ch_conf >> 18) & 1) ? "dual" : "single",
 		       ((ch_conf >> 16) & 1) ? ", selected" : "");
 	}
-}
-
-unsigned long get_top_of_ram(void)
-{
-	/* Base of TSEG is top of usable DRAM */
-	u32 tom = pci_read_config32(PCI_DEV(0,0,0), TSEG) & ~(1UL << 0);
-	tom -= 0x200000;	/* 2MB for FSP HOB */
-	return (unsigned long) tom;
 }

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,13 +25,20 @@
 static void usb_xhci_init(struct device *dev)
 {
 	u32 reg32;
+	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
 
 	printk(BIOS_DEBUG, "XHCI: Setting up controller.. ");
+
+	if (config->xhci_overcurrent_mapping)
+		pci_write_config32(dev, XOCM, config->xhci_overcurrent_mapping);
 
 	/* lock overcurrent map */
 	reg32 = pci_read_config32(dev, 0x44);
 	reg32 |= 1;
 	pci_write_config32(dev, 0x44, reg32);
+
+	pci_write_config32(dev, XUSB2PRM, config->xhci_switchable_ports);
+	pci_write_config32(dev, USB3PRM, config->superspeed_capable_ports);
 
 	/* Enable clock gating */
 	reg32 = pci_read_config32(dev, 0x40);

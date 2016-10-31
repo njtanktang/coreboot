@@ -13,16 +13,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  * ***************************************************************************
  *
  */
 
-#ifndef  _AMD_SBPLATFORM_H_
-#define  _AMD_SBPLATFORM_H_
+#ifndef _AMD_SBPLATFORM_H_
+#define _AMD_SBPLATFORM_H_
 
 #include <stddef.h>
 
@@ -73,7 +69,7 @@ typedef union _PCI_ADDR {
 
 //------------------------------------------------------------------------------------------------------------------------//
 /**
- * SB_CIMx_PARAMETER                0                1                   2            Defult Value When CIMx Take over
+ * SB_CIMx_PARAMETER                0                1                   2            Default Value When CIMx Take over
  *  SpreadSpectrum         CIMx take over   User (Setup Option) User (Setup Option)               Enable
  * SpreadSpectrumType      CIMx take over   User (Setup Option) User (Setup Option)               Normal
  *     HpetTimer           CIMx take over   User (Setup Option) User (Setup Option)               Enable
@@ -91,7 +87,7 @@ typedef union _PCI_ADDR {
  *  GppPhyPllPowerDown     CIMx take over   User (Setup Option) User (Setup Option)               Enable
  *  UsbPhyPowerDown        CIMx take over   User (Setup Option) User (Setup Option)               Disable
  *  SBGecDebugBus          CIMx take over   User (Setup Option) User (Setup Option)               Disable
- *     SBGecPwr            CIMx take over   User (Setup Option) User (Setup Option)               Nerver Power down (0x11)
+ *     SBGecPwr            CIMx take over   User (Setup Option) User (Setup Option)               Never Power down (0x11)
  *   SataSetMaxGen2        CIMx take over   User (Setup Option) User (Setup Option)               Max Gen3 (0x00)
  *   SataClkMode           CIMx take over   User (Setup Option) User (Setup Option)               0x90   int. 100Mhz
  *  SataAggrLinkPmCap      CIMx take over   User (Setup Option) User (Setup Option)               Enable
@@ -162,7 +158,7 @@ typedef union _PCI_ADDR {
 #include <spi-generic.h>
 #endif
 
-#define BIOSRAM_INDEX   0xcd4
-#define BIOSRAM_DATA    0xcd5
+#define BIOSRAM_INDEX	0xcd4
+#define BIOSRAM_DATA	0xcd5
 
 #endif // _AMD_SBPLATFORM_H_

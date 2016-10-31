@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -245,7 +241,7 @@ static void lpc_init(struct southbridge_amd_cs5536_config *sb)
 	msr.lo = RTC_MONA;
 	wrmsr(MDD_RTC_MONA_IND, msr);
 
-	rtc_init(0);
+	cmos_init(0);
 
 	isa_dma_init();
 }
@@ -429,7 +425,7 @@ static void uarts_init(struct southbridge_amd_cs5536_config *sb)
 
 static void enable_USB_port4(struct southbridge_amd_cs5536_config *sb)
 {
-	u32 bar;
+	void *bar;
 	msr_t msr;
 	device_t dev;
 
@@ -445,9 +441,9 @@ static void enable_USB_port4(struct southbridge_amd_cs5536_config *sb)
 		/* write to clear diag register */
 		wrmsr(USB2_SB_GLD_MSR_DIAG, rdmsr(USB2_SB_GLD_MSR_DIAG));
 
-		bar = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
+		bar = (void *)pci_read_config32(dev, PCI_BASE_ADDRESS_0);
 
-		/* Make HCCPARAMS writeable */
+		/* Make HCCPARAMS writable */
 		write32(bar + IPREG04, read32(bar + IPREG04) | USB_HCCPW_SET);
 
 		/* ; EECP=50h, IST=01h, ASPC=1 */
@@ -457,7 +453,7 @@ static void enable_USB_port4(struct southbridge_amd_cs5536_config *sb)
 	dev = dev_find_device(PCI_VENDOR_ID_AMD,
 			PCI_DEVICE_ID_AMD_CS5536_OTG, 0);
 	if (dev) {
-		bar = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
+		bar = (void *)pci_read_config32(dev, PCI_BASE_ADDRESS_0);
 
 		write32(bar + UOCMUX, read32(bar + UOCMUX) & PUEN_SET);
 
@@ -485,7 +481,8 @@ static void enable_USB_port4(struct southbridge_amd_cs5536_config *sb)
 		dev = dev_find_device(PCI_VENDOR_ID_AMD,
 				PCI_DEVICE_ID_AMD_CS5536_UDC, 0);
 		if (dev) {
-			bar = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
+			bar = (void *)pci_read_config32(dev,
+							PCI_BASE_ADDRESS_0);
 			write32(bar + UDCDEVCTL,
 			       read32(bar + UDCDEVCTL) | UDC_SD_SET);
 
@@ -494,7 +491,8 @@ static void enable_USB_port4(struct southbridge_amd_cs5536_config *sb)
 		dev = dev_find_device(PCI_VENDOR_ID_AMD,
 				PCI_DEVICE_ID_AMD_CS5536_OTG, 0);
 		if (dev) {
-			bar = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
+			bar = (void *)pci_read_config32(dev,
+							PCI_BASE_ADDRESS_0);
 			write32(bar + UOCCTL, read32(bar + UOCCTL) | PADEN_SET);
 			write32(bar + UOCCAP, read32(bar + UOCCAP) | APU_SET);
 		}
@@ -562,7 +560,7 @@ void chipsetinit(void)
 	outl(GPIOL_2_SET, GPIO_IO_BASE + GPIOL_IN_AUX1_SELECT);
 
 	/*      Allow IO read and writes during a ATA DMA operation. */
-	/*       This could be done in the HD rom but do it here for easier debugging. */
+	/*       This could be done in the HD ROM but do it here for easier debugging. */
 	msrnum = ATA_SB_GLD_MSR_ERR;
 	msr = rdmsr(msrnum);
 	msr.lo &= ~0x100;
@@ -686,13 +684,18 @@ static struct smbus_bus_operations lops_smbus_bus = {
 	.read_byte  = lsmbus_read_byte,
 };
 
+static void scan_lpc_smbus(device_t dev)
+{
+	/* FIXME. Do we have mixed LPC/SMBus device node here. */
+	scan_smbus(dev);
+}
+
 static struct device_operations southbridge_ops = {
 	.read_resources = cs5536_read_resources,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = southbridge_init,
-//      .enable                   = southbridge_enable,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_smbus,
 	.ops_smbus_bus = &lops_smbus_bus,
 };
 

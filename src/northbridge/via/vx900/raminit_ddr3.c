@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "early_vx900.h"
@@ -189,14 +186,14 @@ static pci_reg8 mcu_drv_ctrl_config[] = {
 	{0xd4, 0x80},		/* Set internal ODT to dynamically turn on or off */
 	{0xd6, 0x20},		/* Enable strong driving for MA and DRAM commands */
 	{0xd0, 0x88},		/* (ODT) Strength ?has effect? */
-	{0xe0, 0x88},		/* DRAM Driving – Group DQS (MDQS) */
+	{0xe0, 0x88},		/* DRAM Driving - Group DQS (MDQS) */
 	{0xe1, 0x00},		/* Disable offset mode for driving strength control */
-	{0xe2, 0x88},		/* DRAM Driving – Group DQ (MD, MDQM) */
-	{0xe4, 0xcc},		/* DRAM Driving – Group CSA (MCS, MCKE, MODT) */
-	{0xe8, 0x88},		/* DRAM Driving – Group MA (MA, MBA, MSRAS, MSCAS, MSWE) */
-	{0xe6, 0xff},		/* DRAM Driving – Group DCLK0 (DCLK[2:0] for DIMM0) */
-	{0xe7, 0xff},		/* DRAM Driving – Group DCLK1 (DCLK[5:3] for DIMM1) */
-	{0xe4, 0xcc},		/* DRAM Driving – Group CSA (MCS, MCKE, MODT) */
+	{0xe2, 0x88},		/* DRAM Driving - Group DQ (MD, MDQM) */
+	{0xe4, 0xcc},		/* DRAM Driving - Group CSA (MCS, MCKE, MODT) */
+	{0xe8, 0x88},		/* DRAM Driving - Group MA (MA, MBA, MSRAS, MSCAS, MSWE) */
+	{0xe6, 0xff},		/* DRAM Driving - Group DCLK0 (DCLK[2:0] for DIMM0) */
+	{0xe7, 0xff},		/* DRAM Driving - Group DCLK1 (DCLK[5:3] for DIMM1) */
+	{0xe4, 0xcc},		/* DRAM Driving - Group CSA (MCS, MCKE, MODT) */
 	{0x91, 0x08},		/* MCLKO Output Phase Delay - I */
 	{0x92, 0x08},		/* MCLKO Output Phase Delay - II */
 	{0x93, 0x16},		/* CS/CKE Output Phase Delay */
@@ -329,9 +326,8 @@ static void vx900_dram_write_init_config(void)
 
 	/* Fast cycle control for CPU-to-DRAM Read Cycle 0:Disabled.
 	 * This CPU bus controller will wait for all data */
-	////pci_mod_config8(HOST_BUS, 0x51, (1 << 7), 0);
+
 	/* Memory to CPU bus Controller Conversion Mode 1: Synchronous  mode */
-	////pci_mod_config8(HOST_BUS, 0x54, 0, (1 << 1));
 }
 
 static void dram_find_spds_ddr3(const dimm_layout * addr, dimm_info * dimm)
@@ -369,9 +365,11 @@ static void dram_find_common_params(const dimm_info * dimms,
 		if (valid_dimms == 1) {
 			/* First DIMM defines the type of DIMM */
 			ctrl->dram_type = dimm->dram_type;
+			ctrl->dimm_type = dimm->dimm_type;
 		} else {
 			/* Check if we have mismatched DIMMs */
-			if (ctrl->dram_type != dimm->dram_type)
+			if (ctrl->dram_type != dimm->dram_type
+				|| ctrl->dimm_type != dimm->dimm_type)
 				die("Mismatched DIMM Types");
 		}
 		/* Find all possible CAS combinations */
@@ -575,7 +573,7 @@ static void vx900_dram_timing(ramctr_timing * ctrl)
 	printram("Selected DRAM frequency: %u MHz\n", val32);
 
 	/* Find CAS and CWL latencies */
-	val = (ctrl->tAA + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tAA, ctrl->tCK);
 	printram("Minimum  CAS latency   : %uT\n", val);
 	/* Find lowest supported CAS latency that satisfies the minimum value */
 	while (!((ctrl->cas_supported >> (val - 4)) & 1)
@@ -594,30 +592,30 @@ static void vx900_dram_timing(ramctr_timing * ctrl)
 	pci_write_config8(MCU, 0xc0, reg8);
 
 	/* Find tRCD */
-	val = (ctrl->tRCD + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRCD, ctrl->tCK);
 	printram("Selected tRCD          : %uT\n", val);
 	reg8 = ((val - 4) & 0x7) << 4;
 	/* Find tRP */
-	val = (ctrl->tRP + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRP, ctrl->tCK);
 	printram("Selected tRP           : %uT\n", val);
 	reg8 |= ((val - 4) & 0x7);
 	pci_write_config8(MCU, 0xc1, reg8);
 
 	/* Find tRAS */
-	val = (ctrl->tRAS + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRAS, ctrl->tCK);
 	printram("Selected tRAS          : %uT\n", val);
 	reg8 = ((val - 15) & 0x7) << 4;
 	/* Find tWR */
-	ctrl->WR = (ctrl->tWR + ctrl->tCK - 1) / ctrl->tCK;
+	ctrl->WR = CEIL_DIV(ctrl->tWR, ctrl->tCK);
 	printram("Selected tWR           : %uT\n", ctrl->WR);
 	reg8 |= ((ctrl->WR - 4) & 0x7);
 	pci_write_config8(MCU, 0xc2, reg8);
 
 	/* Find tFAW */
-	tFAW = (ctrl->tFAW + ctrl->tCK - 1) / ctrl->tCK;
+	tFAW = CEIL_DIV(ctrl->tFAW, ctrl->tCK);
 	printram("Selected tFAW          : %uT\n", tFAW);
 	/* Find tRRD */
-	tRRD = (ctrl->tRRD + ctrl->tCK - 1) / ctrl->tCK;
+	tRRD = CEIL_DIV(ctrl->tRRD, ctrl->tCK);
 	printram("Selected tRRD          : %uT\n", tRRD);
 	val = tFAW - 4 * tRRD;	/* number of cycles above 4*tRRD */
 	reg8 = ((val - 0) & 0x7) << 4;
@@ -625,11 +623,11 @@ static void vx900_dram_timing(ramctr_timing * ctrl)
 	pci_write_config8(MCU, 0xc3, reg8);
 
 	/* Find tRTP */
-	val = (ctrl->tRTP + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRTP, ctrl->tCK);
 	printram("Selected tRTP          : %uT\n", val);
 	reg8 = ((val & 0x3) << 4);
 	/* Find tWTR */
-	val = (ctrl->tWTR + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tWTR, ctrl->tCK);
 	printram("Selected tWTR          : %uT\n", val);
 	reg8 |= ((val - 2) & 0x7);
 	pci_mod_config8(MCU, 0xc4, 0x3f, reg8);
@@ -642,7 +640,7 @@ static void vx900_dram_timing(ramctr_timing * ctrl)
 	 *     Since we previously set RxC4[7]
 	 */
 	reg8 = pci_read_config8(MCU, 0xc5);
-	val = (ctrl->tRFC + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRFC, ctrl->tCK);
 	printram("Minimum  tRFC          : %uT\n", val);
 	if (val < 30) {
 		val = 0;
@@ -655,7 +653,7 @@ static void vx900_dram_timing(ramctr_timing * ctrl)
 	pci_write_config8(MCU, 0xc5, reg8);
 
 	/* Where does this go??? */
-	val = (ctrl->tRC + ctrl->tCK - 1) / ctrl->tCK;
+	val = CEIL_DIV(ctrl->tRC, ctrl->tCK);
 	printram("Required tRC           : %uT\n", val);
 }
 
@@ -705,7 +703,7 @@ static void vx900_dram_freq(ramctr_timing * ctrl)
 	pci_mod_config8(MCU, 0x6b, 0x80, 0x00);
 
 	/* Step 8 - If we have registered DIMMs, we need to set bit[0] */
-	if (dimm_is_registered(ctrl->dram_type)) {
+	if (dimm_is_registered(ctrl->dimm_type)) {
 		printram("Enabling RDIMM support in memory controller\n");
 		pci_mod_config8(MCU, 0x6c, 0x00, 0x01);
 	}
@@ -738,7 +736,7 @@ static void vx900_dram_ddr3_do_hw_mrs(u8 ma_swap, u8 rtt_nom,
 	printram("Hw MRS set is 0x%4x\n", reg16);
 	pci_write_config16(MCU, 0xcc, reg16);
 	/* Wait for MRS commands to be sent */
-	while (pci_read_config8(MCU, 0xcc) & 1) ;
+	while (pci_read_config8(MCU, 0xcc) & 1);
 }
 
 /*
@@ -808,8 +806,8 @@ static void vx900_dram_ddr3_do_sw_mrs(u8 ma_swap, enum ddr3_mr1_rtt_nom rtt_nom,
 	/* Step 08 - Set Fun3_RX6B[2:0] to 011b (MSR Enable). */
 	pci_mod_config8(MCU, 0x6b, 0x07, 0x03);	/* MSR Enable */
 
-	/* Step 09 – Issue MR2 cycle. Read a double word from the address
-	 * depended on DRAM’s Rtt_WR and CWL settings. */
+	/* Step 09 - Issue MR2 cycle. Read a double word from the address
+	 * depended on DRAM's Rtt_WR and CWL settings. */
 	mrs = ddr3_get_mr2(rtt_wr, srt, asr, cwl);
 	if (ma_swap)
 		mrs = ddr3_mrs_mirror_pins(mrs);
@@ -817,7 +815,7 @@ static void vx900_dram_ddr3_do_sw_mrs(u8 ma_swap, enum ddr3_mr1_rtt_nom rtt_nom,
 	printram("MR2: %.5x\n", mrs);
 	udelay(1000);
 
-	/* Step 10 – Issue MR3 cycle. Read a double word from the address 60000h
+	/* Step 10 - Issue MR3 cycle. Read a double word from the address 60000h
 	 * to set DRAM to normal operation mode. */
 	mrs = ddr3_get_mr3(0);
 	if (ma_swap)
@@ -826,8 +824,8 @@ static void vx900_dram_ddr3_do_sw_mrs(u8 ma_swap, enum ddr3_mr1_rtt_nom rtt_nom,
 	printram("MR3: %.5x\n", mrs);
 	udelay(1000);
 
-	/* Step 11 –Issue MR1 cycle. Read a double word from the address
-	 * depended on DRAM’s output driver impedance and Rtt_Nom settings.
+	/* Step 11 -Issue MR1 cycle. Read a double word from the address
+	 * depended on DRAM's output driver impedance and Rtt_Nom settings.
 	 * The DLL enable field, TDQS field, write leveling enable field,
 	 * additive latency field and Qoff field should be set to 0. */
 	mrs = ddr3_get_mr1(DDR3_MR1_QOFF_ENABLE, DDR3_MR1_TQDS_DISABLE, rtt_nom,
@@ -840,7 +838,7 @@ static void vx900_dram_ddr3_do_sw_mrs(u8 ma_swap, enum ddr3_mr1_rtt_nom rtt_nom,
 	udelay(1000);
 
 	/* Step 12 - Issue MR0 cycle. Read a double word from the address
-	 * depended on DRAM’s burst length, CAS latency and write recovery time
+	 * depended on DRAM's burst length, CAS latency and write recovery time
 	 * settings.
 	 * The read burst type field should be set to interleave.
 	 * The mode field should be set to normal mode.
@@ -943,13 +941,13 @@ static void vx900_dram_ddr3_dimm_init(const ramctr_timing * ctrl,
 		vx900_map_pr_vr(i, 3);
 	}
 
-	/* Step 16 – Set Fun3_Rx6B[2:0] to 000b (Normal SDRAM Mode). */
+	/* Step 16 - Set Fun3_Rx6B[2:0] to 000b (Normal SDRAM Mode). */
 	pci_mod_config8(MCU, 0x6b, 0x07, 0x00);
 
 	/* Set BA[0/1/2] to [A13/14/15] */
 	vx900_dram_set_ma_pin_map(VX900_CALIB_MA_MAP);
 
-	/* Step 17 – Set Fun3_Rx69[0] to 1b (Enable Multiple Page Mode). */
+	/* Step 17 - Set Fun3_Rx69[0] to 1b (Enable Multiple Page Mode). */
 	pci_mod_config8(MCU, 0x69, 0x00, (1 << 0));
 
 	printram("DIMM initialization sequence complete\n");
@@ -1115,7 +1113,7 @@ static void vx900_rx_capture_range_calib(u8 pinswap)
 	pci_write_config8(MCU, 0x71, reg8);
 
 	/* Wait for it */
-	while (pci_read_config8(MCU, 0x71) & 0x10) ;
+	while (pci_read_config8(MCU, 0x71) & 0x10);
 	vx900_dram_exit_read_leveling(pinswap);
 }
 
@@ -1147,7 +1145,7 @@ static void vx900_rx_dqs_delay_calib(u8 pinswap)
 	pci_mod_config8(MCU, 0x71, 0x03, 0x02);
 
 	/* Wait for calibration to complete */
-	while (pci_read_config8(MCU, 0x71) & 0x02) ;
+	while (pci_read_config8(MCU, 0x71) & 0x02);
 	vx900_dram_exit_read_leveling(pinswap);
 
 	/* Restore the refresh counter */
@@ -1164,7 +1162,7 @@ static void vx900_tx_dqs_trigger_calib(u8 pattern)
 	/* Trigger calibration */
 	pci_mod_config8(MCU, 0x75, 0, 0x20);
 	/* Wait for calibration */
-	while (pci_read_config8(MCU, 0x75) & 0x20) ;
+	while (pci_read_config8(MCU, 0x75) & 0x20);
 }
 
 /*
@@ -1193,7 +1191,7 @@ static void vx900_tx_dq_delay_calib(void)
 	/* Trigger calibration */
 	pci_mod_config8(MCU, 0x75, 0, 0x02);
 	/* Wait for calibration */
-	while (pci_read_config8(MCU, 0x75) & 0x02) ;
+	while (pci_read_config8(MCU, 0x75) & 0x02);
 }
 
 static void vx900_rxdqs_adjust(delay_range * dly)
@@ -1336,7 +1334,6 @@ static void vx900_dram_calibrate_transmit_delays(delay_range * tx_dq,
 			/* FIXME: Except that we have not yet told the MCU what
 			 * the geometry of the DIMM is, hence we don't trust
 			 * this test for now */
-			////continue;
 		}
 		/* Good. We should be able to use this DIMM */
 		/* That's it. We're done */
@@ -1510,7 +1507,7 @@ static void vx900_dram_range(ramctr_timing * ctrl, rank_layout * ranks)
 		/* vvvvvvvvvv FIXME: Fix odd rank init vvvvvvvvvv */
 		if ((i & 1)) {
 			printk(BIOS_EMERG, "I cannot initialize rank %zu\n", i);
-			print_emerg("I have to disable it\n");
+			printk(BIOS_EMERG, "I have to disable it\n");
 			continue;
 		}
 		/* ^^^^^^^^^^ FIXME: Fix odd rank init ^^^^^^^^^^ */
@@ -1615,14 +1612,8 @@ static void vx900_dram_write_final_config(ramctr_timing * ctrl)
 	/* Tri-state  MCSi# when rank is in self-refresh */
 	pci_mod_config8(MCU, 0x99, 0, 0x0f);
 
-	////pci_write_config8(MCU, 0x69, 0xe7);
 	/* Enable paging mode and 8 page registers */
 	pci_mod_config8(MCU, 0x69, 0, 0xe5);
-	////pci_write_config8(MCU, 0x72, 0x0f);
-
-	////pci_write_config8(MCU, 0x97, 0xa4); /* self-refresh */
-	////pci_write_config8(MCU, 0x98, 0xba); /* self-refresh II */
-	////pci_write_config8(MCU, 0x9a, 0x80); /* self-refresh III */
 
 	/* Enable automatic triggering of short ZQ calibration */
 	pci_write_config8(MCU, 0xc8, 0x80);

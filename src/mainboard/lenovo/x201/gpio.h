@@ -11,16 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef LENOVO_X201_GPIO_H
 #define LENOVO_X201_GPIO_H
 
-#include "southbridge/intel/bd82x6x/gpio.h"
+#include <southbridge/intel/common/gpio.h>
 
 const struct pch_gpio_set1 pch_gpio_set1_mode = {
 	.gpio0 = GPIO_MODE_GPIO,
@@ -156,7 +152,7 @@ const struct pch_gpio_set1 pch_gpio_set1_level = {
 	.gpio25 = GPIO_LEVEL_HIGH,
 	.gpio26 = GPIO_LEVEL_HIGH,
 	.gpio27 = GPIO_LEVEL_HIGH,
-	.gpio28 = GPIO_LEVEL_HIGH,
+	.gpio28 = GPIO_LEVEL_LOW,
 	.gpio29 = GPIO_LEVEL_HIGH,
 	.gpio30 = GPIO_LEVEL_HIGH,
 	.gpio31 = GPIO_LEVEL_HIGH,

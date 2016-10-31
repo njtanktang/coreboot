@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /*
@@ -28,7 +23,6 @@
  */
 
 #include <arch/acpi.h>
-#include <arch/hlt.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -38,6 +32,7 @@
 #include <string.h>
 #include <delay.h>
 #include <elog.h>
+#include <halt.h>
 
 #include "me.h"
 #include "pch.h"
@@ -61,7 +56,7 @@ static int intel_me_read_mbp(me_bios_payload *mbp_data, device_t dev);
 #endif
 
 /* MMIO base address for MEI interface */
-static u32 mei_base_address;
+static u32 *mei_base_address;
 void intel_me_mbp_clear(device_t dev);
 
 #if CONFIG_DEBUG_INTEL_ME
@@ -104,7 +99,7 @@ static void mei_dump(void *ptr, int dword, int offset, const char *type)
 
 static inline void mei_read_dword_ptr(void *ptr, int offset)
 {
-	u32 dword = read32(mei_base_address + offset);
+	u32 dword = read32(mei_base_address + (offset/sizeof(u32)));
 	memcpy(ptr, &dword, sizeof(dword));
 	mei_dump(ptr, dword, offset, "READ");
 }
@@ -113,7 +108,7 @@ static inline void mei_write_dword_ptr(void *ptr, int offset)
 {
 	u32 dword = 0;
 	memcpy(&dword, ptr, sizeof(dword));
-	write32(mei_base_address + offset, dword);
+	write32(mei_base_address + (offset/sizeof(u32)), dword);
 	mei_dump(ptr, dword, offset, "WRITE");
 }
 
@@ -141,13 +136,13 @@ static inline void read_me_csr(struct mei_csr *csr)
 
 static inline void write_cb(u32 dword)
 {
-	write32(mei_base_address + MEI_H_CB_WW, dword);
+	write32(mei_base_address + (MEI_H_CB_WW/sizeof(u32)), dword);
 	mei_dump(NULL, dword, MEI_H_CB_WW, "WRITE");
 }
 
 static inline u32 read_cb(void)
 {
-	u32 dword = read32(mei_base_address + MEI_ME_CB_RW);
+	u32 dword = read32(mei_base_address + (MEI_ME_CB_RW/sizeof(u32)));
 	mei_dump(NULL, dword, MEI_ME_CB_RW, "READ");
 	return dword;
 }
@@ -374,6 +369,7 @@ static int mei_recv_msg(void *header, int header_bytes,
 	return mei_wait_for_me_ready();
 }
 
+#if IS_ENABLED (CONFIG_DEBUG_INTEL_ME) || defined(__SMM__)
 static inline int mei_sendrecv_mkhi(struct mkhi_header *mkhi,
 				    void *req_data, int req_bytes,
 				    void *rsp_data, int rsp_bytes)
@@ -411,30 +407,7 @@ static inline int mei_sendrecv_mkhi(struct mkhi_header *mkhi,
 
 	return 0;
 }
-
-static inline int mei_sendrecv_icc(struct icc_header *icc,
-				   void *req_data, int req_bytes,
-				   void *rsp_data, int rsp_bytes)
-{
-	struct icc_header icc_rsp;
-
-	/* Send header */
-	if (mei_send_header(MEI_ADDRESS_ICC, MEI_HOST_ADDRESS,
-			    icc, sizeof(*icc), req_bytes ? 0 : 1) < 0)
-		return -1;
-
-	/* Send data if available */
-	if (req_bytes && mei_send_data(MEI_ADDRESS_ICC, MEI_HOST_ADDRESS,
-				       req_data, req_bytes) < 0)
-		return -1;
-
-	/* Read header and data, if needed */
-	if (rsp_bytes && mei_recv_msg(&icc_rsp, sizeof(icc_rsp),
-				      rsp_data, rsp_bytes) < 0)
-		return -1;
-
-	return 0;
-}
+#endif /* CONFIG_DEBUG_INTEL_ME || __SMM__ */
 
 /*
  * mbp give up routine. This path is taken if hfs.mpb_rdy is 0 or the read
@@ -512,7 +485,7 @@ static int mkhi_get_fwcaps(mbp_mefwcaps *cap)
 			      &cap_msg, sizeof(cap_msg)) < 0) {
 		printk(BIOS_ERR, "ME: GET FWCAPS message failed\n");
 		return -1;
-        }
+	}
 	*cap = cap_msg.caps_sku;
 	return 0;
 }
@@ -563,7 +536,7 @@ static int mkhi_global_reset(void)
 	printk(BIOS_NOTICE, "ME: %s\n", __FUNCTION__);
 	if (mei_sendrecv_mkhi(&mkhi, &reset, sizeof(reset), NULL, 0) < 0) {
 		/* No response means reset will happen shortly... */
-		hlt();
+		halt();
 	}
 
 	/* If the ME responded it rejected the reset request */
@@ -599,11 +572,11 @@ void intel_me_finalize_smm(void)
 	struct me_hfs hfs;
 	u32 reg32;
 
-	mei_base_address =
-		pci_read_config32(PCH_ME_DEV, PCI_BASE_ADDRESS_0) & ~0xf;
+	mei_base_address = (u32 *)
+		(pci_read_config32(PCH_ME_DEV, PCI_BASE_ADDRESS_0) & ~0xf);
 
 	/* S3 path will have hidden this device already */
-	if (!mei_base_address || mei_base_address == 0xfffffff0)
+	if (!mei_base_address || mei_base_address == (u32 *)0xfffffff0)
 		return;
 
 #if CONFIG_ME_MBP_CLEAR_LATE
@@ -636,6 +609,30 @@ void intel_me_finalize_smm(void)
 
 #else /* !__SMM__ */
 
+static inline int mei_sendrecv_icc(struct icc_header *icc,
+				   void *req_data, int req_bytes,
+				   void *rsp_data, int rsp_bytes)
+{
+	struct icc_header icc_rsp;
+
+	/* Send header */
+	if (mei_send_header(MEI_ADDRESS_ICC, MEI_HOST_ADDRESS,
+			    icc, sizeof(*icc), req_bytes ? 0 : 1) < 0)
+		return -1;
+
+	/* Send data if available */
+	if (req_bytes && mei_send_data(MEI_ADDRESS_ICC, MEI_HOST_ADDRESS,
+				       req_data, req_bytes) < 0)
+		return -1;
+
+	/* Read header and data, if needed */
+	if (rsp_bytes && mei_recv_msg(&icc_rsp, sizeof(icc_rsp),
+				      rsp_data, rsp_bytes) < 0)
+		return -1;
+
+	return 0;
+}
+
 static int me_icc_set_clock_enables(u32 mask)
 {
 	struct icc_clock_enables_msg clk = {
@@ -653,7 +650,7 @@ static int me_icc_set_clock_enables(u32 mask)
 	if (mei_sendrecv_icc(&icc, &clk, sizeof(clk), NULL, 0) < 0) {
 		printk(BIOS_ERR, "ME: ICC SET CLOCK ENABLES message failed\n");
 		return -1;
-        } else {
+	} else {
 		printk(BIOS_INFO, "ME: ICC SET CLOCK ENABLES 0x%08x\n", mask);
 	}
 
@@ -743,7 +740,7 @@ static int intel_mei_setup(device_t dev)
 		printk(BIOS_DEBUG, "ME: MEI resource not present!\n");
 		return -1;
 	}
-	mei_base_address = res->base;
+	mei_base_address = (u32 *)(uintptr_t)res->base;
 
 	/* Ensure Memory and Bus Master bits are set */
 	reg32 = pci_read_config32(dev, PCI_COMMAND);

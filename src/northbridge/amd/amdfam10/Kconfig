@@ -1,6 +1,7 @@
 ##
 ## This file is part of the coreboot project.
 ##
+## Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
 ## Copyright (C) 2007-2009 coresystems GmbH
 ##
 ## This program is free software; you can redistribute it and/or modify
@@ -12,10 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_AMD_AMDFAM10
 	bool
@@ -24,19 +21,15 @@ config NORTHBRIDGE_AMD_AMDFAM10
 	select HAVE_DEBUG_CAR
 	select HYPERTRANSPORT_PLUGIN_SUPPORT
 	select MMCONF_SUPPORT
+	select PCIEXP_ASPM
+	select PCIEXP_COMMON_CLOCK
+	select PCIEXP_CLK_PM
+	select PCIEXP_L1_SUB_STATE
 
 if NORTHBRIDGE_AMD_AMDFAM10
 config AGP_APERTURE_SIZE
 	hex
 	default 0x4000000
-
-config HT3_SUPPORT
-	bool
-	default y
-
-config AMDMCT
-	bool
-	default y
 
 config HW_MEM_HOLE_SIZEK
 	hex
@@ -48,19 +41,31 @@ config HW_MEM_HOLE_SIZE_AUTO_INC
 
 config MMCONF_BASE_ADDRESS
 	hex
-	default 0xe0000000
+	default 0xc0000000
 
 config MMCONF_BUS_NUMBER
 	int
 	default 256
 
+# TODO: Reservation for heap seems excessive
+config HEAP_SIZE
+	hex
+	default 0xc0000
+
+config RAMTOP
+	hex
+	default 0x400000
+
 config BOOTBLOCK_NORTHBRIDGE_INIT
-        string
-        default "northbridge/amd/amdfam10/bootblock.c"
+	string
+	default "northbridge/amd/amdfam10/bootblock.c"
 
 config SB_HT_CHAIN_UNITID_OFFSET_ONLY
 	bool
 	default n
+
+config HT_CHAIN_DISTRIBUTE
+	def_bool n
 
 config DIMM_FBDIMM
 	bool
@@ -78,11 +83,25 @@ config DIMM_REGISTERED
 	bool
 	default n
 
+config DIMM_VOLTAGE_SET_SUPPORT
+	bool
+	default n
+
 if DIMM_FBDIMM
 	config DIMM_SUPPORT
 		hex
 		default 0x0110
 endif
+
+config S3_DATA_SIZE
+	int
+	default 32768
+	depends on (HAVE_ACPI_RESUME)
+
+config S3_DATA_POS
+	hex
+	default 0x0
+	depends on (HAVE_ACPI_RESUME)
 
 if DIMM_DDR2
 	if DIMM_REGISTERED
@@ -109,8 +128,58 @@ endif
 config SVI_HIGH_FREQ
 	bool
 	default n
-        help
-          Select this for boards with a Voltage Regulator able to operate
-          at 3.4 MHz in SVI mode. Ignored unless the AMD CPU is rev C3.
+	help
+	  Select this for boards with a Voltage Regulator able to operate
+	  at 3.4 MHz in SVI mode. Ignored unless the AMD CPU is rev C3.
+
+menu "HyperTransport setup"
+	#could be implemented for K8 (NORTHBRIDGE_AMD_AMDK8)
+	depends on (NORTHBRIDGE_AMD_AMDFAM10)
+
+choice
+	prompt "HyperTransport downlink width"
+	default LIMIT_HT_DOWN_WIDTH_16
+	help
+	  This option sets the maximum permissible HyperTransport
+	  downlink width.
+
+	  Use of this option will only limit the autodetected HT width.
+	  It will not (and cannot) increase the width beyond the autodetected
+	  limits.
+
+	  This is primarily used to work around poorly designed or laid out HT
+	  traces on certain motherboards.
+
+config LIMIT_HT_DOWN_WIDTH_8
+	bool "8 bits"
+config LIMIT_HT_DOWN_WIDTH_16
+	bool "16 bits"
+endchoice
+
+choice
+	prompt "HyperTransport uplink width"
+	default LIMIT_HT_UP_WIDTH_16
+	help
+	  This option sets the maximum permissible HyperTransport
+	  uplink width.
+
+	  Use of this option will only limit the autodetected HT width.
+	  It will not (and cannot) increase the width beyond the autodetected
+	  limits.
+
+	  This is primarily used to work around poorly designed or laid out HT
+	  traces on certain motherboards.
+
+config LIMIT_HT_UP_WIDTH_8
+	bool "8 bits"
+config LIMIT_HT_UP_WIDTH_16
+	bool "16 bits"
+endchoice
+
+endmenu
+
+config MAX_REBOOT_CNT
+	int
+	default 6
 
 endif # NORTHBRIDGE_AMD_AMDFAM10

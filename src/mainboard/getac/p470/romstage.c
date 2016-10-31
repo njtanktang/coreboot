@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -31,9 +26,12 @@
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/x86/bist.h>
-#include "northbridge/intel/i945/i945.h"
-#include "northbridge/intel/i945/raminit.h"
-#include "southbridge/intel/i82801gx/i82801gx.h"
+#include <cpu/intel/romstage.h>
+#include <halt.h>
+#include <northbridge/intel/i945/i945.h>
+#include <northbridge/intel/i945/raminit.h>
+#include <southbridge/intel/i82801gx/i82801gx.h>
+#include <timestamp.h>
 #include "option_table.h"
 
 void setup_ich7_gpios(void)
@@ -84,7 +82,7 @@ static void ich7_enable_lpc(void)
 {
 	int lpt_en = 0;
 	if (read_option(lpt, 0) != 0) {
-	       lpt_en = 1<<2; // enable LPT
+	       lpt_en = 1 << 2; // enable LPT
 	}
 	// Enable Serial IRQ
 	pci_write_config8(PCI_DEV(0, 0x1f, 0), 0x64, 0xd0);
@@ -128,7 +126,7 @@ static void early_superio_config(void)
 {
 	device_t dev;
 
-	dev=PNP_DEV(0x4e, 0x00);
+	dev = PNP_DEV(0x4e, 0x00);
 
 	pnp_enter_ext_func_mode(dev);
 	pnp_write_register(dev, 0x02, 0x0e); // UART power
@@ -189,9 +187,6 @@ static void rcba_config(void)
 
 	/* Enable IOAPIC */
 	RCBA8(0x31ff) = 0x03;
-
-	/* Enable upper 128bytes of CMOS */
-	RCBA32(0x3400) = (1 << 2);
 
 	/* Disable unused devices */
 	RCBA32(0x3418) = FD_PCIE6 | FD_PCIE5 | FD_INTLAN | FD_ACMOD | FD_ACAUD | FD_PATA;
@@ -265,11 +260,12 @@ static void early_ich7_init(void)
 	RCBA32(0x2034) = reg32;
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
-	u32 reg32;
-	int boot_mode = 0;
-	int cbmem_was_initted;
+	int s3resume = 0;
+
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_START_ROMSTAGE);
 
 	if (bist == 0)
 		enable_lapic();
@@ -293,7 +289,7 @@ void main(unsigned long bist)
 	if (MCHBAR16(SSKPD) == 0xCAFE) {
 		printk(BIOS_DEBUG, "soft reset detected, rebooting properly\n");
 		outb(0x6, 0xcf9);
-		while (1) asm("hlt");
+		halt();
 	}
 
 	/* Perform some early chipset initialization required
@@ -301,21 +297,7 @@ void main(unsigned long bist)
 	 */
 	i945_early_initialization();
 
-	/* Read PM1_CNT */
-	reg32 = inl(DEFAULT_PMBASE + 0x04);
-	printk(BIOS_DEBUG, "PM1_CNT: %08x\n", reg32);
-	if (((reg32 >> 10) & 7) == 5) {
-		if (acpi_s3_resume_allowed()) {
-			printk(BIOS_DEBUG, "Resume from S3 detected.\n");
-			boot_mode = 2;
-			/* Clear SLP_TYPE. This will break stage2 but
-			 * we care for that when we get there.
-			 */
-			outl(reg32 & ~(7 << 10), DEFAULT_PMBASE + 0x04);
-		} else {
-			printk(BIOS_DEBUG, "Resume from S3 detected, but disabled.\n");
-		}
-	}
+	s3resume = southbridge_detect_s3_resume();
 
 	/* Enable SPD ROMs and DDR-II DRAM */
 	enable_smbus();
@@ -324,7 +306,7 @@ void main(unsigned long bist)
 	dump_spd_registers();
 #endif
 
-	sdram_initialize(boot_mode, NULL);
+	sdram_initialize(s3resume ? 2 : 0, NULL);
 
 	/* Perform some initialization that must run before stage2 */
 	early_ich7_init();
@@ -338,29 +320,5 @@ void main(unsigned long bist)
 	fixup_i945_errata();
 
 	/* Initialize the internal PCIe links before we go into stage2 */
-	i945_late_initialization();
-
-	MCHBAR16(SSKPD) = 0xCAFE;
-
-	cbmem_was_initted = !cbmem_recovery(boot_mode==2);
-
-#if CONFIG_HAVE_ACPI_RESUME
-	/* If there is no high memory area, we didn't boot before, so
-	 * this is not a resume. In that case we just create the cbmem toc.
-	 */
-	if ((boot_mode == 2) && cbmem_was_initted) {
-		void *resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
-
-		/* copy 1MB - 64K to high tables ram_base to prevent memory corruption
-		 * through stage 2. We could keep stuff like stack and heap in high tables
-		 * memory completely, but that's a wonderful clean up task for another
-		 * day.
-		 */
-		if (resume_backup_memory)
-			memcpy(resume_backup_memory, (void *)CONFIG_RAMBASE, HIGH_MEMORY_SAVE);
-
-		/* Magic for S3 resume */
-		pci_write_config32(PCI_DEV(0, 0x00, 0), SKPAD, SKPAD_ACPI_S3_MAGIC);
-	}
-#endif
+	i945_late_initialization(s3resume);
 }

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdlib.h>
@@ -23,7 +19,7 @@
 #include <pc80/keyboard.h>
 #include "sio10n268.h"
 
-static void init(device_t dev)
+static void init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
@@ -35,7 +31,7 @@ static void init(device_t dev)
 		break;
 	case SIO10N268_KBDC:
 		/* TODO: This is still hardcoded. */
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	// [..] The rest: TODO
 	}
@@ -64,4 +60,3 @@ struct chip_operations superio_smsc_sio10n268_ops = {
 	CHIP_NAME("SMSC SIO10N268 Super I/O")
 	.enable_dev = enable_dev,
 };
-

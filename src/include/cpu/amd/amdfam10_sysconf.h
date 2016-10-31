@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef AMDFAM10_SYSCONF_H
@@ -56,8 +52,6 @@ struct amdfam10_sysconf_t {
 
 	msr_t msr_pstate[NODE_NUMS * 5]; // quad cores all cores in one node should be the same, and p0,..p5
 	unsigned needs_update_pstate_msrs;
-	struct p_state_t p_state[NODE_NUMS * 5];
-	unsigned p_state_num;
 
 	unsigned bsp_apicid;
 	int enabled_apic_ext_id;

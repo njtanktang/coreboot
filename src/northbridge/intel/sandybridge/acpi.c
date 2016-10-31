@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -28,8 +23,12 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <build.h>
+#include <drivers/intel/gma/i915.h>
+#include <arch/acpigen.h>
 #include "sandybridge.h"
+#include <cbmem.h>
+#include <drivers/intel/gma/intel_bios.h>
+#include <southbridge/intel/bd82x6x/pch.h>
 
 unsigned long acpi_fill_mcfg(unsigned long current)
 {
@@ -118,7 +117,7 @@ static int init_opregion_vbt(igd_opregion_t *opregion)
 	optionrom_vbt_t *vbt = (optionrom_vbt_t *)(vbios +
 						oprom->vbt_offset);
 
-	if (read32((unsigned long)vbt->hdr_signature) != VBT_SIGNATURE) {
+	if (read32(vbt->hdr_signature) != VBT_SIGNATURE) {
 		printk(BIOS_DEBUG, "VBT not found!\n");
 		return 1;
 	}
@@ -142,7 +141,7 @@ int init_igd_opregion(igd_opregion_t *opregion)
 	// FIXME if IGD is disabled, we should exit here.
 
 	memcpy(&opregion->header.signature, IGD_OPREGION_SIGNATURE,
-		sizeof(IGD_OPREGION_SIGNATURE));
+		sizeof(opregion->header.signature));
 
 	/* 8kb */
 	opregion->header.size = sizeof(igd_opregion_t) / 1024;
@@ -199,4 +198,61 @@ int init_igd_opregion(igd_opregion_t *opregion)
 	return 0;
 }
 
+void *igd_make_opregion(void)
+{
+	igd_opregion_t *opregion;
 
+	printk(BIOS_DEBUG, "ACPI:    * IGD OpRegion\n");
+	opregion = cbmem_add(CBMEM_ID_IGD_OPREGION, sizeof(*opregion));
+	if (opregion)
+		init_igd_opregion(opregion);
+	return opregion;
+}
+
+static unsigned long acpi_fill_dmar(unsigned long current)
+{
+	const struct device *const igfx = dev_find_slot(0, PCI_DEVFN(2, 0));
+
+	if (igfx && igfx->enabled) {
+		const unsigned long tmp = current;
+		current += acpi_create_dmar_drhd(current, 0, 0, IOMMU_BASE1);
+		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 0);
+		current += acpi_create_dmar_drhd_ds_pci(current, 0, 2, 1);
+		acpi_dmar_drhd_fixup(tmp, current);
+	}
+
+	const unsigned long tmp = current;
+	current += acpi_create_dmar_drhd(current,
+			DRHD_INCLUDE_PCI_ALL, 0, IOMMU_BASE2);
+	current += acpi_create_dmar_drhd_ds_ioapic(current,
+			2, PCH_IOAPIC_PCI_BUS, PCH_IOAPIC_PCI_SLOT, 0);
+	size_t i;
+	for (i = 0; i < 8; ++i)
+		current += acpi_create_dmar_drhd_ds_msi_hpet(current,
+				0, PCH_HPET_PCI_BUS, PCH_HPET_PCI_SLOT, i);
+	acpi_dmar_drhd_fixup(tmp, current);
+
+	return current;
+}
+
+unsigned long northbridge_write_acpi_tables(struct device *const dev,
+					    unsigned long current,
+					    struct acpi_rsdp *const rsdp)
+{
+	const u32 capid0_a = pci_read_config32(dev, 0xe4);
+	if (capid0_a & (1 << 23))
+		return current;
+
+	printk(BIOS_DEBUG, "ACPI:     * DMAR\n");
+	acpi_dmar_t *const dmar = (acpi_dmar_t *)current;
+	acpi_create_dmar(dmar, DMAR_INTR_REMAP, acpi_fill_dmar);
+	current += dmar->header.length;
+	current = acpi_align_current(current);
+	acpi_add_table(rsdp, dmar);
+
+	current = acpi_align_current(current);
+
+	printk(BIOS_DEBUG, "current = %lx\n", current);
+
+	return current;
+}

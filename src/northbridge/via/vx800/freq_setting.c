@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 void CalcCLAndFreq(DRAM_SYS_ATTR * DramAttr);
@@ -138,8 +134,8 @@ void CalcCLAndFreq(DRAM_SYS_ATTR * DramAttr)
 		}
 	}
 	if (!AllDimmSupportedCL) {	/*if equal 0, no supported CL */
-		PRINT_DEBUG_MEM("SPD Data Error, Can not get CL !!!! \r");
-		for (;;) ;
+		die("SPD Data Error, Can not get CL !!!! \r");
+
 	}
 
 	/*Get CL Value */
@@ -196,17 +192,17 @@ void CalcCLAndFreq(DRAM_SYS_ATTR * DramAttr)
 
 	if (CycTime <= 0) {
 		//error!
-		for (;;) ;
+		die("Error, cycle time <= 0\n");
 	}
 
 	/* cycle time value
-	   0x25-->2.5ns Freq=400  DDR800
-	   0x30-->3.0ns Freq=333  DDR667
-	   0x3D-->3.75ns Freq=266 DDR533
-	   0x50-->5.0ns Freq=200  DDR400
-	   0x60-->6.0ns Freq=166  DDR333
-	   0x75-->7.5ns Freq=133  DDR266
-	   0xA0-->10.0ns Freq=100 DDR200
+	   0x25-->2.5ns Freq = 400  DDR800
+	   0x30-->3.0ns Freq = 333  DDR667
+	   0x3D-->3.75ns Freq = 266 DDR533
+	   0x50-->5.0ns Freq = 200  DDR400
+	   0x60-->6.0ns Freq = 166  DDR333
+	   0x75-->7.5ns Freq = 133  DDR266
+	   0xA0-->10.0ns Freq = 100 DDR200
 	 */
 	if (CycTime <= 0x25) {
 		DramAttr->DramFreq = DIMMFREQ_800;

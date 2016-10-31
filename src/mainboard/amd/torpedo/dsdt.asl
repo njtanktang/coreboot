@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* DefinitionBlock Statement */
@@ -224,12 +220,12 @@ DefinitionBlock (
 		PEWD,1
 	}
 
-    OperationRegion (GRAM, SystemMemory, 0x0400, 0x0100)
-    Field (GRAM, ByteAcc, Lock, Preserve)
-    {
-        Offset (0x10),
-        FLG0,   8
-    }
+	OperationRegion (GRAM, SystemMemory, 0x0400, 0x0100)
+	Field (GRAM, ByteAcc, Lock, Preserve)
+	{
+		Offset (0x10),
+		FLG0,   8
+	}
 
 	Scope(\_SB) {
 		/* PCIe Configuration Space for 16 busses */
@@ -778,7 +774,8 @@ DefinitionBlock (
 		}
 
 		/* Arbitrarily clear PciExpWakeStatus */
-		Store(PEWS, PEWS)
+		Store(PEWS, Local0)
+		Store(Local0, PEWS)
 
 		/* if(DeRefOf(Index(WKST,0))) {
 		*	Store(0, Index(WKST,1))
@@ -1048,8 +1045,8 @@ DefinitionBlock (
 						Return(0x0F) /* sata is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
+						CreateDwordField(CRS, ^HPT._BAS, HPBX)
+						Store(HPBA, HPBX)
 						Return(CRS)
 					}
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
@@ -1116,7 +1113,7 @@ DefinitionBlock (
 			Method(_CRS, 0) {
 				/* DBGO("\\_SB\\PCI0\\_CRS\n") */
 				CreateDWordField(CRES, ^MMIO._BAS, MM1B)
-                CreateDWordField(CRES, ^MMIO._LEN, MM1L)
+				CreateDWordField(CRES, ^MMIO._LEN, MM1L)
 				/*
 				* Declare memory between TOM1 and 4GB as available
 				* for PCI MMIO.

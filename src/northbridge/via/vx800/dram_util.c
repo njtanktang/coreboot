@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 void WaitMicroSec(UINTN MicroSeconds)
@@ -186,7 +182,6 @@ void DumpRegisters(INTN DevNum, INTN FuncNum)
 	u8 ByteVal;
 
 	ByteVal = 0;
-	//pci_write_config8(PCI_DEV(0, DevNum, FuncNum), 0xA1, ByteVal);
 	PRINT_DEBUG_MEM("\rDev %02x Fun %02x\r");
 	PRINT_DEBUG_MEM
 	    ("\r    00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f\r");

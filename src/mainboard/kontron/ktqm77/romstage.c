@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -30,16 +26,16 @@
 #include <arch/acpi.h>
 #include <cbmem.h>
 #include <console/console.h>
-#include "northbridge/intel/sandybridge/sandybridge.h"
-#include "northbridge/intel/sandybridge/raminit.h"
-#include "southbridge/intel/bd82x6x/pch.h"
-#include "southbridge/intel/bd82x6x/gpio.h"
+#include <northbridge/intel/sandybridge/sandybridge.h>
+#include <northbridge/intel/sandybridge/raminit.h>
+#include <northbridge/intel/sandybridge/raminit_native.h>
+#include <southbridge/intel/bd82x6x/pch.h>
+#include <southbridge/intel/common/gpio.h>
 #include <arch/cpu.h>
-#include <cpu/x86/bist.h>
 #include <cpu/x86/msr.h>
-#include "gpio.h"
+#include <halt.h>
 
-static void pch_enable_lpc(void)
+void pch_enable_lpc(void)
 {
 	/* Set COM3/COM1 decode ranges: 0x3e8/0x3f8 */
 	pci_write_config16(PCH_LPC_DEV, LPC_IO_DEC, 0x0070);
@@ -55,67 +51,9 @@ static void pch_enable_lpc(void)
 			   COMA_LPC_EN | COMB_LPC_EN);
 }
 
-static void rcba_config(void)
+void rcba_config(void)
 {
 	u32 reg32;
-
-	/*
-	 * D31IP_TTIP   THRT   INTC -> PIRQC
-	 * D31IP_SIP2   SATA2  NOINT
-	 * D31IP_SMIP   SMBUS  INTC -> PIRQC
-	 * D31IP_SIP    SATA   INTB -> PIRQD (MSI)
-	 * D29IP_E1P    EHCI1  INTA -> PIRQH
-	 * D28IP_P8IP   Slot?  INTD -> PIRQD
-	 * D28IP_P7IP   PCIEx1 INTC -> PIRQC
-	 * D28IP_P6IP   1394   INTB -> PIRQB (MSI)
-	 * D28IP_P5IP   GbEPHY INTA -> PIRQA
-	 * D28IP_P4IP   ETH2   INTD -> PIRQD (MSI)
-	 * D28IP_P3IP   ETH1   INTC -> PIRQC (MSI)
-	 * D28IP_P2IP   Slot?  INTB -> PIRQB
-	 * D28IP_P1IP   Slot?  INTA -> PIRQA
-	 * D27IP_ZIP    HDA    INTA -> PIRQG (MSI)
-	 * D26IP_E2P    EHCI2  INTA -> PIRQA
-	 * D25IP_LIP    ETH0   INTA -> PIRQE (MSI)
-	 * D22IP_KTIP   MEI    NOINT
-	 * D22IP_IDERIP MEI    NOINT
-	 * D22IP_MEI2IP MEI    NOINT
-	 * D22IP_MEI1IP MEI    NOINT
-	 * D20IP_XHCIIP XHCI   INTA -> PIRQA (MSI)
-	 *              GFX    INTA -> PIRQA (MSI)
-	 *              PEGx16 INTA -> PIRQA
-	 *                     INTB -> PIRQB
-	 *                     INTC -> PIRQC
-	 *                     INTD -> PIRQD
-	 */
-
-	/* Device interrupt pin register (board specific) */
-	RCBA32(D31IP) = (INTC << D31IP_TTIP) | (NOINT << D31IP_SIP2) |
-			(INTC << D31IP_SMIP) | (INTB << D31IP_SIP);
-	RCBA32(D29IP) = (INTA << D29IP_E1P);
-	RCBA32(D28IP) = (INTA << D28IP_P1IP) | (INTB << D28IP_P2IP) |
-			(INTC << D28IP_P3IP) | (INTD << D28IP_P4IP) |
-			(INTA << D28IP_P5IP) | (INTB << D28IP_P6IP) |
-			(INTC << D28IP_P7IP) | (INTD << D28IP_P8IP);
-	RCBA32(D27IP) = (INTA << D27IP_ZIP);
-	RCBA32(D26IP) = (INTA << D26IP_E2P);
-	RCBA32(D25IP) = (INTA << D25IP_LIP);
-	RCBA32(D22IP) = (NOINT << D22IP_MEI1IP);
-	RCBA32(D20IP) = (INTA << D20IP_XHCIIP);
-
-	/* Device interrupt route registers */
-	DIR_ROUTE(D31IR, PIRQA, PIRQD, PIRQC, PIRQA);
-	DIR_ROUTE(D29IR, PIRQH, PIRQD, PIRQA, PIRQC);
-	DIR_ROUTE(D28IR, PIRQA, PIRQB, PIRQC, PIRQD);
-	DIR_ROUTE(D27IR, PIRQG, PIRQB, PIRQC, PIRQD);
-	DIR_ROUTE(D26IR, PIRQA, PIRQF, PIRQC, PIRQD);
-	DIR_ROUTE(D25IR, PIRQE, PIRQF, PIRQG, PIRQH);
-	DIR_ROUTE(D22IR, PIRQA, PIRQD, PIRQC, PIRQB);
-	DIR_ROUTE(D20IR, PIRQA, PIRQB, PIRQC, PIRQD);
-
-	/* Enable IOAPIC (generic) */
-	RCBA16(OIC) = 0x0100;
-	/* PCH BWG says to read back the IOAPIC enable register */
-	(void) RCBA16(OIC);
 
 	/* Disable unused devices (board specific) */
 	reg32 = RCBA32(FD);
@@ -138,50 +76,57 @@ static void pnp_exit_ext_func_mode(device_t dev)
 	outb(0xaa, port);
 }
 
-static void superio_gpio_config(void)
+void mainboard_config_superio(void)
 {
+	int lvds_3v = 0; /* 0 (5V) or 1 (3V3) */
+	int dis_bl_inv = 1; /* backlight inversion: 1 = disabled, 0 = enabled */
 	device_t dev = PNP_DEV(0x2e, 0x9);
 	pnp_enter_ext_func_mode(dev);
+	pnp_write_config(dev, 0x29, 0x02); /* Pins 119, 120 are GPIO21, 20 */
+	pnp_write_config(dev, 0x30, 0x03); /* Enable GPIO2+3 */
+	pnp_write_config(dev, 0x2a, 0x01); /* Pins 62, 63, 65, 66 are
+					      GPIO27, 26, 25, 24 */
+	pnp_write_config(dev, 0x2c, 0xc3); /* Pin 90 is GPIO32,
+					      Pins 78~85 are UART B */
+	pnp_write_config(dev, 0x2d, 0x00); /* Pins 67, 68, 70~73, 75, 77 are
+					      GPIO57~50 */
 	pnp_set_logical_device(dev);
 	/* Values can only be changed, when devices are enabled. */
-	pnp_write_config(dev, 0x30, 0x03); /* Enable GPIO2+3 */
 	pnp_write_config(dev, 0xe3, 0xdd); /* GPIO2 bits 1, 5 are output */
-	pnp_write_config(dev, 0xe4, 0x22); /* GPIO2 bits 1, 5 are 1 */
+	pnp_write_config(dev, 0xe4, (dis_bl_inv << 5) | (lvds_3v << 1)); /* GPIO2 bits 1, 5 */
+	pnp_write_config(dev, 0xf3, 0x40); /* Disable suspend LED during normal operation */
 	pnp_exit_ext_func_mode(dev);
 }
 
-void main(unsigned long bist)
+void mainboard_fill_pei_data(struct pei_data *pei_data)
 {
-	int boot_mode = 0;
-	int cbmem_was_initted;
-	u32 pm1_cnt;
-	u16 pm1_sts;
-
-	struct pei_data pei_data = {
+	struct pei_data pei_data_template = {
 		.pei_version = PEI_VERSION,
-		.mchbar = DEFAULT_MCHBAR,
-		.dmibar = DEFAULT_DMIBAR,
+		.mchbar = (uintptr_t)DEFAULT_MCHBAR,
+		.dmibar = (uintptr_t)DEFAULT_DMIBAR,
 		.epbar = DEFAULT_EPBAR,
 		.pciexbar = CONFIG_MMCONF_BASE_ADDRESS,
 		.smbusbar = SMBUS_IO_BASE,
 		.wdbbar = 0x4000000,
 		.wdbsize = 0x1000,
 		.hpet_address = CONFIG_HPET_ADDRESS,
-		.rcba = DEFAULT_RCBABASE,
+		.rcba = (uintptr_t)DEFAULT_RCBABASE,
 		.pmbase = DEFAULT_PMBASE,
 		.gpiobase = DEFAULT_GPIOBASE,
 		.thermalbase = 0xfed08000,
-		.system_type = 0, // 0 Mobile, 1 Desktop/Server
+		.system_type = 0, /* 0 Mobile, 1 Desktop/Server */
 		.tseg_size = CONFIG_SMM_TSEG_SIZE,
 		.spd_addresses = { 0xA0, 0x00,0xA4,0x00 },
 		.ts_addresses = { 0x00, 0x00, 0x00, 0x00 },
 		.ec_present = 1,
 		.gbe_enable = 1,
 		.ddr3lv_support = 0,
-		// 0 = leave channel enabled
-		// 1 = disable dimm 0 on channel
-		// 2 = disable dimm 1 on channel
-		// 3 = disable dimm 0+1 on channel
+		/*
+		 * 0 = leave channel enabled
+		 * 1 = disable dimm 0 on channel
+		 * 2 = disable dimm 1 on channel
+		 * 3 = disable dimm 0+1 on channel
+		 */
 		.dimm_channel0_disabled = 2,
 		.dimm_channel1_disabled = 2,
 		.max_ddr3_freq = 1600,
@@ -210,120 +155,41 @@ void main(unsigned long bist)
 		},
 		.pcie_init = 1,
 	};
+	*pei_data = pei_data_template;
+}
 
-	timestamp_init(get_initial_timestamp());
-	timestamp_add_now(TS_START_ROMSTAGE);
+const struct southbridge_usb_port mainboard_usb_ports[] = {
+	/* enabled power  usb oc pin  */
+	{ 1, 0, 0 }, /* P0: lower left USB 3.0 (OC0) */
+	{ 1, 0, 0 }, /* P1: upper left USB 3.0 (OC0) */
+	{ 1, 0, 0 }, /* P2: lower right USB 3.0 (OC0) */
+	{ 1, 0, 0 }, /* P3: upper right USB 3.0 (OC0) */
+	{ 1, 0, 0 }, /* P4: lower USB 2.0 (OC0) */
+	{ 1, 0, 0 }, /* P5: upper USB 2.0 (OC0) */
+	{ 1, 0, 0 }, /* P6: front panel USB 2.0 (OC0) */
+	{ 1, 0, 0 }, /* P7: front panel USB 2.0 (OC0) */
+	{ 1, 0, 4 }, /* P8: internal USB 2.0 (OC4) */
+	{ 1, 0, 4 }, /* P9: internal USB 2.0 (OC4) */
+	{ 1, 0, 4 }, /* P10: internal USB 2.0 (OC4) */
+	{ 1, 0, 4 }, /* P11: internal USB 2.0 (OC4) */
+	{ 1, 0, 4 }, /* P12: internal USB 2.0 (OC4) */
+	{ 1, 0, 4 }, /* P13: internal USB 2.0 (OC4) */
+};
 
-	if (bist == 0)
-		enable_lapic();
+void mainboard_get_spd(spd_raw_data *spd) {
+	read_spd(&spd[0], 0x50);
+	read_spd(&spd[2], 0x52);
+}
 
-	pch_enable_lpc();
-
-	/* Enable GPIOs */
-	pci_write_config32(PCH_LPC_DEV, GPIO_BASE, DEFAULT_GPIOBASE|1);
-	pci_write_config8(PCH_LPC_DEV, GPIO_CNTL, 0x10);
-	setup_pch_gpios(&ktqm77_gpio_map);
-	superio_gpio_config();
-
-	/* Initialize console device(s) */
-	console_init();
-
-	/* Halt if there was a built in self test failure */
-	report_bist_failure(bist);
-
-	if (MCHBAR16(SSKPD) == 0xCAFE) {
-		printk(BIOS_DEBUG, "soft reset detected\n");
-		boot_mode = 1;
-
-		/* System is not happy after keyboard reset... */
-		printk(BIOS_DEBUG, "Issuing CF9 warm reset\n");
-		outb(0x6, 0xcf9);
-		hlt();
-	}
-
-	/* Perform some early chipset initialization required
-	 * before RAM initialization can work
-	 */
-	sandybridge_early_initialization(SANDYBRIDGE_MOBILE);
-	printk(BIOS_DEBUG, "Back from sandybridge_early_initialization()\n");
-
+void mainboard_early_init(int s3resume)
+{
 	/* Enable PEG10 (1x16) */
 	pci_write_config32(PCI_DEV(0, 0, 0), DEVEN,
 			   pci_read_config32(PCI_DEV(0, 0, 0), DEVEN) |
 			   DEVEN_PEG10);
+}
 
-	/* Check PM1_STS[15] to see if we are waking from Sx */
-	pm1_sts = inw(DEFAULT_PMBASE + PM1_STS);
-
-	/* Read PM1_CNT[12:10] to determine which Sx state */
-	pm1_cnt = inl(DEFAULT_PMBASE + PM1_CNT);
-
-	if ((pm1_sts & WAK_STS) && ((pm1_cnt >> 10) & 7) == 5) {
-		if (acpi_s3_resume_allowed()) {
-			printk(BIOS_DEBUG, "Resume from S3 detected.\n");
-			boot_mode = 2;
-			/* Clear SLP_TYPE. This will break stage2 but
-			 * we care for that when we get there.
-			 */
-			outl(pm1_cnt & ~(7 << 10), DEFAULT_PMBASE + PM1_CNT);
-		} else {
-			printk(BIOS_DEBUG, "Resume from S3 detected, but disabled.\n");
-		}
-	}
-
-	post_code(0x38);
-	/* Enable SPD ROMs and DDR-III DRAM */
-	enable_smbus();
-
-	/* Prepare USB controller early in S3 resume */
-	if (boot_mode == 2)
-		enable_usb_bar();
-
-	post_code(0x39);
-
-	post_code(0x3a);
-	pei_data.boot_mode = boot_mode;
-	timestamp_add_now(TS_BEFORE_INITRAM);
-	sdram_initialize(&pei_data);
-
-	timestamp_add_now(TS_AFTER_INITRAM);
-	post_code(0x3c);
-
-	rcba_config();
-	post_code(0x3d);
-
-	quick_ram_check();
-	post_code(0x3e);
-
-	MCHBAR16(SSKPD) = 0xCAFE;
-	cbmem_was_initted = !cbmem_recovery(boot_mode==2);
-	if (boot_mode!=2)
-		save_mrc_data(&pei_data);
-
-#if CONFIG_HAVE_ACPI_RESUME
-	/* If there is no high memory area, we didn't boot before, so
-	 * this is not a resume. In that case we just create the cbmem toc.
-	 */
-
-	*(u32 *)CBMEM_BOOT_MODE = 0;
-	*(u32 *)CBMEM_RESUME_BACKUP = 0;
-
-	if ((boot_mode == 2) && cbmem_was_initted) {
-		void *resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
-		if (resume_backup_memory) {
-			*(u32 *)CBMEM_BOOT_MODE = boot_mode;
-			*(u32 *)CBMEM_RESUME_BACKUP = (u32)resume_backup_memory;
-		}
-		/* Magic for S3 resume */
-		pci_write_config32(PCI_DEV(0, 0x00, 0), SKPAD, 0xcafed00d);
-	} else if (boot_mode == 2) {
-		/* Failed S3 resume, reset to come up cleanly */
-		outb(0x6, 0xcf9);
-		hlt();
-	} else {
-		pci_write_config32(PCI_DEV(0, 0x00, 0), SKPAD, 0xcafebabe);
-	}
-#endif
-	post_code(0x3f);
-	timestamp_add_now(TS_END_ROMSTAGE);
+int mainboard_should_reset_usb(int s3resume)
+{
+	return !s3resume;
 }

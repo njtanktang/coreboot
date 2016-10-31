@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,13 +12,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-/* The socket type F (1207), Fr2, G (1207) are not tested.
+/* The socket type Fr2, G (1207) are not tested.
  */
 
 static void Get_ChannelPS_Cfg0_D(u8 MAAdimms, u8 Speed, u8 MAAload,
@@ -53,7 +50,7 @@ void mctGet_PS_Cfg_D(struct MCTStatStruc *pMCTstat,
  *    : ODC_CTL    - Output Driver Compensation Control Register Value
  *    : CMDmode    - CMD mode
  */
-static void Get_ChannelPS_Cfg0_D( u8 MAAdimms, u8 Speed, u8 MAAload,
+static void Get_ChannelPS_Cfg0_D(u8 MAAdimms, u8 Speed, u8 MAAload,
 				u8 DATAAload, u32 *AddrTmgCTL, u32 *ODC_CTL,
 				u8 *CMDmode)
 {
@@ -62,7 +59,7 @@ static void Get_ChannelPS_Cfg0_D( u8 MAAdimms, u8 Speed, u8 MAAload,
 	*CMDmode = 1;
 
 	if (mctGet_NVbits(NV_MAX_DIMMS) == 4) {
-		if(Speed == 4) {
+		if (Speed == 4) {
 			*AddrTmgCTL = 0x00000000;
 		} else if (Speed == 5) {
 			*AddrTmgCTL = 0x003C3C3C;
@@ -79,9 +76,8 @@ static void Get_ChannelPS_Cfg0_D( u8 MAAdimms, u8 Speed, u8 MAAload,
 			else
 				*AddrTmgCTL = 0x00353935;
 		}
-	}
-	else {
-		if(Speed == 4) {
+	} else {
+		if (Speed == 4) {
 			*AddrTmgCTL = 0x00000000;
 			if (MAAdimms == 3)
 				*AddrTmgCTL = 0x00380038;

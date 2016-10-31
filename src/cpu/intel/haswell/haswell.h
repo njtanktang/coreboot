@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef _CPU_INTEL_HASWELL_H
@@ -188,7 +183,7 @@ void romstage_common(const struct romstage_params *params);
 void * asmlinkage romstage_main(unsigned long bist);
 /* romstage_after_car() is the C function called after cache-as-ram has
  * been torn down. It is responsible for loading the ramstage. */
-void romstage_after_car(void);
+void asmlinkage romstage_after_car(void);
 #endif
 
 #ifdef __SMM__
@@ -198,14 +193,16 @@ void intel_cpu_haswell_finalize_smm(void);
 /* Configure power limits for turbo mode */
 void set_power_limits(u8 power_limit_1_time);
 int cpu_config_tdp_levels(void);
-/* Returns 0 on success, < 0 on failure. */
-int smm_initialize(void);
+void smm_relocation_handler(int cpu, uintptr_t curr_smbase,
+				uintptr_t staggered_smbase);
+void smm_info(uintptr_t *perm_smbase, size_t *perm_smsize,
+		size_t *smm_save_state_size);
+void smm_initialize(void);
 void smm_relocate(void);
 struct bus;
 void bsp_init_and_start_aps(struct bus *cpu_bus);
 /* Determine if HyperThreading is disabled. The variable is not valid until
  * setup_ap_init() has been called. */
-extern int ht_disabled;
 #endif
 
 /* CPU identification */

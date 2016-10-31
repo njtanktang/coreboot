@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -46,9 +42,9 @@ u32 vt8237_ide_80pin_detect(struct device *dev)
 
 	gpio_in = inl(acpi_io_base + 0x48);
 	/* bit 29 for primary port, clear if unconnected or 80-pin cable */
-	res  = gpio_in & (1<<29) ? 0 : VT8237R_IDE0_80PIN_CABLE;
+	res  = gpio_in & (1 << 29) ? 0 : VT8237R_IDE0_80PIN_CABLE;
 	/* bit 8 for secondary port, clear if unconnected or 80-pin cable */
-	res |= gpio_in & (1<<8) ? 0 : VT8237R_IDE1_80PIN_CABLE;
+	res |= gpio_in & (1 << 8) ? 0 : VT8237R_IDE1_80PIN_CABLE;
 
 	printk(BIOS_INFO, "Cable on %s PATA port: %d pin\n", "primary",
 		res & VT8237R_IDE0_80PIN_CABLE ? 80 : 40);
@@ -57,4 +53,3 @@ u32 vt8237_ide_80pin_detect(struct device *dev)
 
 	return res;
 }
-

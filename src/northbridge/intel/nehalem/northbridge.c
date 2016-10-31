@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -37,6 +33,7 @@
 #include <cbmem.h>
 #include "chip.h"
 #include "nehalem.h"
+#include <cpu/intel/smm/gen1/smi.h>
 
 static int bridge_revision_id = -1;
 
@@ -59,7 +56,6 @@ int bridge_silicon_revision(void)
  * 0xe0000 - 0xfffff: SeaBIOS, if used, otherwise DMI
  */
 static const int legacy_hole_base_k = 0xa0000 / 1024;
-static const int legacy_hole_size_k = 384;
 
 static void add_fixed_resources(struct device *dev, int index)
 {
@@ -164,6 +160,13 @@ static void mc_read_resources(device_t dev)
 	    bad_ram_resource(dev, 9, 0x1fc000000ULL >> 10, 0x004000000 >> 10);
 
 	add_fixed_resources(dev, 10);
+}
+
+u32 northbridge_get_tseg_base(void)
+{
+	const device_t dev = dev_find_slot(0, PCI_DEVFN(0, 0));
+
+	return pci_read_config32(dev, TSEG) & ~1;
 }
 
 static void mc_set_resources(device_t dev)
@@ -314,6 +317,7 @@ static struct device_operations mc_ops = {
 	.enable_resources = pci_dev_enable_resources,
 	.init = northbridge_init,
 	.enable = northbridge_enable,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 	.scan_bus = 0,
 	.ops_pci = &intel_pci_ops,
 };
@@ -329,14 +333,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources = cpu_bus_noop,
-	.set_resources = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = cpu_bus_init,
 	.scan_bus = 0,
 };

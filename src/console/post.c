@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,6 +20,7 @@
 #include <device/device.h>
 #include <pc80/mc146818rtc.h>
 #include <smp/spinlock.h>
+#include <rules.h>
 
 /* Write POST information */
 
@@ -46,7 +42,7 @@ void __attribute__((weak)) mainboard_post(uint8_t value)
 
 DECLARE_SPIN_LOCK(cmos_post_lock)
 
-#if !defined(__PRE_RAM__)
+#if ENV_RAMSTAGE
 void cmos_post_log(void)
 {
 	u8 code = 0;
@@ -127,7 +123,7 @@ void post_log_clear(void)
 	post_log_extra(0);
 }
 #endif /* CONFIG_CMOS_POST_EXTRA */
-#endif /* !__PRE_RAM__ */
+#endif /* ENV_RAMSTAGE */
 
 static void cmos_post_code(u8 value)
 {
@@ -150,9 +146,7 @@ void post_code(uint8_t value)
 {
 #if !CONFIG_NO_POST
 #if CONFIG_CONSOLE_POST
-	print_emerg("POST: 0x");
-	print_emerg_hex8(value);
-	print_emerg("\n");
+	printk(BIOS_EMERG, "POST: 0x%02x\n", value);
 #endif
 #if CONFIG_CMOS_POST
 	cmos_post_code(value);

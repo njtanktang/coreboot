@@ -12,19 +12,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /**
- * @file via_early_sambus.h
+ * @file via_early_smbus.h
  *
  * This file contains generic definitions used in VIA SMBus controllers.
  *
  * Functions defined in device/early/smbus.h are each implemented in a separate
  * early_smbus_[func_name].c file. This makes it possible to override any of
- * these functions by not including them in yout build, via Makefile.c. This is
+ * these functions by not including them in your build, via Makefile.c. This is
  * useful when there is a need to work around chipset bugs.
  *
  * These implementations work with most via chipsets. Any VIA port should try

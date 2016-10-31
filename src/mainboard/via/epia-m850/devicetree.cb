@@ -13,9 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program.  If not, see <http://www.gnu.org/licenses/>.
-##
 
 chip northbridge/via/vx900		# Northbridge
 	register "assign_pex_to_dp" = "0"
@@ -38,7 +35,7 @@ chip northbridge/via/vx900		# Northbridge
 				register "have_isa_interrupts" = "0"
 				register "irq_on_fsb" = "1"
 				register "enable_virtual_wire" = "1"
-				register "base" = "0xfecc0000"
+				register "base" = "(void *)0xfecc0000"
 				device ioapic 2 on end
 			end
 		end
@@ -71,7 +68,7 @@ chip northbridge/via/vx900		# Northbridge
 				register "have_isa_interrupts" = "1"
 				register "irq_on_fsb" = "1"
 				register "enable_virtual_wire" = "1"
-				register "base" = "0xfec00000"
+				register "base" = "(void *)0xfec00000"
 				device ioapic 1 on end
 			end
 			#chip drivers/generic/generic	# DIMM 0 channel 1

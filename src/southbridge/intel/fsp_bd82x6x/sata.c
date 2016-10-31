@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -56,8 +52,8 @@ static void sata_init(struct device *dev)
 		reg16 = pci_read_config16(dev, PCI_COMMAND);
 		reg16 &= ~PCI_COMMAND_MEMORY;
 		pci_write_config16(dev, PCI_COMMAND, reg16);
-	} else if(config->sata_ahci) {
-		u32 abar;
+	} else if (config->sata_ahci) {
+		u32 *abar;
 
 		printk(BIOS_DEBUG, "SATA: Controller in AHCI mode.\n");
 
@@ -66,12 +62,12 @@ static void sata_init(struct device *dev)
 		pci_write_config8(dev, INTR_LN, 0x0a);
 
 		/* Initialize AHCI memory-mapped space */
-		abar = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
-		printk(BIOS_DEBUG, "ABAR: %08X\n", abar);
+		abar = (u32 *)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+		printk(BIOS_DEBUG, "ABAR: %p\n", abar);
 		/* Enable AHCI Mode */
-		reg32 = read32(abar + 0x04);
+		reg32 = read32(abar + 0x01);
 		reg32 |= (1 << 31);
-		write32(abar + 0x04, reg32);
+		write32(abar + 0x01, reg32);
 	} else {
 		printk(BIOS_DEBUG, "SATA: Controller in plain mode.\n");
 
@@ -120,4 +116,3 @@ static const struct pci_driver pch_sata __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-

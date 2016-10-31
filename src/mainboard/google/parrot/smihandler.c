@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -28,67 +24,6 @@
 #include <elog.h>
 #include <ec/compal/ene932/ec.h>
 #include "ec.h"
-
-/* Power Management PCI Configuration Registers
- * Bus 0, Device 31, Function 0, Offset 0xB8
- * 00 = No Effect
- * 01 = SMI#
- * 10 = SCI
- * 11 = NMI
- */
-#define GPI_ROUT	0x8000F8B8
-#define GPI_IS_SMI	0x01
-#define GPI_IS_SCI	0x02
-
-static void set_lid_gpi_mode(u32 mode)
-{
-	u32 reg32 = 0;
-	u16 reg16 = 0;
-
-	/* read the GPI register, clear the lid GPI's mode, write the new mode
-	 * and write out the register.
-	 */
-	outl(GPI_ROUT, 0xcf8);
-	reg32 = inl(0xcfc);
-	reg32 &= ~(0x03 << (EC_LID_GPI * 2));
-	reg32 |= (mode << (EC_LID_GPI * 2));
-	outl(GPI_ROUT, 0xcf8);
-	outl(reg32, 0xcfc);
-
-	/* Set or Disable Lid GPE as SMI source in the ALT_GPI_SMI_EN register. */
-	reg16 = inw(smm_get_pmbase() + ALT_GP_SMI_EN);
-	if (mode == GPI_IS_SCI) {
-		reg16 &= ~(1 << EC_LID_GPI);
-	} else {
-		reg16 |= (1 << EC_LID_GPI);
-	}
-	outw(reg16, smm_get_pmbase() + ALT_GP_SMI_EN);
-
-	return;
-}
-
-int mainboard_io_trap_handler(int smif)
-{
-	printk(BIOS_DEBUG, "mainboard_io_trap_handler: %x\n", smif);
-	switch (smif) {
-	case 0x99:
-		printk(BIOS_DEBUG, "Sample\n");
-		smm_get_gnvs()->smif = 0;
-		break;
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 0
-	 * On failure, the IO Trap Handler returns a value != 0
-	 *
-	 * For now, we force the return value to 0 and log all traps to
-	 * see what's going on.
-	 */
-	//gnvs->smif = 0;
-	return 1;
-}
-
 
 static u8 mainboard_smi_ec(void)
 {
@@ -168,30 +103,13 @@ void mainboard_smi_sleep(u8 slp_typ)
 	}
 }
 
-#define APMC_FINALIZE 0xcb
 #define APMC_ACPI_EN  0xe1
 #define APMC_ACPI_DIS 0x1e
-
-static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 apmc)
 {
 	printk(BIOS_DEBUG, "mainboard_smi_apmc: %x\n", apmc);
 	switch (apmc) {
-	case APMC_FINALIZE:
-		printk(BIOS_DEBUG, "APMC: FINALIZE\n");
-		if (mainboard_finalized) {
-			printk(BIOS_DEBUG, "APMC#: Already finalized\n");
-			return 0;
-		}
-
-		intel_me_finalize_smm();
-		intel_pch_finalize_smm();
-		intel_sandybridge_finalize_smm();
-		intel_model_206ax_finalize_smm();
-
-		mainboard_finalized = 1;
-		break;
 	case APMC_ACPI_EN:
 		printk(BIOS_DEBUG, "APMC: ACPI_EN\n");
 		/* Clear all pending events */
@@ -200,8 +118,7 @@ int mainboard_smi_apmc(u8 apmc)
 		ec_kbc_write_ib(0xE8);
 
 		/* Set LID GPI to generate SCIs */
-		set_lid_gpi_mode(GPI_IS_SCI);
-
+		gpi_route_interrupt(EC_LID_GPI, GPI_IS_SCI);
 		break;
 	case APMC_ACPI_DIS:
 		printk(BIOS_DEBUG, "APMC: ACPI_DIS\n");
@@ -211,7 +128,7 @@ int mainboard_smi_apmc(u8 apmc)
 		ec_kbc_write_ib(0xE9);
 
 		/* Set LID GPI to generate SMIs */
-		set_lid_gpi_mode(GPI_IS_SMI);
+		gpi_route_interrupt(EC_LID_GPI, GPI_IS_SMI);
 		break;
 	}
 	return 0;

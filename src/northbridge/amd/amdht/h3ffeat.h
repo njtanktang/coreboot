@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2007-2008 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -62,6 +59,7 @@
 #define HTHOST_LINK_CAPABILITY_REG		0x00
 #define HTHOST_LINK_CONTROL_REG		0x04
 #define HTHOST_FREQ_REV_REG			0x08
+#define HTHOST_FREQ_REV_REG_2			0x1c
 	#define HT_HOST_REV_REV3		0x60
 #define HTHOST_FEATURE_CAP_REG			0x0C
 #define HTHOST_BUFFER_COUNT_REG		0x10
@@ -77,6 +75,7 @@
 #define HTSLAVE_LINK01_OFFSET			4
 #define HTSLAVE_LINK_CONTROL_0_REG		4
 #define HTSLAVE_FREQ_REV_0_REG			0xC
+#define HTSLAVE_FEATURE_CAP_REG		0x10
 
 /* HT3 gen Capability */
 #define IS_HT_GEN3_CAPABILITY(reg) \
@@ -124,13 +123,15 @@ typedef struct
 	u8 SelWidthIn;
 	u8 SelWidthOut;
 	u8 SelFrequency;
+	uint8_t enable_isochronous_mode;
 
 	/* This section is for keeping track of capabilities and possible configurations */
 	BOOL RegangCap;
-	u16 PrvFrequencyCap;
+	uint32_t PrvFrequencyCap;
+	uint32_t PrvFeatureCap;
 	u8 PrvWidthInCap;
 	u8 PrvWidthOutCap;
-	u16 CompositeFrequencyCap;
+	uint32_t CompositeFrequencyCap;
 
 } sPortDescriptor;
 

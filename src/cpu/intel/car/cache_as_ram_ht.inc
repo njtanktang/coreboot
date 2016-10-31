@@ -14,13 +14,8 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <cpu/x86/stack.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/post_code.h>
@@ -48,7 +43,7 @@ cache_as_ram:
 	 * For hyper-threaded CPUs these are shared.
 	 */
 	movl	$mtrr_table, %esi
-	movl	$((mtrr_table_end - mtrr_table) / 2), %edi
+	movl	$((mtrr_table_end - mtrr_table) >> 1), %edi
 	xorl	%eax, %eax
 	xorl	%edx, %edx
 clear_mtrrs:
@@ -62,7 +57,7 @@ clear_mtrrs:
 	post_code(0x21)
 
 	/* Configure the default memory type to uncacheable. */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	rdmsr
 	andl	$(~0x00000cff), %eax
 	wrmsr
@@ -92,13 +87,13 @@ addrsize_no_MSR:
 	movl	$0x0f, %edx
 
 	/* Preload high word of address mask (in %edx) for Variable
-	 * MTRRs 0 and 1 and enable local apic at default base.
+	 * MTRRs 0 and 1 and enable local APIC at default base.
 	 */
 addrsize_set_high:
 	xorl	%eax, %eax
-	movl	$MTRRphysMask_MSR(0), %ecx
+	movl	$MTRR_PHYS_MASK(0), %ecx
 	wrmsr
-	movl	$MTRRphysMask_MSR(1), %ecx
+	movl	$MTRR_PHYS_MASK(1), %ecx
 	wrmsr
 	movl	$LAPIC_BASE_MSR, %ecx
 	not	%edx
@@ -189,7 +184,7 @@ hyper_threading_cpu:
 	post_code(0x26)
 
 	/* Wait for sibling CPU to start. */
-1:	movl	$(MTRRphysBase_MSR(0)), %ecx
+1:	movl	$(MTRR_PHYS_BASE(0)), %ecx
 	rdmsr
 	andl	%eax, %eax
 	jnz	sipi_complete
@@ -205,14 +200,14 @@ ap_init:
 	post_code(0x27)
 
 	/* Do not disable cache (so BSP can enable it). */
-        movl	%cr0, %eax
+	movl	%cr0, %eax
 	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
 	movl	%eax, %cr0
 
 	post_code(0x28)
 
 	/* MTRR registers are shared between HT siblings. */
-	movl	$(MTRRphysBase_MSR(0)), %ecx
+	movl	$(MTRR_PHYS_BASE(0)), %ecx
 	movl	$(1<<12), %eax
 	xorl	%edx, %edx
 	wrmsr
@@ -231,24 +226,24 @@ sipi_complete:
 	post_code(0x2a)
 
 	/* Set Cache-as-RAM base address. */
-	movl	$(MTRRphysBase_MSR(0)), %ecx
+	movl	$(MTRR_PHYS_BASE(0)), %ecx
 	movl	$(CACHE_AS_RAM_BASE | MTRR_TYPE_WRBACK), %eax
 	xorl	%edx, %edx
 	wrmsr
 
 	/* Set Cache-as-RAM mask. */
-	movl	$(MTRRphysMask_MSR(0)), %ecx
+	movl	$(MTRR_PHYS_MASK(0)), %ecx
 	rdmsr
-	movl	$(~(CACHE_AS_RAM_SIZE - 1) | MTRRphysMaskValid), %eax
-	wrmsr
-
-	/* Enable MTRR. */
-	movl	$MTRRdefType_MSR, %ecx
-	rdmsr
-	orl	$MTRRdefTypeEn, %eax
+	movl	$(~(CACHE_AS_RAM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 	post_code(0x2b)
+
+	/* Enable MTRR. */
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
+	rdmsr
+	orl	$MTRR_DEF_TYPE_EN, %eax
+	wrmsr
 
 	/* Enable L2 cache Write-Back (WBINVD and FLUSH#).
 	 *
@@ -293,23 +288,21 @@ no_msr_11e:
 	invd
 	movl	%eax, %cr0
 
-	/* Clear the cache memory reagion. */
+	/* Clear the cache memory region. This will also fill up the cache. */
 	cld
 	xorl	%eax, %eax
 	movl	$CACHE_AS_RAM_BASE, %edi
-	movl	$(CACHE_AS_RAM_SIZE / 4), %ecx
+	movl	$(CACHE_AS_RAM_SIZE >> 2), %ecx
 	rep	stosl
 
+	post_code(0x2d)
 	/* Enable Cache-as-RAM mode by disabling cache. */
 	movl	%cr0, %eax
 	orl	$CR0_CacheDisable, %eax
 	movl	%eax, %cr0
 
-	post_code(0x2d)
-
-#if CONFIG_XIP_ROM_SIZE
 	/* Enable cache for our code in Flash because we do XIP here */
-	movl	$MTRRphysBase_MSR(1), %ecx
+	movl	$MTRR_PHYS_BASE(1), %ecx
 	xorl	%edx, %edx
 	/*
 	 * IMPORTANT: The following calculation _must_ be done at runtime. See
@@ -317,21 +310,19 @@ no_msr_11e:
 	 */
 	movl	$copy_and_run, %eax
 	andl	$(~(CONFIG_XIP_ROM_SIZE - 1)), %eax
-	orl	$MTRR_TYPE_WRBACK, %eax
+	orl	$MTRR_TYPE_WRPROT, %eax
 	wrmsr
 
-	movl	$MTRRphysMask_MSR(1), %ecx
+	movl	$MTRR_PHYS_MASK(1), %ecx
 	rdmsr
-	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
-#endif /* CONFIG_XIP_ROM_SIZE */
 
+	post_code(0x2e)
 	/* Enable cache. */
 	movl	%cr0, %eax
 	andl	$(~(CR0_CacheDisable | CR0_NoWriteThrough)), %eax
 	movl	%eax, %cr0
-
-	post_code(0x2e)
 
 	/* Set up the stack pointer. */
 	movl	$(CACHE_AS_RAM_BASE + CACHE_AS_RAM_SIZE - 4), %esp
@@ -341,11 +332,15 @@ no_msr_11e:
 	movl	%esp, %ebp
 	pushl	%eax
 
+before_romstage:
 	post_code(0x2f)
-
 	/* Call romstage.c main function. */
-	call	main
-	addl	$4, %esp
+	call	romstage_main
+
+	/* Save return value from romstage_main. It contains the stack to use
+	 * after cache-as-ram is torn down.
+	 */
+	movl	%eax, %ebx
 
 	post_code(0x30)
 
@@ -354,26 +349,26 @@ no_msr_11e:
 	orl	$CR0_CacheDisable, %eax
 	movl	%eax, %cr0
 
-	post_code(0x34)
+	post_code(0x31)
 
 	/* Disable MTRR. */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	rdmsr
-	andl	$(~MTRRdefTypeEn), %eax
+	andl	$(~MTRR_DEF_TYPE_EN), %eax
 	wrmsr
 
-	post_code(0x35)
+	post_code(0x32)
 
 	invd
 
-	post_code(0x36)
+	post_code(0x33)
 
 	/* Enable cache. */
 	movl	%cr0, %eax
 	andl	$~(CR0_CacheDisable | CR0_NoWriteThrough), %eax
 	movl	%eax, %cr0
 
-	post_code(0x37)
+	post_code(0x36)
 
 	/* Disable cache. */
 	movl	%cr0, %eax
@@ -383,24 +378,24 @@ no_msr_11e:
 	post_code(0x38)
 
 	/* Enable Write Back and Speculative Reads for low RAM. */
-	movl	$MTRRphysBase_MSR(0), %ecx
+	movl	$MTRR_PHYS_BASE(0), %ecx
 	movl	$(0x00000000 | MTRR_TYPE_WRBACK), %eax
 	xorl	%edx, %edx
 	wrmsr
-	movl	$MTRRphysMask_MSR(0), %ecx
+	movl	$MTRR_PHYS_MASK(0), %ecx
 	rdmsr
-	movl	$(~(CONFIG_RAMTOP - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CACHE_TMP_RAMTOP - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 #if CACHE_ROM_SIZE
 	/* Enable caching and Speculative Reads for Flash ROM device. */
-	movl	$MTRRphysBase_MSR(1), %ecx
+	movl	$MTRR_PHYS_BASE(1), %ecx
 	movl	$(CACHE_ROM_BASE | MTRR_TYPE_WRPROT), %eax
 	xorl	%edx, %edx
 	wrmsr
-	movl	$MTRRphysMask_MSR(1), %ecx
+	movl	$MTRR_PHYS_MASK(1), %ecx
 	rdmsr
-	movl	$(~(CACHE_ROM_SIZE - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CACHE_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 #endif
 
@@ -414,9 +409,9 @@ no_msr_11e:
 	post_code(0x3a)
 
 	/* Enable MTRR. */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	rdmsr
-	orl	$MTRRdefTypeEn, %eax
+	orl	$MTRR_DEF_TYPE_EN, %eax
 	wrmsr
 
 	post_code(0x3b)
@@ -430,7 +425,8 @@ __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 	cld			/* Clear direction flag. */
 
-	movl	$ROMSTAGE_STACK, %esp
+	/* Setup stack as indicated by return value from romstage_main(). */
+	movl	%ebx, %esp
 	movl	%esp, %ebp
 	call	copy_and_run
 
@@ -451,4 +447,3 @@ mtrr_table:
 	.word 0x208, 0x209, 0x20A, 0x20B
 	.word 0x20C, 0x20D, 0x20E, 0x20F
 mtrr_table_end:
-

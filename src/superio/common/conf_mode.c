@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -23,23 +19,41 @@
 
 /* Common enter/exit implementations */
 
-void pnp_enter_conf_mode_55(device_t dev)
+void pnp_enter_conf_mode_55(struct device *dev)
 {
 	outb(0x55, dev->path.pnp.port);
 }
 
-void pnp_enter_conf_mode_8787(device_t dev)
+void pnp_enter_conf_mode_6767(struct device *dev)
+{
+	outb(0x67, dev->path.pnp.port);
+	outb(0x67, dev->path.pnp.port);
+}
+
+void pnp_enter_conf_mode_7777(struct device *dev)
+{
+	outb(0x77, dev->path.pnp.port);
+	outb(0x77, dev->path.pnp.port);
+}
+
+void pnp_enter_conf_mode_8787(struct device *dev)
 {
 	outb(0x87, dev->path.pnp.port);
 	outb(0x87, dev->path.pnp.port);
 }
 
-void pnp_exit_conf_mode_aa(device_t dev)
+void pnp_enter_conf_mode_a0a0(struct device *dev)
+{
+	outb(0xa0, dev->path.pnp.port);
+	outb(0xa0, dev->path.pnp.port);
+}
+
+void pnp_exit_conf_mode_aa(struct device *dev)
 {
 	outb(0xaa, dev->path.pnp.port);
 }
 
-void pnp_enter_conf_mode_870155aa(device_t dev)
+void pnp_enter_conf_mode_870155aa(struct device *dev)
 {
 	outb(0x87, dev->path.pnp.port);
 	outb(0x01, dev->path.pnp.port);
@@ -51,7 +65,7 @@ void pnp_enter_conf_mode_870155aa(device_t dev)
 		outb(0x55, dev->path.pnp.port);
 }
 
-void pnp_exit_conf_mode_0202(device_t dev)
+void pnp_exit_conf_mode_0202(struct device *dev)
 {
 	outb(0x02, dev->path.pnp.port);
 	outb(0x02, dev->path.pnp.port + 1);
@@ -63,8 +77,23 @@ const struct pnp_mode_ops pnp_conf_mode_55_aa = {
 	.exit_conf_mode  = pnp_exit_conf_mode_aa,
 };
 
+const struct pnp_mode_ops pnp_conf_mode_6767_aa = {
+	.enter_conf_mode = pnp_enter_conf_mode_6767,
+	.exit_conf_mode  = pnp_exit_conf_mode_aa,
+};
+
+const struct pnp_mode_ops pnp_conf_mode_7777_aa = {
+	.enter_conf_mode = pnp_enter_conf_mode_7777,
+	.exit_conf_mode  = pnp_exit_conf_mode_aa,
+};
+
 const struct pnp_mode_ops pnp_conf_mode_8787_aa = {
 	.enter_conf_mode = pnp_enter_conf_mode_8787,
+	.exit_conf_mode  = pnp_exit_conf_mode_aa,
+};
+
+const struct pnp_mode_ops pnp_conf_mode_a0a0_aa = {
+	.enter_conf_mode = pnp_enter_conf_mode_a0a0,
 	.exit_conf_mode  = pnp_exit_conf_mode_aa,
 };
 

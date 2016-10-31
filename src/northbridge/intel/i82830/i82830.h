@@ -12,11 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef NORTHBRIDGE_INTEL_I82830_I82830_H
+#define NORTHBRIDGE_INTEL_I82830_I82830_H
 
 #define RRBAR   0x48 /* Register Range Base Address (0x00000000) */
 #define GCC0    0x50 /* GMCH Control #0 (0xa072) */
@@ -50,3 +49,4 @@
 #define APSIZE  0xb4 /* Apterture Size (0x00) */
 #define ATTBASE 0xb8 /* Aperture Translation Table Base (0x00000000) */
 
+#endif /* NORTHBRIDGE_INTEL_I82830_I82830_H */

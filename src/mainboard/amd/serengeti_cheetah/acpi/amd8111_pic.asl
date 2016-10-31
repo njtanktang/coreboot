@@ -1,6 +1,18 @@
 /*
+ * This file is part of the coreboot project.
+ *
  * Copyright 2005 AMD
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
+
 //AMD8111 pic LNKA B C D
 
             Device (LNKA)
@@ -27,7 +39,6 @@
                 {
                     Store (0x01, Local3)
                     And (\_SB.PCI0.SBC3.PIBA, 0x0F, Local1)
-                    Store (Local1, Local2)
                     If (LGreater (Local1, 0x07))
                     {
                         Subtract (Local1, 0x08, Local1)
@@ -115,7 +126,6 @@
                     Store (0x01, Local3)
                     And (\_SB.PCI0.SBC3.PIBA, 0xF0, Local1)
                     ShiftRight (Local1, 0x04, Local1)
-                    Store (Local1, Local2)
                     If (LGreater (Local1, 0x07))
                     {
                         Subtract (Local1, 0x08, Local1)
@@ -204,7 +214,6 @@
                 {
                     Store (0x01, Local3)
                     And (\_SB.PCI0.SBC3.PIDC, 0x0F, Local1)
-                    Store (Local1, Local2)
                     If (LGreater (Local1, 0x07))
                     {
                         Subtract (Local1, 0x08, Local1)
@@ -292,7 +301,6 @@
                     Store (0x01, Local3)
                     And (\_SB.PCI0.SBC3.PIDC, 0xF0, Local1)
                     ShiftRight (Local1, 0x04, Local1)
-                    Store (Local1, Local2)
                     If (LGreater (Local1, 0x07))
                     {
                         Subtract (Local1, 0x08, Local1)
@@ -356,5 +364,3 @@
                     Or (\_SB.PCI0.SBC3.PIDC, Local1, \_SB.PCI0.SBC3.PIDC)
                 }
             }
-
-

@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -38,6 +34,7 @@
 #include <x86emu/x86emu.h>
 #endif
 #include "int15_func.h"
+#include "mainboard.h"
 
 // ****LCD panel ID support: *****
 // Callback Sub-Function 00h - Get LCD Panel ID
@@ -52,7 +49,7 @@
 #define PANEL_TABLE_ID8 	8 // 1280x1024_108MHz
 #define PANEL_TABLE_ID9 	9 // 1366x768_86MHz_chimei_V32B1L01
 
-// Callback Sub-Function 05h – Select Boot-up TV Standard
+// Callback Sub-Function 05h - Select Boot-up TV Standard
 #define TV_MODE_00	0x00	/* NTSC */
 #define TV_MODE_01	0x01	/* PAL */
 #define TV_MODE_02	0x02	/* PALM */
@@ -152,11 +149,11 @@
 #define SMBUS_IO_BASE 0x1000
 #define ADT7475_ADDRESS 0x2E
 
-#define   D_OPEN	(1 << 6)
-#define   D_CLS		(1 << 5)
-#define   D_LCK		(1 << 4)
-#define   G_SMRAME	(1 << 3)
-#define   A_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0)) // 0x2: SMM space at 640KB-768KB
+#define D_OPEN	(1 << 6)
+#define D_CLS		(1 << 5)
+#define D_LCK		(1 << 4)
+#define G_SMRAME	(1 << 3)
+#define A_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0)) // 0x2: SMM space at 640KB-768KB
 
 extern int do_smbus_read_byte(u32 smbus_io_base, u32 device, u32 address);
 extern int do_smbus_write_byte(u32 smbus_io_base, u32 device, u32 address, u8 val);
@@ -189,18 +186,20 @@ struct __table__ dutycycles[] = {
 #define DUTYCYCLE_INFO(i) (i < SIZEOF_DUTYCYCLES) ? dutycycles[i].info : "out_of_range"
 #if TWOS_COMPL == 0
 struct __table__ temperatures[] = {
-	{"30°C", 0x5e},{"35°C", 0x63},{"40°C", 0x68},{"45°C", 0x6d},{"50°C", 0x72},
-	{"55°C", 0x77},{"60°C", 0x7c},{"65°C", 0x81},{"70°C", 0x86},{"75°C", 0x8b},
-	{"80°C", 0x90}
+	{"30C", 0x5e},{"35C", 0x63},{"40C", 0x68},{"45C", 0x6d},{"50C", 0x72},
+	{"55C", 0x77},{"60C", 0x7c},{"65C", 0x81},{"70C", 0x86},{"75C", 0x8b},
+	{"80C", 0x90}
 };
 #else
 struct __table__ temperatures[] = {
-	{"30°C", 30},{"35°C", 35},{"40°C", 40},{"45°C", 45},{"50°C", 50},
-	{"55°C", 55},{"60°C", 60},{"65°C", 65},{"70°C", 70},{"75°C", 75},
-	{"80°C", 80}
+	{"30C", 30},{"35C", 35},{"40C", 40},{"45C", 45},{"50C", 50},
+	{"55C", 55},{"60C", 60},{"65C", 65},{"70C", 70},{"75C", 75},
+	{"80C", 80}
 };
 #endif
-int trange[] = {2.0,2.5,3.33,4.0,5.0,6.67,8.0,10.0,13.33,16.0,20.0,26.67,32.0,40.0,53.33,80.0};
+// FIXME: implicit conversion from 'double' to 'int'
+// int trange[] = {2.0,2.5,3.33,4.0,5.0,6.67,8.0,10.0,13.33,16.0,20.0,26.67,32.0,40.0,53.33,80.0};
+int trange[] = {2,2,3,4,5,6,8,10,13,16,20,26,32,40,53,80};
 
 #define SIZEOF_TEMPERATURES sizeof(temperatures)/sizeof(struct __table__)
 #define TEMPERATURE(i,d) (i < SIZEOF_TEMPERATURES) ? temperatures[i].val : temperatures[d].val // hopefully d is a correct value !!! fix
@@ -274,12 +273,6 @@ static int int15_handler(void)
 #endif
 /* ############################################################################################# */
 
- /**
- * @brief
- *
- * @param
- */
-
 static u8 calc_trange(u8 t_min, u8 t_max) {
 
 	u8 prev;
@@ -338,48 +331,45 @@ static void cable_detect(void)
 /**
  * @brief Detect the ADT7475 device
  *
- * @param
  */
 
 static const char * adt7475_detect( void ) {
 
-        int vendid, devid, devid2;
-        const char *name = NULL;
+	int vendid, devid, devid2;
+	const char *name = NULL;
 
-        vendid = adt7475_read_byte(REG_VENDID);
-        devid2 = adt7475_read_byte(REG_DEVID2);
-        if (vendid != 0x41 ||           /* Analog Devices */
-            (devid2 & 0xf8) != 0x68) {
-                return name;
-		}
+	vendid = adt7475_read_byte(REG_VENDID);
+	devid2 = adt7475_read_byte(REG_DEVID2);
+	if (vendid != 0x41 || (devid2 & 0xf8) != 0x68) /* Analog Devices */
+		return name;
 
-        devid = adt7475_read_byte(REG_DEVID);
-        if (devid == 0x73)
-                name = "adt7473";
-        else if (devid == 0x75 && adt7475_address == 0x2e)
-                name = "adt7475";
-        else if (devid == 0x76)
-                name = "adt7476";
-        else if ((devid2 & 0xfc) == 0x6c)
-                name = "adt7490";
+	devid = adt7475_read_byte(REG_DEVID);
+	if (devid == 0x73)
+		name = "adt7473";
+	else if (devid == 0x75 && adt7475_address == 0x2e)
+		name = "adt7475";
+	else if (devid == 0x76)
+		name = "adt7476";
+	else if ((devid2 & 0xfc) == 0x6c)
+		name = "adt7490";
 
-        return name;
+	return name;
 }
 
 // thermal control defaults
 const struct fan_control cpu_fan_control_defaults = {
 	.enable = 0, // disable by default
 	.polarity = 0, // high by default
-	.t_min = 3, // default = 45°C
-	.t_max = 7, // 65°C
+	.t_min = 3, // default = 45Â°C
+	.t_max = 7, // 65Â°C
 	.pwm_min = 1, // default dutycycle = 30%
 	.pwm_max = 13, // 90%
 };
 const struct fan_control case_fan_control_defaults = {
 	.enable = 0, // disable by default
 	.polarity = 0, // high by default
-	.t_min = 2, // default = 40°C
-	.t_max = 8, // 70°C
+	.t_min = 2, // default = 40Â°C
+	.t_max = 8, // 70Â°C
 	.pwm_min = 0, // default dutycycle = 25%
 	.pwm_max = 13, // 90%
 };
@@ -424,7 +414,6 @@ static void pm_init( void )
  /**
  * @brief Setup thermal config on SINA Mainboard
  *
- * @param
  */
 
 static void set_thermal_config(void)
@@ -601,12 +590,6 @@ static void set_thermal_config(void)
 
 }
 
- /**
- * @brief
- *
- * @param
- */
-
 static void patch_mmio_nonposted( void )
 {
 	unsigned reg, index;
@@ -646,12 +629,6 @@ static void patch_mmio_nonposted( void )
 	}
 }
 
- /**
- * @brief
- *
- * @param
- */
-
 struct {
 	unsigned int bus;
 	unsigned int devfn;
@@ -678,7 +655,7 @@ static void update_subsystemid( device_t dev )
 		dev->subsystem_device = 0x4077; // U1P0 = 0x4077
 	}
 	printk(BIOS_INFO, "%s [%x/%x]\n", dev_name(dev), dev->subsystem_vendor, dev->subsystem_device );
-	for( i=0; slot[i].bus < 255; i++) {
+	for( i = 0; slot[i].bus < 255; i++) {
 		device_t d;
 		d = dev_find_slot(slot[i].bus,slot[i].devfn);
 		if( d ) {
@@ -687,12 +664,6 @@ static void update_subsystemid( device_t dev )
 		}
 	}
 }
-
- /**
- * @brief
- *
- * @param
- */
 
 static void detect_hw_variant( device_t dev )
 {
@@ -767,7 +738,7 @@ static void detect_hw_variant( device_t dev )
 		}
 		// restore changes made for device 2
 		dev2->bus->secondary = secondary;
-		dev2->bus->secondary = subordinate;
+		dev2->bus->subordinate = subordinate;
 		pci_write_config32(dev2, PCI_PRIMARY_BUS, pci_primary_bus);
 	}
 		break;
@@ -803,7 +774,7 @@ static void smm_lock( void )
  /**
  * @brief Init
  *
- * @param the root device
+ * @param dev - the root device
  */
 
 static void mainboard_init(device_t dev)
@@ -846,6 +817,7 @@ static void mainboard_enable(device_t dev)
 	update_subsystemid(dev);
 
 	dev->ops->init = mainboard_init;  // rest of mainboard init later
+	dev->ops->acpi_inject_dsdt_generator = mainboard_inject_dsdt;
 }
 
 struct chip_operations mainboard_ops = {

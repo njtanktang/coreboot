@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -34,10 +30,10 @@
 # include "option_table.h"
 # define BOOT_COUNT_CMOS_OFFSET (CMOS_VSTART_boot_count_offset >> 3)
 #else
-# if defined(CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET)
+# if defined(CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET) && CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET
 #  define BOOT_COUNT_CMOS_OFFSET CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET
 # else
-#  error "Must define CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET"
+#  error "Must configure CONFIG_ELOG_BOOT_COUNT_CMOS_OFFSET"
 # endif
 #endif
 

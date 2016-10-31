@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -88,13 +84,13 @@ static void usb_init2(struct device *dev)
 	u8 byte;
 	u16 word;
 	u32 dword;
-	u32 usb2_bar0;
+	void *usb2_bar0;
 	/* dword = pci_read_config32(dev, 0xf8); */
 	/* dword |= 40; */
 	/* pci_write_config32(dev, 0xf8, dword); */
 
-	usb2_bar0 = pci_read_config32(dev, 0x10) & ~0xFF;
-	printk(BIOS_INFO, "usb2_bar0=0x%x\n", usb2_bar0);
+	usb2_bar0 = (void *)(pci_read_config32(dev, 0x10) & ~0xFF);
+	printk(BIOS_INFO, "usb2_bar0=0x%p\n", usb2_bar0);
 
 	/* RPR5.4 Enables the USB PHY auto calibration resister to match 45ohm resistance */
 	dword = 0x00020F00;
@@ -170,4 +166,3 @@ static const struct pci_driver usb_5_driver __pci_driver = {
 	.vendor = PCI_VENDOR_ID_ATI,
 	.device = PCI_DEVICE_ID_ATI_SB600_USB2,
 };
-

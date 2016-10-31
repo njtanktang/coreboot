@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <spi_flash.h>
+
 #include "spi_flash_internal.h"
 
 /* A25L-specific commands */
@@ -70,7 +71,7 @@ static int amic_write(struct spi_flash *flash,
 	int ret;
 	u8 cmd[4];
 
-	page_size = min(1 << amic->params->l2_page_size, CONTROLLER_PAGE_LIMIT);
+	page_size = 1 << amic->params->l2_page_size;
 	byte_addr = offset % page_size;
 
 	flash->spi->rw = SPI_WRITE_FLAG;
@@ -82,6 +83,7 @@ static int amic_write(struct spi_flash *flash,
 
 	for (actual = 0; actual < len; actual += chunk_len) {
 		chunk_len = min(len - actual, page_size - byte_addr);
+		chunk_len = spi_crop_chunk(sizeof(cmd), chunk_len);
 
 		cmd[0] = CMD_A25_PP;
 		cmd[1] = (offset >> 16) & 0xff;
@@ -99,7 +101,7 @@ static int amic_write(struct spi_flash *flash,
 			goto out;
 		}
 
-		ret = spi_flash_cmd_write(flash->spi, cmd, 4,
+		ret = spi_flash_cmd_write(flash->spi, cmd, sizeof(cmd),
 				buf + actual, chunk_len);
 		if (ret < 0) {
 			printk(BIOS_WARNING, "SF: AMIC Page Program failed\n");
@@ -123,11 +125,6 @@ static int amic_write(struct spi_flash *flash,
 out:
 	spi_release_bus(flash->spi);
 	return ret;
-}
-
-static int amic_erase(struct spi_flash *flash, u32 offset, size_t len)
-{
-	return spi_flash_cmd_erase(flash, CMD_A25_SE, offset, len);
 }
 
 struct spi_flash *spi_flash_probe_amic(struct spi_slave *spi, u8 *idcode)
@@ -163,7 +160,7 @@ struct spi_flash *spi_flash_probe_amic(struct spi_slave *spi, u8 *idcode)
 	page_size = 1 << params->l2_page_size;
 
 	amic->flash.write = amic_write;
-	amic->flash.erase = amic_erase;
+	amic->flash.erase = spi_flash_cmd_erase;
 #if CONFIG_SPI_FLASH_NO_FAST_READ
 	amic->flash.read = spi_flash_cmd_read_slow;
 #else
@@ -174,6 +171,7 @@ struct spi_flash *spi_flash_probe_amic(struct spi_slave *spi, u8 *idcode)
 	amic->flash.size = page_size * params->pages_per_sector
 				* params->sectors_per_block
 				* params->nr_blocks;
+	amic->flash.erase_cmd = CMD_A25_SE;
 
 	return &amic->flash;
 }

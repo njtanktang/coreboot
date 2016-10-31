@@ -1,4 +1,3 @@
-ramstage-y += socket_LGA771.c
 subdirs-y += ../model_6ex
 subdirs-y += ../model_6fx
 subdirs-y += ../../x86/tsc
@@ -9,4 +8,5 @@ subdirs-y += ../../x86/smm
 subdirs-y += ../microcode
 subdirs-y += ../hyperthreading
 
-cpu_incs += $(src)/cpu/intel/model_6ex/cache_as_ram.inc
+cpu_incs-y += $(src)/cpu/intel/model_6ex/cache_as_ram.inc
+romstage-y += ../car/romstage.c

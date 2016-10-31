@@ -240,10 +240,10 @@
 //struct definitions
 
 struct link_pair_st {
-	device_t udev;
+	pci_devfn_t udev;
 	uint32_t upos;
 	uint32_t uoffs;
-	device_t dev;
+	pci_devfn_t dev;
 	uint32_t pos;
 	uint32_t offs;
 
@@ -263,7 +263,8 @@ struct sys_info {
 } __attribute__((packed));
 
 #ifdef __PRE_RAM__
-extern struct sys_info sysinfo_car;
+#include <arch/early_variables.h>
+struct sys_info sysinfo_car CAR_GLOBAL;
 #endif
 
 #endif /* AMDK8_PRE_F_H */

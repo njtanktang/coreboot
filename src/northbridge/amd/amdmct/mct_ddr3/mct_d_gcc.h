@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 static inline void _WRMSR(u32 addr, u32 lo, u32 hi)
@@ -40,7 +37,7 @@ static inline void _RDTSC(u32 *lo, u32 *hi)
 	__asm__ volatile (
 		 "rdtsc"
 		 : "=a" (*lo), "=d"(*hi)
-		 );
+		);
 }
 
 static inline void _cpu_id(u32 addr, u32 *val)
@@ -60,8 +57,8 @@ static u32 bsr(u32 x)
 	u8 i;
 	u32 ret = 0;
 
-	for(i=31; i>0; i--) {
-		if(x & (1<<i)) {
+	for (i = 31; i > 0; i--) {
+		if (x & (1<<i)) {
 			ret = i;
 			break;
 		}
@@ -76,8 +73,8 @@ static u32 bsf(u32 x)
 	u8 i;
 	u32 ret = 32;
 
-	for(i=0; i<32; i++) {
-		if(x & (1<<i)) {
+	for (i = 0; i < 32; i++) {
+		if (x & (1<<i)) {
 			ret = i;
 			break;
 		}
@@ -86,9 +83,9 @@ static u32 bsf(u32 x)
 	return ret;
 }
 
-#define _MFENCE asm volatile ( "mfence")
+#define _MFENCE asm volatile ("mfence")
 
-#define _SFENCE asm volatile ( "sfence" )
+#define _SFENCE asm volatile ("sfence")
 
 /* prevent speculative execution of following instructions */
 #define _EXECFENCE asm volatile ("outb %al, $0xed")
@@ -97,22 +94,34 @@ static u32 bsf(u32 x)
 
 u32 SetUpperFSbase(u32 addr_hi);
 
+static void proc_MFENCE(void)
+{
+	__asm__ volatile (
+		"outb %%al, $0xed\n\t"  /* _EXECFENCE */
+		"mfence\n\t"
+		:::"memory"
+	);
+}
+
 static void proc_CLFLUSH(u32 addr_hi)
 {
 	SetUpperFSbase(addr_hi);
 
 	__asm__ volatile (
 		/* clflush fs:[eax] */
-		"outb %%al, $0xed\n\t"	/* _EXECFENCE */
-		 "clflush %%fs:(%0)\n\t"
+		"outb	%%al, $0xed\n\t"	/* _EXECFENCE */
+		"clflush	%%fs:(%0)\n\t"
 		"mfence\n\t"
-		 ::"a" (addr_hi<<8)
+		::"a" (addr_hi<<8)
 	);
 }
 
 
 static void WriteLNTestPattern(u32 addr_lo, u8 *buf_a, u32 line_num)
 {
+	uint32_t step = 16;
+	uint32_t count = line_num * 4;
+
 	__asm__ volatile (
 		/*prevent speculative execution of following instructions*/
 		/* FIXME: needed ? */
@@ -125,7 +134,7 @@ static void WriteLNTestPattern(u32 addr_lo, u8 *buf_a, u32 line_num)
 		"loop 1b\n\t"
 		"mfence\n\t"
 
-		 :: "a" (addr_lo), "d" (16), "c" (line_num * 4), "b"(buf_a)
+		 : "+a" (addr_lo), "+d" (step), "+c" (count), "+b" (buf_a) : :
 	);
 
 }
@@ -138,6 +147,24 @@ static u32 read32_fs(u32 addr_lo)
 		"movl %%fs:(%1), %0\n\t"
 		:"=b"(value): "a" (addr_lo)
 	);
+	return value;
+}
+
+static uint64_t read64_fs(uint32_t addr_lo)
+{
+	uint64_t value = 0;
+	uint32_t value_lo;
+	uint32_t value_hi;
+
+	__asm__ volatile (
+		"outb %%al, $0xed\n\t"  /* _EXECFENCE */
+		"mfence\n\t"
+		"movl %%fs:(%2), %0\n\t"
+		"movl %%fs:(%3), %1\n\t"
+		:"=c"(value_lo), "=d"(value_hi): "a" (addr_lo), "b" (addr_lo + 4) : "memory"
+	);
+	value |= value_lo;
+	value |= ((uint64_t)value_hi) << 32;
 	return value;
 }
 
@@ -210,68 +237,6 @@ static __attribute__((noinline)) void FlushDQSTestPattern_L18(u32 addr_lo)
 	);
 }
 
-static void ReadL18TestPattern(u32 addr_lo)
-{
-	/* set fs and use fs prefix to access the mem */
-	__asm__ volatile (
-		"outb %%al, $0xed\n\t"			/* _EXECFENCE */
-		"movl %%fs:-128(%%esi), %%eax\n\t" 	/* TestAddr cache line */
-		"movl %%fs:-64(%%esi), %%eax\n\t"	/* +1 */
-		"movl %%fs:(%%esi), %%eax\n\t"		/* +2 */
-		"movl %%fs:64(%%esi), %%eax\n\t"	/* +3 */
-
-		"movl %%fs:-128(%%edi), %%eax\n\t"	/* +4 */
-		"movl %%fs:-64(%%edi), %%eax\n\t"	/* +5 */
-		"movl %%fs:(%%edi), %%eax\n\t"		/* +6 */
-		"movl %%fs:64(%%edi), %%eax\n\t"	/* +7 */
-
-		"movl %%fs:-128(%%ebx), %%eax\n\t"	/* +8 */
-		"movl %%fs:-64(%%ebx), %%eax\n\t"	/* +9 */
-		"movl %%fs:(%%ebx), %%eax\n\t"		/* +10 */
-		"movl %%fs:64(%%ebx), %%eax\n\t"	/* +11 */
-
-		"movl %%fs:-128(%%ecx), %%eax\n\t"	/* +12 */
-		"movl %%fs:-64(%%ecx), %%eax\n\t"	/* +13 */
-		"movl %%fs:(%%ecx), %%eax\n\t"		/* +14 */
-		"movl %%fs:64(%%ecx), %%eax\n\t"	/* +15 */
-
-		"movl %%fs:-128(%%edx), %%eax\n\t"	/* +16 */
-		"movl %%fs:-64(%%edx), %%eax\n\t"	/* +17 */
-		"mfence\n\t"
-
-		 :: "a"(0), "b" (addr_lo+128+8*64), "c" (addr_lo+128+12*64),
-		    "d" (addr_lo +128+16*64), "S"(addr_lo+128),
-		    "D"(addr_lo+128+4*64)
-	);
-
-}
-
-static void ReadL9TestPattern(u32 addr_lo)
-{
-
-	/* set fs and use fs prefix to access the mem */
-	__asm__ volatile (
-		"outb %%al, $0xed\n\t"			/* _EXECFENCE */
-
-		"movl %%fs:-128(%%ecx), %%eax\n\t"	/* TestAddr cache line */
-		"movl %%fs:-64(%%ecx), %%eax\n\t"	/* +1 */
-		"movl %%fs:(%%ecx), %%eax\n\t"		/* +2 */
-		"movl %%fs:64(%%ecx), %%eax\n\t"	/* +3 */
-
-		"movl %%fs:-128(%%edx), %%eax\n\t"	/* +4 */
-		"movl %%fs:-64(%%edx), %%eax\n\t"	/* +5 */
-		"movl %%fs:(%%edx), %%eax\n\t"		/* +6 */
-		"movl %%fs:64(%%edx), %%eax\n\t"	/* +7 */
-
-		"movl %%fs:-128(%%ebx), %%eax\n\t"	/* +8 */
-		"mfence\n\t"
-
-		 :: "a"(0), "b" (addr_lo+128+8*64), "c"(addr_lo+128),
-		    "d"(addr_lo+128+4*64)
-	);
-
-}
-
 static void ReadMaxRdLat1CLTestPattern_D(u32 addr)
 {
 	SetUpperFSbase(addr);
@@ -289,6 +254,10 @@ static void ReadMaxRdLat1CLTestPattern_D(u32 addr)
 
 static void WriteMaxRdLat1CLTestPattern_D(u32 buf, u32 addr)
 {
+	uint32_t addr_phys = addr << 8;
+	uint32_t step = 16;
+	uint32_t count = 3 * 4;
+
 	SetUpperFSbase(addr);
 
 	__asm__ volatile (
@@ -301,7 +270,7 @@ static void WriteMaxRdLat1CLTestPattern_D(u32 buf, u32 addr)
 		"loop 1b\n\t"
 		"mfence\n\t"
 
-		 :: "a" (addr<<8), "d" (16), "c" (3 * 4), "b"(buf)
+		 : "+a" (addr_phys), "+d" (step), "+c" (count), "+b" (buf) : :
 	);
 }
 
@@ -332,7 +301,7 @@ static u32 stream_to_int(u8 *p)
 
 	val = 0;
 
-	for(i=3; i>=0; i--) {
+	for (i = 3; i >= 0; i--) {
 		val <<= 8;
 		valx = *(p+i);
 		val |= valx;

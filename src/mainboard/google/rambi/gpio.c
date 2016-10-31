@@ -11,14 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdlib.h>
-#include <baytrail/gpio.h>
+#include <soc/gpio.h>
 #include "irqroute.h"
 
 /* TODO(SHAWNN): Modify gpios labeled 'INT' for interrupt handling */
@@ -33,7 +29,7 @@ static const struct soc_gpio_map gpncore_gpio_map[] = {
 	GPIO_FUNC2,	/* S0_NC06 - EDP_HPD_L */
 	GPIO_INPUT,	/* S0_NC07 - DDI1_DDCDATA - STRAP */
 	GPIO_NC,	/* S0_NC08 - NC */
-	GPIO_FUNC2,	/* S0_NC09 - SOC_DISP_ON_C */
+	GPIO_OUT_HIGH,	/* S0_NC09 - SOC_DISP_ON_C */
 	GPIO_FUNC2,	/* S0_NC10 - SOC_EDP_BLON_C */
 	GPIO_FUNC2,	/* S0_NC11 - SOC_DPST_PWM_C */
 	GPIO_NC,	/* S0_NC12 - NC */
@@ -163,9 +159,9 @@ static const struct soc_gpio_map gpscore_gpio_map[] = {
 
 /* SSUS GPIOs */
 static const struct soc_gpio_map gpssus_gpio_map[] = {
-	GPIO_ACPI_SCI,	/* S500 - PCH_WAKE# */
-	GPIO_FUNC6,	/* S501 - TRACKPAD_INT# - INT */
-	GPIO_FUNC6,	/* S502 - TOUCH_INT# - INT */
+	GPIO_ACPI_WAKE,	/* S500 - PCH_WAKE# */
+	GPIO_ACPI_WAKE,	/* S501 - TRACKPAD_INT# - INT */
+	GPIO_ACPI_WAKE,	/* S502 - TOUCH_INT# - INT */
 	GPIO_FUNC6,	/* S503 - LTE_WAKE_L# - INT */
 	GPIO_NC,	/* S504 - SOC_JTAG2_TDO (NC/PU) */
 	GPIO_FUNC1,	/* S505 - SUS_CLK_WLAN (NC) */
@@ -200,9 +196,9 @@ static const struct soc_gpio_map gpssus_gpio_map[] = {
 	GPIO_NC,	/* S534 - NC */
 	GPIO_OUT_HIGH,	/* S535 - LTE_DISABLE_L */
 	GPIO_NC,	/* S536 - NC */
-	GPIO_FUNC0,	/* S537 - RAM_ID0 */
-	GPIO_FUNC0,	/* S538 - RAM_ID1 */
-	GPIO_FUNC0,	/* S539 - RAM_ID2 */
+	GPIO_INPUT,	/* S537 - RAM_ID0 */
+	GPIO_INPUT,	/* S538 - RAM_ID1 */
+	GPIO_INPUT,	/* S539 - RAM_ID2 */
 	GPIO_NC,	/* S540 - NC */
 	GPIO_NC,	/* S541 - NC */
 	GPIO_NC,	/* S542 - NC */

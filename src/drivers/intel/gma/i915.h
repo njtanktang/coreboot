@@ -11,11 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef INTEL_I915_H
+#define INTEL_I915_H 1
 
 #include <drivers/intel/gma/i915_reg.h>
 #include <drivers/intel/gma/drm_dp_helper.h>
@@ -61,6 +60,12 @@ enum transcoder {
         TRANSCODER_B,
         TRANSCODER_C,
         TRANSCODER_EDP = 0xF,
+};
+
+enum plane {
+	PLANE_A = 0,
+	PLANE_B,
+	PLANE_C,
 };
 
 /* debug enums. These are for printks that, due to their place in the
@@ -132,7 +137,8 @@ struct intel_dp {
 	u32 clock;
 	int port;
 	int pipe;
-	int bpp;
+	int plane;
+	int pipe_bits_per_pixel;
 	/* i2c on aux is ... interesting.
 	 * Before you do an i2c cycle, you need to set the address.
 	 * This requires we remember it from one moment to the next.
@@ -168,19 +174,21 @@ struct intel_dp {
 	struct intel_dp_m_n m_n;
 	u32 flags;
 	u32 transcoder;
+	/* parameters computed by the early startup, to be used
+	 * in the GMA code.
+	 */
+	u8 *graphics;
+	/* physical address, not to be used directly. */
+	u64 physbase;
 };
 
 /* we may yet need these. */
 void intel_dp_mode_set(struct intel_dp *intel_dp);
 void intel_dp_start_link_train(struct intel_dp *intel_dp);
-void intel_dp_complete_link_train(struct intel_dp *intel_dp);
-void intel_dp_link_down(struct intel_dp *intel_dp);
 
 int intel_dp_i2c_init(struct intel_dp *intel_dp);
 int intel_dp_i2c_aux_ch(struct intel_dp *intel_dp,
 			int mode, uint8_t write_byte, uint8_t *read_byte);
-void
-intel_dp_dpms(struct intel_dp *intel_dp, int mode);
 
 int intel_dp_get_dpcd(struct intel_dp *intel_dp);
 struct edid *intel_dp_get_edid(struct intel_dp *intel_dp);
@@ -193,13 +201,15 @@ int intel_dp_get_max_downspread(struct intel_dp *intel_dp, u8 *max_downspread);
 void ironlake_edp_panel_on(struct intel_dp *intel_dp);
 void ironlake_edp_backlight_on(struct intel_dp *intel_dp);
 /* needed only on haswell. */
-void intel_prepare_ddi_buffers(int port, int use_fdi_mode);
 void intel_ddi_prepare_link_retrain(struct intel_dp *intel_dp, int port);
 int intel_dp_aux_ch(struct intel_dp *intel_dp,
 		    uint8_t *send, int send_bytes,
 		    uint8_t *recv, int recv_size);
 void unpack_aux(u32 src, uint8_t *dst, int dst_bytes);
-
+int intel_channel_eq_ok(struct intel_dp *intel_dp,
+		    uint8_t link_status[DP_LINK_STATUS_SIZE]);
+void ironlake_edp_panel_off(struct intel_dp *intel_dp);
+void ironlake_edp_backlight_off(struct intel_dp *intel_dp);
 
 /* drm_dp_helper.c */
 int drm_dp_channel_eq_ok(u8 link_status[DP_LINK_STATUS_SIZE],
@@ -236,6 +246,7 @@ enum transcoder intel_ddi_get_transcoder(enum port port,
 					 enum pipe pipe);
 
 void intel_dp_set_m_n_regs(struct intel_dp *intel_dp);
+int intel_dp_bw_code_to_link_rate(u8 link_bw);
 void intel_dp_set_resolution(struct intel_dp *intel_dp);
 
 int intel_dp_i2c_write(struct intel_dp *intel_dp,
@@ -263,4 +274,39 @@ int intel_dp_get_lane_count(struct intel_dp *intel_dp,
 int intel_dp_get_lane_align_status(struct intel_dp *intel_dp,
 				   u8 *recv);
 
+void intel_prepare_ddi(void);
+void intel_ddi_set_pipe_settings(struct intel_dp *intel_dp);
 
+int gtt_poll(u32 reg, u32 mask, u32 value);
+void gtt_write(u32 reg, u32 data);
+u32 gtt_read(u32 reg);
+
+struct i915_gpu_controller_info
+{
+	int use_spread_spectrum_clock;
+	int link_frequency_270_mhz;
+	u32 backlight;
+	int ndid;
+	u32 did[5];
+};
+
+void
+drivers_intel_gma_displays_ssdt_generate(const struct i915_gpu_controller_info *conf);
+const struct i915_gpu_controller_info *
+intel_gma_get_controller_info(void);
+
+int i915lightup(unsigned int physbase, unsigned int mmio,
+		unsigned int gfx, unsigned int init_fb);
+int panel_lightup(struct intel_dp *dp, unsigned int init_fb);
+void *igd_make_opregion(void);
+
+/* display.c */
+void compute_display_params(struct intel_dp *dp);
+
+/* vbt.c */
+struct device;
+void
+generate_fake_intel_oprom(const struct i915_gpu_controller_info *conf,
+			  struct device *dev, const char *idstr);
+
+#endif

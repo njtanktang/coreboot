@@ -22,10 +22,6 @@
  *  WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the terms and
  *  conditions of the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 \*****************************************************************************/
 
 #if defined(__FreeBSD__)
@@ -112,6 +108,9 @@ static inline void put_bits(unsigned char value, unsigned bit,
  * Read value from nonvolatile RAM at position given by 'bit' and 'length'
  * and return this value.  The I/O privilege level of the currently executing
  * process must be set appropriately.
+ *
+ * Returned value is either (unsigned long long), or malloc()'d (char *)
+ * cast to (unsigned long long)
  ****************************************************************************/
 unsigned long long cmos_read(const cmos_entry_t * e)
 {
@@ -125,12 +124,15 @@ unsigned long long cmos_read(const cmos_entry_t * e)
 	result = 0;
 
 	if (e->config == CMOS_ENTRY_STRING) {
-		char *newstring = calloc(1, (length + 7) / 8);
+		int strsz = (length + 7) / 8 + 1;
+		char *newstring = malloc(strsz);
 		unsigned usize = (8 * sizeof(unsigned long long));
 
 		if (!newstring) {
 			out_of_memory();
 		}
+
+		memset(newstring, 0, strsz);
 
 		for (next_bit = 0, bits_left = length;
 		     bits_left; next_bit += nr_bits, bits_left -= nr_bits) {

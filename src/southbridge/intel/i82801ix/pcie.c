@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,11 +20,14 @@
 #include <device/pci.h>
 #include <device/pciexp.h>
 #include <device/pci_ids.h>
+#include <southbridge/intel/common/pciehp.h>
+#include "chip.h"
 
 static void pci_init(struct device *dev)
 {
 	u16 reg16;
 	u32 reg32;
+	struct southbridge_intel_i82801ix_config *config = dev->chip_info;
 
 	printk(BIOS_DEBUG, "Initializing ICH9 PCIe root port.\n");
 
@@ -85,6 +84,14 @@ static void pci_init(struct device *dev)
 		reg32 |= (1 << 1);
 		pci_write_config32(dev, 0xe8, reg32);
 	}
+
+	/* Enable expresscard hotplug events.  */
+	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
+		pci_write_config32(dev, 0xd8,
+				   pci_read_config32(dev, 0xd8)
+				   | (1 << 30));
+		pci_write_config16(dev, 0x42, 0x142);
+	}
 }
 
 static void pcie_set_subsystem(device_t dev, unsigned vendor, unsigned device)
@@ -99,6 +106,18 @@ static void pcie_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void pch_pciexp_scan_bridge(device_t dev)
+{
+	struct southbridge_intel_i82801ix_config *config = dev->chip_info;
+
+	/* Normal PCIe Scan */
+	pciexp_scan_bridge(dev);
+
+	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
+		intel_acpi_pcie_hotplug_scan_slot(dev->link_list);
+	}
+}
+
 static struct pci_operations pci_ops = {
 	.set_subsystem = pcie_set_subsystem,
 };
@@ -108,7 +127,7 @@ static struct device_operations device_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_bus_enable_resources,
 	.init			= pci_init,
-	.scan_bus		= pciexp_scan_bridge,
+	.scan_bus		= pch_pciexp_scan_bridge,
 	.ops_pci		= &pci_ops,
 };
 
@@ -127,4 +146,3 @@ static const struct pci_driver ich9_pcie __pci_driver = {
 	.vendor		= PCI_VENDOR_ID_INTEL,
 	.devices	= pci_device_ids,
 };
-

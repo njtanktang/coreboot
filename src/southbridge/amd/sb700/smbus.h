@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SB700_SMBUS_H
@@ -24,8 +21,8 @@
 #include "stddef.h"
 #include <arch/io.h>
 
-#define SMBUS_IO_BASE 0x6000	/* Is it a temporary SMBus I/O base address? */
-				/*SIZE 0x40 */
+#define SMBUS_IO_BASE 0xb00
+#define SMBUS_AUX_IO_BASE 0xb20
 
 #define SMBHSTSTAT 0x0
 #define SMBSLVSTAT 0x1
@@ -40,6 +37,7 @@
 #define SMBSLVCMD_SHADOW 0x9
 #define SMBSLVEVT 0xa
 #define SMBSLVDAT 0xc
+#define SMBSLVMISC 0xd
 
 #define AX_INDXC  0
 #define AX_INDXP  1

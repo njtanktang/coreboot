@@ -22,10 +22,6 @@
  *  WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the terms and
  *  conditions of the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 \*****************************************************************************/
 
 #include "common.h"
@@ -95,7 +91,7 @@ int prepare_cmos_write(const cmos_entry_t * e, const char value_str[],
 	const cmos_enum_t *q;
 	unsigned long long out;
 	const char *p;
-	char *memory;
+	char *memory = NULL;
 	int negative, result, found_one;
 
 	if ((result = prepare_cmos_op_common(e)) != OK)
@@ -155,8 +151,10 @@ int prepare_cmos_write(const cmos_entry_t * e, const char value_str[],
 		BUG();
 	}
 
-	if ((e->length < (8 * sizeof(*value))) && (out >= (1ull << e->length)))
+	if ((e->length < (8 * sizeof(*value))) && (out >= (1ull << e->length))) {
+		if (memory) free(memory);
 		return CMOS_OP_VALUE_TOO_WIDE;
+	}
 
 	*value = out;
 	return OK;
@@ -231,6 +229,8 @@ void cmos_checksum_verify(void)
 	if (computed != actual) {
 		fprintf(stderr, "%s: Warning: Coreboot CMOS checksum is bad.\n",
 			prog_name);
+		fprintf(stderr, "Computed checksum: 0x%x. Stored checksum: 0x%x\n",
+			computed, actual);
 		exit(1);
 	}
 }

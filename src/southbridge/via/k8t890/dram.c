@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -66,7 +62,7 @@ static void dram_enable(struct device *dev)
 	/* The Address Next to the Last Valid DRAM Address */
 	pci_write_config16(dev, 0x88, reg | mregs.shadow_mem_ctrl);
 
-	print_debug(" VIA_X_3 device dump:\n");
+	printk(BIOS_DEBUG, " VIA_X_3 device dump:\n");
 	dump_south(dev);
 
 }
@@ -111,7 +107,7 @@ k8m890_host_fb_size_get(void)
 {
 	struct device *dev = dev_find_device(PCI_VENDOR_ID_VIA,
 					     PCI_DEVICE_ID_VIA_K8M800_DRAM, 0);
-	if(!dev) dev = dev_find_device(PCI_VENDOR_ID_VIA,
+	if (!dev) dev = dev_find_device(PCI_VENDOR_ID_VIA,
 					     PCI_DEVICE_ID_VIA_K8M890CE_3, 0);
 	unsigned char tmp;
 

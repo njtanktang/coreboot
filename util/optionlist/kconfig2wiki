@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # kconfig2wiki - Kconfig to MediaWiki converter for
 # http://www.coreboot.org/Coreboot_Options
@@ -16,10 +16,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
+
+import glob
 
 helplen = 0
 extra_chapters = 0
@@ -105,7 +103,8 @@ def readfile(filename):
 			sys.stdout.write("\n")
 		elif words[0] == "source":
 			fn=zapquotes(words[1])
-			readfile(fn)
+			for name in glob.glob(fn):
+				readfile(name)
 		elif words[0] in ("default","depends", "select", "if", "endif", "#"): pass
 		#else: sys.stderr.write("unknown: %s\n" % i)
 	if helplen: sys.stdout.write("||\n")
@@ -118,7 +117,7 @@ def main():
 		sys.exit(1)
 
 	sys.stdout.write("This is an automatically generated list of '''coreboot compile-time options'''.\n")
-	sys.stdout.write("\nLast update: %s. (r%s)\n" % (time.strftime('%Y/%m/%d %H:%M:%S'),sys.argv[2]))
+	sys.stdout.write("\nLast update: %s\n" % sys.argv[2])
 	sys.stdout.write("{| border=\"0\" style=\"font-size: smaller\"\n");
 	sys.stdout.write("|- bgcolor=\"#6699dd\"\n")
 	sys.stdout.write("! align=\"left\" | Option\n")

@@ -1,4 +1,7 @@
 chip northbridge/intel/sandybridge
+	# IGD Displays
+	register "gfx.ndid" = "3"
+	register "gfx.did" = "{ 0x80000100, 0x80000240, 0x80000410, 0x80000410, 0x00000005 }"
 
 	# Enable DisplayPort B Hotplug with 6ms pulse
 	register "gpu_dp_b_hotplug" = "0x06"
@@ -15,6 +18,8 @@ chip northbridge/intel/sandybridge
 	register "gpu_cpu_backlight" = "0x000001d4"
 	register "gpu_pch_backlight" = "0x03aa0000"
 
+	register "max_mem_clock_mhz" = "666"
+
 	device cpu_cluster 0 on
 		chip cpu/intel/socket_rPGA989
 			device lapic 0 on end
@@ -22,9 +27,6 @@ chip northbridge/intel/sandybridge
 		chip cpu/intel/model_206ax
 			# Magic APIC ID to locate this chip
 			device lapic 0xACAC off end
-
-			# Coordinate with HW_ALL
-			register "pstate_coord_type" = "0xfe"
 
 			register "c1_acpower" = "1"	# ACPI(C1) = MWAIT(C1)
 			register "c2_acpower" = "3"	# ACPI(C2) = MWAIT(C3)
@@ -41,15 +43,6 @@ chip northbridge/intel/sandybridge
 		device pci 02.0 on end # vga controller
 
 		chip southbridge/intel/bd82x6x # Intel Series 6 Cougar Point PCH
-			register "pirqa_routing" = "0x8b"
-			register "pirqb_routing" = "0x8a"
-			register "pirqc_routing" = "0x8b"
-			register "pirqd_routing" = "0x8b"
-			register "pirqe_routing" = "0x8b"
-			register "pirqf_routing" = "0x80"
-			register "pirqg_routing" = "0x80"
-			register "pirqh_routing" = "0x80"
-
 			# GPI routing
 			#  0 No effect (default)
 			#  1 SMI# (if corresponding ALT_GPI_SMI_EN bit is also set)
@@ -69,6 +62,9 @@ chip northbridge/intel/sandybridge
 
 			# Enable zero-based linear PCIe root port functions
 			register "pcie_port_coalesce" = "1"
+
+			register "c2_latency" = "1"
+			register "p_cnt_throttling_supported" = "0"
 
 			device pci 16.0 on end # Management Engine Interface 1
 			device pci 16.1 off end # Management Engine Interface 2

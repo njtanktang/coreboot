@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 extern struct chip_operations cpu_intel_haswell_ops;
@@ -24,8 +20,6 @@ extern struct chip_operations cpu_intel_haswell_ops;
 
 struct cpu_intel_haswell_config {
 	u8 disable_acpi;	/* Do not generate CPU ACPI tables */
-
-	u8 pstate_coord_type;	/* Processor Coordination Type */
 
 	int c1_battery;		/* ACPI C1 on Battery Power */
 	int c2_battery;		/* ACPI C2 on Battery Power */

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdio.h>
@@ -281,8 +277,10 @@ phdr_read(const struct buffer *in, struct parsed_elf *pelf,
 
 		/* Ensure the contents are valid within the elf file. */
 		if (check_size(in, phdr[i].p_offset, phdr[i].p_filesz,
-	                  "segment contents"))
+	                  "segment contents")) {
+			free(phdr);
 			return -1;
+		}
 	}
 
 	pelf->phdr = phdr;
@@ -422,6 +420,7 @@ static int strtab_read(const struct buffer *in, struct parsed_elf *pelf)
 		buffer_splice(b, in, shdr->sh_offset, shdr->sh_size);
 		if (check_size(in, shdr->sh_offset, buffer_size(b), "strtab")) {
 			ERROR("STRTAB section not within bounds: %d\n", i);
+			free(b);
 			return -1;
 		}
 		pelf->strtabs[i] = b;
@@ -585,12 +584,10 @@ void parsed_elf_destroy(struct parsed_elf *pelf)
  */
 int
 elf_headers(const struct buffer *pinput,
-	    uint32_t arch,
 	    Elf64_Ehdr *ehdr,
 	    Elf64_Phdr **pphdr,
 	    Elf64_Shdr **pshdr)
 {
-
 	struct parsed_elf pelf;
 	int flags;
 
@@ -604,14 +601,6 @@ elf_headers(const struct buffer *pinput,
 
 	/* Copy out the parsed elf header. */
 	memcpy(ehdr, &pelf.ehdr, sizeof(*ehdr));
-
-	// The tool may work in architecture-independent way.
-	if (arch != CBFS_ARCHITECTURE_UNKNOWN &&
-	    !((ehdr->e_machine == EM_ARM) && (arch == CBFS_ARCHITECTURE_ARMV7)) &&
-	    !((ehdr->e_machine == EM_386) && (arch == CBFS_ARCHITECTURE_X86))) {
-		ERROR("The stage file has the wrong architecture\n");
-		return -1;
-	}
 
 	*pphdr = calloc(ehdr->e_phnum, sizeof(Elf64_Phdr));
 	memcpy(*pphdr, pelf.phdr, ehdr->e_phnum * sizeof(Elf64_Phdr));
@@ -642,6 +631,30 @@ elf_headers(const struct buffer *pinput,
  * +------------------+
  */
 
+void elf_init_eheader(Elf64_Ehdr *ehdr, int machine, int nbits, int endian)
+{
+	memset(ehdr, 0, sizeof(*ehdr));
+	ehdr->e_ident[EI_MAG0] = ELFMAG0;
+	ehdr->e_ident[EI_MAG1] = ELFMAG1;
+	ehdr->e_ident[EI_MAG2] = ELFMAG2;
+	ehdr->e_ident[EI_MAG3] = ELFMAG3;
+	ehdr->e_ident[EI_CLASS] = nbits;
+	ehdr->e_ident[EI_DATA] = endian;
+	ehdr->e_ident[EI_VERSION] = EV_CURRENT;
+	ehdr->e_type = ET_EXEC;
+	ehdr->e_machine = machine;
+	ehdr->e_version = EV_CURRENT;
+	if (nbits == ELFCLASS64) {
+		ehdr->e_ehsize = sizeof(Elf64_Ehdr);
+		ehdr->e_phentsize = sizeof(Elf64_Phdr);
+		ehdr->e_shentsize = sizeof(Elf64_Shdr);
+	} else {
+		ehdr->e_ehsize = sizeof(Elf32_Ehdr);
+		ehdr->e_phentsize = sizeof(Elf32_Phdr);
+		ehdr->e_shentsize = sizeof(Elf32_Shdr);
+	}
+}
+
 /* Arbitray maximum number of sections. */
 #define MAX_SECTIONS 16
 struct elf_writer_section {
@@ -650,16 +663,100 @@ struct elf_writer_section {
 	const char *name;
 };
 
+struct elf_writer_string_table {
+	size_t next_offset;
+	size_t max_size;
+	char *buffer;
+};
+
+struct elf_writer_sym_table {
+	size_t max_entries;
+	size_t num_entries;
+	Elf64_Sym *syms;
+};
+
+#define MAX_REL_NAME 32
+struct elf_writer_rel {
+	size_t num_entries;
+	size_t max_entries;
+	Elf64_Rel *rels;
+	struct elf_writer_section *sec;
+	char name[MAX_REL_NAME];
+};
+
 struct elf_writer
 {
 	Elf64_Ehdr ehdr;
 	struct xdr *xdr;
 	size_t num_secs;
 	struct elf_writer_section sections[MAX_SECTIONS];
+	struct elf_writer_rel rel_sections[MAX_SECTIONS];
 	Elf64_Phdr *phdrs;
-	struct elf_writer_section *shstrtab;
+	struct elf_writer_section *shstrtab_sec;
+	struct elf_writer_section *strtab_sec;
+	struct elf_writer_section *symtab_sec;
+	struct elf_writer_string_table strtab;
+	struct elf_writer_sym_table symtab;
 	int bit64;
 };
+
+static size_t section_index(struct elf_writer *ew,
+					struct elf_writer_section *sec)
+{
+	return sec - &ew->sections[0];
+}
+
+static struct elf_writer_section *last_section(struct elf_writer *ew)
+{
+	return &ew->sections[ew->num_secs - 1];
+}
+
+static void strtab_init(struct elf_writer *ew, size_t size)
+{
+	struct buffer b;
+	Elf64_Shdr shdr;
+
+	/* Start adding strings after the initial NUL entry. */
+	ew->strtab.next_offset = 1;
+	ew->strtab.max_size = size;
+	ew->strtab.buffer = calloc(1, ew->strtab.max_size);
+
+	buffer_init(&b, NULL, ew->strtab.buffer, ew->strtab.max_size);
+	memset(&shdr, 0, sizeof(shdr));
+	shdr.sh_type = SHT_STRTAB;
+	shdr.sh_addralign = 1;
+	shdr.sh_size = ew->strtab.max_size;
+	elf_writer_add_section(ew, &shdr, &b, ".strtab");
+	ew->strtab_sec = last_section(ew);
+}
+
+static void symtab_init(struct elf_writer *ew, size_t max_entries)
+{
+	struct buffer b;
+	Elf64_Shdr shdr;
+
+	memset(&shdr, 0, sizeof(shdr));
+	shdr.sh_type = SHT_SYMTAB;
+
+	if (ew->bit64) {
+		shdr.sh_entsize = sizeof(Elf64_Sym);
+		shdr.sh_addralign = sizeof(Elf64_Addr);
+	} else {
+		shdr.sh_entsize = sizeof(Elf32_Sym);
+		shdr.sh_addralign = sizeof(Elf32_Addr);
+	}
+
+	shdr.sh_size = shdr.sh_entsize * max_entries;
+
+	ew->symtab.syms = calloc(max_entries, sizeof(Elf64_Sym));
+	ew->symtab.num_entries = 1;
+	ew->symtab.max_entries = max_entries;
+
+	buffer_init(&b, NULL, ew->symtab.syms, shdr.sh_size);
+
+	elf_writer_add_section(ew, &shdr, &b, ".symtab");
+	ew->symtab_sec = last_section(ew);
+}
 
 struct elf_writer *elf_writer_init(const Elf64_Ehdr *ehdr)
 {
@@ -698,8 +795,12 @@ struct elf_writer *elf_writer_init(const Elf64_Ehdr *ehdr)
 	/* Add section header string table and maintain reference to it.  */
 	shdr.sh_type = SHT_STRTAB;
 	elf_writer_add_section(ew, &shdr, &empty_buffer, ".shstrtab");
-	ew->ehdr.e_shstrndx = ew->num_secs - 1;
-	ew->shstrtab = &ew->sections[ew->ehdr.e_shstrndx];
+	ew->shstrtab_sec = last_section(ew);
+	ew->ehdr.e_shstrndx = section_index(ew, ew->shstrtab_sec);
+
+	/* Add a small string table and symbol table. */
+	strtab_init(ew, 4096);
+	symtab_init(ew, 100);
 
 	return ew;
 }
@@ -707,11 +808,20 @@ struct elf_writer *elf_writer_init(const Elf64_Ehdr *ehdr)
 /*
  * Clean up any internal state represented by ew. Aftewards the elf_writer
  * is invalid.
+ * It is safe to call elf_writer_destroy with ew as NULL. It returns without
+ * performing any action.
  */
 void elf_writer_destroy(struct elf_writer *ew)
 {
+	int i;
+	if (ew == NULL)
+		return;
 	if (ew->phdrs != NULL)
 		free(ew->phdrs);
+	free(ew->strtab.buffer);
+	free(ew->symtab.syms);
+	for (i = 0; i < MAX_SECTIONS; i++)
+		free(ew->rel_sections[i].rels);
 	free(ew);
 }
 
@@ -778,8 +888,8 @@ static void shdr_write(struct elf_writer *ew, size_t n, struct buffer *m)
 
 	xdr->put32(m, shdr->sh_name);
 	xdr->put32(m, shdr->sh_type);
-	xdr->put32(m, shdr->sh_flags);
 	if (bit64) {
+		xdr->put64(m, shdr->sh_flags);
 		xdr->put64(m, shdr->sh_addr);
 		xdr->put64(m, shdr->sh_offset);
 		xdr->put64(m, shdr->sh_size);
@@ -788,6 +898,7 @@ static void shdr_write(struct elf_writer *ew, size_t n, struct buffer *m)
 		xdr->put64(m, shdr->sh_addralign);
 		xdr->put64(m, shdr->sh_entsize);
 	} else {
+		xdr->put32(m, shdr->sh_flags);
 		xdr->put32(m, shdr->sh_addr);
 		xdr->put32(m, shdr->sh_offset);
 		xdr->put32(m, shdr->sh_size);
@@ -823,6 +934,203 @@ phdr_write(struct elf_writer *ew, struct buffer *m, Elf64_Phdr *phdr)
 
 }
 
+static int section_consecutive(struct elf_writer *ew, Elf64_Half secidx)
+{
+	Elf64_Half i;
+	struct elf_writer_section *prev_alloc = NULL;
+
+	if (secidx == 0)
+		return 0;
+
+	for (i = 0; i < secidx; i++) {
+		if (ew->sections[i].shdr.sh_flags & SHF_ALLOC)
+			prev_alloc = &ew->sections[i];
+	}
+
+	if (prev_alloc == NULL)
+		return 0;
+
+	if (prev_alloc->shdr.sh_addr + prev_alloc->shdr.sh_size ==
+	    ew->sections[secidx].shdr.sh_addr)
+		return 1;
+
+	return 0;
+}
+
+static void write_phdrs(struct elf_writer *ew, struct buffer *phdrs)
+{
+	Elf64_Half i;
+	Elf64_Phdr phdr;
+	size_t num_written = 0;
+	size_t num_needs_write = 0;
+
+	for (i = 0; i < ew->num_secs; i++) {
+		struct elf_writer_section *sec = &ew->sections[i];
+
+		if (!(sec->shdr.sh_flags & SHF_ALLOC))
+			continue;
+
+		if (!section_consecutive(ew, i)) {
+			/* Write out previously set phdr. */
+			if (num_needs_write != num_written) {
+				phdr_write(ew, phdrs, &phdr);
+				num_written++;
+			}
+			phdr.p_type = PT_LOAD;
+			phdr.p_offset = sec->shdr.sh_offset;
+			phdr.p_vaddr = sec->shdr.sh_addr;
+			phdr.p_paddr = sec->shdr.sh_addr;
+			phdr.p_filesz = buffer_size(&sec->content);
+			phdr.p_memsz = sec->shdr.sh_size;
+			phdr.p_flags = 0;
+			if (sec->shdr.sh_flags & SHF_EXECINSTR)
+				phdr.p_flags |= PF_X | PF_R;
+			if (sec->shdr.sh_flags & SHF_WRITE)
+				phdr.p_flags |= PF_W;
+			phdr.p_align = sec->shdr.sh_addralign;
+			num_needs_write++;
+
+		} else {
+			/* Accumulate file size and memsize. The assumption
+			 * is that each section is either NOBITS or full
+			 * (sh_size == file size). This is standard in that
+			 * an ELF section doesn't have a file size component. */
+			if (sec->shdr.sh_flags & SHF_EXECINSTR)
+				phdr.p_flags |= PF_X | PF_R;
+			if (sec->shdr.sh_flags & SHF_WRITE)
+				phdr.p_flags |= PF_W;
+			phdr.p_filesz += buffer_size(&sec->content);
+			phdr.p_memsz += sec->shdr.sh_size;
+		}
+	}
+
+	/* Write out the last phdr. */
+	if (num_needs_write != num_written) {
+		phdr_write(ew, phdrs, &phdr);
+		num_written++;
+	}
+	assert(num_written == ew->ehdr.e_phnum);
+}
+
+static void fixup_symbol_table(struct elf_writer *ew)
+{
+	struct elf_writer_section *sec = ew->symtab_sec;
+
+	/* If there is only the NULL section, mark section as inactive. */
+	if (ew->symtab.num_entries == 1) {
+		sec->shdr.sh_type = SHT_NULL;
+		sec->shdr.sh_size = 0;
+	} else {
+		size_t i;
+		struct buffer wr;
+
+		buffer_clone(&wr, &sec->content);
+		/* To appease xdr. */
+		buffer_set_size(&wr, 0);
+		for (i = 0; i < ew->symtab.num_entries; i++) {
+			/* Create local copy as were over-writing backing
+			 * store of the symbol. */
+			Elf64_Sym sym = ew->symtab.syms[i];
+			if (ew->bit64) {
+				ew->xdr->put32(&wr, sym.st_name);
+				ew->xdr->put8(&wr, sym.st_info);
+				ew->xdr->put8(&wr, sym.st_other);
+				ew->xdr->put16(&wr, sym.st_shndx);
+				ew->xdr->put64(&wr, sym.st_value);
+				ew->xdr->put64(&wr, sym.st_size);
+			} else {
+				ew->xdr->put32(&wr, sym.st_name);
+				ew->xdr->put32(&wr, sym.st_value);
+				ew->xdr->put32(&wr, sym.st_size);
+				ew->xdr->put8(&wr, sym.st_info);
+				ew->xdr->put8(&wr, sym.st_other);
+				ew->xdr->put16(&wr, sym.st_shndx);
+			}
+		}
+
+		/* Update section size. */
+		sec->shdr.sh_size = sec->shdr.sh_entsize;
+		sec->shdr.sh_size *= ew->symtab.num_entries;
+
+		/* Fix up sh_link to point to string table. */
+		sec->shdr.sh_link = section_index(ew, ew->strtab_sec);
+		/* sh_info is supposed to be 1 greater than symbol table
+		 * index of last local binding. Just use max symbols. */
+		sec->shdr.sh_info = ew->symtab.num_entries;
+	}
+
+	buffer_set_size(&sec->content, sec->shdr.sh_size);
+}
+
+static void fixup_relocations(struct elf_writer *ew)
+{
+	int i;
+	Elf64_Xword type;
+
+	switch (ew->ehdr.e_machine) {
+	case EM_386:
+		type = R_386_32;
+		break;
+	case EM_ARM:
+		type = R_ARM_ABS32;
+		break;
+	case EM_AARCH64:
+		type = R_AARCH64_ABS64;
+		break;
+	case EM_MIPS:
+		type = R_MIPS_32;
+		break;
+	case EM_RISCV:
+		type = R_RISCV_32;
+		break;
+	case EM_PPC64:
+		type = R_PPC64_ADDR32;
+		break;
+	default:
+		ERROR("Unable to handle relocations for e_machine %x\n",
+			ew->ehdr.e_machine);
+		return;
+	}
+
+	for (i = 0; i < MAX_SECTIONS; i++) {
+		struct elf_writer_rel *rel_sec = &ew->rel_sections[i];
+		struct elf_writer_section *sec = rel_sec->sec;
+		struct buffer writer;
+		size_t j;
+
+		if (sec == NULL)
+			continue;
+
+		/* Update section header size as well as content size. */
+		buffer_init(&sec->content, sec->content.name, rel_sec->rels,
+				rel_sec->num_entries * sec->shdr.sh_entsize);
+		sec->shdr.sh_size = buffer_size(&sec->content);
+		buffer_clone(&writer, &sec->content);
+		/* To make xdr happy. */
+		buffer_set_size(&writer, 0);
+
+		for (j = 0; j < ew->rel_sections[i].num_entries; j++) {
+			/* Make copy as we're overwriting backing store. */
+			Elf64_Rel rel = rel_sec->rels[j];
+			rel.r_info = ELF64_R_INFO(ELF64_R_SYM(rel.r_info),
+						  ELF64_R_TYPE(type));
+
+			if (ew->bit64) {
+				ew->xdr->put64(&writer, rel.r_offset);
+				ew->xdr->put64(&writer, rel.r_info);
+			} else {
+				Elf32_Rel rel32;
+				rel32.r_offset = rel.r_offset;
+				rel32.r_info =
+					ELF32_R_INFO(ELF64_R_SYM(rel.r_info),
+						     ELF64_R_TYPE(rel.r_info));
+				ew->xdr->put32(&writer, rel32.r_offset);
+				ew->xdr->put32(&writer, rel32.r_info);
+			}
+		}
+	}
+}
+
 /*
  * Serialize the ELF file to the output buffer. Return < 0 on error,
  * 0 on success.
@@ -841,6 +1149,10 @@ int elf_writer_serialize(struct elf_writer *ew, struct buffer *out)
 
 	INFO("Writing %zu sections.\n", ew->num_secs);
 
+	/* Perform any necessary work for special sections. */
+	fixup_symbol_table(ew);
+	fixup_relocations(ew);
+
 	/* Determine size of sections to be written. */
 	program_size = 0;
 	/* Start with 1 byte for first byte of section header string table. */
@@ -848,8 +1160,10 @@ int elf_writer_serialize(struct elf_writer *ew, struct buffer *out)
 	for (i = 0; i < ew->num_secs; i++) {
 		struct elf_writer_section *sec = &ew->sections[i];
 
-		if (sec->shdr.sh_flags & SHF_ALLOC)
-			ew->ehdr.e_phnum++;
+		if (sec->shdr.sh_flags & SHF_ALLOC) {
+			if (!section_consecutive(ew, i))
+				ew->ehdr.e_phnum++;
+		}
 
 		program_size += buffer_size(&sec->content);
 
@@ -889,9 +1203,9 @@ int elf_writer_serialize(struct elf_writer *ew, struct buffer *out)
 	              ew->ehdr.e_phnum * ew->ehdr.e_phentsize);
 	buffer_splice(&data, out, metadata_size, program_size);
 	/* Set up the section header string table contents. */
-	strtab = &ew->shstrtab->content;
+	strtab = &ew->shstrtab_sec->content;
 	buffer_splice(strtab, out, shstroffset, shstrlen);
-	ew->shstrtab->shdr.sh_size = shstrlen;
+	ew->shstrtab_sec->shdr.sh_size = shstrlen;
 
 	/* Reset current locations. */
 	buffer_set_size(&metadata, 0);
@@ -906,41 +1220,222 @@ int elf_writer_serialize(struct elf_writer *ew, struct buffer *out)
 	 * program headers. */
 	ew->xdr->put8(strtab, 0);
 	for (i = 0; i < ew->num_secs; i++) {
-		Elf64_Phdr phdr;
 		struct elf_writer_section *sec = &ew->sections[i];
 
-		/* Update section offsets. Be sure to not update SHT_NULL. */
-		if (sec == ew->shstrtab)
+		/* Update section offsets. Be sure to not update SHN_UNDEF. */
+		if (sec == ew->shstrtab_sec)
 			sec->shdr.sh_offset = shstroffset;
-		else if (i != 0)
+		else if (i != SHN_UNDEF)
 			sec->shdr.sh_offset = buffer_size(&data) +
 			                      metadata_size;
+
 		shdr_write(ew, i, &metadata);
 
 		/* Add section name to string table. */
 		if (sec->name != NULL)
 			bputs(strtab, sec->name, strlen(sec->name) + 1);
 
-		if (!(sec->shdr.sh_flags & SHF_ALLOC))
-			continue;
-
-		bputs(&data, buffer_get(&sec->content),
-		      buffer_size(&sec->content));
-
-		phdr.p_type = PT_LOAD;
-		phdr.p_offset = sec->shdr.sh_offset;
-		phdr.p_vaddr = sec->shdr.sh_addr;
-		phdr.p_paddr = sec->shdr.sh_addr;
-		phdr.p_filesz = buffer_size(&sec->content);
-		phdr.p_memsz = sec->shdr.sh_size;
-		phdr.p_flags = 0;
-		if (sec->shdr.sh_flags & SHF_EXECINSTR)
-			phdr.p_flags |= PF_X | PF_R;
-		if (sec->shdr.sh_flags & SHF_WRITE)
-			phdr.p_flags |= PF_W;
-		phdr.p_align = sec->shdr.sh_addralign;
-		phdr_write(ew, &phdrs, &phdr);
+		/* Output section data for all sections but SHN_UNDEF and
+		 * section header string table. */
+		if (i != SHN_UNDEF && sec != ew->shstrtab_sec)
+			bputs(&data, buffer_get(&sec->content),
+			      buffer_size(&sec->content));
 	}
 
+	write_phdrs(ew, &phdrs);
+
 	return 0;
+}
+
+/* Add a string to the string table returning index on success, < 0 on error. */
+static int elf_writer_add_string(struct elf_writer *ew, const char *new)
+{
+	size_t current_offset;
+	size_t new_len;
+
+	for (current_offset = 0; current_offset < ew->strtab.next_offset; ) {
+		const char *str = ew->strtab.buffer + current_offset;
+		size_t len = strlen(str) + 1;
+
+		if (!strcmp(str, new))
+			return current_offset;
+		current_offset += len;
+	}
+
+	new_len = strlen(new) + 1;
+
+	if (current_offset + new_len > ew->strtab.max_size) {
+		ERROR("No space for string in .strtab.\n");
+		return -1;
+	}
+
+	memcpy(ew->strtab.buffer + current_offset, new, new_len);
+	ew->strtab.next_offset = current_offset + new_len;
+
+	return current_offset;
+}
+
+static int elf_writer_section_index(struct elf_writer *ew, const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < ew->num_secs; i++) {
+		if (ew->sections[i].name == NULL)
+			continue;
+		if (!strcmp(ew->sections[i].name, name))
+			return i;
+	}
+
+	ERROR("ELF Section not found: %s\n", name);
+
+	return -1;
+}
+
+int elf_writer_add_symbol(struct elf_writer *ew, const char *name,
+				const char *section_name,
+				Elf64_Addr value, Elf64_Word size,
+				int binding, int type)
+{
+	int i;
+	Elf64_Sym sym = {
+		.st_value = value,
+		.st_size = size,
+		.st_info = ELF64_ST_INFO(binding, type),
+	};
+
+	if (ew->symtab.max_entries == ew->symtab.num_entries) {
+		ERROR("No more symbol entries left.\n");
+		return -1;
+	}
+
+	i = elf_writer_add_string(ew, name);
+	if (i < 0)
+		return -1;
+	sym.st_name = i;
+
+	i = elf_writer_section_index(ew, section_name);
+	if (i < 0)
+		return -1;
+	sym.st_shndx = i;
+
+	ew->symtab.syms[ew->symtab.num_entries++] = sym;
+
+	return 0;
+}
+
+static int elf_sym_index(struct elf_writer *ew, const char *sym)
+{
+	int j;
+	size_t i;
+	Elf64_Word st_name;
+
+	/* Determine index of symbol in the string table. */
+	j = elf_writer_add_string(ew, sym);
+	if (j < 0)
+		return -1;
+
+	st_name = j;
+
+	for (i = 0; i < ew->symtab.num_entries; i++)
+		if (ew->symtab.syms[i].st_name == st_name)
+			return i;
+
+	return -1;
+}
+
+static struct elf_writer_rel *rel_section(struct elf_writer *ew,
+						const Elf64_Rel *r)
+{
+	Elf64_Sym *sym;
+	struct elf_writer_rel *rel;
+	Elf64_Shdr shdr;
+	struct buffer b;
+
+	sym = &ew->symtab.syms[ELF64_R_SYM(r->r_info)];
+
+	/* Determine if section has been initialized yet. */
+	rel = &ew->rel_sections[sym->st_shndx];
+	if (rel->sec != NULL)
+		return rel;
+
+	memset(&shdr, 0, sizeof(shdr));
+	shdr.sh_type = SHT_REL;
+	shdr.sh_link = section_index(ew, ew->symtab_sec);
+	shdr.sh_info = sym->st_shndx;
+
+	if (ew->bit64) {
+		shdr.sh_addralign = sizeof(Elf64_Addr);
+		shdr.sh_entsize = sizeof(Elf64_Rel);
+	} else {
+		shdr.sh_addralign = sizeof(Elf32_Addr);
+		shdr.sh_entsize = sizeof(Elf32_Rel);
+	}
+
+	if ((strlen(".rel") + strlen(ew->sections[sym->st_shndx].name) + 1) >
+	    MAX_REL_NAME) {
+		ERROR("Rel Section name won't fit\n");
+		return NULL;
+	}
+
+	strcat(rel->name, ".rel");
+	strcat(rel->name, ew->sections[sym->st_shndx].name);
+	buffer_init(&b, rel->name, NULL, 0);
+
+	elf_writer_add_section(ew, &shdr, &b, rel->name);
+	rel->sec = last_section(ew);
+
+	return rel;
+}
+
+static int add_rel(struct elf_writer_rel *rel_sec, const Elf64_Rel *rel)
+{
+	if (rel_sec->num_entries == rel_sec->max_entries) {
+		size_t num = rel_sec->max_entries * 2;
+		Elf64_Rel *old_rels;
+
+		if (num == 0)
+			num = 128;
+
+		old_rels = rel_sec->rels;
+		rel_sec->rels = calloc(num, sizeof(Elf64_Rel));
+
+		memcpy(rel_sec->rels, old_rels,
+			rel_sec->num_entries * sizeof(Elf64_Rel));
+		free(old_rels);
+
+		rel_sec->max_entries = num;
+	}
+
+	rel_sec->rels[rel_sec->num_entries] = *rel;
+	rel_sec->num_entries++;
+
+	return 0;
+}
+
+int elf_writer_add_rel(struct elf_writer *ew, const char *sym, Elf64_Addr addr)
+{
+	Elf64_Rel rel;
+	Elf64_Xword sym_info;
+	int sym_index;
+	struct elf_writer_rel *rel_sec;
+
+	sym_index = elf_sym_index(ew, sym);
+
+	if (sym_index < 0) {
+		ERROR("Unable to locate symbol: %s\n", sym);
+		return -1;
+	}
+
+	sym_info = sym_index;
+
+	/* The relocation type will get fixed prior to serialization. */
+	rel.r_offset = addr;
+	rel.r_info = ELF64_R_INFO(sym_info, 0);
+
+	rel_sec = rel_section(ew, &rel);
+
+	if (rel_sec == NULL)
+		return -1;
+
+	return add_rel(rel_sec, &rel);
 }

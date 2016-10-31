@@ -1,6 +1,7 @@
 //
 // This file is part of the coreboot project.
 //
+// Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
 // Copyright (C) 2007 Advanced Micro Devices, Inc.
 //
 // This program is free software; you can redistribute it and/or modify
@@ -11,10 +12,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 //
 
 //AMD FAM10 util for BUSB and res range
@@ -59,9 +56,9 @@ Scope (\_SB)
 
 	Method (DADD, 2, NotSerialized)
 	{
-		Store( Arg1, Local0)
-		Store( Arg0, Local1)
-		Add( ShiftLeft(Local1,16), Local0, Local0)
+		Store(Arg1, Local0)
+		Store(Arg0, Local1)
+		Add(ShiftLeft(Local1,16), Local0, Local0)
 		Return (Local0)
 	}
 
@@ -69,7 +66,7 @@ Scope (\_SB)
 	Method (GHCE, 1, NotSerialized) // check if the HC enabled
 	{
 		Store (DerefOf (Index (\_SB.PCI0.HCLK, Arg0)), Local1)
-		if(LEqual ( And(Local1, 0x01), 0x01)) { Return (0x0F) }
+		if (LEqual (And(Local1, 0x01), 0x01)) { Return (0x0F) }
 		Else { Return (0x00) }
 	}
 
@@ -77,7 +74,7 @@ Scope (\_SB)
 	{
 		Store (0x00, Local0)
 		Store (DerefOf (Index (\_SB.PCI0.HCLK, Arg0)), Local1)
-		Store (ShiftRight( And (Local1, 0xfc), 0x02), Local0)
+		Store (ShiftRight(And (Local1, 0xfc), 0x02), Local0)
 		Return (Local0)
 	}
 
@@ -85,7 +82,7 @@ Scope (\_SB)
 	{
 		Store (0x00, Local0)
 		Store (DerefOf (Index (\_SB.PCI0.HCLK, Arg0)), Local1)
-		Store (ShiftRight( And (Local1, 0x700), 0x08), Local0)
+		Store (ShiftRight(And (Local1, 0x700), 0x08), Local0)
 		Return (Local0)
 	}
 
@@ -95,7 +92,7 @@ Scope (\_SB)
 		Store (DerefOf (Index (\_SB.PCI0.HCDN, Arg0)), Local1)
 		Store (Arg1, Local2) // Arg1 could be 3, 2, 1, 0
 		Multiply (Local2, 0x08, Local2) // change to 24, 16, 8, 0
-		Store (And (ShiftRight( Local1, Local2), 0xff), Local0)
+		Store (And (ShiftRight(Local1, Local2), 0xff), Local0)
 		Return (Local0)
 	}
 
@@ -122,7 +119,7 @@ Scope (\_SB)
 		Return (0x00)
 	}
 
-	Method (GWBN, 2, NotSerialized)
+	Method (GWBN, 2, Serialized)
 	{
 		Name (BUF0, ResourceTemplate ()
 		{
@@ -161,7 +158,7 @@ Scope (\_SB)
 		Return (RTAG (BUF0))
 	}
 
-	Method (GMEM, 2, NotSerialized)
+	Method (GMEM, 2, Serialized)
 	{
 		Name (BUF0, ResourceTemplate ()
 		{
@@ -179,7 +176,7 @@ Scope (\_SB)
 		Store (0x00, Local0)
 		Store (0x00, Local4)
 		Store (0x00, Local3)
-		While (LLess (Local0, 0x80)) // 0x20 links * 2(mem, prefmem ) *2 ( base, limit )
+		While (LLess (Local0, 0x80)) // 0x20 links * 2(mem, prefmem) *2 (base, limit)
 		{
 			Store (DerefOf (Index (\_SB.PCI0.MMIO, Local0)), Local1)
 			Increment (Local0)
@@ -222,7 +219,7 @@ Scope (\_SB)
 		Return (Local3)
 	}
 
-	Method (GIOR, 2, NotSerialized)
+	Method (GIOR, 2, Serialized)
 	{
 		Name (BUF0, ResourceTemplate ()
 		{
@@ -240,7 +237,7 @@ Scope (\_SB)
 		Store (0x00, Local0)
 		Store (0x00, Local4)
 		Store (0x00, Local3)
-		While (LLess (Local0, 0x40)) // 0x20 ht links * 2 ( base, limit)
+		While (LLess (Local0, 0x40)) // 0x20 ht links * 2 (base, limit)
 		{
 			Store (DerefOf (Index (\_SB.PCI0.PCIO, Local0)), Local1)
 			Increment (Local0)

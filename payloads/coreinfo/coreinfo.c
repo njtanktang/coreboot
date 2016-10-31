@@ -11,16 +11,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "coreinfo.h"
-
-#define SCREEN_Y 25
-#define SCREEN_X 80
 
 #define KEY_ESC 27
 
@@ -31,39 +24,39 @@ extern struct coreinfo_module multiboot_module;
 extern struct coreinfo_module nvram_module;
 extern struct coreinfo_module bootlog_module;
 extern struct coreinfo_module ramdump_module;
-extern struct coreinfo_module lar_module;
 extern struct coreinfo_module cbfs_module;
+extern struct coreinfo_module timestamps_module;
 
 struct coreinfo_module *system_modules[] = {
-#ifdef CONFIG_MODULE_CPUINFO
+#if IS_ENABLED(CONFIG_MODULE_CPUINFO)
 	&cpuinfo_module,
 #endif
-#ifdef CONFIG_MODULE_PCI
+#if IS_ENABLED(CONFIG_MODULE_PCI)
 	&pci_module,
 #endif
-#ifdef CONFIG_MODULE_NVRAM
+#if IS_ENABLED(CONFIG_MODULE_NVRAM)
 	&nvram_module,
 #endif
-#ifdef CONFIG_MODULE_RAMDUMP
+#if IS_ENABLED(CONFIG_MODULE_RAMDUMP)
 	&ramdump_module,
 #endif
 };
 
 struct coreinfo_module *firmware_modules[] = {
-#ifdef CONFIG_MODULE_COREBOOT
+#if IS_ENABLED(CONFIG_MODULE_COREBOOT)
 	&coreboot_module,
 #endif
-#ifdef CONFIG_MODULE_MULTIBOOT
+#if IS_ENABLED(CONFIG_MODULE_MULTIBOOT)
 	&multiboot_module,
 #endif
-#ifdef CONFIG_MODULE_BOOTLOG
+#if IS_ENABLED(CONFIG_MODULE_BOOTLOG)
 	&bootlog_module,
 #endif
-#ifdef CONFIG_MODULE_LAR
-	&lar_module,
-#endif
-#ifdef CONFIG_MODULE_CBFS
+#if IS_ENABLED(CONFIG_MODULE_CBFS)
 	&cbfs_module,
+#endif
+#if IS_ENABLED(CONFIG_MODULE_TIMESTAMPS)
+	&timestamps_module,
 #endif
 };
 
@@ -121,7 +114,7 @@ static void print_submenu(struct coreinfo_cat *cat)
 	mvwprintw(menuwin, 0, 0, menu);
 }
 
-#ifdef CONFIG_SHOW_DATE_TIME
+#if IS_ENABLED(CONFIG_SHOW_DATE_TIME)
 static void print_time_and_date(void)
 {
 	struct tm tm;
@@ -131,8 +124,8 @@ static void print_time_and_date(void)
 
 	rtc_read_clock(&tm);
 
-	mvwprintw(menuwin, 0, 57, "%02d/%02d/%04d - %02d:%02d:%02d",
-		  tm.tm_mon, tm.tm_mday, 1900 + tm.tm_year, tm.tm_hour,
+	mvwprintw(menuwin, 1, 57, "%02d/%02d/%04d - %02d:%02d:%02d",
+		  tm.tm_mon + 1, tm.tm_mday, 1900 + tm.tm_year, tm.tm_hour,
 		  tm.tm_min, tm.tm_sec);
 }
 #endif
@@ -156,7 +149,7 @@ static void print_menu(void)
 
 	mvwprintw(menuwin, 1, 0, menu);
 
-#ifdef CONFIG_SHOW_DATE_TIME
+#if IS_ENABLED(CONFIG_SHOW_DATE_TIME)
 	print_time_and_date();
 #endif
 }
@@ -220,13 +213,37 @@ static void handle_category_key(struct coreinfo_cat *cat, int key)
 	}
 }
 
+static void print_no_modules_selected(void)
+{
+	int height = getmaxy(stdscr), i;
+
+	for (i = 0; i < ARRAY_SIZE(categories); i++)
+		if (categories[i].count > 0)
+			return;
+
+	color_set(2, NULL); // White on black
+	center(height / 2, "No modules selected");
+}
+
+static int first_nonempty_category(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(categories); i++)
+		if (categories[i].count > 0)
+			return i;
+	return 0;
+}
+
 static void loop(void)
 {
 	int key;
 
 	center(0, CONFIG_PAYLOAD_INFO_NAME " " CONFIG_PAYLOAD_INFO_VERSION);
+	print_no_modules_selected();
 	refresh();
 
+	curwin = first_nonempty_category();
 	print_menu();
 	print_submenu(&categories[curwin]);
 	redraw_module(&categories[curwin]);
@@ -234,7 +251,9 @@ static void loop(void)
 	halfdelay(10);
 
 	while (1) {
-#ifdef CONFIG_SHOW_DATE_TIME
+		int ch = -1;
+
+#if IS_ENABLED(CONFIG_SHOW_DATE_TIME)
 		print_time_and_date();
 		wrefresh(menuwin);
 #endif
@@ -244,20 +263,21 @@ static void loop(void)
 		if (key == ERR)
 			continue;
 
-		if (key >= KEY_F(1) && key <= KEY_F(9)) {
-			unsigned char ch = key - KEY_F(1);
+		if (key >= KEY_F(1) && key <= KEY_F(9))
+			ch = key - KEY_F(1);
+		if (key >= '1' && key <= '9')
+			ch = key - '1';
 
-			if (ch <= ARRAY_SIZE(categories)) {
-				if (ch == ARRAY_SIZE(categories))
-					continue;
-				if (categories[ch].count == 0)
-					continue;
-
-				curwin = ch;
-				print_submenu(&categories[curwin]);
-				redraw_module(&categories[curwin]);
+		if (ch >= 0 && ch <= ARRAY_SIZE(categories)) {
+			if (ch == ARRAY_SIZE(categories))
 				continue;
-			}
+			if (categories[ch].count == 0)
+				continue;
+
+			curwin = ch;
+			print_submenu(&categories[curwin]);
+			redraw_module(&categories[curwin]);
+			continue;
 		}
 
 		if (key == KEY_ESC)
@@ -271,7 +291,7 @@ int main(void)
 {
 	int i, j;
 
-#if defined(CONFIG_USB)
+#if IS_ENABLED(CONFIG_LP_USB)
 	usb_initialize();
 #endif
 
@@ -298,9 +318,13 @@ int main(void)
 
 	noecho(); /* don't let curses echo keyboard chars */
 	keypad(stdscr, TRUE); /* allow KEY_F(n) keys to be seen */
+	curs_set(0); /* Hide blinking cursor */
 
 	loop();
 
+	/* reboot */
+	outb(0x6, 0xcf9);
+	halt();
 	return 0;
 }
 

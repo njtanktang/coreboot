@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -34,7 +30,7 @@
 static void sb600_enable_rom(void)
 {
 	u8 reg8;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_io_locate_device(PCI_ID(PCI_VENDOR_ID_ATI,
 			PCI_DEVICE_ID_ATI_SB600_LPC), 0);

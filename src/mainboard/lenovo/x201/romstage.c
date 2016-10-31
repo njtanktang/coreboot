@@ -14,11 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* __PRE_RAM__ means: use "unsigned" for device, not a struct.  */
@@ -33,20 +28,22 @@
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <ec/acpi/ec.h>
 #include <delay.h>
 #include <timestamp.h>
 #include <arch/acpi.h>
 #include <cbmem.h>
+#include <tpm.h>
 
 #include "gpio.h"
 #include "dock.h"
 #include "arch/early_variables.h"
-#include "southbridge/intel/ibexpeak/pch.h"
-#include "northbridge/intel/nehalem/nehalem.h"
+#include <southbridge/intel/ibexpeak/pch.h>
+#include <northbridge/intel/nehalem/nehalem.h>
 
-#include "northbridge/intel/nehalem/raminit.h"
-#include "southbridge/intel/ibexpeak/me.h"
+#include <northbridge/intel/nehalem/raminit.h>
+#include <southbridge/intel/ibexpeak/me.h>
 
 static void pch_enable_lpc(void)
 {
@@ -54,7 +51,7 @@ static void pch_enable_lpc(void)
 	/* Enable EC, PS/2 Keyboard/Mouse */
 	pci_write_config16(PCH_LPC_DEV, LPC_EN,
 			   CNF2_LPC_EN | CNF1_LPC_EN | MC_LPC_EN | KBC_LPC_EN |
-			   COMA_LPC_EN);
+			   COMA_LPC_EN | GAMEL_LPC_EN);
 
 	pci_write_config32(PCH_LPC_DEV, LPC_GEN1_DEC, 0x7c1601);
 	pci_write_config32(PCH_LPC_DEV, LPC_GEN2_DEC, 0xc15e1);
@@ -75,41 +72,9 @@ static void pch_enable_lpc(void)
 
 static void rcba_config(void)
 {
+	southbridge_configure_default_intmap();
+
 	static const u32 rcba_dump3[] = {
-		/* 30fc */ 0x00000000,
-		/* 3100 */ 0x04341200, 0x00000000, 0x40043214, 0x00014321,
-		/* 3110 */ 0x00000002, 0x30003214, 0x00000001, 0x00000002,
-		/* 3120 */ 0x00000000, 0x00002321, 0x00000000, 0x00000000,
-		/* 3130 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3140 */ 0x00003107, 0x76543210, 0x00000010, 0x00007654,
-		/* 3150 */ 0x00000004, 0x00000000, 0x00000000, 0x00003210,
-		/* 3160 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3170 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3180 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3190 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31a0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31b0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31c0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31d0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31e0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 31f0 */ 0x00000000, 0x00000000, 0x00000000, 0x03000000,
-		/* 3200 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3210 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3220 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3230 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3240 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3250 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3260 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3270 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3280 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3290 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32a0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32b0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32c0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32d0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32e0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 32f0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-		/* 3300 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 		/* 3310 */ 0x02060100, 0x0000000f, 0x01020000, 0x80000000,
 		/* 3320 */ 0x00000000, 0x04000000, 0x00000000, 0x00000000,
 		/* 3330 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
@@ -126,7 +91,7 @@ static void rcba_config(void)
 		/* 33e0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 		/* 33f0 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 		/* 3400 */ 0x0000001c, 0x00000080, 0x00000000, 0x00000000,
-		/* 3410 */ 0x00000c61, 0x00000000, 0x16e61fe1, 0xbf4f001f,
+		/* 3410 */ 0x00000c61, 0x00000000, 0x16e41fe1, 0xbf4f001f,
 		/* 3420 */ 0x00000000, 0x00060010, 0x0000001d, 0x00000000,
 		/* 3430 */ 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 		/* 3440 */ 0xdeaddeed, 0x00000000, 0x00000000, 0x00000000,
@@ -179,8 +144,8 @@ static void rcba_config(void)
 	};
 	unsigned i;
 	for (i = 0; i < sizeof(rcba_dump3) / 4; i++) {
-		RCBA32(4 * i + 0x30fc) = rcba_dump3[i];
-		(void)RCBA32(4 * i + 0x30fc);
+		RCBA32(4 * i + 0x3310) = rcba_dump3[i];
+		(void)RCBA32(4 * i + 0x3310);
 	}
 }
 
@@ -199,11 +164,6 @@ static inline u32 read_acpi32(u32 addr)
 	return inl(DEFAULT_PMBASE | addr);
 }
 
-static inline u16 read_acpi16(u32 addr)
-{
-	return inw(DEFAULT_PMBASE | addr);
-}
-
 static void set_fsb_frequency(void)
 {
 	u8 block[5];
@@ -215,13 +175,13 @@ static void set_fsb_frequency(void)
 	smbus_block_write(0x69, 0, 5, block);
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	u32 reg32;
 	int s3resume = 0;
 	const u8 spd_addrmap[4] = { 0x50, 0, 0x51, 0 };
 
-	timestamp_init(rdtsc ());
+	timestamp_init(timestamp_get());
 
 	timestamp_add_now(TS_START_ROMSTAGE);
 
@@ -322,28 +282,7 @@ void main(unsigned long bist)
 	 * this is not a resume. In that case we just create the cbmem toc.
 	 */
 	if (s3resume) {
-		void *resume_backup_memory;
-
-		/* For non-S3-resume, CBMEM is inited in raminit code.  */
-		if (cbmem_recovery(1)) {
-			printk(BIOS_ERR, "Failed S3 resume.\n");
-			ram_check(0x100000, 0x200000);
-
-			/* Failed S3 resume, reset to come up cleanly */
-			outb(0xe, 0xcf9);
-			hlt();
-		}
-
-		resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
-
-		/* copy 1MB - 64K to high tables ram_base to prevent memory corruption
-		 * through stage 2. We could keep stuff like stack and heap in high tables
-		 * memory completely, but that's a wonderful clean up task for another
-		 * day.
-		 */
-		if (resume_backup_memory)
-			memcpy(resume_backup_memory, (void *)CONFIG_RAMBASE,
-			       HIGH_MEMORY_SAVE);
+		acpi_prepare_for_resume();
 
 		/* Magic for S3 resume */
 		pci_write_config32(PCI_DEV(0, 0x00, 0), SKPAD, 0xcafed00d);
@@ -353,5 +292,7 @@ void main(unsigned long bist)
 	}
 #endif
 
-	timestamp_add_now(TS_END_ROMSTAGE);
+#if CONFIG_LPC_TPM
+	init_tpm(s3resume);
+#endif
 }

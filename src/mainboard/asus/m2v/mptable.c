@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -48,8 +44,8 @@ static void *smp_write_config_table(void *v)
 	mptable_write_buses(mc, NULL, &bus_isa);
 
 	/* I/O APICs:	APIC ID	Version	State		Address */
-	smp_write_ioapic(mc, VT8237R_APIC_ID, 0x3, IO_APIC_ADDR);
-	smp_write_ioapic(mc, K8T890_APIC_ID, 0x3, K8T890_APIC_BASE);
+	smp_write_ioapic(mc, VT8237R_APIC_ID, 0x3, VIO_APIC_VADDR);
+	smp_write_ioapic(mc, K8T890_APIC_ID, 0x3, (void*)K8T890_APIC_BASE);
 
 	mptable_add_isa_interrupts(mc, bus_isa, VT8237R_APIC_ID, 0);
 

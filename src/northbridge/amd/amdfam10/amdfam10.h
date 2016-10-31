@@ -1,6 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef AMDFAM10_H
@@ -214,14 +211,6 @@
 #define   DTH_TRFC_127_5_1G  2
 #define   DTH_TRFC_195_2G    3
 #define   DTH_TRFC_327_5_4G  4
-#if 0
-//DDR3
-#define   DTH_TRFC_90_512M   1
-#define   DTH_TRFC_110_5_1G  2
-#define   DTH_TRFC_160_2G    3
-#define   DTH_TRFC_300_4G    4
-#define   DTH_TRFC_UNDEFINED_8G   5
-#endif
 #define  DTH_TRFC1_SHIFT   23 /*for Logical DIMM1 */
 #define  DTH_TRFC2_SHIFT   26 /*for Logical DIMM2 */
 #define  DTH_TRFC3_SHIFT   29 /*for Logical DIMM3 */
@@ -356,12 +345,6 @@
 #define   DODCC_ProcOdt_300_OHMS  0
 #define   DODCC_ProcOdt_150_OHMS 1
 #define   DODCC_ProcOdt_75_OHMS  2
-#if 0
-//DDR3
-#define   DODCC_ProcOdt_240_OHMS  0
-#define   DODCC_ProcOdt_120_OHMS 1
-#define   DODCC_ProcOdt_60_OHMS  2
-#endif
 
 /*
    for DDR2 400, 533, 667, F2x[1,0]9C_x[02:01], [03], [06:05], [07] controll timing of all DIMMs
@@ -529,66 +512,6 @@ that are corresponding to 0x01, 0x02, 0x03, 0x05, 0x06, 0x07
 #define DRAM_DQS_RECV_ENABLE_TIMING_CTRL_ECC_3_1 0x2b
 
 /* 04.06.2006 19:12 */
-
-#if 0
-//DDR3
-#define DRAM_DQS_WRITE_TIME_CTRL_0_0 0x30 //DIMM0 Channel A
-#define  DDWTC_WrDqsFineDlyByte0_SHIFT 0
-#define   DDWTC_WrDqsFineDlyByte0_MASK 0x1f
-#define  DDWTC_WrDqsGrossDlyByte0_SHIFT 5
-#define   DDWTC_WrDqsGrossDlyByte0_MASK 0x3
-#define  DDWTC_WrDqsFineDlyByte1_SHIFT 8
-#define  DDWTC_WrDqsGrossDlyByte1_SHIFT 13
-#define  DDWTC_WrDqsFineDlyByte2_SHIFT 16
-#define  DDWTC_WrDqsGrossDlyByte2_SHIFT 21
-#define  DDWTC_WrDqsFineDlyByte3_SHIFT 24
-#define  DDWTC_WrDqsGrossDlyByte3_SHIFT 29
-
-#define DRAM_DQS_WRTIE_TIME_CTRL_0_1 0x31 //DIMM0 Channel A
-#define  DDWTC_WrDqsFineDlyByte4_SHIFT 0
-#define  DDWTC_WrDqsGrossDlyByte4_SHIFT 5
-#define  DDWTC_WrDqsFineDlyByte5_SHIFT 8
-#define  DDWTC_WrDqsGrossDlyByte5_SHIFT 13
-#define  DDWTC_WrDqsFineDlyByte6_SHIFT 16
-#define  DDWTC_WrDqsGrossDlyByte6_SHIFT 21
-#define  DDWTC_WrDqsFineDlyByte7_SHIFT 24
-#define  DDWTC_WrDqsGrossDlyByte7_SHIFT 29
-
-#define DRAM_DQS_WRITE_TIMING_CTRL_ECC_0_0 0x32
-#define  DDWTCE_WrDqsChkFineDlyByte0_SHIFT 0
-#define  DDWTCE_WrDqsChkGrossDlyByte0_SHIFT 5
-
-#define DRAM_DQS_WRITE_TIME_CTRL_0_2 0x40 //DIMM0 Channel B
-#define  DDWTC_WrDqsFineDlyByte8_SHIFT 0
-#define  DDWTC_WrDqsGrossDlyByte8_SHIFT 5
-#define  DDWTC_WrDqsFineDlyByte9_SHIFT 8
-#define  DDWTC_WrDqsGrossDlyByte9_SHIFT 13
-#define  DDWTC_WrDqsFineDlyByte10_SHIFT 16
-#define  DDWTC_WrDqsGrossDlyByte10_SHIFT 21
-#define  DDWTC_WrDqsFineDlyByte11_SHIFT 24
-#define  DDWTC_WrDqsGrossDlyByte11_SHIFT 29
-
-#define DRAM_DQS_WRTIE_TIME_CTRL_0_3 0x41 //DIMM0 Channel B
-#define  DDWTC_WrDqsFineDlyByte12_SHIFT 0
-#define  DDWTC_WrDqsGrossDlyByte12_SHIFT 5
-#define  DDWTC_WrDqsFineDlyByte13_SHIFT 8
-#define  DDWTC_WrDqsGrossDlyByte13_SHIFT 13
-#define  DDWTC_WrDqsFineDlyByte14_SHIFT 16
-#define  DDWTC_WrDqsGrossDlyByte14_SHIFT 21
-#define  DDWTC_WrDqsFineDlyByte15_SHIFT 24
-#define  DDWTC_WrDqsGrossDlyByte15_SHIFT 29
-
-#define DRAM_DQS_WRITE_TIMING_CTRL_ECC_0_1 0x42
-#define  DDWTCE_WrDqsChkFineDlyByte1_SHIFT 0
-#define  DDWTCE_WrDqsChkGrossDlyByte1_SHIFT 5
-
-#define DRAM_DQS_WRITE_TIME_CTRL_1_0 0x33 //DIMM1 Channel A
-#define DRAM_DQS_WRTIE_TIME_CTRL_1_1 0x34 //DIMM1 Channel A
-#define DRAM_DQS_WRITE_TIMING_CTRL_ECC_1_0 0x35
-#define DRAM_DQS_WRITE_TIME_CTRL_1_2 0x43 //DIMM1 Channel B
-#define DRAM_DQS_WRTIE_TIME_CTRL_1_3 0x44 //DIMM1 Channel B
-#define DRAM_DQS_WRITE_TIMING_CTRL_ECC_1_1 0x45
-#endif
 
 #define DRAM_PHASE_RECOVERY_CTRL_0 0x50
 #define  DPRC_PhRecFineDlyByte0_SHIFT 0
@@ -961,14 +884,17 @@ that are corresponding to 0x01, 0x02, 0x03, 0x05, 0x06, 0x07
 
 #define LAPIC_MSG_REG 0x380
 #define F10_APSTATE_STARTED 0x13  // start of AP execution
-#define F10_APSTATE_STOPPED 0x14  // allow AP to stop
+#define F10_APSTATE_ASLEEP  0x14  // AP sleeping
+#define F10_APSTATE_STOPPED 0x15  // allow AP to stop
 #define F10_APSTATE_RESET   0x01  // waiting for warm reset
+
+#define MAX_CORES_SUPPORTED 128
 
 #include "nums.h"
 
 #ifdef __PRE_RAM__
-#if NODE_NUMS==64
-	 #define NODE_PCI(x, fn) ((x<32)?(PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)):(PCI_DEV((CONFIG_CBB-1),(CONFIG_CDB+x-32),fn)))
+#if NODE_NUMS == 64
+	 #define NODE_PCI(x, fn) ((x < 32)?(PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)):(PCI_DEV((CONFIG_CBB-1),(CONFIG_CDB+x-32),fn)))
 #else
 	 #define NODE_PCI(x, fn) PCI_DEV(CONFIG_CBB,(CONFIG_CDB+x),fn)
 #endif
@@ -976,48 +902,18 @@ that are corresponding to 0x01, 0x02, 0x03, 0x05, 0x06, 0x07
 
 #include "raminit.h"
 
-#if !CONFIG_AMDMCT
-
-//struct definitions
-
-struct dimm_size {
-	u8 per_rank; // it is rows + col + bank_lines + data lines */
-	u8 rows;
-	u8 col;
-	u8 bank; //1, 2, 3 mean 2, 4, 8
-	u8 rank;
-} __attribute__((packed));
-
-struct mem_info { // pernode
-	u32 dimm_mask;
-	struct dimm_size sz[DIMM_SOCKETS*2]; // for ungang support
-	u32 x4_mask;
-	u32 x16_mask;
-	u32 single_rank_mask;
-	u32 page_1k_mask;
-//	  u32 ecc_mask;
-//	  u32 registered_mask;
-	u8 is_opteron;
-	u8 is_registered; //don't support mixing on the same channel or between channel
-	u8 is_ecc; //don't support mixing on the same channel or between channel
-	u8 is_Width128;
-	u8 memclk_set; // we need to use this to retrieve the mem param, all dimms need to work at same freq for one node
-	u8 is_cs_interleaved[2]; //cs
-	u8 rsv[1];
-} __attribute__((packed));
-#else
- #if (CONFIG_DIMM_SUPPORT & 0x000F)==0x0005 /* AMD_FAM10_DDR3 */
+#include "../amdmct/wrappers/mcti.h"
+#if (CONFIG_DIMM_SUPPORT & 0x000F) == 0x0005 /* AMD_FAM10_DDR3 */
   #include "../amdmct/mct_ddr3/mct_d.h"
- #else
+#else
   #include "../amdmct/mct/mct_d.h"
- #endif
 #endif
 
 struct link_pair_t {
-	device_t udev;
+	pci_devfn_t udev;
 	u32 upos;
 	u32 uoffs;
-	device_t dev;
+	pci_devfn_t dev;
 	u32 pos;
 	u32 offs;
 	u8 host;
@@ -1033,14 +929,11 @@ struct nodes_info_t {
 	u32 up_planes; // down planes will be [up_planes, planes)
 } __attribute__((packed));
 
+struct ht_link_config {
+	uint32_t ht_speed_limit; // Speed in MHz; 0 for autodetect (default)
+};
+
 /* be careful with the alignment of sysinfo, bacause sysinfo may be shared by coreboot_car and ramstage stage. and ramstage may be running at 64bit later.*/
-#if !CONFIG_AMDMCT
-
-//#define MEM_CS_COPY 1
-#define MEM_CS_COPY NODE_NUMS
-#define DQS_DELAY_COPY NODE_NUMS
-#endif
-
 
 struct sys_info {
 	int32_t needs_reset;
@@ -1052,6 +945,8 @@ struct sys_info {
 
 	u8 host_link_freq[NODE_NUMS*8]; // record freq for every link from cpu, 0x0f means don't need to touch it
 	u16 host_link_freq_cap[NODE_NUMS*8]; //cap
+
+	struct ht_link_config ht_link_cfg;
 
 	u32 segbit;
 	u32 sbdn;
@@ -1066,30 +961,8 @@ struct sys_info {
 
 	struct mem_controller ctrl[NODE_NUMS];
 
-#if CONFIG_AMDMCT
-//	sMCTStruct MCTData;
-//	sDCTStruct *DCTNodeData[NODE_NUMS];
-//	sDCTStruct DCTNodeData_a[NODE_NUMS];
 	struct MCTStatStruc MCTstat;
 	struct DCTStatStruc DCTstatA[NODE_NUMS];
-#else
-
-	u8 ctrl_present[NODE_NUMS];
-	struct mem_info meminfo[NODE_NUMS];
-	u8 mem_trained[NODE_NUMS]; //0: no dimm, 1: trained, 0x80: not started, 0x81: recv1 fail, 0x82: Pos Fail, 0x83:recv2 fail
-	u32 tom_m;
-	u32 tom2_m;
-
-	//if we are getting tight of global space, may need to squesh following to one copy
-	u32 mem_base[MEM_CS_COPY][2]; // two dct
-	u32 cs_base[MEM_CS_COPY][2][8]; //8 cs_idx
-	u32 hole_startk; // 0 mean hole
-
-	u8 dqs_delay_a[DQS_DELAY_COPY*2*4*2*9]; //8 node, channel 2, dimm 4, direction 2 , bytelane *9
-	u8 dqs_rcvr_dly_a[DQS_DELAY_COPY*2*4*9]; //8 node, channel 2, dimm 4, bytelane *9
-	u8 dqs_rcvr_dly_a_1[9]; //8 node, channel 2, dimm 4, bytelane *9
-#endif
-
 } __attribute__((packed));
 
 #ifdef __PRE_RAM__
@@ -1100,85 +973,8 @@ extern struct sys_info sysinfo_car;
 device_t get_node_pci(u32 nodeid, u32 fn);
 #endif
 
-#if !CONFIG_AMDMCT
-
 #ifdef __PRE_RAM__
-static void soft_reset(void);
-#endif
-static void wait_all_core0_mem_trained(struct sys_info *sysinfo)
-{
-	int i;
-	u32 mask_lo = 0;
-	u32 mask_hi = 0;
-	unsigned needs_reset = 0;
-
-	if(sysinfo->nodes == 1) return; // in case only one cpu installed
-		for(i=1; i<sysinfo->nodes; i++) {
-			/* Skip everything if I don't have any memory on this controller */
-			if(sysinfo->mem_trained[i]==0x00) continue;
-
-			if(i<32) {
-				mask_lo |= (1<<i);
-			} else {
-				mask_hi |= (1<<(i-32));
-			}
-	}
-
-	i = 1;
-	while(1) {
-		if(i<32) {
-			if(mask_lo & (1<<i)) {
-				if(sysinfo->mem_trained[i] != 0x80) {
-					mask_lo &= ~(1<<i);
-				}
-			}
-		} else {
-			if(mask_hi & (1<<(i-32))) {
-				if(sysinfo->mem_trained[i] != 0x80) {
-					 mask_hi &= ~(1<<(i-32));
-				}
-			}
-		}
-
-			if((!mask_lo) && (!mask_hi)) break;
-
-		i++;
-		i%=sysinfo->nodes;
-	}
-
-	for(i=0; i<sysinfo->nodes; i++) {
-#ifdef __PRE_RAM__
-		print_debug("mem_trained["); print_debug_hex8(i); print_debug("]="); print_debug_hex8(sysinfo->mem_trained[i]); print_debug("\n");
-#else
-		printk(BIOS_DEBUG, "mem_trained[%02x]=%02x\n", i, sysinfo->mem_trained[i]);
-#endif
-		switch(sysinfo->mem_trained[i]) {
-		case 0: //don't need train
-		case 1: //trained
-			break;
-		case 0x81: //recv1: fail
-		case 0x82: //Pos :fail
-		case 0x83: //recv2: fail
-			needs_reset = 1;
-			break;
-		}
-	}
-	if(needs_reset) {
-#ifdef __PRE_RAM__
-		print_debug("mem trained failed\n");
-		soft_reset();
-#else
-		printk(BIOS_DEBUG, "mem trained failed\n");
-		hard_reset();
-#endif
-	}
-
-}
-
-#endif
-
-#ifdef __PRE_RAM__
-void showallroutes(int level, device_t dev);
+void showallroutes(int level, pci_devfn_t dev);
 
 void setup_resource_map_offset(const u32 *register_values, u32 max, u32
 		offset_pci_dev, u32 offset_io_base);
@@ -1199,5 +995,14 @@ u8 get_sbbusn(u8 sblk);
 
 #include "northbridge/amd/amdht/porting.h"
 BOOL AMD_CB_ManualBUIDSwapList(u8 Node, u8 Link, const u8 **List);
+
+struct acpi_rsdp;
+
+#ifndef __SIMPLE_DEVICE__
+unsigned long northbridge_write_acpi_tables(device_t device,
+					    unsigned long start,
+					    struct acpi_rsdp *rsdp);
+void northbridge_acpi_write_vars(device_t device);
+#endif
 
 #endif /* AMDFAM10_H */

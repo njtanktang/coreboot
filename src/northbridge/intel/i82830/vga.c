@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,8 +27,7 @@ static void vga_init(device_t dev)
 {
 	printk(BIOS_INFO, "Starting Graphics Initialization\n");
 	size_t mbi_len;
-	void *mbi = cbfs_get_file_content(CBFS_DEFAULT_MEDIA, "mbi.bin",
-					  CBFS_TYPE_MBI, &mbi_len);
+	void *mbi = cbfs_boot_map_with_leak("mbi.bin", CBFS_TYPE_MBI, &mbi_len);
 
 	if (mbi && mbi_len) {
 		/* The GDT or coreboot table is going to live here. But

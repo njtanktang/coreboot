@@ -11,18 +11,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
-#include <bootmode.h>
 #include <arch/io.h>
+#include <bootmode.h>
 #include <device/device.h>
 #include <device/pci.h>
-#include <baytrail/gpio.h>
+#include <soc/gpio.h>
+#include <vboot/vboot_common.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 #if CONFIG_EC_GOOGLE_CHROMEEC
 #include "ec.h"
@@ -35,9 +33,21 @@
 #ifndef __PRE_RAM__
 #include <boot/coreboot_tables.h>
 
-#define GPIO_COUNT	6
+void fill_lb_gpios(struct lb_gpios *gpios)
+{
+	struct lb_gpio chromeos_gpios[] = {
+		{-1, ACTIVE_HIGH, get_write_protect_state(), "write protect"},
+		{-1, ACTIVE_HIGH, vboot_recovery_mode_enabled(), "recovery"},
+		{-1, ACTIVE_HIGH, get_developer_mode_switch(), "developer"},
+		{-1, ACTIVE_HIGH, get_lid_switch(), "lid"},
+		{-1, ACTIVE_HIGH, 0, "power"},
+		{-1, ACTIVE_HIGH, gfx_get_init_done(), "oprom"},
+	};
+	lb_add_gpios(gpios, chromeos_gpios, ARRAY_SIZE(chromeos_gpios));
+}
+#endif
 
-static int get_lid_switch(void)
+int get_lid_switch(void)
 {
 #if CONFIG_EC_GOOGLE_CHROMEEC
 	u8 ec_switches = inb(EC_LPC_ADDR_MEMMAP + EC_MEMMAP_SWITCHES);
@@ -48,26 +58,6 @@ static int get_lid_switch(void)
 	return 1;
 #endif
 }
-
-void fill_lb_gpios(struct lb_gpios *gpios)
-{
-	struct lb_gpio *gpio;
-
-	gpios->size = sizeof(*gpios) + (GPIO_COUNT * sizeof(struct lb_gpio));
-	gpios->count = GPIO_COUNT;
-
-	gpio = gpios->gpios;
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "write protect",
-		     get_write_protect_state());
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "recovery",
-		     get_recovery_mode_switch());
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "developer",
-		     get_developer_mode_switch());
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "lid", get_lid_switch());
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "power", 0);
-	fill_lb_gpio(gpio++, -1, ACTIVE_HIGH, "oprom", gfx_get_init_done());
-}
-#endif
 
 int get_developer_mode_switch(void)
 {
@@ -94,9 +84,41 @@ int get_recovery_mode_switch(void)
 #endif
 }
 
+int clear_recovery_mode_switch(void)
+{
+#if CONFIG_EC_GOOGLE_CHROMEEC
+	const uint32_t kb_rec_mask =
+		EC_HOST_EVENT_MASK(EC_HOST_EVENT_KEYBOARD_RECOVERY);
+	/* Unconditionally clear the EC recovery request. */
+	return google_chromeec_clear_events_b(kb_rec_mask);
+#else
+	return 0;
+#endif
+}
+
 int get_write_protect_state(void)
 {
+	/*
+	 * The vboot loader queries this function in romstage. The GPIOs have
+	 * not been set up yet as that configuration is done in ramstage. The
+	 * hardware defaults to an input but there is a 20K pulldown. Externally
+	 * there is a 10K pullup. Disable the internal pull in romstage so that
+	 * there isn't any ambiguity in the reading.
+	 */
+#if defined(__PRE_RAM__)
+	ssus_disable_internal_pull(WP_STATUS_PAD);
+#endif
+
 	/* WP is enabled when the pin is reading high. */
 	return ssus_get_gpio(WP_STATUS_PAD);
 }
 
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AL(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AH(0x2006, CROS_GPIO_DEVICE_NAME),
+};
+
+void mainboard_chromeos_acpi_generate(void)
+{
+	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
+}

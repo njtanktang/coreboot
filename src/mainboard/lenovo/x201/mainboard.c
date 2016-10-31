@@ -14,11 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -38,15 +33,14 @@
 
 #include <pc80/mc146818rtc.h>
 #include "dock.h"
-#include "hda_verb.h"
 #include <arch/x86/include/arch/acpigen.h>
-#include <x86emu/regs.h>
+#include <drivers/intel/gma/int15.h>
 #include <arch/interrupt.h>
 #include <pc80/keyboard.h>
 #include <cpu/x86/lapic.h>
 #include <device/pci.h>
 #include <smbios.h>
-#include <build.h>
+#include "drivers/lenovo/lenovo.h"
 
 static acpi_cstate_t cst_entries[] = {
 	{1, 1, 1000, {0x7f, 1, 2, {0}, 1, 0}},
@@ -58,59 +52,6 @@ int get_cst_entries(acpi_cstate_t ** entries)
 {
 	*entries = cst_entries;
 	return ARRAY_SIZE(cst_entries);
-}
-
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-
-static int int15_handler(void)
-{
-	switch ((X86_EAX & 0xffff)) {
-		/* Get boot display.  */
-	case 0x5f35:
-		X86_EAX = 0x5f;
-		/* The flags are:
-		   1 - VGA
-		   4 - DisplayPort
-		   8 - LCD
-		 */
-		X86_ECX = 0x8;
-
-		return 1;
-	case 0x5f40:
-		X86_EAX = 0x5f;
-		X86_ECX = 0x2;
-		return 1;
-	default:
-		printk(BIOS_WARNING, "Unknown INT15 function %04x!\n",
-		       X86_EAX & 0xffff);
-		return 0;
-	}
-}
-#endif
-
-const char *smbios_mainboard_bios_version(void)
-{
-	/* Satisfy thinkpad_acpi.  */
-	if (strlen(CONFIG_LOCALVERSION))
-		return "CBET4000 " CONFIG_LOCALVERSION;
-	else
-		return "CBET4000 " COREBOOT_VERSION;
-}
-
-const char *smbios_mainboard_version(void)
-{
-	return "Lenovo X201";
-}
-
-/* Audio Setup */
-
-extern const u32 *cim_verb_data;
-extern u32 cim_verb_data_size;
-
-static void verb_setup(void)
-{
-	cim_verb_data = mainboard_cim_verb_data;
-	cim_verb_data_size = sizeof(mainboard_cim_verb_data);
 }
 
 static void mainboard_init(device_t dev)
@@ -140,18 +81,11 @@ static void mainboard_init(device_t dev)
 	RCBA32(0x3804) = 0x3f04e008;
 
 	printk(BIOS_SPEW, "SPI configured\n");
-	/* This sneaked in here, because X201 SuperIO chip isn't really
-	   connected to anything and hence we don't init it.
-	 */
-	pc_keyboard_init();
+}
 
-	/* Enable expresscard hotplug events.  */
-	pci_write_config32(dev_find_slot(0, PCI_DEVFN(0x1c, 3)),
-			   0xd8,
-			   pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x1c, 3)), 0xd8)
-			   | (1 << 30));
-	pci_write_config16(dev_find_slot(0, PCI_DEVFN(0x1c, 3)),
-			   0x42, 0x142);
+static void fill_ssdt(device_t device)
+{
+	drivers_lenovo_serial_ports_ssdt_generate("\\_SB.PCI0.LPCB", 0);
 }
 
 static void mainboard_enable(device_t dev)
@@ -160,6 +94,7 @@ static void mainboard_enable(device_t dev)
 	u16 pmbase;
 
 	dev->ops->init = mainboard_init;
+	dev->ops->acpi_fill_ssdt_generator = fill_ssdt;
 
 	pmbase = pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x1f, 0)),
 				   PMBASE) & 0xff80;
@@ -179,12 +114,8 @@ static void mainboard_enable(device_t dev)
 	if (dev0 && pci_read_config32(dev0, SKPAD) == SKPAD_ACPI_S3_MAGIC)
 		ec_write(0x0c, 0xc7);
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-	/* Install custom int15 handler for VGA OPROM */
-	mainboard_interrupt_handlers(0x15, &int15_handler);
-#endif
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_DEFAULT, GMA_INT15_BOOT_DISPLAY_LFP, 2);
 
-	verb_setup();
 }
 
 struct chip_operations mainboard_ops = {

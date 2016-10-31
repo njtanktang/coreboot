@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __I3100_H__
@@ -65,7 +61,7 @@
 #define DRC_72BIT_ECC         (1 << 20)
 
 #define RCBA 0xF0
-#define DEFAULT_RCBA 0xFEA00000
+#define DEFAULT_RCBA ((u8 *)0xFEA00000)
 
 int bios_reset_detected(void);
 

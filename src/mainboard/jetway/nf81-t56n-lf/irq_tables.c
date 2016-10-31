@@ -11,24 +11,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
-
 
 #include <arch/pirq_routing.h>
 #include <console/console.h>
 #include <cpu/amd/amdfam14.h>
+#include <device/pci_def.h>
 #include <string.h>
 #include <stdint.h>
 
-
 static void write_pirq_info(struct irq_info *pirq_info, u8 bus, u8 devfn,
-			u8 link0, u16 bitmap0, u8 link1, u16 bitmap1,
-			u8 link2, u16 bitmap2, u8 link3, u16 bitmap3,
-			u8 slot, u8 rfu)
+			    u8 link0, u16 bitmap0, u8 link1, u16 bitmap1,
+			    u8 link2, u16 bitmap2, u8 link3, u16 bitmap3,
+			    u8 slot, u8 rfu)
 {
 	pirq_info->bus = bus;
 	pirq_info->devfn = devfn;
@@ -43,9 +38,6 @@ static void write_pirq_info(struct irq_info *pirq_info, u8 bus, u8 devfn,
 	pirq_info->slot = slot;
 	pirq_info->rfu = rfu;
 }
-extern u8 bus_isa;
-extern u8 bus_sb800[6];
-extern unsigned long sbdn_sb800;
 
 unsigned long write_pirq_routing_table(unsigned long addr)
 {
@@ -57,12 +49,6 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 
 	u8 sum = 0;
 	int i;
-
-	/* Find all Bus num and APIC's that are share with
-	 * mptable.c and acpi_tables.c
-	 */
-	get_bus_conf();
-
 
 	/* Align table on 16 byte boundary. */
 	addr += 15;
@@ -77,8 +63,8 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 	pirq->signature = PIRQ_SIGNATURE;
 	pirq->version = PIRQ_VERSION;
 
-	pirq->rtr_bus = bus_sb800[0];
-	pirq->rtr_devfn = ((sbdn_sb800 + 0x14) << 3) | 4;
+	pirq->rtr_bus = 0;
+	pirq->rtr_devfn = PCI_DEVFN(0x14, 4);
 
 	pirq->exclusive_irqs = 0;
 
@@ -93,7 +79,7 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 	slot_num = 0;
 
 	/* PCI Bridge */
-	write_pirq_info(pirq_info, bus_sb800[0], ((sbdn_sb800 + 0x14) << 3) | 4,
+	write_pirq_info(pirq_info, 0, PCI_DEVFN(0x14, 4),
 			0x1, 0xdef8, 0x2, 0xdef8, 0x3, 0xdef8, 0x4, 0xdef8, 0,
 			0);
 	pirq_info++;

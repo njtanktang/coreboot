@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -57,7 +53,7 @@ static void sm_init(device_t dev)
 
 	ioapic_base = pci_read_config32(dev, 0x74) & (0xffffffe0);	/* some like mem resource, but does not have  enable bit */
 	/* Don't rename APIC ID */
-	clear_ioapic(ioapic_base);
+	clear_ioapic((void *)ioapic_base);
 
 	dword = pci_read_config8(dev, 0x62);
 	dword |= 1 << 2;
@@ -169,7 +165,7 @@ static void sm_init(device_t dev)
 	/* ab index */
 	pci_write_config32(dev, 0xF0, AB_INDX);
 	/* Initialize the real time clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	/*3.4 Enabling IDE/PCIB Prefetch for Performance Enhancement */
 	abcfg_reg(0x10060, 9 << 17, 9 << 17);
@@ -309,7 +305,7 @@ static void sb600_sm_read_resources(device_t dev)
 	res->flags = IORESOURCE_MEM | IORESOURCE_FIXED;
 
 	res = new_resource(dev, 0x14); /* hpet */
-	res->base  = 0xfed00000;	/* reset hpet to widely accepted address */
+	res->base  = HPET_BASE_ADDRESS;	/* reset hpet to widely accepted address */
 	res->size = 0x400;
 	res->limit = 0xFFFFFFFFUL;	/* res->base + res->size -1; */
 	res->align = 8;
@@ -361,7 +357,7 @@ static struct device_operations smbus_ops = {
 	.set_resources = sb600_sm_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = sm_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_smbus,
 	/* .enable           = sb600_enable, */
 	.ops_pci = &lops_pci,
 	.ops_smbus_bus = &lops_smbus_bus,

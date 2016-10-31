@@ -33,6 +33,8 @@
 
 //#define USB_DEBUG
 #include <usb/usb.h>
+#include <arch/barrier.h>
+#include <kconfig.h>
 
 //#define XHCI_DUMPS
 #define xhci_debug(fmt, args...) usb_debug("%s: " fmt, __func__, ## args)
@@ -44,17 +46,19 @@
 
 #define MASK(startbit, lenbit) (((1<<(lenbit))-1)<<(startbit))
 
-enum { XHCI_FULL_SPEED = 1, XHCI_LOW_SPEED = 2, XHCI_HIGH_SPEED = 3, XHCI_SUPER_SPEED = 4 };
-
-#define TIMEOUT			-1
-#define CONTROLLER_ERROR	-2
-#define COMMUNICATION_ERROR	-3
-#define OUT_OF_MEMORY		-4
-#define DRIVER_ERROR		-5
+/* Make these high enough to not collide with negative XHCI CCs */
+#define TIMEOUT			-65
+#define CONTROLLER_ERROR	-66
+#define COMMUNICATION_ERROR	-67
+#define OUT_OF_MEMORY		-68
+#define DRIVER_ERROR		-69
 
 #define CC_SUCCESS			 1
 #define CC_TRB_ERROR			 5
 #define CC_STALL_ERROR			 6
+#define CC_RESOURCE_ERROR		 7
+#define CC_BANDWIDTH_ERROR		 8
+#define CC_NO_SLOTS_AVAILABLE		 9
 #define CC_SHORT_PACKET			13
 #define CC_EVENT_RING_FULL_ERROR	21
 #define CC_COMMAND_RING_STOPPED		24
@@ -65,7 +69,7 @@ enum { XHCI_FULL_SPEED = 1, XHCI_LOW_SPEED = 2, XHCI_HIGH_SPEED = 3, XHCI_SUPER_
 enum {
 	TRB_NORMAL = 1,
 	TRB_SETUP_STAGE = 2, TRB_DATA_STAGE = 3, TRB_STATUS_STAGE = 4,
-	TRB_LINK = 6,
+	TRB_LINK = 6, TRB_EVENT_DATA = 7,
 	TRB_CMD_ENABLE_SLOT = 9, TRB_CMD_DISABLE_SLOT = 10, TRB_CMD_ADDRESS_DEV = 11,
 	TRB_CMD_CONFIGURE_EP = 12, TRB_CMD_EVAL_CTX = 13, TRB_CMD_RESET_EP = 14,
 	TRB_CMD_STOP_EP = 15, TRB_CMD_SET_TR_DQ = 16, TRB_CMD_NOOP = 23,
@@ -95,6 +99,9 @@ enum { TRB_DIR_OUT = 0, TRB_DIR_IN = 1 };
 #define TRB_TC_FIELD		control		/* TC - Toggle Cycle */
 #define TRB_TC_START		1
 #define TRB_TC_LEN		1
+#define TRB_ENT_FIELD		control		/* ENT - Evaluate Next TRB */
+#define TRB_ENT_START		1
+#define TRB_ENT_LEN		1
 #define TRB_ISP_FIELD		control		/* ISP - Interrupt-on Short Packet */
 #define TRB_ISP_START		2
 #define TRB_ISP_LEN		1
@@ -141,6 +148,8 @@ typedef volatile struct trb {
 	u32 control;
 } trb_t;
 
+#define TRB_MAX_TD_SIZE	0x1F			/* bits 21:17 of TD Size in TRB */
+
 #define EVENT_RING_SIZE 64
 typedef struct {
 	trb_t *ring;
@@ -150,6 +159,7 @@ typedef struct {
 	u8 adv;
 } event_ring_t;
 
+/* Never raise this above 256 to prevent transfer event length overflow! */
 #define TRANSFER_RING_SIZE 32
 typedef struct {
 	trb_t *ring;
@@ -163,9 +173,9 @@ typedef transfer_ring_t command_ring_t;
 #define SC_ROUTE_FIELD		f1		/* ROUTE - Route String */
 #define SC_ROUTE_START		0
 #define SC_ROUTE_LEN		20
-#define SC_SPEED_FIELD		f1
-#define SC_SPEED_START		20
-#define SC_SPEED_LEN		4
+#define SC_SPEED1_FIELD		f1		/* SPEED - Port speed plus one (compared to usb_speed enum) */
+#define SC_SPEED1_START		20
+#define SC_SPEED1_LEN		4
 #define SC_MTT_FIELD		f1		/* MTT - Multi Transaction Translator */
 #define SC_MTT_START		25
 #define SC_MTT_LEN		1
@@ -197,13 +207,13 @@ typedef transfer_ring_t command_ring_t;
 #define SC_STATE_START		27
 #define SC_STATE_LEN		8
 #define SC_MASK(tok)		MASK(SC_##tok##_START, SC_##tok##_LEN)
-#define SC_GET(tok, sc)		(((sc).SC_##tok##_FIELD & SC_MASK(tok)) \
+#define SC_GET(tok, sc)		(((sc)->SC_##tok##_FIELD & SC_MASK(tok)) \
 				 >> SC_##tok##_START)
-#define SC_SET(tok, sc, to)	(sc).SC_##tok##_FIELD = \
-				(((sc).SC_##tok##_FIELD & ~SC_MASK(tok)) | \
+#define SC_SET(tok, sc, to)	(sc)->SC_##tok##_FIELD = \
+				(((sc)->SC_##tok##_FIELD & ~SC_MASK(tok)) | \
 				 (((to) << SC_##tok##_START) & SC_MASK(tok)))
 #define SC_DUMP(tok, sc)	usb_debug(" "#tok"\t0x%04"PRIx32"\n", SC_GET(tok, sc))
-typedef struct slotctx {
+typedef volatile struct slotctx {
 	u32 f1;
 	u32 f2;
 	u32 f3;
@@ -238,16 +248,23 @@ typedef struct slotctx {
 #define EC_MXESIT_FIELD		f5		/* MXESIT - Max ESIT Payload */
 #define EC_MXESIT_START		16
 #define EC_MXESIT_LEN		16
+#define EC_BPKTS_FIELD		rsvd[0]		/* BPKTS - packets tx in scheduled uframe */
+#define EC_BPKTS_START		0
+#define EC_BPKTS_LEN		6
+#define EC_BBM_FIELD		rsvd[0]		/* BBM - burst mode for scheduling */
+#define EC_BBM_START		11
+#define EC_BBM_LEN		1
+
 #define EC_MASK(tok)		MASK(EC_##tok##_START, EC_##tok##_LEN)
-#define EC_GET(tok, ec)		(((ec).EC_##tok##_FIELD & EC_MASK(tok)) \
+#define EC_GET(tok, ec)		(((ec)->EC_##tok##_FIELD & EC_MASK(tok)) \
 				 >> EC_##tok##_START)
-#define EC_SET(tok, ec, to)	(ec).EC_##tok##_FIELD = \
-				(((ec).EC_##tok##_FIELD & ~EC_MASK(tok)) | \
+#define EC_SET(tok, ec, to)	(ec)->EC_##tok##_FIELD = \
+				(((ec)->EC_##tok##_FIELD & ~EC_MASK(tok)) | \
 				 (((to) << EC_##tok##_START) & EC_MASK(tok)))
 #define EC_DUMP(tok, ec)	usb_debug(" "#tok"\t0x%04"PRIx32"\n", EC_GET(tok, ec))
 enum { EP_ISOC_OUT = 1, EP_BULK_OUT = 2, EP_INTR_OUT = 3,
 	EP_CONTROL = 4, EP_ISOC_IN = 5, EP_BULK_IN = 6, EP_INTR_IN = 7 };
-typedef struct epctx {
+typedef volatile struct epctx {
 	u32 f1;
 	u32 f2;
 	u32 tr_dq_low;
@@ -256,23 +273,30 @@ typedef struct epctx {
 	u32 rsvd[3];
 } epctx_t;
 
+#define NUM_EPS 32
+#define CTXSIZE(xhci) ((xhci)->capreg->csz ? 64 : 32)
+
 typedef union devctx {
+	/* set of pointers, so we can dynamically adjust Slot/EP context size */
 	struct {
-		slotctx_t slot;
-		epctx_t ep0;
-		epctx_t eps1_30[30];
+		union {
+			slotctx_t *slot;
+			void *raw;	/* Pointer to the whole dev context. */
+		};
+		epctx_t *ep0;
+		epctx_t *eps1_30[NUM_EPS - 2];
 	};
-	epctx_t eps[32]; /* At index 0 it's actually the slotctx,
-			    we have it like that so we can use
-			    the ep_id directly as index. */
+	epctx_t *ep[NUM_EPS];	/* At index 0 it's actually the slotctx,
+					we have it like that so we can use
+					the ep_id directly as index. */
 } devctx_t;
 
 typedef struct inputctx {
-	struct {
-		u32 drop;
-		u32 add;
-		u32 reserved[6];
-	} control;
+	union {		    /* The drop flags are located at the start of the */
+		u32 *drop;  /* structure, so a pointer to them is equivalent */
+		void *raw;  /* to a pointer to the whole (raw) input context. */
+	};
+	u32 *add;
 	devctx_t dev;
 } inputctx_t;
 
@@ -285,14 +309,10 @@ typedef struct intrq {
 } intrq_t;
 
 typedef struct devinfo {
-	volatile devctx_t devctx;
-	transfer_ring_t *transfer_rings[32];
-	intrq_t *interrupt_queues[32];
+	devctx_t ctx;
+	transfer_ring_t *transfer_rings[NUM_EPS];
+	intrq_t *interrupt_queues[NUM_EPS];
 } devinfo_t;
-#define DEVINFO_FROM_XHCI(xhci, slot_id) \
-	(((xhci)->dcbaa[slot_id]) \
-	 ? phys_to_virt((xhci)->dcbaa[slot_id] - offsetof(devinfo_t, devctx)) \
-	 : NULL)
 
 typedef struct erst_entry {
 	u32 seg_base_lo;
@@ -328,9 +348,10 @@ typedef struct xhci {
 			struct {
 				unsigned long IST:4;
 				unsigned long ERST_Max:4;
-				unsigned long:18;
+				unsigned long:13;
+				unsigned long Max_Scratchpad_Bufs_Hi:5;
 				unsigned long SPR:1;
-				unsigned long Max_Scratchpad_Bufs:5;
+				unsigned long Max_Scratchpad_Bufs_Lo:5;
 			} __attribute__ ((packed));
 		} __attribute__ ((packed));
 		union {
@@ -389,7 +410,7 @@ typedef struct xhci {
 		u32 dcbaap_lo;
 		u32 dcbaap_hi;
 		u32 config;
-#define CONFIG_MASK_MaxSlotsEn 0xff
+#define CONFIG_LP_MASK_MaxSlotsEn 0xff
 		u8 res3[0x3ff-0x3c+1];
 		struct {
 			u32 portsc;
@@ -458,13 +479,17 @@ typedef struct xhci {
 	usbdev_t *roothub;
 
 	u8 max_slots_en;
+	devinfo_t *dev;	/* array of devinfos by slot_id */
+
+#define DMA_SIZE (64 * 1024)
+	void *dma_buffer;
 } xhci_t;
 
 #define XHCI_INST(controller) ((xhci_t*)((controller)->instance))
 
 void *xhci_align(const size_t min_align, const size_t size);
 void xhci_init_cycle_ring(transfer_ring_t *, const size_t ring_size);
-int xhci_set_address (hci_t *, int speed, int hubport, int hubaddr);
+usbdev_t *xhci_set_address (hci_t *, usb_speed speed, int hubport, int hubaddr);
 int xhci_finish_device_config(usbdev_t *);
 void xhci_destroy_dev(hci_t *, int slot_id);
 
@@ -490,7 +515,7 @@ int xhci_cmd_stop_endpoint(xhci_t *, int slot_id, int ep);
 int xhci_cmd_set_tr_dq(xhci_t *, int slot_id, int ep, trb_t *, int dcs);
 
 static inline int xhci_ep_id(const endpoint_t *const ep) {
-	return ((ep->endpoint & 0x7f) << 1) + (ep->direction == IN);
+	return ((ep->endpoint & 0x7f) * 2) + (ep->direction != OUT);
 }
 
 

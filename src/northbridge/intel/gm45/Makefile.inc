@@ -12,10 +12,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
+
+ifeq ($(CONFIG_NORTHBRIDGE_INTEL_GM45),y)
 
 romstage-y += early_init.c
 romstage-y += early_reset.c
@@ -29,11 +27,14 @@ romstage-y += thermal.c
 romstage-y += igd.c
 romstage-y += pm.c
 romstage-y += ram_calc.c
-romstage-$(CONFIG_IOMMU) += iommu.c
+romstage-y += iommu.c
 
-ramstage-$(CONFIG_GENERATE_ACPI_TABLES) += acpi.c
+ramstage-y += acpi.c
 
 ramstage-y += ram_calc.c
 ramstage-y += northbridge.c
+ramstage-y += gma.c
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += delay.c
+
+endif

@@ -12,21 +12,23 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_NEHALEM
 	bool
 	select CPU_INTEL_MODEL_2065X
 	select MMCONF_SUPPORT
 	select MMCONF_SUPPORT_DEFAULT
-	select DYNAMIC_CBMEM
 	select VGA
 	select INTEL_EDID
+	select TSC_MONOTONIC_TIMER
+	select INTEL_GMA_ACPI
+	select NORTHBRIDGE_INTEL_COMMON_MRC_CACHE
 
 if NORTHBRIDGE_INTEL_NEHALEM
+
+config CBFS_SIZE
+	hex
+	default 0x100000
 
 config VGA_BIOS_ID
 	string
@@ -47,16 +49,5 @@ config BOOTBLOCK_NORTHBRIDGE_INIT
 config TRAINING_CACHE_SIZE
 	hex
 	default 0x10000
-
-config CBFS_SIZE
-	hex "Size of CBFS filesystem in ROM"
-	default 0x100000
-	help
-	  On Nehalem systems the firmware image has to
-	  store a lot more than just coreboot, including:
-	   - a firmware descriptor
-	   - Intel Management Engine firmware
-	  This option allows to limit the size of the CBFS portion in the
-	  firmware image.
 
 endif

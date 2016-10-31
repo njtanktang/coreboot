@@ -6,9 +6,6 @@
  * Copyright 2008, Network Appliance Inc.
  * Jason McMullan <mcmullan@netapp.com>
  *
- * See file CREDITS for list of people who contributed to this
- * project.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -18,16 +15,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 
 #include <stdlib.h>
 #include <spi_flash.h>
+
 #include "spi_flash_internal.h"
 
 /* GD25Pxx-specific commands */
@@ -105,7 +98,15 @@ static const struct gigadevice_spi_flash_params gigadevice_spi_flash_table[] = {
 		.pages_per_sector	= 16,
 		.sectors_per_block	= 16,
 		.nr_blocks		= 128,
-		.name			= "GD25Q64(B)",
+		.name			= "GD25Q64B/GD25B64C",
+	},
+	{
+		.id			= 0x6017,
+		.l2_page_size		= 8,
+		.pages_per_sector	= 16,
+		.sectors_per_block	= 16,
+		.nr_blocks		= 128,
+		.name			= "GD25LQ64C/GD25LB64C",
 	},
 	{
 		.id			= 0x4018,
@@ -125,22 +126,17 @@ static int gigadevice_write(struct spi_flash *flash, u32 offset,
 	unsigned long page_size;
 	size_t chunk_len;
 	size_t actual;
-	int ret;
+	int ret = 0;
 	u8 cmd[4];
 
-	page_size = min(1 << stm->params->l2_page_size, CONTROLLER_PAGE_LIMIT);
+	page_size = 1 << stm->params->l2_page_size;
 	byte_addr = offset % page_size;
 
 	flash->spi->rw = SPI_WRITE_FLAG;
-	ret = spi_claim_bus(flash->spi);
-	if (ret) {
-		printk(BIOS_WARNING,
-		       "SF gigadevice.c: Unable to claim SPI bus\n");
-		return ret;
-	}
 
 	for (actual = 0; actual < len; actual += chunk_len) {
 		chunk_len = min(len - actual, page_size - byte_addr);
+		chunk_len = spi_crop_chunk(sizeof(cmd), chunk_len);
 
 		ret = spi_flash_cmd(flash->spi, CMD_GD25_WREN, NULL, 0);
 		if (ret < 0) {
@@ -160,7 +156,7 @@ static int gigadevice_write(struct spi_flash *flash, u32 offset,
 		       cmd[0], cmd[1], cmd[2], cmd[3], chunk_len);
 #endif
 
-		ret = spi_flash_cmd_write(flash->spi, cmd, 4,
+		ret = spi_flash_cmd_write(flash->spi, cmd, sizeof(cmd),
 					  buf + actual, chunk_len);
 		if (ret < 0) {
 			printk(BIOS_WARNING,
@@ -185,20 +181,15 @@ static int gigadevice_write(struct spi_flash *flash, u32 offset,
 	ret = 0;
 
 out:
-	spi_release_bus(flash->spi);
 	return ret;
 }
 
-static int gigadevice_erase(struct spi_flash *flash, u32 offset, size_t len)
-{
-	return spi_flash_cmd_erase(flash, CMD_GD25_SE, offset, len);
-}
+static struct gigadevice_spi_flash stm;
 
 struct spi_flash *spi_flash_probe_gigadevice(struct spi_slave *spi, u8 *idcode)
 {
 	const struct gigadevice_spi_flash_params *params;
 	unsigned page_size;
-	struct gigadevice_spi_flash *stm;
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(gigadevice_spi_flash_table); i++) {
@@ -214,32 +205,28 @@ struct spi_flash *spi_flash_probe_gigadevice(struct spi_slave *spi, u8 *idcode)
 		return NULL;
 	}
 
-	stm = malloc(sizeof(struct gigadevice_spi_flash));
-	if (!stm) {
-		printk(BIOS_WARNING,
-		       "SF gigadevice.c: Failed to allocate memory\n");
-		return NULL;
-	}
-
-	stm->params = params;
-	stm->flash.spi = spi;
-	stm->flash.name = params->name;
+	stm.params = params;
+	stm.flash.spi = spi;
+	stm.flash.name = params->name;
 
 	/* Assuming power-of-two page size initially. */
 	page_size = 1 << params->l2_page_size;
 
-	stm->flash.write = gigadevice_write;
-	stm->flash.erase = gigadevice_erase;
+	stm.flash.write = gigadevice_write;
+	stm.flash.erase = spi_flash_cmd_erase;
+	stm.flash.status = spi_flash_cmd_status;
 #if CONFIG_SPI_FLASH_NO_FAST_READ
-	stm->flash.read = spi_flash_cmd_read_slow;
+	stm.flash.read = spi_flash_cmd_read_slow;
 #else
-	stm->flash.read = spi_flash_cmd_read_fast;
+	stm.flash.read = spi_flash_cmd_read_fast;
 #endif
-	stm->flash.sector_size = (1 << stm->params->l2_page_size) *
-		stm->params->pages_per_sector;
-	stm->flash.size = page_size * params->pages_per_sector
+	stm.flash.sector_size = (1 << stm.params->l2_page_size) *
+		stm.params->pages_per_sector;
+	stm.flash.size = page_size * params->pages_per_sector
 				* params->sectors_per_block
 				* params->nr_blocks;
+	stm.flash.erase_cmd = CMD_GD25_SE;
+	stm.flash.status_cmd = CMD_GD25_RDSR;
 
-	return &stm->flash;
+	return &stm.flash;
 }

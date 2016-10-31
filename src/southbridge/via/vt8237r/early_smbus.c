@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #if !defined(__ROMCC__)
@@ -42,17 +38,17 @@ static void smbus_print_error(u8 host_status, int loops)
 		return;
 
 	if (loops >= SMBUS_TIMEOUT)
-		print_err("SMBus timeout\n");
+		printk(BIOS_ERR, "SMBus timeout\n");
 	if (host_status & (1 << 4))
-		print_err("Interrupt/SMI# was Failed Bus Transaction\n");
+		printk(BIOS_ERR, "Interrupt/SMI# was Failed Bus Transaction\n");
 	if (host_status & (1 << 3))
-		print_err("Bus error\n");
+		printk(BIOS_ERR, "Bus error\n");
 	if (host_status & (1 << 2))
-		print_err("Device error\n");
+		printk(BIOS_ERR, "Device error\n");
 	if (host_status & (1 << 1))
-		print_debug("Interrupt/SMI# completed successfully\n");
+		printk(BIOS_DEBUG, "Interrupt/SMI# completed successfully\n");
 	if (host_status & (1 << 0))
-		print_err("Host busy\n");
+		printk(BIOS_ERR, "Host busy\n");
 }
 
 /**
@@ -148,9 +144,9 @@ void smbus_write_byte(u8 dimm, u8 offset, u8 data)
 
 #define PSONREADY_TIMEOUT 0x7fffffff
 
-static device_t get_vt8237_lpc(void)
+static pci_devfn_t get_vt8237_lpc(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Power management controller */
 	dev = pci_locate_device(PCI_ID(PCI_VENDOR_ID_VIA,
@@ -173,7 +169,7 @@ static device_t get_vt8237_lpc(void)
  */
 void enable_smbus(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	int loops;
 
 	/* Power management controller */
@@ -229,7 +225,7 @@ void smbus_fixup(const struct mem_controller *ctrl)
 
 	ram_slots = ARRAY_SIZE(ctrl->channel0);
 	if (!ram_slots) {
-		print_err("smbus_fixup() thinks there are no RAM slots!\n");
+		printk(BIOS_ERR, "smbus_fixup() thinks there are no RAM slots!\n");
 		return;
 	}
 
@@ -253,7 +249,7 @@ void smbus_fixup(const struct mem_controller *ctrl)
 	}
 
 	if (i >= SMBUS_TIMEOUT)
-		print_err("SMBus timed out while warming up\n");
+		printk(BIOS_ERR, "SMBus timed out while warming up\n");
 	else
 		PRINT_DEBUG("Done\n");
 }
@@ -262,7 +258,7 @@ void smbus_fixup(const struct mem_controller *ctrl)
 
 void vt8237_sb_enable_fid_vid(void)
 {
-	device_t dev, devctl;
+	pci_devfn_t dev, devctl;
 	u16 devid;
 
 	/* Power management controller */
@@ -282,7 +278,7 @@ void vt8237_sb_enable_fid_vid(void)
 
 	/* chipset-specific parts */
 
-	/* VLINK: FIXME: can we drop the devid check and just look for the VLINK device? */
+	/* VLINK: FIXME: can we drop the device check and just look for the VLINK device? */
 	if (devid == PCI_DEVICE_ID_VIA_VT8237S_LPC ||
 	    devid == PCI_DEVICE_ID_VIA_VT8237A_LPC) {
 		devctl = pci_locate_device(PCI_ID(PCI_VENDOR_ID_VIA,
@@ -319,7 +315,7 @@ void vt8237_sb_enable_fid_vid(void)
 
 void enable_rom_decode(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Power management controller */
 	dev = get_vt8237_lpc();
@@ -330,13 +326,12 @@ void enable_rom_decode(void)
 	pci_write_config8(dev, 0x41, 0x7f);
 }
 
-#if CONFIG_HAVE_ACPI_RESUME
-int acpi_is_wakeup_early(void)
+int acpi_get_sleep_type(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u16 tmp;
 
-	print_debug("IN TEST WAKEUP\n");
+	printk(BIOS_DEBUG, "IN TEST WAKEUP\n");
 
 	/* Power management controller */
 	dev = get_vt8237_lpc();
@@ -351,15 +346,14 @@ int acpi_is_wakeup_early(void)
 
 	tmp = inw(VT8237R_ACPI_IO_BASE + 0x04);
 
-	print_debug_hex8(tmp);
-	return ((tmp & (7 << 10)) >> 10) == 1 ? 3 : 0 ;
+	printk(BIOS_DEBUG, "%02x", tmp);
+	return ((tmp & (7 << 10)) >> 10) == 1 ? 3 : 0;
 }
-#endif
 
 #if defined(__GNUC__)
 void vt8237_early_spi_init(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	volatile u16 *spireg;
 	u32 tmp;
 
@@ -416,7 +410,7 @@ int vt8237_early_network_init(struct vt8237_network_rom *rom)
 {
 	struct vt8237_network_rom n;
 	int i, loops;
-	device_t dev;
+	pci_devfn_t dev;
 	u32 tmp;
 	u8 status;
 	u16 *rom_write;
@@ -426,7 +420,7 @@ int vt8237_early_network_init(struct vt8237_network_rom *rom)
 	dev = pci_locate_device(PCI_ID(PCI_VENDOR_ID_VIA,
 				       PCI_DEVICE_ID_VIA_8233_7), 0);
 	if (dev == PCI_DEV_INVALID) {
-		print_err("Network is disabled, please enable\n");
+		printk(BIOS_ERR, "Network is disabled, please enable\n");
 		return 0;
 	}
 
@@ -441,7 +435,7 @@ int vt8237_early_network_init(struct vt8237_network_rom *rom)
 		return 0;
 
 	if (rom == NULL) {
-		print_err("No config data specified, using default MAC!\n");
+		printk(BIOS_ERR, "No config data specified, using default MAC!\n");
 		n.mac_address[0] = 0x0;
 		n.mac_address[1] = 0x0;
 		n.mac_address[2] = 0xde;
@@ -503,7 +497,7 @@ int vt8237_early_network_init(struct vt8237_network_rom *rom)
 	}
 
 	if (loops >= LAN_TIMEOUT) {
-		print_err("Timeout - LAN controller didn't accept config\n");
+		printk(BIOS_ERR, "Timeout - LAN controller didn't accept config\n");
 		return 0;
 	}
 

@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -30,7 +26,8 @@
  * Datasheet (alternative):
  *   - Name: SERIAL PRESENCE DETECT STANDARD, General Standard
  *           JEDEC Standard No. 21-C
- *   - PDF: http://www.jedec.org/download/search/4_01_02_00R9.PDF
+ *     Annex J: Serial Presence Detects for DDR2 SDRAM (Revision 1.3):
+ *   - PDF: http://www.jedec.org/download/search/4_01_02_10R17.pdf
  */
 
 #ifndef _SPD_H_
@@ -121,6 +118,10 @@ enum spd_memory_type {
 	SPD_MEMORY_TYPE_FBDIMM_DDR2		= 0x09,
 	SPD_MEMORY_TYPE_FB_PROBE_DDR2		= 0x0a,
 	SPD_MEMORY_TYPE_SDRAM_DDR3		= 0x0b,
+	SPD_MEMORY_TYPE_DDR4_SDRAM		= 0x0c,
+	SPD_MEMORY_TYPE_DDR4E_SDRAM		= 0x0e,
+	SPD_MEMORY_TYPE_LPDDR3_SDRAM		= 0x0f,
+	SPD_MEMORY_TYPE_LPDDR4_SDRAM		= 0x10,
 };
 
 /* SPD_MODULE_VOLTAGE values. */
@@ -129,6 +130,7 @@ enum spd_memory_type {
 #define SPD_VOLTAGE_HSTL                 2 /* HSTL 1.5 */
 #define SPD_VOLTAGE_SSTL3                3 /* SSTL 3.3 */
 #define SPD_VOLTAGE_SSTL2                4 /* SSTL 2.5 */
+#define SPD_VOLTAGE_SSTL1                5 /* SSTL 1.8 */
 
 /* SPD_DIMM_CONFIG_TYPE values. */
 #define ERROR_SCHEME_NONE                0
@@ -145,10 +147,12 @@ enum spd_memory_type {
 #define SPD_CAS_LATENCY_3_5              0x20
 #define SPD_CAS_LATENCY_4_0              0x40
 
+#define SPD_CAS_LATENCY_DDR2_2		(1 << 2)
 #define SPD_CAS_LATENCY_DDR2_3		(1 << 3)
 #define SPD_CAS_LATENCY_DDR2_4		(1 << 4)
 #define SPD_CAS_LATENCY_DDR2_5		(1 << 5)
 #define SPD_CAS_LATENCY_DDR2_6		(1 << 6)
+#define SPD_CAS_LATENCY_DDR2_7		(1 << 7)
 
 /* SPD_SUPPORTED_BURST_LENGTHS values. */
 #define SPD_BURST_LENGTH_1               1
@@ -236,5 +240,16 @@ enum spd_memory_type {
 #define RC61 61
 #define RC62 62
 #define RC63 63
+
+/* Byte 20: DIMM type information */
+#define SPD_UNDEFINED 0x00
+#define SPD_RDIMM 0x01
+#define SPD_UDIMM 0x02
+#define SPD_SODIMM 0x04
+#define SPD_72B_SO_CDIMM 0x06
+#define SPD_72B_SO_RDIMM 0x07
+#define SPD_MICRO_DIMM 0x08
+#define SPD_MINI_RDIMM 0x10
+#define SPD_MINI_UDIMM 0x20
 
 #endif

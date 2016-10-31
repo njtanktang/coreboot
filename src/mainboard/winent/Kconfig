@@ -12,25 +12,16 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 if VENDOR_WINENT
 
 choice
 	prompt "Mainboard model"
 
-config BOARD_WINENT_MB6047
-	bool "MB6047"
-
-config BOARD_WINENT_PL6064
-	bool "PL6064"
+source "src/mainboard/winent/*/Kconfig.name"
 
 endchoice
 
-source "src/mainboard/winent/mb6047/Kconfig"
-source "src/mainboard/winent/pl6064/Kconfig"
+source "src/mainboard/winent/*/Kconfig"
 
 config MAINBOARD_VENDOR
 	string

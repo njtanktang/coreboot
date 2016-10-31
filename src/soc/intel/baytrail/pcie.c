@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,9 +20,10 @@
 #include <device/pci_ids.h>
 #include <reg_script.h>
 
-#include <baytrail/pci_devs.h>
-#include <baytrail/pcie.h>
-#include <baytrail/ramstage.h>
+#include <soc/pci_devs.h>
+#include <soc/pcie.h>
+#include <soc/ramstage.h>
+#include <soc/smm.h>
 
 #include "chip.h"
 
@@ -79,7 +76,7 @@ static const struct reg_script init_static_after_exit_latency[] = {
 	REG_PCI_RMW16(DSTS2, ~CTD, 0x6),
 	/* Enable AER */
 	REG_PCI_OR16(DCTL_DSTS, URE | FEE | NFE | CEE),
-	/* Read and write back capabaility registers. */
+	/* Read and write back capability registers. */
 	REG_PCI_OR32(0x34, 0),
 	REG_PCI_OR32(0x80, 0),
 	/* Retrain the link. */
@@ -94,7 +91,7 @@ static void byt_pcie_init(device_t dev)
 		/* Exit latency configuration based on
 		 * PHYCTL2_IOSFBCTL[PLL_OFF_EN] set in root port 1*/
 		REG_PCI_RMW32(LCAP, ~L1EXIT_MASK,
-			2 << (L1EXIT_MASK + pll_en_off)),
+			2 << (L1EXIT_SHIFT + pll_en_off)),
 		REG_SCRIPT_NEXT(init_static_after_exit_latency),
 		/* Disable hot plug, set power to 10W, set slot number. */
 		REG_PCI_RMW32(SLCAP, ~(HPC | HPS),
@@ -154,6 +151,35 @@ static void check_port_enabled(device_t dev)
 	}
 }
 
+static u8 all_ports_no_dev_present(device_t dev)
+{
+	u8 func;
+	u8 temp = dev->path.pci.devfn;
+	u8 device_not_present = 1;
+	u8 data;
+
+	for (func = 1; func < PCIE_ROOT_PORT_COUNT; func++) {
+		dev->path.pci.devfn &= ~0x7;
+		dev->path.pci.devfn |= func;
+
+		/* is pcie device there */
+		if (pci_read_config32(dev, 0) == 0xFFFFFFFF)
+			continue;
+
+		data = pci_read_config8(dev, XCAP + 3) | (SI >> 24);
+		pci_write_config8(dev, XCAP + 3, data);
+
+		/* is any device present */
+		if ((pci_read_config32(dev, SLCTL_SLSTS) & PDS)) {
+			device_not_present = 0;
+			break;
+		}
+	}
+
+	dev->path.pci.devfn = temp;
+	return device_not_present;
+}
+
 static void check_device_present(device_t dev)
 {
 	/* Set slot implemented. */
@@ -162,9 +188,16 @@ static void check_device_present(device_t dev)
 	/* No device present. */
 	if (!(pci_read_config32(dev, SLCTL_SLSTS) & PDS)) {
 		printk(BIOS_DEBUG, "No PCIe device present.\n");
-		reg_script_run_on_dev(dev, no_dev_behind_port);
-		dev->enabled = 0;
-	} else if(!dev->enabled) {
+		if (is_first_port(dev)) {
+			if (all_ports_no_dev_present(dev)) {
+				reg_script_run_on_dev(dev, no_dev_behind_port);
+				dev->enabled = 0;
+			}
+		} else {
+			reg_script_run_on_dev(dev, no_dev_behind_port);
+			dev->enabled = 0;
+		}
+	} else if (!dev->enabled) {
 		/* Port is disabled, but device present. Disable link. */
 		pci_write_config32(dev, LCTL,
 			pci_read_config32(dev, LCTL) | LD);
@@ -174,10 +207,15 @@ static void check_device_present(device_t dev)
 static void byt_pcie_enable(device_t dev)
 {
 	if (is_first_port(dev)) {
+		struct soc_intel_baytrail_config *config = dev->chip_info;
 		uint32_t reg = pci_read_config32(dev, PHYCTL2_IOSFBCTL);
 		pll_en_off = !!(reg & PLL_OFF_EN);
 
 		strpfusecfg = pci_read_config32(dev, STRPFUSECFG);
+
+		if (config && config->pcie_wake_enable)
+			southcluster_smm_save_param(
+				SMM_SAVE_PARAM_PCIE_WAKE_ENABLE, 1);
 	}
 
 	/* Check if device is enabled in strapping. */
@@ -186,6 +224,19 @@ static void byt_pcie_enable(device_t dev)
 	check_device_present(dev);
 
 	southcluster_enable_dev(dev);
+}
+
+static void byt_pciexp_scan_bridge(device_t dev)
+{
+	static const struct reg_script wait_for_link_active[] = {
+		REG_PCI_POLL32(LCTL, (1 << 29) , (1 << 29), 50000),
+		REG_SCRIPT_END,
+	};
+
+	/* wait for Link Active with 50ms timeout */
+	reg_script_run_on_dev(dev, wait_for_link_active);
+
+	do_pci_scan_bridge(dev, pciexp_scan_bus);
 }
 
 static void pcie_root_set_subsystem(device_t dev, unsigned vid, unsigned did)
@@ -206,7 +257,7 @@ static struct device_operations device_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_bus_enable_resources,
 	.init			= byt_pcie_init,
-	.scan_bus		= pciexp_scan_bridge,
+	.scan_bus		= byt_pciexp_scan_bridge,
 	.enable			= byt_pcie_enable,
 	.ops_pci		= &pcie_root_ops,
 };

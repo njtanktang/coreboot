@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* RAM driver for the SMSC SIO1036 Super I/O chip */
@@ -24,20 +20,16 @@
 #include <device/pnp.h>
 #include <superio/conf_mode.h>
 #include <console/console.h>
-#include <device/smbus.h>
-#include <string.h>
-#include <pc80/keyboard.h>
 #include <stdlib.h>
+
 #include "sio1036.h"
 
-/* Forward declarations */
-static void enable_dev(device_t dev);
-static void sio1036_init(device_t dev);
-
-struct chip_operations superio_smsc_sio1036_ops = {
-	CHIP_NAME("SMSC SIO1036 Super I/O")
-		.enable_dev = enable_dev
-};
+static void sio1036_init(struct device *dev)
+{
+	if (!dev->enabled) {
+		return;
+	}
+}
 
 static struct device_operations ops = {
 	.read_resources   = pnp_read_resources,
@@ -49,28 +41,15 @@ static struct device_operations ops = {
 };
 
 static struct pnp_info pnp_dev_info[] = {
-	{},
+	{ &ops, SIO1036_SP1,  PNP_IO0 | PNP_IRQ0, {0x07f8, 0}, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
-	pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
+	pnp_enable_devices(dev, &ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }
 
-static void sio1036_init(device_t dev)
-{
-	struct resource *res0, *res1;
-
-
-
-	if (!dev->enabled) {
-		return;
-	}
-
-	switch(dev->path.pnp.device) {
-
-		default:
-			break;
-	}
-}
-
+struct chip_operations superio_smsc_sio1036_ops = {
+	CHIP_NAME("SMSC SIO1036 Super I/O")
+	.enable_dev = enable_dev
+};

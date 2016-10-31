@@ -12,12 +12,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
+
+#define DISPLAY_DEVICE_2_IS_LCD_SCREEN 1
 
 DefinitionBlock(
 	"dsdt.aml",
@@ -33,12 +30,15 @@ DefinitionBlock(
 
 	// global NVS and variables
 	#include <southbridge/intel/i82801ix/acpi/globalnvs.asl>
+	#include <southbridge/intel/common/acpi/platform.asl>
 
 	// General Purpose Events
 	#include "acpi/gpe.asl"
 
 	// mainboard specific devices
 	#include "acpi/mainboard.asl"
+
+	#include <cpu/intel/common/acpi/cpu.asl>
 
 	// Thermal Zone
 	#include "acpi/thermal.asl"
@@ -48,6 +48,8 @@ DefinitionBlock(
 		{
 			#include <northbridge/intel/gm45/acpi/gm45.asl>
 			#include <southbridge/intel/i82801ix/acpi/ich9.asl>
+
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
 

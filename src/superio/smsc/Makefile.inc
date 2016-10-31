@@ -13,17 +13,14 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
-subdirs-y += fdc37m60x
+subdirs-y += dme1737
 subdirs-y += fdc37n972
 subdirs-y += lpc47b272
 subdirs-y += lpc47b397
 subdirs-y += lpc47m10x
 subdirs-y += lpc47m15x
+subdirs-y += lpc47n207
 subdirs-y += lpc47n217
 subdirs-y += lpc47n227
 subdirs-y += sio10n268

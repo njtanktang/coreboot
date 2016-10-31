@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -38,8 +34,6 @@
 
 #define HOSTCTRL		PCI_DEV(0, 0, 2)
 #define MEMCTRL			PCI_DEV(0, 0, 3)
-
-#define OHM_150 1
 
 #ifdef	MEM_WIDTH_32BIT_MODE
 #define SDRAM1X_RA_14		30
@@ -85,10 +79,10 @@
 	do{											\
 		val = 0;									\
 		tmp = 0;									\
-		for(i = 0; i < 2; i++)	{							\
-			if(pci_read_config8(PCI_DEV(0, 0, 4), (SCRATCH_REG_BASE + (i << 1)))) {	\
+		for (i = 0; i < 2; i++)	{							\
+			if (pci_read_config8(PCI_DEV(0, 0, 4), (SCRATCH_REG_BASE + (i << 1)))) {	\
 				tmp = get_spd_data(ctrl, i, reg);				\
-				if(tmp > val)							\
+				if (tmp > val)							\
 					val = tmp;						\
 			}									\
 		}										\
@@ -96,7 +90,7 @@
 
 #define REGISTERPRESET(bus,dev,fun,bdfspec) \
 	{ u8 j, reg; \
-		for (j=0; j<(sizeof((bdfspec))/sizeof(struct regmask)); j++) { \
+		for (j = 0; j < (sizeof((bdfspec))/sizeof(struct regmask)); j++) { \
 			printk(BIOS_DEBUG, "Writing bus " #bus " dev " #dev " fun " #fun " register "); \
 			printk(BIOS_DEBUG, "%02x", (bdfspec)[j].reg); \
 			printk(BIOS_DEBUG, "\n"); \
@@ -309,8 +303,8 @@ static const u8 Init_Rank_Reg_Table[] = {
 
 static const u16 DDR2_MRS_table[] = {
 /* CL:	2,     3,     4,     5 */
-	0x150, 0x1d0, 0x250, 0x2d0,	/* BL=4 ;Use 1X-bandwidth MA table to init DRAM */
-	0x158, 0x1d8, 0x258, 0x2d8,	/* BL=8 ;Use 1X-bandwidth MA table to init DRAM */
+	0x150, 0x1d0, 0x250, 0x2d0,	/* BL = 4; Use 1X-bandwidth MA table to init DRAM */
+	0x158, 0x1d8, 0x258, 0x2d8,	/* BL = 8; Use 1X-bandwidth MA table to init DRAM */
 };
 
 #define	MRS_DDR2_TWR2	((0 << 15) | (0 << 20) | (1 << 12))
@@ -821,7 +815,6 @@ static void sdram_set_safe_values(const struct mem_controller *ctrl)
 
 	/* Clock Phase Control for FeedBack Mode */
 	regs = pci_read_config8(MEMCTRL, 0x90);
-//      regs |= 0x80;
 	pci_write_config8(MEMCTRL, 0x90, regs);
 
 	regs = pci_read_config8(PCI_DEV(0, 0, 4), SCRATCH_DRAM_FREQ);
@@ -967,12 +960,12 @@ static void step_20_21(const struct mem_controller *ctrl)
 
 	val = pci_read_config8(PCI_DEV(0, 0, 4), SCRATCH_DRAM_NB_ODT);
 	if (val & DDR2_ODT_150ohm)
-		read32(0x102200);
+		read32((void *)0x102200);
 	else
-		read32(0x102020);
+		read32((void *)0x102020);
 
 	/* Step 21. Normal operation */
-	print_spew("RAM Enable 5: Normal operation\n");
+	printk(BIOS_SPEW, "RAM Enable 5: Normal operation\n");
 	do_ram_command(ctrl, RAM_COMMAND_NORMAL);
 	udelay(3);
 }
@@ -988,75 +981,75 @@ static void step_2_19(const struct mem_controller *ctrl)
 	pci_write_config8(MEMCTRL, 0x69, val);
 
 	/* Step 3 Apply NOP. */
-	print_spew("RAM Enable 1: Apply NOP\n");
+	printk(BIOS_SPEW, "RAM Enable 1: Apply NOP\n");
 	do_ram_command(ctrl, RAM_COMMAND_NOP);
 
 	udelay(15);
 
 	// Step 4
-	print_spew("SEND: ");
-	read32(0);
-	print_spew("OK\n");
+	printk(BIOS_SPEW, "SEND: ");
+	read32(zeroptr);
+	printk(BIOS_SPEW, "OK\n");
 
 	// Step 5
 	udelay(400);
 
 	/* 6. Precharge all. Wait tRP. */
-	print_spew("RAM Enable 2: Precharge all\n");
+	printk(BIOS_SPEW, "RAM Enable 2: Precharge all\n");
 	do_ram_command(ctrl, RAM_COMMAND_PRECHARGE);
 
 	// Step 7
-	print_spew("SEND: ");
-	read32(0);
-	print_spew("OK\n");
+	printk(BIOS_SPEW, "SEND: ");
+	read32(zeroptr);
+	printk(BIOS_SPEW, "OK\n");
 
 	/* Step 8. Mode register set. */
-	print_spew("RAM Enable 4: Mode register set\n");
+	printk(BIOS_SPEW, "RAM Enable 4: Mode register set\n");
 	do_ram_command(ctrl, RAM_COMMAND_MRS);	//enable dll
 
 	// Step 9
-	print_spew("SEND: ");
+	printk(BIOS_SPEW, "SEND: ");
 
 	val = pci_read_config8(PCI_DEV(0, 0, 4), SCRATCH_DRAM_NB_ODT);
 	if (val & DDR2_ODT_150ohm)
-		read32(0x102200);	//DDR2_ODT_150ohm
+		read32((void *)0x102200);	//DDR2_ODT_150ohm
 	else
-		read32(0x102020);
-	print_spew("OK\n");
+		read32((void *)0x102020);
+	printk(BIOS_SPEW, "OK\n");
 
 	// Step 10
-	print_spew("SEND: ");
-	read32(0x800);
-	print_spew("OK\n");
+	printk(BIOS_SPEW, "SEND: ");
+	read32((void *)0x800);
+	printk(BIOS_SPEW, "OK\n");
 
 	/* Step 11. Precharge all. Wait tRP. */
-	print_spew("RAM Enable 2: Precharge all\n");
+	printk(BIOS_SPEW, "RAM Enable 2: Precharge all\n");
 	do_ram_command(ctrl, RAM_COMMAND_PRECHARGE);
 
 	// Step 12
-	print_spew("SEND: ");
-	read32(0x0);
-	print_spew("OK\n");
+	printk(BIOS_SPEW, "SEND: ");
+	read32(zeroptr);
+	printk(BIOS_SPEW, "OK\n");
 
 	/* Step 13. Perform 8 refresh cycles. Wait tRC each time. */
-	print_spew("RAM Enable 3: CBR\n");
+	printk(BIOS_SPEW, "RAM Enable 3: CBR\n");
 	do_ram_command(ctrl, RAM_COMMAND_CBR);
 
 	/* JEDEC says only twice, do 8 times for posterity */
 	// Step 16: Repeat Step 14 and 15 another 7 times
 	for (i = 0; i < 8; i++) {
 		// Step 14
-		read32(0);
-		print_spew(".");
+		read32(zeroptr);
+		printk(BIOS_SPEW, ".");
 
 		// Step 15
 		udelay(100);
 	}
 
 	/* Step 17. Mode register set. Wait 200us. */
-	print_spew("\nRAM Enable 4: Mode register set\n");
+	printk(BIOS_SPEW, "\nRAM Enable 4: Mode register set\n");
 
-	//safe value for now, BL=8, WR=4, CAS=4
+	//safe value for now, BL = 8, WR = 4, CAS = 4
 	do_ram_command(ctrl, RAM_COMMAND_MRS);
 	udelay(200);
 
@@ -1076,7 +1069,7 @@ static void step_2_19(const struct mem_controller *ctrl)
 	val = pci_read_config8(MEMCTRL, 0x61);
 	val = val >> 6;
 	i |= DDR2_Twr_table[val];
-	read32(i);
+	read32((void *)i);
 
 	printk(BIOS_DEBUG, "MRS = %08x\n", i);
 
@@ -1085,9 +1078,9 @@ static void step_2_19(const struct mem_controller *ctrl)
 	// Step 19
 	val = pci_read_config8(PCI_DEV(0, 0, 4), SCRATCH_DRAM_NB_ODT);
 	if (val & DDR2_ODT_150ohm)
-		read32(0x103e00);	//EMRS OCD Default
+		read32((void *)0x103e00);	//EMRS OCD Default
 	else
-		read32(0x103c20);
+		read32((void *)0x103c20);
 }
 
 static void sdram_set_vr(const struct mem_controller *ctrl, u8 num)
@@ -1133,45 +1126,45 @@ static void sdram_calc_size(const struct mem_controller *ctrl, u8 num)
 	u8 ca, ra, ba, reg;
 	ba = pci_read_config8(PCI_DEV(0, 0, 4), SCRATCH_FLAGS);
 	if (ba == 8) {
-		write8(0, 0x0d);
-		ra = read8(0);
-		write8((1 << SDRAM1X_RA_12_8bk), 0x0c);
-		ra = read8(0);
+		write8(zeroptr, 0x0d);
+		ra = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_RA_12_8bk), 0x0c);
+		ra = read8(zeroptr);
 
-		write8(0, 0x0a);
-		ca = read8(0);
-		write8((1 << SDRAM1X_CA_09_8bk), 0x0c);
-		ca = read8(0);
+		write8(zeroptr, 0x0a);
+		ca = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_CA_09_8bk), 0x0c);
+		ca = read8(zeroptr);
 
-		write8(0, 0x03);
-		ba = read8(0);
-		write8((1 << SDRAM1X_BA2_8bk), 0x02);
-		ba = read8(0);
-		write8((1 << SDRAM1X_BA1_8bk), 0x01);
-		ba = read8(0);
+		write8(zeroptr, 0x03);
+		ba = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_BA2_8bk), 0x02);
+		ba = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_BA1_8bk), 0x01);
+		ba = read8(zeroptr);
 	} else {
-		write8(0, 0x0f);
-		ra = read8(0);
-		write8((1 << SDRAM1X_RA_14), 0x0e);
-		ra = read8(0);
-		write8((1 << SDRAM1X_RA_13), 0x0d);
-		ra = read8(0);
-		write8((1 << SDRAM1X_RA_12), 0x0c);
-		ra = read8(0);
+		write8(zeroptr, 0x0f);
+		ra = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_RA_14), 0x0e);
+		ra = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_RA_13), 0x0d);
+		ra = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_RA_12), 0x0c);
+		ra = read8(zeroptr);
 
-		write8(0, 0x0c);
-		ca = read8(0);
-		write8((1 << SDRAM1X_CA_12), 0x0b);
-		ca = read8(0);
-		write8((1 << SDRAM1X_CA_11), 0x0a);
-		ca = read8(0);
-		write8((1 << SDRAM1X_CA_09), 0x09);
-		ca = read8(0);
+		write8(zeroptr, 0x0c);
+		ca = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_CA_12), 0x0b);
+		ca = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_CA_11), 0x0a);
+		ca = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_CA_09), 0x09);
+		ca = read8(zeroptr);
 
-		write8(0, 0x02);
-		ba = read8(0);
-		write8((1 << SDRAM1X_BA1), 0x01);
-		ba = read8(0);
+		write8(zeroptr, 0x02);
+		ba = read8(zeroptr);
+		write8((void *)(1 << SDRAM1X_BA1), 0x01);
+		ba = read8(zeroptr);
 	}
 
 	if (ra < 10 || ra > 15)
@@ -1256,14 +1249,14 @@ static void sdram_enable(const struct mem_controller *ctrl)
 		}
 	}
 
-#ifdef MEM_WIDTH_32BIT_MODE
-	/****************************************************************/
-	/*                      Set Dram 32bit Mode                     */
-	/****************************************************************/
-	reg8 = pci_read_config8(MEMCTRL, 0x6c);
-	reg8 |= 0x20;
-	pci_write_config(MEMCTRL, 0x6c, reg8);
-#endif
+	if (IS_ENABLED(MEM_WIDTH_32BIT_MODE)) {
+		/********************************************************/
+		/*                  Set Dram 32bit Mode                 */
+		/********************************************************/
+		reg8 = pci_read_config8(MEMCTRL, 0x6c);
+		reg8 |= 0x20;
+		pci_write_config8(MEMCTRL, 0x6c, reg8);
+	}
 
 	/****************************************************************/
 	/* Find the DQSI Low/High bound and save it to Scratch register */
@@ -1277,19 +1270,19 @@ static void sdram_enable(const struct mem_controller *ctrl)
 			if (reg8) {
 				sdram_set_vr(ctrl, i);
 				sdram_ending_addr(ctrl, i);
-				write32(0, 0x55555555);
-				write32(4, 0x55555555);
+				write32(zeroptr, 0x55555555);
+				write32((void *)4, 0x55555555);
 				udelay(15);
-				if (read32(0) != 0x55555555)
+				if (read32(zeroptr) != 0x55555555)
 					break;
-				if (read32(4) != 0x55555555)
+				if (read32((void *)4) != 0x55555555)
 					break;
-				write32(0, 0xaaaaaaaa);
-				write32(4, 0xaaaaaaaa);
+				write32(zeroptr, 0xaaaaaaaa);
+				write32((void *)4, 0xaaaaaaaa);
 				udelay(15);
-				if (read32(0) != 0xaaaaaaaa)
+				if (read32(zeroptr) != 0xaaaaaaaa)
 					break;
-				if (read32(4) != 0xaaaaaaaa)
+				if (read32((void *)4) != 0xaaaaaaaa)
 					break;
 				sdram_clear_vr_addr(ctrl, i);
 			}
@@ -1310,19 +1303,19 @@ static void sdram_enable(const struct mem_controller *ctrl)
 				sdram_set_vr(ctrl, i);
 				sdram_ending_addr(ctrl, i);
 
-				write32(0, 0x55555555);
-				write32(4, 0x55555555);
+				write32(zeroptr, 0x55555555);
+				write32((void *)4, 0x55555555);
 				udelay(15);
-				if (read32(0) != 0x55555555)
+				if (read32(zeroptr) != 0x55555555)
 					break;
-				if (read32(4) != 0x55555555)
+				if (read32((void *)4) != 0x55555555)
 					break;
-				write32(0, 0xaaaaaaaa);
-				write32(4, 0xaaaaaaaa);
+				write32(zeroptr, 0xaaaaaaaa);
+				write32((void *)4, 0xaaaaaaaa);
 				udelay(15);
-				if (read32(0) != 0xaaaaaaaa)
+				if (read32(zeroptr) != 0xaaaaaaaa)
 					break;
-				if (read32(4) != 0xaaaaaaaa)
+				if (read32((void *)4) != 0xaaaaaaaa)
 					break;
 				sdram_clear_vr_addr(ctrl, i);
 			}
@@ -1349,13 +1342,6 @@ static void sdram_enable(const struct mem_controller *ctrl)
 	/****************************************************************/
 	/*     Find out the lowest Bank Interleave and Set Register     */
 	/****************************************************************/
-#if 0
-	//TODO
-	reg8 = pci_read_config8(MEMCTRL, 0x69);
-	reg8 &= ~0xc0;
-	reg8 |= 0x80;		//8 banks
-	pci_write_config8(MEMCTRL, 0x69, reg8);
-#endif
 	dl = 2;
 	for (i = 0; i < 4; i++) {
 		reg8 = pci_read_config8(PCI_DEV(0, 0, 4), (SCRATCH_RANK_0 + i));
@@ -1364,17 +1350,17 @@ static void sdram_enable(const struct mem_controller *ctrl)
 			sdram_set_vr(ctrl, i);
 			sdram_ending_addr(ctrl, i);
 			if (reg8 == 4) {
-				write8(0, 0x02);
-				val = read8(0);
-				write8((1 << SDRAM1X_BA1), 0x01);
-				val = read8(0);
+				write8(zeroptr, 0x02);
+				val = read8(zeroptr);
+				write8((void *)(1 << SDRAM1X_BA1), 0x01);
+				val = read8(zeroptr);
 			} else {
-				write8(0, 0x03);
-				val = read8(0);
-				write8((1 << SDRAM1X_BA2_8bk), 0x02);
-				val = read8(0);
-				write8((1 << SDRAM1X_BA1_8bk), 0x01);
-				val = read8(0);
+				write8(zeroptr, 0x03);
+				val = read8(zeroptr);
+				write8((void *)(1 << SDRAM1X_BA2_8bk), 0x02);
+				val = read8(zeroptr);
+				write8((void *)(1 << SDRAM1X_BA1_8bk), 0x01);
+				val = read8(zeroptr);
 			}
 			if (val < dl)
 				dl = val;

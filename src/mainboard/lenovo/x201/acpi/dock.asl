@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include "smi.h"
@@ -33,11 +28,13 @@ Scope (\_SB)
 		{
 			if (Arg0) {
 			   /* connect dock */
+			   Store (1, \GP28)
 			   Store (1, \_SB.PCI0.LPCB.EC.DKR1)
 			   Store (1, \_SB.PCI0.LPCB.EC.DKR2)
 			   Store (1, \_SB.PCI0.LPCB.EC.DKR3)
 			} else {
 			   /* disconnect dock */
+			   Store (0, \GP28)
 			   Store (0, \_SB.PCI0.LPCB.EC.DKR1)
 			   Store (0, \_SB.PCI0.LPCB.EC.DKR2)
 			   Store (0, \_SB.PCI0.LPCB.EC.DKR3)
@@ -61,11 +58,6 @@ Scope(\_SB.PCI0.LPCB.EC)
 	}
 
 	Method(_Q45, 0, NotSerialized)
-	{
-		Notify(\_SB.DOCK, 3)
-	}
-
-	Method(_Q50, 0, NotSerialized)
 	{
 		Notify(\_SB.DOCK, 3)
 	}

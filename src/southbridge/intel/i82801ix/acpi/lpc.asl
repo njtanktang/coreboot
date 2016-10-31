@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Intel LPC Bus Device  - 0:1f.0
@@ -203,30 +198,6 @@ Device (LPCB)
 	}
 
 	#include "acpi/superio.asl"
-
-#ifdef ENABLE_TPM
-	Device (TPM)		// Trusted Platform Module
-	{
-		Name(_HID, EISAID("IFX0102"))
-		Name(_CID, 0x310cd041)
-		Name(_UID, 1)
-
-		Method(_STA, 0)
-		{
-			If (TPMP) {
-				Return (0xf)
-			}
-			Return (0x0)
-		}
-
-		Name(_CRS, ResourceTemplate() {
-			IO (Decode16, 0x2e, 0x2e, 0x01, 0x02)
-			IO (Decode16, 0x6f0, 0x6f0, 0x01, 0x10)
-			Memory32Fixed (ReadWrite, 0xfed40000, 0x5000)
-			IRQ (Edge, Activehigh, Exclusive) { 6 }
-		})
-	}
-#endif
 
 	Device (PS2K)		// Keyboard
 	{

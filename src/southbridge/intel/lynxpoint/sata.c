@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -95,8 +91,8 @@ static void sata_init(struct device *dev)
 		/* SATA Initialization register */
 		pci_write_config32(dev, 0x94,
 			   ((config->sata_port_map ^ 0x3f) << 24) | 0x183);
-	} else if(config->sata_ahci) {
-		u32 abar;
+	} else if (config->sata_ahci) {
+		u32 *abar;
 
 		printk(BIOS_DEBUG, "SATA: Controller in AHCI mode.\n");
 
@@ -156,8 +152,8 @@ static void sata_init(struct device *dev)
 		pci_write_config32(dev, 0x94, reg32);
 
 		/* Initialize AHCI memory-mapped space */
-		abar = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
-		printk(BIOS_DEBUG, "ABAR: %08X\n", abar);
+		abar = (u32 *)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+		printk(BIOS_DEBUG, "ABAR: %p\n", abar);
 		/* CAP (HBA Capabilities) : enable power management */
 		reg32 = read32(abar + 0x00);
 		reg32 |= 0x0c006000;  // set PSC+SSC+SALP+SSS
@@ -166,17 +162,21 @@ static void sata_init(struct device *dev)
 			reg32 |= (1 << 18);   // SAM: SATA AHCI MODE ONLY
 		write32(abar + 0x00, reg32);
 		/* PI (Ports implemented) */
-		write32(abar + 0x0c, config->sata_port_map);
-		(void) read32(abar + 0x0c); /* Read back 1 */
-		(void) read32(abar + 0x0c); /* Read back 2 */
+		write32(abar + 0x03, config->sata_port_map);
+		(void) read32(abar + 0x03); /* Read back 1 */
+		(void) read32(abar + 0x03); /* Read back 2 */
 		/* CAP2 (HBA Capabilities Extended)*/
-		reg32 = read32(abar + 0x24);
+		reg32 = read32(abar + 0x09);
 		/* Enable DEVSLP */
-		if (pch_is_lp())
-			reg32 |= (1 << 5)|(1 << 4)|(1 << 3)|(1 << 2);
-		else
+		if (pch_is_lp()) {
+			if (config->sata_devslp_disable)
+				reg32 &= ~(1 << 3);
+			else
+				reg32 |= (1 << 5)|(1 << 4)|(1 << 3)|(1 << 2);
+		} else {
 			reg32 &= ~0x00000002;
-		write32(abar + 0x24, reg32);
+		}
+		write32(abar + 0x09, reg32);
 	} else {
 		printk(BIOS_DEBUG, "SATA: Controller in plain mode.\n");
 
@@ -359,4 +359,3 @@ static const struct pci_driver pch_sata __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-

@@ -12,23 +12,18 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 romstage-y += buildOpts.c
-romstage-y += agesawrapper.c
 romstage-y += BiosCallOuts.c
 romstage-y += sb700_cfg.c
 romstage-y += rd890_cfg.c
+romstage-y += OemCustomize.c
 
 ramstage-y += buildOpts.c
-ramstage-y += agesawrapper.c
 ramstage-y += BiosCallOuts.c
 ramstage-y += sb700_cfg.c
 ramstage-y += rd890_cfg.c
-
+ramstage-y += OemCustomize.c
 
 AGESA_PREFIX ?= $(src)/vendorcode/amd/agesa
 AGESA_ROOT ?= $(AGESA_PREFIX)/$(if $(CONFIG_CPU_AMD_AGESA_FAMILY15),f15,\

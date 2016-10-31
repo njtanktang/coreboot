@@ -13,10 +13,16 @@
  * (Written by Yinghai Lu <yhlu@tyan.com> for Tyan)
  * Copyright (C) 2005-2006 Stefan Reinauer <stepan@openbios.org>
  * Copyright (C) 2009 Myles Watson <mylesgw@gmail.com>
- */
-
-/*
- *      (c) 1999--2000 Martin Mares <mj@suse.cz>
+ * Copyright (c) 1999--2000 Martin Mares <mj@suse.cz>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 /*
@@ -179,7 +185,7 @@ device_t alloc_find_dev(struct bus *parent, struct device_path *path)
  * Round a number up to an alignment.
  *
  * @param val The starting value.
- * @param roundup Alignment as a power of two.
+ * @param pow Alignment as a power of two.
  * @return Rounded up number.
  */
 static resource_t round(resource_t val, unsigned long pow)
@@ -189,6 +195,17 @@ static resource_t round(resource_t val, unsigned long pow)
 	val += mask;
 	val &= ~mask;
 	return val;
+}
+
+static const char * resource2str(struct resource *res)
+{
+	if (res->flags & IORESOURCE_IO)
+		return "io";
+	if (res->flags & IORESOURCE_PREFETCH)
+		return "prefmem";
+	if (res->flags & IORESOURCE_MEM)
+		return "mem";
+	return "undefined";
 }
 
 /**
@@ -211,8 +228,9 @@ static void read_resources(struct bus *bus)
 			continue;
 
 		if (!curdev->ops || !curdev->ops->read_resources) {
-			printk(BIOS_ERR, "%s missing read_resources\n",
-			       dev_path(curdev));
+			if (curdev->path.type != DEVICE_PATH_APIC)
+				printk(BIOS_ERR, "%s missing read_resources\n",
+				       dev_path(curdev));
 			continue;
 		}
 		post_log_path(curdev);
@@ -325,10 +343,9 @@ static void compute_resources(struct bus *bus, struct resource *bridge,
 	resource_t base;
 	base = round(bridge->base, bridge->align);
 
-	printk(BIOS_SPEW,  "%s %s_%s: base: %llx size: %llx align: %d gran: %d"
-	       " limit: %llx\n", dev_path(bus->dev), __func__,
-	       (type & IORESOURCE_IO) ? "io" : (type & IORESOURCE_PREFETCH) ?
-	       "prefmem" : "mem", base, bridge->size, bridge->align,
+	printk(BIOS_SPEW,  "%s %s: base: %llx size: %llx align: %d gran: %d"
+	       " limit: %llx\n", dev_path(bus->dev), resource2str(bridge),
+	       base, bridge->size, bridge->align,
 	       bridge->gran, bridge->limit);
 
 	/* For each child which is a bridge, compute the resource needs. */
@@ -430,9 +447,7 @@ static void compute_resources(struct bus *bus, struct resource *bridge,
 		printk(BIOS_SPEW, "%s %02lx *  [0x%llx - 0x%llx] %s\n",
 		       dev_path(dev), resource->index, resource->base,
 		       resource->base + resource->size - 1,
-		       (resource->flags & IORESOURCE_IO) ? "io" :
-		       (resource->flags & IORESOURCE_PREFETCH) ?
-		        "prefmem" : "mem");
+		       resource2str(resource));
 	}
 
 	/*
@@ -444,10 +459,9 @@ static void compute_resources(struct bus *bus, struct resource *bridge,
 	bridge->size = round(base, bridge->gran) -
 		       round(bridge->base, bridge->align);
 
-	printk(BIOS_SPEW, "%s %s_%s: base: %llx size: %llx align: %d gran: %d"
-	       " limit: %llx done\n", dev_path(bus->dev), __func__,
-	       (bridge->flags & IORESOURCE_IO) ? "io" :
-	       (bridge->flags & IORESOURCE_PREFETCH) ? "prefmem" : "mem",
+	printk(BIOS_SPEW, "%s %s: base: %llx size: %llx align: %d gran: %d"
+	       " limit: %llx done\n", dev_path(bus->dev),
+	       resource2str(bridge),
 	       base, bridge->size, bridge->align, bridge->gran, bridge->limit);
 }
 
@@ -473,10 +487,9 @@ static void allocate_resources(struct bus *bus, struct resource *bridge,
 	resource_t base;
 	base = bridge->base;
 
-	printk(BIOS_SPEW, "%s %s_%s: base:%llx size:%llx align:%d gran:%d "
-	       "limit:%llx\n", dev_path(bus->dev), __func__,
-	       (type & IORESOURCE_IO) ? "io" : (type & IORESOURCE_PREFETCH) ?
-	       "prefmem" : "mem",
+	printk(BIOS_SPEW, "%s %s: base:%llx size:%llx align:%d gran:%d "
+	       "limit:%llx\n", dev_path(bus->dev),
+	       resource2str(bridge),
 	       base, bridge->size, bridge->align, bridge->gran, bridge->limit);
 
 	/* Remember we haven't found anything yet. */
@@ -525,6 +538,7 @@ static void allocate_resources(struct bus *bus, struct resource *bridge,
 			/* Base must be aligned. */
 			base = round(base, resource->align);
 			resource->base = base;
+			resource->limit = resource->base + resource->size - 1;
 			resource->flags |= IORESOURCE_ASSIGNED;
 			resource->flags &= ~IORESOURCE_STORED;
 			base += resource->size;
@@ -541,18 +555,13 @@ static void allocate_resources(struct bus *bus, struct resource *bridge,
 			       ? "Assigned: " : "", dev_path(dev),
 			       resource->index, resource->base,
 			       resource->base + resource->size - 1,
-			       (resource->flags & IORESOURCE_IO) ? "io"
-			       : (resource->flags & IORESOURCE_PREFETCH)
-			       ? "prefmem" : "mem");
+			       resource2str(resource));
 		}
 
-		printk(BIOS_SPEW, "%s%s %02lx *  [0x%llx - 0x%llx] %s\n",
-		       (resource->flags & IORESOURCE_ASSIGNED) ? "Assigned: "
-		       : "", dev_path(dev), resource->index, resource->base,
+		printk(BIOS_SPEW, "%s %02lx *  [0x%llx - 0x%llx] %s\n",
+		       dev_path(dev), resource->index, resource->base,
 		       resource->size ? resource->base + resource->size - 1 :
-		       resource->base, (resource->flags & IORESOURCE_IO)
-		       ? "io" : (resource->flags & IORESOURCE_PREFETCH)
-		       ? "prefmem" : "mem");
+		       resource->base, resource2str(resource));
 	}
 
 	/*
@@ -564,10 +573,9 @@ static void allocate_resources(struct bus *bus, struct resource *bridge,
 
 	bridge->flags |= IORESOURCE_ASSIGNED;
 
-	printk(BIOS_SPEW, "%s %s_%s: next_base: %llx size: %llx align: %d "
-	       "gran: %d done\n", dev_path(bus->dev), __func__,
-	       (type & IORESOURCE_IO) ? "io" : (type & IORESOURCE_PREFETCH) ?
-	       "prefmem" : "mem", base, bridge->size, bridge->align,
+	printk(BIOS_SPEW, "%s %s: next_base: %llx size: %llx align: %d "
+	       "gran: %d done\n", dev_path(bus->dev),
+	       resource2str(bridge), base, bridge->size, bridge->align,
 	       bridge->gran);
 
 	/* For each child which is a bridge, allocate_resources. */
@@ -610,20 +618,27 @@ static void allocate_resources(struct bus *bus, struct resource *bridge,
 	}
 }
 
-#if CONFIG_PCI_64BIT_PREF_MEM
-#define MEM_MASK (IORESOURCE_PREFETCH | IORESOURCE_MEM)
-#else
-#define MEM_MASK (IORESOURCE_MEM)
-#endif
-
-#define IO_MASK   (IORESOURCE_IO)
-#define PREF_TYPE (IORESOURCE_PREFETCH | IORESOURCE_MEM)
-#define MEM_TYPE  (IORESOURCE_MEM)
-#define IO_TYPE   (IORESOURCE_IO)
+static int resource_is(struct resource *res, u32 type)
+{
+	return (res->flags & IORESOURCE_TYPE_MASK) == type;
+}
 
 struct constraints {
-	struct resource pref, io, mem;
+	struct resource io, mem;
 };
+
+static struct resource * resource_limit(struct constraints *limits, struct resource *res)
+{
+	struct resource *lim = NULL;
+
+	/* MEM, or I/O - skip any others. */
+	if (resource_is(res, IORESOURCE_MEM))
+		lim = &limits->mem;
+	else if (resource_is(res, IORESOURCE_IO))
+		lim = &limits->io;
+
+	return lim;
+}
 
 static void constrain_resources(struct device *dev, struct constraints* limits)
 {
@@ -631,8 +646,6 @@ static void constrain_resources(struct device *dev, struct constraints* limits)
 	struct resource *res;
 	struct resource *lim;
 	struct bus *link;
-
-	printk(BIOS_SPEW, "%s: %s\n", __func__, dev_path(dev));
 
 	/* Constrain limits based on the fixed resources of this device. */
 	for (res = dev->resource_list; res; res = res->next) {
@@ -645,14 +658,8 @@ static void constrain_resources(struct device *dev, struct constraints* limits)
 			continue;
 		}
 
-		/* PREFETCH, MEM, or I/O - skip any others. */
-		if ((res->flags & MEM_MASK) == PREF_TYPE)
-			lim = &limits->pref;
-		else if ((res->flags & MEM_MASK) == MEM_TYPE)
-			lim = &limits->mem;
-		else if ((res->flags & IO_MASK) == IO_TYPE)
-			lim = &limits->io;
-		else
+		lim = resource_limit(limits, res);
+		if (!lim)
 			continue;
 
 		/*
@@ -663,6 +670,10 @@ static void constrain_resources(struct device *dev, struct constraints* limits)
 		if (((res->base + res->size -1) < lim->base)
 		    || (res->base > lim->limit))
 			continue;
+
+		printk(BIOS_SPEW, "%s: %s %02lx base %08llx limit %08llx %s (fixed)\n",
+			__func__, dev_path(dev), res->index, res->base,
+			res->base + res->size - 1, resource2str(res));
 
 		/*
 		 * Choose to be above or below fixed resources. This check is
@@ -689,12 +700,11 @@ static void avoid_fixed_resources(struct device *dev)
 {
 	struct constraints limits;
 	struct resource *res;
+	struct resource *lim;
 
 	printk(BIOS_SPEW, "%s: %s\n", __func__, dev_path(dev));
 
 	/* Initialize constraints to maximum size. */
-	limits.pref.base = 0;
-	limits.pref.limit = 0xffffffffffffffffULL;
 	limits.io.base = 0;
 	limits.io.limit = 0xffffffffffffffffULL;
 	limits.mem.base = 0;
@@ -706,15 +716,15 @@ static void avoid_fixed_resources(struct device *dev)
 			continue;
 		printk(BIOS_SPEW, "%s:@%s %02lx limit %08llx\n", __func__,
 		       dev_path(dev), res->index, res->limit);
-		if ((res->flags & MEM_MASK) == PREF_TYPE &&
-		    (res->limit < limits.pref.limit))
-			limits.pref.limit = res->limit;
-		if ((res->flags & MEM_MASK) == MEM_TYPE &&
-		    (res->limit < limits.mem.limit))
-			limits.mem.limit = res->limit;
-		if ((res->flags & IO_MASK) == IO_TYPE &&
-		    (res->limit < limits.io.limit))
-			limits.io.limit = res->limit;
+
+		lim = resource_limit(&limits, res);
+		if (!lim)
+			continue;
+
+		if (res->base > lim->base)
+			lim->base = res->base;
+		if  (res->limit < lim->limit)
+			lim->limit = res->limit;
 	}
 
 	/* Look through the tree for fixed resources and update the limits. */
@@ -722,31 +732,25 @@ static void avoid_fixed_resources(struct device *dev)
 
 	/* Update dev's resources with new limits. */
 	for (res = dev->resource_list; res; res = res->next) {
-		struct resource *lim;
-
 		if ((res->flags & IORESOURCE_FIXED))
 			continue;
 
-		/* PREFETCH, MEM, or I/O - skip any others. */
-		if ((res->flags & MEM_MASK) == PREF_TYPE)
-			lim = &limits.pref;
-		else if ((res->flags & MEM_MASK) == MEM_TYPE)
-			lim = &limits.mem;
-		else if ((res->flags & IO_MASK) == IO_TYPE)
-			lim = &limits.io;
-		else
+		lim = resource_limit(&limits, res);
+		if (!lim)
 			continue;
-
-		printk(BIOS_SPEW, "%s2: %s@%02lx limit %08llx\n", __func__,
-			     dev_path(dev), res->index, res->limit);
-		printk(BIOS_SPEW, "\tlim->base %08llx lim->limit %08llx\n",
-			     lim->base, lim->limit);
 
 		/* Is the resource outside the limits? */
 		if (lim->base > res->base)
 			res->base = lim->base;
 		if (res->limit > lim->limit)
 			res->limit = lim->limit;
+
+		/* MEM resources need to start at the highest address manageable. */
+		if (res->flags & IORESOURCE_MEM)
+			res->base = resource_max(res);
+
+		printk(BIOS_SPEW, "%s:@%s %02lx base %08llx limit %08llx\n",
+			__func__, dev_path(dev), res->index, res->base, res->limit);
 	}
 }
 
@@ -908,25 +912,25 @@ int reset_bus(struct bus *bus)
  * required, reset the bus and scan it again.
  *
  * @param busdev Pointer to the bus device.
- * @param max Current bus number.
- * @return The maximum bus number found, after scanning all subordinate buses.
  */
-unsigned int scan_bus(struct device *busdev, unsigned int max)
+static void scan_bus(struct device *busdev)
 {
-	unsigned int new_max;
 	int do_scan_bus;
+	struct stopwatch sw;
 
-	if (!busdev || !busdev->enabled || !busdev->ops ||
-	    !busdev->ops->scan_bus) {
-		return max;
-	}
+	stopwatch_init(&sw);
+
+	if (!busdev->enabled)
+		return;
+
+	printk(BIOS_SPEW, "%s scanning...\n", dev_path(busdev));
 
 	post_log_path(busdev);
 
 	do_scan_bus = 1;
 	while (do_scan_bus) {
 		struct bus *link;
-		new_max = busdev->ops->scan_bus(busdev, max);
+		busdev->ops->scan_bus(busdev);
 		do_scan_bus = 0;
 		for (link = busdev->link_list; link; link = link->next) {
 			if (link->reset_needed) {
@@ -937,7 +941,20 @@ unsigned int scan_bus(struct device *busdev, unsigned int max)
 			}
 		}
 	}
-	return new_max;
+
+	printk(BIOS_DEBUG, "%s: scanning of bus %s took %ld usecs\n",
+		__func__, dev_path(busdev), stopwatch_duration_usecs(&sw));
+}
+
+void scan_bridges(struct bus *bus)
+{
+	struct device *child;
+
+	for (child = bus->children; child; child = child->sibling) {
+		if (!child->ops || !child->ops->scan_bus)
+			continue;
+		scan_bus(child);
+	}
 }
 
 /**
@@ -981,7 +998,7 @@ void dev_enumerate(void)
 		printk(BIOS_ERR, "dev_root missing scan_bus operation");
 		return;
 	}
-	scan_bus(root, 0);
+	scan_bus(root);
 	post_log_clear();
 	printk(BIOS_INFO, "done\n");
 }
@@ -1033,19 +1050,14 @@ void dev_configure(void)
 		for (res = child->resource_list; res; res = res->next) {
 			if (res->flags & IORESOURCE_FIXED)
 				continue;
-			if (res->flags & IORESOURCE_PREFETCH) {
-				compute_resources(child->link_list,
-						  res, MEM_MASK, PREF_TYPE);
-				continue;
-			}
 			if (res->flags & IORESOURCE_MEM) {
 				compute_resources(child->link_list,
-						  res, MEM_MASK, MEM_TYPE);
+						  res, IORESOURCE_TYPE_MASK, IORESOURCE_MEM);
 				continue;
 			}
 			if (res->flags & IORESOURCE_IO) {
 				compute_resources(child->link_list,
-						  res, IO_MASK, IO_TYPE);
+						  res, IORESOURCE_TYPE_MASK, IORESOURCE_IO);
 				continue;
 			}
 		}
@@ -1056,21 +1068,6 @@ void dev_configure(void)
 		if (child->path.type == DEVICE_PATH_DOMAIN)
 			avoid_fixed_resources(child);
 
-	/*
-	 * Now we need to adjust the resources. MEM resources need to start at
-	 * the highest address manageable.
-	 */
-	for (child = root->link_list->children; child; child = child->sibling) {
-		if (child->path.type != DEVICE_PATH_DOMAIN)
-			continue;
-		for (res = child->resource_list; res; res = res->next) {
-			if (!(res->flags & IORESOURCE_MEM) ||
-			    res->flags & IORESOURCE_FIXED)
-				continue;
-			res->base = resource_max(res);
-		}
-	}
-
 	/* Store the computed resource allocations into device registers ... */
 	printk(BIOS_INFO, "Setting resources...\n");
 	for (child = root->link_list->children; child; child = child->sibling) {
@@ -1080,19 +1077,14 @@ void dev_configure(void)
 		for (res = child->resource_list; res; res = res->next) {
 			if (res->flags & IORESOURCE_FIXED)
 				continue;
-			if (res->flags & IORESOURCE_PREFETCH) {
-				allocate_resources(child->link_list,
-						   res, MEM_MASK, PREF_TYPE);
-				continue;
-			}
 			if (res->flags & IORESOURCE_MEM) {
 				allocate_resources(child->link_list,
-						   res, MEM_MASK, MEM_TYPE);
+						   res, IORESOURCE_TYPE_MASK, IORESOURCE_MEM);
 				continue;
 			}
 			if (res->flags & IORESOURCE_IO) {
 				allocate_resources(child->link_list,
-						   res, IO_MASK, IO_TYPE);
+						   res, IORESOURCE_TYPE_MASK, IORESOURCE_IO);
 				continue;
 			}
 		}
@@ -1139,23 +1131,20 @@ static void init_dev(struct device *dev)
 
 	if (!dev->initialized && dev->ops && dev->ops->init) {
 #if CONFIG_HAVE_MONOTONIC_TIMER
-		struct mono_time start_time;
-		struct rela_time dev_init_time;
-
-		timer_monotonic_get(&start_time);
+		struct stopwatch sw;
+		stopwatch_init(&sw);
 #endif
 		if (dev->path.type == DEVICE_PATH_I2C) {
 			printk(BIOS_DEBUG, "smbus: %s[%d]->",
 			       dev_path(dev->bus->dev), dev->bus->link_num);
 		}
 
-		printk(BIOS_DEBUG, "%s init\n", dev_path(dev));
+		printk(BIOS_DEBUG, "%s init ...\n", dev_path(dev));
 		dev->initialized = 1;
 		dev->ops->init(dev);
 #if CONFIG_HAVE_MONOTONIC_TIMER
-		dev_init_time = current_time_from(&start_time);
-		printk(BIOS_DEBUG, "%s init %ld usecs\n", dev_path(dev),
-		       rela_time_in_microseconds(&dev_init_time));
+		printk(BIOS_DEBUG, "%s init finished in %ld usecs\n", dev_path(dev),
+			stopwatch_duration_usecs(&sw));
 #endif
 	}
 }

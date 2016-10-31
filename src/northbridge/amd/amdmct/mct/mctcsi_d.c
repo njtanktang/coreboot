@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -49,11 +45,11 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 
 	ChipSel = 0;		/* Find out if current configuration is capable */
 	while (DoIntlv && (ChipSel < MAX_CS_SUPPORTED)) {
-		reg = 0x40+(ChipSel<<2) + reg_off;	/* Dram CS Base 0 */
+		reg = 0x40+(ChipSel << 2) + reg_off;	/* Dram CS Base 0 */
 		val = Get_NB32(dev, reg);
-		if ( val & (1<<CSEnable)) {
+		if (val & (1 << CSEnable)) {
 			EnChipSels++;
-			reg = 0x60+((ChipSel>>1)<<2)+reg_off; /*Dram CS Mask 0 */
+			reg = 0x60+((ChipSel >> 1) << 2)+reg_off; /*Dram CS Mask 0 */
 			val = Get_NB32(dev, reg);
 			val >>= 19;
 			val &= 0x3ff;
@@ -66,9 +62,9 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 					break;
 			reg = 0x80 + reg_off;		/*Dram Bank Addressing */
 			val = Get_NB32(dev, reg);
-			val >>= (ChipSel>>1)<<2;
+			val >>= (ChipSel >> 1) << 2;
 			val &= 0x0f;
-			if(EnChipSels == 1)
+			if (EnChipSels == 1)
 				BankEncd = val;
 			else
 				/*If number of Rows/Columns not equal, skip */
@@ -83,15 +79,15 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 	}
 
 	if (DoIntlv) {
-		if(!_CsIntCap) {
-			pDCTstat->ErrStatus |= 1<<SB_BkIntDis;
+		if (!_CsIntCap) {
+			pDCTstat->ErrStatus |= 1 << SB_BkIntDis;
 			DoIntlv = 0;
 		}
 	}
 
-	if(DoIntlv) {
+	if (DoIntlv) {
 		val = Tab_int_D[BankEncd];
-		if (pDCTstat->Status & (1<<SB_128bitmode))
+		if (pDCTstat->Status & (1 << SB_128bitmode))
 			val++;
 
 		AddrLoMask = (EnChipSels - 1)  << val;
@@ -104,7 +100,7 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 		BitDelta = bsf(AddrHiMask) - bsf(AddrLoMask);
 
 		for (ChipSel = 0; ChipSel < MAX_CS_SUPPORTED; ChipSel++) {
-			reg = 0x40+(ChipSel<<2) + reg_off;	/*Dram CS Base 0 */
+			reg = 0x40+(ChipSel << 2) + reg_off;	/*Dram CS Base 0 */
 			val = Get_NB32(dev, reg);
 			if (val & 3) {
 				val_lo = val & AddrLoMask;
@@ -117,10 +113,10 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 				val |= val_hi;
 				Set_NB32(dev, reg, val);
 
-				if(ChipSel & 1)
+				if (ChipSel & 1)
 					continue;
 
-				reg = 0x60 + ((ChipSel>>1)<<2) + reg_off; /*Dram CS Mask 0 */
+				reg = 0x60 + ((ChipSel >> 1) << 2) + reg_off; /*Dram CS Mask 0 */
 				val = Get_NB32(dev, reg);
 				val_lo = val & AddrLoMask;
 				val_hi = val & AddrHiMask;
@@ -143,5 +139,3 @@ void InterleaveBanks_D(struct MCTStatStruc *pMCTstat,
 	print_tx("InterleaveBanks_D: ErrCode ", pDCTstat->ErrCode);
 	print_t("InterleaveBanks_D: Done\n");
 }
-
-

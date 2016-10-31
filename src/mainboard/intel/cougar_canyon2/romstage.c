@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -31,27 +27,26 @@
 #include <pc80/mc146818rtc.h>
 #include <cbmem.h>
 #include <console/console.h>
+#include <halt.h>
+#include <program_loading.h>
 #include <reset.h>
-#include "superio/smsc/sio1007/chip.h"
+#include <superio/smsc/sio1007/chip.h>
 #include <fsp_util.h>
-#include "northbridge/intel/fsp_sandybridge/northbridge.h"
-#include "northbridge/intel/fsp_sandybridge/raminit.h"
-#include "southbridge/intel/fsp_bd82x6x/pch.h"
-#include "southbridge/intel/fsp_bd82x6x/gpio.h"
-#include "southbridge/intel/fsp_bd82x6x/me.h"
+#include <northbridge/intel/fsp_sandybridge/northbridge.h>
+#include <northbridge/intel/fsp_sandybridge/raminit.h>
+#include <southbridge/intel/fsp_bd82x6x/pch.h>
+#include <southbridge/intel/fsp_bd82x6x/gpio.h>
+#include <southbridge/intel/fsp_bd82x6x/me.h>
 #include <arch/cpu.h>
 #include <cpu/x86/msr.h>
 #include "gpio.h"
-#include <arch/stages.h>
 
 #define SIO_PORT 0x164e
 
 static inline void reset_system(void)
 {
 	hard_reset();
-	while (1) {
-		hlt();
-	}
+	halt();
 }
 
 static void pch_enable_lpc(void)
@@ -183,16 +178,8 @@ void main(FSP_INFO_HEADER *fsp_info_header)
 
 	post_code(0x40);
 
-#if CONFIG_COLLECT_TIMESTAMPS
-	tsc_t start_romstage_time;
-	tsc_t before_initram_time;
-
-	start_romstage_time = rdtsc();
-
-	/* since this mainboard doesn't use audio, we can stuff the TSC values in there */
-	pci_write_config32(PCI_DEV(0, 27, 0), 0x2c,  start_romstage_time.lo >> 4 |
-			start_romstage_time.lo << 28);
-#endif
+	timestamp_init(get_initial_timestamp());
+	timestamp_add_now(TS_START_ROMSTAGE);
 
 	pch_enable_lpc();
 
@@ -240,13 +227,7 @@ void main(FSP_INFO_HEADER *fsp_info_header)
 
 	post_code(0x48);
 
-#if CONFIG_COLLECT_TIMESTAMPS
-	before_initram_time= rdtsc();
-	/* since this mainboard doesn't use audio, we can stuff the TSC values in there */
-	pci_write_config32(PCI_DEV(0, 27, 0), 0x14, before_initram_time.lo >> 4 |
-			before_initram_time.lo << 28);
-
-#endif
+	timestamp_add_now(TS_BEFORE_INITRAM);
 
   /*
    * Call early init to initialize memory and chipset. This function returns
@@ -267,22 +248,7 @@ void romstage_main_continue(EFI_STATUS status, VOID *HobListPtr) {
 	u32 reg32;
 	void *cbmem_hob_ptr;
 
-#if CONFIG_COLLECT_TIMESTAMPS
-	tsc_t start_romstage_time;
-	tsc_t base_time;
-	tsc_t before_initram_time;
-	tsc_t after_initram_time = rdtsc();
-	u32 timebase = pci_read_config32(PCI_DEV(0, 0x1f, 2), 0xd0);
-	u32 time_romstage_start = pci_read_config32(PCI_DEV(0, 27, 0), 0x2c);
-	u32 time_before_initram = pci_read_config32(PCI_DEV(0, 27, 0), 0x14);
-
-	base_time.lo = timebase << 4;
-	base_time.hi = timebase >> 28;
-	start_romstage_time.lo = time_romstage_start << 4;
-	start_romstage_time.hi = time_romstage_start >> 28;
-	before_initram_time.lo = time_before_initram << 4;
-	before_initram_time.hi = time_before_initram >> 28;
-#endif
+	timestamp_add_now(TS_AFTER_INITRAM);
 
 	/*
 	 * HD AUDIO is not used on this system, so we're using some registers
@@ -336,20 +302,8 @@ void romstage_main_continue(EFI_STATUS status, VOID *HobListPtr) {
 	*(u32*)cbmem_hob_ptr = (u32)HobListPtr;
 	post_code(0x4f);
 
-#if CONFIG_COLLECT_TIMESTAMPS
-	timestamp_init(base_time);
-	timestamp_add(TS_START_ROMSTAGE, start_romstage_time );
-	timestamp_add(TS_BEFORE_INITRAM, before_initram_time );
-	timestamp_add(TS_AFTER_INITRAM, after_initram_time);
-	timestamp_add_now(TS_END_ROMSTAGE);
-#endif
-#if CONFIG_CONSOLE_CBMEM
-	/* Keep this the last thing this function does. */
-	cbmemc_reinit();
-#endif
-
 	/* Load the ramstage. */
-	copy_and_run();
+	run_ramstage();
 	while (1);
 }
 
@@ -359,3 +313,7 @@ void romstage_fsp_rt_buffer_callback(FSP_INIT_RT_BUFFER *FspRtBuffer)
 	return;
 }
 
+uint64_t get_initial_timestamp(void)
+{
+	return (uint64_t) pci_read_config32(PCI_DEV(0, 0x1f, 2), 0xd0) << 4;
+}

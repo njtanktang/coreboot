@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -25,7 +21,7 @@
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <arch/io.h>
-#include "ck804.h"
+#include "chip.h"
 
 static void nic_init(struct device *dev)
 {
@@ -33,11 +29,11 @@ static void nic_init(struct device *dev)
 	int eeprom_valid = 0;
 	struct southbridge_nvidia_ck804_config *conf;
 	static u32 nic_index = 0;
-	unsigned long base;
+	u8 *base;
 	struct resource *res;
 
 	res = find_resource(dev, 0x10);
-	base = (unsigned long)res->base;
+	base = res2mmio(res, 0, 0);
 
 #define NvRegPhyInterface  0xC0
 #define PHY_RGMII          0x10000000
@@ -89,10 +85,10 @@ static void nic_init(struct device *dev)
 
 	/* If that is invalid we will read that from romstrap. */
 	if (!eeprom_valid) {
-		unsigned long mac_pos;
-		mac_pos = 0xffffffd0; /* See romstrap.inc and romstrap.lds. */
+		u32 *mac_pos;
+		mac_pos = (u32 *)0xffffffd0; /* See romstrap.inc and romstrap.ld. */
 		mac_l = read32(mac_pos) + nic_index;
-		mac_h = read32(mac_pos + 4);
+		mac_h = read32(mac_pos + 1);
 	}
 #if 1
 	/* Set that into NIC MMIO. */
@@ -115,7 +111,6 @@ static struct device_operations nic_ops = {
 	.enable_resources = pci_dev_enable_resources,
 	.init             = nic_init,
 	.scan_bus         = 0,
-	// .enable        = ck804_enable,
 	.ops_pci          = &ck804_pci_ops,
 };
 

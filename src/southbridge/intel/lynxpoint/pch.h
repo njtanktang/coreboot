@@ -12,14 +12,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_LYNXPOINT_PCH_H
 #define SOUTHBRIDGE_INTEL_LYNXPOINT_PCH_H
+
+#include <arch/acpi.h>
+
+#define CROS_GPIO_DEVICE_NAME	"LynxPoint"
 
 /*
  * Lynx Point PCH PCI Devices:
@@ -83,7 +83,11 @@
 #endif
 
 #define HPET_ADDR		0xfed00000
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
+#endif
 
 #ifndef __ACPI__
 
@@ -167,21 +171,6 @@ void enable_all_gpe(u32 set1, u32 set2, u32 set3, u32 set4);
 void disable_all_gpe(void);
 void enable_gpe(u32 mask);
 void disable_gpe(u32 mask);
-/*
- * get GPIO pin value
- */
-int get_gpio(int gpio_num);
-/*
- * Get a number comprised of multiple GPIO values. gpio_num_array points to
- * the array of gpio pin numbers to scan, terminated by -1.
- */
-unsigned get_gpios(const int *gpio_num_array);
-/*
- * Set GPIO pin value.
- */
-void set_gpio(int gpio_num, int value);
-/* Return non-zero if gpio is set to native function. 0 otherwise. */
-int gpio_is_native(int gpio_num);
 
 #if !defined(__PRE_RAM__) && !defined(__SMM__)
 #include <device/device.h>
@@ -213,6 +202,7 @@ int smbus_read_byte(unsigned device, unsigned address);
 int early_spi_read(u32 offset, u32 size, u8 *buffer);
 int early_pch_init(const void *gpio_map,
                    const struct rcba_config_instruction *rcba_config);
+void pch_enable_lpc(void);
 #endif /* !__PRE_RAM__ && !__SMM__ */
 #endif /* __ASSEMBLER__ */
 
@@ -710,13 +700,6 @@ int early_pch_init(const void *gpio_map,
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
-#define    SLP_TYP_S0	0
-#define    SLP_TYP_S1	1
-#define    SLP_TYP_S3	5
-#define    SLP_TYP_S4	6
-#define    SLP_TYP_S5	7
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)

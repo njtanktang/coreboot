@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -147,7 +143,7 @@ static const struct logical_devices {
  *
  * @param dev The device to use.
  */
-static void smsc_init(device_t dev)
+static void smsc_init(struct device *dev)
 {
 	int i, ld;
 
@@ -167,7 +163,7 @@ static void smsc_init(device_t dev)
 	/* A Super I/O was found, so initialize the respective device. */
 	ld = dev->path.pnp.device;
 	if (ld == logical_device_table[i].devs[LD_KBC]) {
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 	}
 }
 
@@ -224,7 +220,7 @@ static struct pnp_info pnp_dev_info[] = {
  *
  * @param dev The device to use.
  */
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	int i, j, fn;
 	int tmp[MAX_LOGICAL_DEVICES];
@@ -240,8 +236,8 @@ static void enable_dev(device_t dev)
 
 		/* TODO: Error handling? */
 
-		printk(BIOS_INFO, "Found SMSC Super I/O (ID=0x%02x, "
-		       "rev=0x%02x)\n", superio_id, superio_rev);
+		printk(BIOS_INFO, "Found SMSC Super I/O (ID = 0x%02x, "
+		       "rev = 0x%02x)\n", superio_id, superio_rev);
 		first_time = 0;
 
 		if (superio_id == LPC47M172) {

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2011 The Chromium OS Authors.
  * Copyright (C) 2013-2014 Sage Electronic Engineering, LLC.
+ * Copyright (C) 2016 Siemens AG
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -11,11 +12,6 @@
  * but without any warranty; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
- * MA 02111-1307 USA
  */
 
 /* This file is derived from the flashrom project. */
@@ -28,8 +24,8 @@
 #include <device/pci_ids.h>
 #include <spi_flash.h>
 
-#include <baytrail/lpc.h>
-#include <baytrail/pci_devs.h>
+#include <soc/lpc.h>
+#include <soc/pci_devs.h>
 
 #ifdef __SMM__
 #define pci_read_config_byte(dev, reg, targ)\
@@ -82,8 +78,7 @@ typedef struct ich9_spi_regs {
 	uint16_t preop;
 	uint16_t optype;
 	uint8_t opmenu[8];
-	uint32_t bbar;
-	uint8_t _reserved3[12];
+	uint8_t _reserved3[16];
 	uint32_t fdoc;
 	uint32_t fdod;
 	uint8_t _reserved4[8];
@@ -110,7 +105,6 @@ typedef struct ich_spi_controller {
 	unsigned databytes;
 	uint8_t *status;
 	uint16_t *control;
-	uint32_t *bbar;
 } ich_spi_controller;
 
 static ich_spi_controller cntlr;
@@ -165,63 +159,64 @@ enum {
 	SPI_OPCODE_TYPE_WRITE_WITH_ADDRESS =	3
 };
 
-#if IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)
+#define SPI_OFFSET_MASK		0x3ff
 
-static u8 readb_(const void *addr)
+static uint8_t readb_(const void *addr)
 {
-	u8 v = read8((unsigned long)addr);
-	printk(BIOS_DEBUG, "read %2.2x from %4.4x\n",
-	       v, ((unsigned) addr & 0xffff) - 0xf020);
+	uint8_t v = read8(addr);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: read %2.2x from %4.4x\n",
+				v, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 	return v;
 }
 
-static u16 readw_(const void *addr)
+static uint16_t readw_(const void *addr)
 {
-	u16 v = read16((unsigned long)addr);
-	printk(BIOS_DEBUG, "read %4.4x from %4.4x\n",
-	       v, ((unsigned) addr & 0xffff) - 0xf020);
+	uint16_t v = read16(addr);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: read %4.4x from %4.4x\n",
+				v, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 	return v;
 }
 
-static u32 readl_(const void *addr)
+static uint32_t readl_(const void *addr)
 {
-	u32 v = read32((unsigned long)addr);
-	printk(BIOS_DEBUG, "read %8.8x from %4.4x\n",
-	       v, ((unsigned) addr & 0xffff) - 0xf020);
+	uint32_t v = read32(addr);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: read %8.8x from %4.4x\n",
+				v, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 	return v;
 }
 
-static void writeb_(u8 b, const void *addr)
+static void writeb_(uint8_t b, void *addr)
 {
-	write8((unsigned long)addr, b);
-	printk(BIOS_DEBUG, "wrote %2.2x to %4.4x\n",
-	       b, ((unsigned) addr & 0xffff) - 0xf020);
+	write8(addr, b);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: wrote %2.2x to %4.4x\n",
+				b, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 }
 
-static void writew_(u16 b, const void *addr)
+static void writew_(uint16_t b, void *addr)
 {
-	write16((unsigned long)addr, b);
-	printk(BIOS_DEBUG, "wrote %4.4x to %4.4x\n",
-	       b, ((unsigned) addr & 0xffff) - 0xf020);
+	write16(addr, b);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: wrote %4.4x to %4.4x\n",
+				b, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 }
 
-static void writel_(u32 b, const void *addr)
+static void writel_(uint32_t b, void *addr)
 {
-	write32((unsigned long)addr, b);
-	printk(BIOS_DEBUG, "wrote %8.8x to %4.4x\n",
-	       b, ((unsigned) addr & 0xffff) - 0xf020);
+	write32(addr, b);
+	if (IS_ENABLED(CONFIG_DEBUG_SPI_FLASH)) {
+		printk(BIOS_DEBUG, "SPI: wrote %8.8x to %4.4x\n",
+				b, (((uint32_t) addr) & SPI_OFFSET_MASK));
+	}
 }
-
-#else /* CONFIG_DEBUG_SPI_FLASH ^^^ enabled  vvv NOT enabled */
-
-#define readb_(a) read8((uint32_t)a)
-#define readw_(a) read16((uint32_t)a)
-#define readl_(a) read32((uint32_t)a)
-#define writeb_(val, addr) write8((uint32_t)addr, val)
-#define writew_(val, addr) write16((uint32_t)addr, val)
-#define writel_(val, addr) write32((uint32_t)addr, val)
-
-#endif  /* CONFIG_DEBUG_SPI_FLASH ^^^ NOT enabled */
 
 static void write_reg(const void *value, void *dest, uint32_t size)
 {
@@ -253,25 +248,7 @@ static void read_reg(const void *src, void *value, uint32_t size)
 	}
 }
 
-static void ich_set_bbar(uint32_t minaddr)
-{
-	const uint32_t bbar_mask = 0x00ffff00;
-	uint32_t ichspi_bbar;
-
-	minaddr &= bbar_mask;
-	ichspi_bbar = readl_(cntlr.bbar) & ~bbar_mask;
-	ichspi_bbar |= minaddr;
-	writel_(ichspi_bbar, cntlr.bbar);
-}
-
-int spi_cs_is_valid(unsigned int bus, unsigned int cs)
-{
-	printk(BIOS_DEBUG, "spi_cs_is_valid used but not implemented\n");
-	return 0;
-}
-
-struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
-		unsigned int max_hz, unsigned int mode)
+struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs)
 {
 	ich_spi_slave *slave = malloc(sizeof(*slave));
 
@@ -316,9 +293,7 @@ void spi_init(void)
 	cntlr.databytes = sizeof(ich9_spi->fdata);
 	cntlr.status = &ich9_spi->ssfs;
 	cntlr.control = (uint16_t *)ich9_spi->ssfc;
-	cntlr.bbar = &ich9_spi->bbar;
 	cntlr.preop = &ich9_spi->preop;
-	ich_set_bbar(0);
 }
 
 int spi_claim_bus(struct spi_slave *slave)
@@ -328,16 +303,6 @@ int spi_claim_bus(struct spi_slave *slave)
 }
 
 void spi_release_bus(struct spi_slave *slave)
-{
-	/* Handled by ICH automatically. */
-}
-
-void spi_cs_activate(struct spi_slave *slave)
-{
-	/* Handled by ICH automatically. */
-}
-
-void spi_cs_deactivate(struct spi_slave *slave)
 {
 	/* Handled by ICH automatically. */
 }
@@ -478,10 +443,10 @@ static int spi_setup_offset(spi_transaction *trans)
  *
  * Return the last read status value on success or -1 on failure.
  */
-static int ich_status_poll(u16 bitmask, int wait_til_set)
+static int ich_status_poll(uint16_t bitmask, int wait_til_set)
 {
 	int timeout = 40000; /* This will result in 400 ms */
-	u16 status = 0;
+	uint16_t status = 0;
 
 	while (timeout--) {
 		status = readw_(cntlr.status);
@@ -498,8 +463,13 @@ static int ich_status_poll(u16 bitmask, int wait_til_set)
 	return -1;
 }
 
+unsigned int spi_crop_chunk(unsigned int cmd_len, unsigned int buf_len)
+{
+	return min(cntlr.databytes, buf_len);
+}
+
 int spi_xfer(struct spi_slave *slave, const void *dout,
-		unsigned int bitsout, void *din, unsigned int bitsin)
+		unsigned int bytesout, void *din, unsigned int bytesin)
 {
 	uint16_t control;
 	int16_t opcode_index;
@@ -507,24 +477,19 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	int status;
 
 	spi_transaction trans = {
-		dout, bitsout / 8,
-		din, bitsin / 8,
+		dout, bytesout,
+		din, bytesin,
 		0xff, 0xff, 0
 	};
 
 	/* There has to always at least be an opcode. */
-	if (!bitsout || !dout) {
+	if (!bytesout || !dout) {
 		printk(BIOS_DEBUG, "ICH SPI: No opcode for transfer\n");
 		return -1;
 	}
 	/* Make sure if we read something we have a place to put it. */
-	if (bitsin != 0 && !din) {
+	if (bytesin != 0 && !din) {
 		printk(BIOS_DEBUG, "ICH SPI: Read but no target buffer\n");
-		return -1;
-	}
-	/* Right now we don't support writing partial bytes. */
-	if (bitsout % 8 || bitsin % 8) {
-		printk(BIOS_DEBUG, "ICH SPI: Accessing partial bytes not supported\n");
 		return -1;
 	}
 
@@ -563,7 +528,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 
 		/*
 		 * This is a 'no data' command (like Write Enable), its
-		 * bitesout size was 1, decremented to zero while executing
+		 * bytesout size was 1, decremented to zero while executing
 		 * spi_setup_opcode() above. Tell the chip to send the
 		 * command.
 		 */
@@ -591,7 +556,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	 */
 	if (trans.bytesout > cntlr.databytes) {
 		printk(BIOS_DEBUG, "ICH SPI: Too much to write. Does your SPI chip driver use"
-		     " CONTROLLER_PAGE_LIMIT?\n");
+		     " spi_crop_chunk()?\n");
 		return -1;
 	}
 

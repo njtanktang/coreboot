@@ -2,8 +2,11 @@
  * This file is part of the coreboot project.
  *
  * It was originally based on the Linux kernel (drivers/pci/pci.c).
+ * Copyright 1993 -- 1997 Drew Eckhardt, Frederic Potter,
+ * David Mosberger-Tang
  *
- * Modifications are:
+ * Copyright 1997 -- 1999 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
+ *
  * Copyright (C) 2003-2004 Linux Networx
  * (Written by Eric Biederman <ebiederman@lnxi.com> for Linux Networx)
  * Copyright (C) 2003-2006 Ronald G. Minnich <rminnich@gmail.com>
@@ -13,15 +16,19 @@
  * Copyright (C) 2005-2009 coresystems GmbH
  * (Written by Stefan Reinauer <stepan@coresystems.de> for coresystems GmbH)
  * Copyright (C) 2014 Sage Electronic Engineering, LLC.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 /*
  * PCI Bus Services, see include/linux/pci.h for further explanation.
- *
- * Copyright 1993 -- 1997 Drew Eckhardt, Frederic Potter,
- * David Mosberger-Tang
- *
- * Copyright 1997 -- 1999 Martin Mares <mj@atrey.karlin.mff.cuni.cz>
  */
 
 #include <arch/acpi.h>
@@ -32,7 +39,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <delay.h>
-#include <device/agp.h>
 #include <device/cardbus.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -42,7 +48,7 @@
 #include <device/hypertransport.h>
 #include <pc80/i8259.h>
 #include <kconfig.h>
-#include <vendorcode/google/chromeos/chromeos.h>
+#include <vboot/vbnv.h>
 
 u8 pci_moving_config8(struct device *dev, unsigned int reg)
 {
@@ -212,6 +218,12 @@ struct resource *pci_get_resource(struct device *dev, unsigned long index)
 			resource->gran += 1;
 		}
 		resource->limit = limit = moving | (resource->size - 1);
+
+		if (pci_base_address_is_memory_space(attr)) {
+			/* Page-align to allow individual mapping of devices. */
+			if (resource->align < 12)
+				resource->align = 12;
+		}
 	}
 
 	/*
@@ -657,8 +669,7 @@ static int should_run_oprom(struct device *dev)
 	/* Don't run VGA option ROMs, unless we have to print
 	 * something on the screen before the kernel is loaded.
 	 */
-	should_run = !IS_ENABLED(CONFIG_BOOTMODE_STRAPS) ||
-		developer_mode_enabled() || recovery_mode_enabled();
+	should_run = display_init_required();
 
 #if CONFIG_CHROMEOS
 	if (!should_run)
@@ -771,9 +782,6 @@ static struct device_operations *get_pci_bridge_ops(device_t dev)
 		return &default_pcix_ops_bus;
 	}
 #endif
-#if CONFIG_AGP_PLUGIN_SUPPORT
-	/* How do I detect a PCI to AGP bridge? */
-#endif
 #if CONFIG_HYPERTRANSPORT_PLUGIN_SUPPORT
 	unsigned int htpos = 0;
 	while ((htpos = pci_find_next_capability(dev, PCI_CAP_ID_HT, htpos))) {
@@ -818,8 +826,8 @@ static struct device_operations *get_pci_bridge_ops(device_t dev)
  * The driver entry can either point at a zero terminated array of acceptable
  * device IDs, or include a single device ID.
  *
- * @driver pointer to the PCI driver entry being checked
- * @device_id PCI device ID of the device being matched
+ * @param driver pointer to the PCI driver entry being checked
+ * @param device_id PCI device ID of the device being matched
  */
 static int device_id_match(struct pci_driver *driver, unsigned short device_id)
 {
@@ -854,7 +862,7 @@ static void set_pci_ops(struct device *dev)
 	 * Look through the list of setup drivers and find one for
 	 * this PCI device.
 	 */
-	for (driver = &pci_drivers[0]; driver != &epci_drivers[0]; driver++) {
+	for (driver = &_pci_drivers[0]; driver != &_epci_drivers[0]; driver++) {
 		if ((driver->vendor == dev->vendor) &&
 		    device_id_match(driver, dev->device)) {
 			dev->ops = (struct device_operations *)driver->ops;
@@ -1078,28 +1086,17 @@ unsigned int pci_match_simple_dev(device_t dev, pci_devfn_t sdev)
  * Determine the existence of devices and bridges on a PCI bus. If there are
  * bridges on the bus, recursively scan the buses behind the bridges.
  *
- * This function is the default scan_bus() method for the root device
- * 'dev_root'.
- *
  * @param bus Pointer to the bus structure.
  * @param min_devfn Minimum devfn to look at in the scan, usually 0x00.
  * @param max_devfn Maximum devfn to look at in the scan, usually 0xff.
- * @param max Current bus number.
- * @return The maximum bus number found, after scanning all subordinate busses.
  */
-unsigned int pci_scan_bus(struct bus *bus, unsigned min_devfn,
-			  unsigned max_devfn, unsigned int max)
+void pci_scan_bus(struct bus *bus, unsigned min_devfn,
+			  unsigned max_devfn)
 {
 	unsigned int devfn;
 	struct device *old_devices;
-	struct device *child;
 
-#if CONFIG_PCI_BUS_SEGN_BITS
-	printk(BIOS_DEBUG, "PCI: pci_scan_bus for bus %04x:%02x\n",
-	       bus->secondary >> 8, bus->secondary & 0xff);
-#else
 	printk(BIOS_DEBUG, "PCI: pci_scan_bus for bus %02x\n", bus->secondary);
-#endif
 
 	/* Maximum sane devfn is 0xFF. */
 	if (max_devfn > 0xff) {
@@ -1158,17 +1155,68 @@ unsigned int pci_scan_bus(struct bus *bus, unsigned min_devfn,
 	 * For all children that implement scan_bus() (i.e. bridges)
 	 * scan the bus behind that child.
 	 */
-	for (child = bus->children; child; child = child->sibling)
-		max = scan_bus(child, max);
+
+	scan_bridges(bus);
 
 	/*
 	 * We've scanned the bus and so we know all about what's on the other
 	 * side of any bridges that may be on this bus plus any devices.
 	 * Return how far we've got finding sub-buses.
 	 */
-	printk(BIOS_DEBUG, "PCI: pci_scan_bus returning with max=%03x\n", max);
 	post_code(0x55);
-	return max;
+}
+
+typedef enum {
+	PCI_ROUTE_CLOSE,
+	PCI_ROUTE_SCAN,
+	PCI_ROUTE_FINAL,
+} scan_state;
+
+static void pci_bridge_route(struct bus *link, scan_state state)
+{
+	struct device *dev = link->dev;
+	struct bus *parent = dev->bus;
+	u32 reg, buses = 0;
+
+	if (state == PCI_ROUTE_SCAN) {
+		link->secondary = parent->subordinate + 1;
+		link->subordinate = link->secondary;
+	}
+
+	if (state == PCI_ROUTE_CLOSE) {
+		buses |= 0xfeff << 8;
+	} else if (state == PCI_ROUTE_SCAN) {
+		buses |= parent->secondary & 0xff;
+		buses |= ((u32) link->secondary & 0xff) << 8;
+		buses |= 0xff << 16; /* MAX PCI_BUS number here */
+	} else if (state == PCI_ROUTE_FINAL) {
+		buses |= parent->secondary & 0xff;
+		buses |= ((u32) link->secondary & 0xff) << 8;
+		buses |= ((u32) link->subordinate & 0xff) << 16;
+	}
+
+	if (state == PCI_ROUTE_SCAN) {
+		/* Clear all status bits and turn off memory, I/O and master enables. */
+		link->bridge_cmd = pci_read_config16(dev, PCI_COMMAND);
+		pci_write_config16(dev, PCI_COMMAND, 0x0000);
+		pci_write_config16(dev, PCI_STATUS, 0xffff);
+	}
+
+	/*
+	 * Configure the bus numbers for this bridge: the configuration
+	 * transactions will not be propagated by the bridge if it is not
+	 * correctly configured.
+	 */
+
+	reg = pci_read_config32(dev, PCI_PRIMARY_BUS);
+	reg &= 0xff000000;
+	reg |= buses;
+	pci_write_config32(dev, PCI_PRIMARY_BUS, reg);
+
+	if (state == PCI_ROUTE_FINAL) {
+		pci_write_config16(dev, PCI_COMMAND, link->bridge_cmd);
+		parent->subordinate = link->subordinate;
+	}
 }
 
 /**
@@ -1180,19 +1228,14 @@ unsigned int pci_scan_bus(struct bus *bus, unsigned min_devfn,
  * This function is the default scan_bus() method for PCI bridge devices.
  *
  * @param dev Pointer to the bridge device.
- * @param max The highest bus number assigned up to now.
  * @param do_scan_bus TODO
- * @return The maximum bus number found, after scanning all subordinate buses.
  */
-unsigned int do_pci_scan_bridge(struct device *dev, unsigned int max,
-				unsigned int (*do_scan_bus) (struct bus * bus,
+void do_pci_scan_bridge(struct device *dev,
+				void (*do_scan_bus) (struct bus * bus,
 							     unsigned min_devfn,
-							     unsigned max_devfn,
-							     unsigned int max))
+							     unsigned max_devfn))
 {
 	struct bus *bus;
-	u32 buses;
-	u16 cr;
 
 	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(dev));
 
@@ -1208,50 +1251,11 @@ unsigned int do_pci_scan_bridge(struct device *dev, unsigned int max,
 
 	bus = dev->link_list;
 
-	/*
-	 * Set up the primary, secondary and subordinate bus numbers. We have
-	 * no idea how many buses are behind this bridge yet, so we set the
-	 * subordinate bus number to 0xff for the moment.
-	 */
-	bus->secondary = ++max;
-	bus->subordinate = 0xff;
+	pci_bridge_route(bus, PCI_ROUTE_SCAN);
 
-	/* Clear all status bits and turn off memory, I/O and master enables. */
-	cr = pci_read_config16(dev, PCI_COMMAND);
-	pci_write_config16(dev, PCI_COMMAND, 0x0000);
-	pci_write_config16(dev, PCI_STATUS, 0xffff);
+	do_scan_bus(bus, 0x00, 0xff);
 
-	/*
-	 * Read the existing primary/secondary/subordinate bus
-	 * number configuration.
-	 */
-	buses = pci_read_config32(dev, PCI_PRIMARY_BUS);
-
-	/*
-	 * Configure the bus numbers for this bridge: the configuration
-	 * transactions will not be propagated by the bridge if it is not
-	 * correctly configured.
-	 */
-	buses &= 0xff000000;
-	buses |= (((unsigned int)(dev->bus->secondary) << 0) |
-		  ((unsigned int)(bus->secondary) << 8) |
-		  ((unsigned int)(bus->subordinate) << 16));
-	pci_write_config32(dev, PCI_PRIMARY_BUS, buses);
-
-	/* Now we can scan all subordinate buses (those behind the bridge). */
-	max = do_scan_bus(bus, 0x00, 0xff, max);
-
-	/*
-	 * We know the number of buses behind this bridge. Set the subordinate
-	 * bus number to its real value.
-	 */
-	bus->subordinate = max;
-	buses = (buses & 0xff00ffff) | ((unsigned int)(bus->subordinate) << 16);
-	pci_write_config32(dev, PCI_PRIMARY_BUS, buses);
-	pci_write_config16(dev, PCI_COMMAND, cr);
-
-	printk(BIOS_SPEW, "%s returns max %d\n", __func__, max);
-	return max;
+	pci_bridge_route(bus, PCI_ROUTE_FINAL);
 }
 
 /**
@@ -1263,12 +1267,10 @@ unsigned int do_pci_scan_bridge(struct device *dev, unsigned int max,
  * This function is the default scan_bus() method for PCI bridge devices.
  *
  * @param dev Pointer to the bridge device.
- * @param max The highest bus number assigned up to now.
- * @return The maximum bus number found, after scanning all subordinate buses.
  */
-unsigned int pci_scan_bridge(struct device *dev, unsigned int max)
+void pci_scan_bridge(struct device *dev)
 {
-	return do_pci_scan_bridge(dev, max, pci_scan_bus);
+	do_pci_scan_bridge(dev, pci_scan_bus);
 }
 
 /**
@@ -1277,13 +1279,11 @@ unsigned int pci_scan_bridge(struct device *dev, unsigned int max)
  * This function is the default scan_bus() method for PCI domains.
  *
  * @param dev Pointer to the domain.
- * @param max The highest bus number assigned up to now.
- * @return The maximum bus number found, after scanning all subordinate busses.
  */
-unsigned int pci_domain_scan_bus(device_t dev, unsigned int max)
+void pci_domain_scan_bus(device_t dev)
 {
-	max = pci_scan_bus(dev->link_list, PCI_DEVFN(0, 0), 0xff, max);
-	return max;
+	struct bus *link = dev->link_list;
+	pci_scan_bus(link, PCI_DEVFN(0, 0), 0xff);
 }
 
 /**
@@ -1321,7 +1321,7 @@ const char *pin_to_str(int pin)
  * device.  In this case, this function will return 4 (PIN D).
  *
  * @param dev A PCI device structure to swizzle interrupt pins for
- * @param *parent_bdg The PCI device structure for the bridge
+ * @param *parent_bridge The PCI device structure for the bridge
  *        device 'dev' is attached to
  * @return The interrupt pin number (1 - 4) that 'dev' will
  *         trigger when generating an interrupt

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -67,7 +63,7 @@ int do_smbus_recv_byte(u32 smbus_io_base, u32 device)
 	u8 byte;
 
 	if (smbus_wait_until_ready(smbus_io_base) < 0) {
-        printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_recv_byte - smbus not ready.\n");
+	printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_recv_byte - smbus not ready.\n");
 		return -2;	/* not ready */
 	}
 
@@ -97,7 +93,7 @@ int do_smbus_send_byte(u32 smbus_io_base, u32 device, u8 val)
 	u8 byte;
 
 	if (smbus_wait_until_ready(smbus_io_base) < 0) {
-        printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_send_byte - smbus not ready.\n");
+	printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_send_byte - smbus not ready.\n");
 		return -2;	/* not ready */
 	}
 
@@ -127,7 +123,7 @@ int do_smbus_read_byte(u32 smbus_io_base, u32 device, u32 address)
 	u8 byte;
 
 	if (smbus_wait_until_ready(smbus_io_base) < 0) {
-        printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_read_byte - smbus not ready.\n");
+	printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_read_byte - smbus not ready.\n");
 		return -2;	/* not ready */
 	}
 
@@ -160,7 +156,7 @@ int do_smbus_write_byte(u32 smbus_io_base, u32 device, u32 address, u8 val)
 	u8 byte;
 
 	if (smbus_wait_until_ready(smbus_io_base) < 0) {
-        printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_write_byte - smbus not ready.\n");
+	printk(BIOS_DEBUG, "SB800 - Smbus.c - do_smbus_write_byte - smbus not ready.\n");
 		return -2;	/* not ready */
 	}
 
@@ -205,7 +201,7 @@ void alink_ab_indx(u32 reg_space, u32 reg_addr, u32 mask, u32 val)
 	tmp |= val;
 
 	/* printk(BIOS_DEBUG, "about write %x, index=%x", tmp, (reg_space&0x3)<<29 | reg_addr); */
-	outl((reg_space & 0x7) << 29 | reg_addr, AB_INDX);	/* probably we dont have to do it again. */
+	outl((reg_space & 0x7) << 29 | reg_addr, AB_INDX);	/* probably we don't have to do it again. */
 	outl(tmp, AB_DATA);
 	outl(0, AB_INDX);
     printk(BIOS_DEBUG, "SB800 - Smbus.c - alink_ab_indx - End.\n");
@@ -228,7 +224,7 @@ void alink_rc_indx(u32 reg_space, u32 reg_addr, u32 port, u32 mask, u32 val)
 	tmp |= val;
 
 	//printk(BIOS_DEBUG, "about write %x, index=%x", tmp, (reg_space&0x3)<<29 | (port&3) << 24 | reg_addr);
-	outl((reg_space & 0x7) << 29 | (port & 3) << 24 | reg_addr, AB_INDX);	/* probably we dont have to do it again. */
+	outl((reg_space & 0x7) << 29 | (port & 3) << 24 | reg_addr, AB_INDX);	/* probably we don't have to do it again. */
 	outl(tmp, AB_DATA);
 	outl(0, AB_INDX);
     printk(BIOS_DEBUG, "SB800 - Smbus.c - alink_rc_indx - End.\n");
@@ -262,4 +258,3 @@ void alink_ax_indx(u32 space /*c or p? */ , u32 axindc, u32 mask, u32 val)
 	outl(0, AB_INDX);
     printk(BIOS_DEBUG, "SB800 - Smbus.c - alink_ax_indx - End.\n");
 }
-

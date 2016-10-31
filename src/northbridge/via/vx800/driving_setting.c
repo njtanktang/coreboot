@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -227,8 +223,6 @@ void DrivingODT(DRAM_SYS_ATTR * DramAttr)
 	/*channel B */
 	if (1 == ENABLE_CHC) {
 		//CHB has not auto compensation mode ,so must set it manual,or else CHB initialization will not successful
-		//   Data =0x88;
-		//pci_write_config8(MEMCTRL, 0xd0, Data);
 
 		Data = pci_read_config8(MEMCTRL, 0xd5);
 		Data &= 0xAF;
@@ -370,7 +364,7 @@ void DrivingDCLK(DRAM_SYS_ATTR * DramAttr)
 	else if (DIMMFREQ_667 == DramAttr->DramFreq)
 		FreqId = 2;
 	else if (DIMMFREQ_800 == DramAttr->DramFreq)
-		FreqId = 4;
+		FreqId = 3;
 	else
 		FreqId = 0;
 

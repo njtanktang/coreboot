@@ -1,6 +1,8 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
+ *
  * Copyright (C) 2004 Tyan Computer
  * Written by Yinghai Lu <yhlu@tyan.com> for Tyan Computer.
  *
@@ -12,11 +14,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include "ck804.h"
+
+#if !IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AMDK8)
+/* Someone messed up and snuck in some K8-specific code */
+static int  set_ht_link_buffer_counts_chain(uint8_t ht_c_num, unsigned vendorid, unsigned val) { return 0; /* stub */};
+#endif
 
 static int set_ht_link_ck804(u8 ht_c_num)
 {
@@ -63,20 +68,6 @@ static void setup_ss_table(unsigned index, unsigned where, unsigned control,
  *	 8 4 4 4 :3
  *	16 4     :4
  */
-
-#define CK804_CHIP_REV 3
-
-#if CONFIG_HT_CHAIN_END_UNITID_BASE < CONFIG_HT_CHAIN_UNITID_BASE
-#define CK804_DEVN_BASE CONFIG_HT_CHAIN_END_UNITID_BASE
-#else
-#define CK804_DEVN_BASE CONFIG_HT_CHAIN_UNITID_BASE
-#endif
-
-#if CONFIG_SB_HT_CHAIN_UNITID_OFFSET_ONLY
-#define CK804B_DEVN_BASE 1
-#else
-#define CK804B_DEVN_BASE CK804_DEVN_BASE
-#endif
 
 static void ck804_early_set_port(unsigned ck804_num, unsigned *busn,
 				 unsigned *io_base)
@@ -147,7 +138,17 @@ static void ck804_early_setup(unsigned ck804_num, unsigned *busn,
 		CK804_MB_SETUP
 #endif
 
+#if IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AMDFAM10) || (IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AMDK8) && IS_ENABLED(CONFIG_CPU_AMD_SOCKET_F))
+		/*
+		 * Avoid crash (complete with severe memory corruption!) during initial CAR boot
+		 * in ck804_early_setup_x() on Fam10h systems by not touching 0x78.
+		 * Interestingly once the system is fully booted into Linux this can be set, but
+		 * not before!  Apparently something isn't initialized but the amount of effort
+		 * required to fix this is non-negligible and of unknown real-world benefit
+		 */
+#else
 		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0x78), 0xc0ffffff, 0x19000000,
+#endif
 		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe0), 0xfffffeff, 0x00000100,
 
 		RES_PORT_IO_32, ANACTRL_IO_BASE + 0x20, 0xe00fffff, 0x11000000,
@@ -209,6 +210,12 @@ static void ck804_early_setup(unsigned ck804_num, unsigned *busn,
 		RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0 + 0x0d, ~(0xff), ((0 << 4) | (2 << 2) | (0 << 0)),
 		RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0 + 0x1a, ~(0xff), ((0 << 4) | (2 << 2) | (0 << 0)),
 #endif
+
+#if IS_ENABLED(CONFIG_CK804_PCIE_PME_WAKE)
+		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe4), 0xffffffff, 0x00400000,
+#else
+		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe4), 0xffbfffff, 0x00000000,
+#endif
 	};
 
 	static const unsigned int ctrl_conf_multiple[] = {
@@ -236,6 +243,10 @@ static void ck804_early_setup(unsigned ck804_num, unsigned *busn,
 		RES_PCI_IO, PCI_ADDR(0, 9, 0, 0x4c), 0xfe00ffff, 0x00440000,
 		RES_PCI_IO, PCI_ADDR(0, 9, 0, 0x74), 0xffffffc0, 0x00000000,
 
+		/*
+		 * Avoid touching 0x78 for CONFIG_NORTHBRIDGE_AMD_AMDFAM10 for
+		 * non-primary chains too???
+		 */
 		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0x78), 0xc0ffffff, 0x20000000,
 		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe0), 0xfffffeff, 0x00000000,
 		RES_PCI_IO, PCI_ADDR(0, 1, 0, 0xe8), 0xffffff00, 0x000000ff,
@@ -323,7 +334,7 @@ static int ck804_early_setup_x(void)
 
 	for (i = 0; i < 4; i++) {
 		u32 id;
-		device_t dev;
+		pci_devfn_t dev;
 		if (i == 0) /* SB chain */
 			dev = PCI_DEV(i * 0x40, CK804_DEVN_BASE, 0);
 		else
@@ -336,8 +347,11 @@ static int ck804_early_setup_x(void)
 		}
 	}
 
+	printk(BIOS_DEBUG, "ck804_early_set_port(%d, %d, %d)\n", ck804_num, busn[0], io_base[0]);
 	ck804_early_set_port(ck804_num, busn, io_base);
+	printk(BIOS_DEBUG, "ck804_early_setup(%d, %d, %d)\n", ck804_num, busn[0], io_base[0]);
 	ck804_early_setup(ck804_num, busn, io_base);
+	printk(BIOS_DEBUG, "ck804_early_clear_port(%d, %d, %d)\n", ck804_num, busn[0], io_base[0]);
 	ck804_early_clear_port(ck804_num, busn, io_base);
 
 	return set_ht_link_ck804(4);
@@ -359,4 +373,10 @@ void soft_reset(void)
 	/* link reset */
 	outb(0x02, 0x0cf9);
 	outb(0x06, 0x0cf9);
+}
+
+void enable_fid_change_on_sb(unsigned sbbusn, unsigned sbdn)
+{
+	/* The default value for CK804 is good. */
+	/* Set VFSMAF (VID/FID System Management Action Field) to 2. */
 }

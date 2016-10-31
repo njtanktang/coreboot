@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,6 +19,7 @@
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <arch/io.h>
+#include <halt.h>
 
 #include <cpu/intel/microcode/microcode.c>
 
@@ -42,10 +39,10 @@ static void set_var_mtrr(
 	msr_t basem, maskm;
 	basem.lo = base | type;
 	basem.hi = 0;
-	wrmsr(MTRRphysBase_MSR(reg), basem);
-	maskm.lo = ~(size - 1) | MTRRphysMaskValid;
+	wrmsr(MTRR_PHYS_BASE(reg), basem);
+	maskm.lo = ~(size - 1) | MTRR_PHYS_MASK_VALID;
 	maskm.hi = (1 << (CONFIG_CPU_ADDR_BITS - 32)) - 1;
-	wrmsr(MTRRphysMask_MSR(reg), maskm);
+	wrmsr(MTRR_PHYS_MASK(reg), maskm);
 }
 
 static void enable_rom_caching(void)
@@ -59,7 +56,7 @@ static void enable_rom_caching(void)
 	/* Enable Variable MTRRs */
 	msr.hi = 0x00000000;
 	msr.lo = 0x00000800;
-	wrmsr(MTRRdefType_MSR, msr);
+	wrmsr(MTRR_DEF_TYPE_MSR, msr);
 }
 
 static void set_flex_ratio_to_tdp_nominal(void)
@@ -109,7 +106,7 @@ static void set_flex_ratio_to_tdp_nominal(void)
 	/* Issue warm reset, will be "CPU only" due to soft reset data */
 	outb(0x0, 0xcf9);
 	outb(0x6, 0xcf9);
-	asm("hlt");
+	halt();
 }
 
 static void bootblock_cpu_init(void)

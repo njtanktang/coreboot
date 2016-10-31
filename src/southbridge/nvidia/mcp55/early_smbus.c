@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "smbus.h"
@@ -29,7 +25,7 @@
 
 static void enable_smbus(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	dev = pci_locate_device(PCI_ID(0x10de, 0x0368), 0);
 
 	if (dev == PCI_DEV_INVALID)

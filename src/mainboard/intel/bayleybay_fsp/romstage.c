@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stddef.h>
@@ -29,14 +25,14 @@
 #include <cpu/x86/mtrr.h>
 #include <romstage_handoff.h>
 #include <timestamp.h>
-#include <baytrail/gpio.h>
-#include <baytrail/iomap.h>
-#include <baytrail/lpc.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/romstage.h>
-#include <baytrail/acpi.h>
-#include <baytrail/baytrail.h>
-#include <drivers/intel/fsp/fsp_util.h>
+#include <soc/gpio.h>
+#include <soc/iomap.h>
+#include <soc/lpc.h>
+#include <soc/pci_devs.h>
+#include <soc/romstage.h>
+#include <soc/acpi.h>
+#include <soc/baytrail.h>
+#include <drivers/intel/fsp1_0/fsp_util.h>
 
 /**
  * /brief mainboard call for setup that needs to be done before fsp init
@@ -173,4 +169,9 @@ void romstage_fsp_rt_buffer_callback(FSP_INIT_RT_BUFFER *FspRtBuffer)
 
 	/* Initialize the Azalia Verb Tables to mainboard specific version */
 	UpdData->AzaliaConfigPtr  = (UINT32)&mainboard_AzaliaConfig;
+
+	/* Disable 2nd DIMM on Bakersport*/
+#if IS_ENABLED(CONFIG_BOARD_INTEL_BAKERSPORT_FSP)
+	UpdData->PcdMrcInitSPDAddr2 = 0x00; /* cannot use SPD_ADDR_DISABLED at this point */
+#endif
 }

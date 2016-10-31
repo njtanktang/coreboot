@@ -12,19 +12,17 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config SOUTHBRIDGE_INTEL_I82801GX
 	bool
+	select ACPI_INTEL_HARDWARE_SLEEP_VALUES
 	select SOUTHBRIDGE_INTEL_COMMON
 	select IOAPIC
 	select HAVE_HARD_RESET
 	select HAVE_USBDEBUG
 	select USE_WATCHDOG_ON_BOOT
 	select HAVE_SMI_HANDLER
+	select COMMON_FADT
 
 if SOUTHBRIDGE_INTEL_I82801GX
 
@@ -33,7 +31,7 @@ config EHCI_BAR
 	default 0xfef00000
 
 config BOOTBLOCK_SOUTHBRIDGE_INIT
-        string
+	string
 	default "southbridge/intel/i82801gx/bootblock.c"
 
 config HPET_MIN_TICKS
@@ -41,4 +39,3 @@ config HPET_MIN_TICKS
 	default 0x80
 
 endif
-

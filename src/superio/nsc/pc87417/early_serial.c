@@ -14,25 +14,17 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
+#include <device/pnp.h>
+#include <stdint.h>
 #include "pc87417.h"
 
-void pc87417_enable_serial(device_t dev, u16 iobase)
+void pc87417_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	pnp_set_logical_device(dev);
 	pnp_set_enable(dev, 0);
 	pnp_set_iobase(dev, PNP_IDX_IO0, iobase);
-	pnp_set_enable(dev, 1);
-}
-
-void pc87417_enable_dev(device_t dev)
-{
-	pnp_set_logical_device(dev);
 	pnp_set_enable(dev, 1);
 }

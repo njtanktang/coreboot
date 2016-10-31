@@ -12,16 +12,13 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_I5000
 	bool
 	select MMCONF_SUPPORT
 	select MMCONF_SUPPORT_DEFAULT
 	select HAVE_DEBUG_RAM_SETUP
+	select LATE_CBMEM_INIT
 
 if NORTHBRIDGE_INTEL_I5000
 

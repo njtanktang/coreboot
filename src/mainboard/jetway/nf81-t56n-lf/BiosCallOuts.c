@@ -11,32 +11,24 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
-#include "BiosCallOuts.h"
+#include "AGESA.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 
-#include <Lib/amdlib.h>
-#include <northbridge/amd/agesa/family14/dimmSpd.h>
+#include <amdlib.h>
 #include <vendorcode/amd/agesa/f14/Proc/CPU/heapManager.h>
 #include <vendorcode/amd/cimx/sb800/SB800.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINT32 Data, VOID *ConfigPtr);
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr);
+static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINTN Data, VOID *ConfigPtr);
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,			agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,		agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,			agesa_LocateBuffer },
 	{AGESA_DO_RESET,			agesa_Reset },
-	{AGESA_READ_SPD,			BiosReadSpd },
+	{AGESA_READ_SPD,			agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,		agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,			agesa_RunFuncOnAp },
 	{AGESA_GNB_PCIE_SLOT_RESET,		board_GnbPcieSlotReset },
@@ -48,7 +40,7 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
 
 /* Call the host environment interface to provide a user hook opportunity. */
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	/* Unlike e.g. AMD Inagua, Persimmon is unable to vary the RAM voltage.
 	 * Make sure the right speed settings are selected.
@@ -58,7 +50,7 @@ static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *Config
 }
 
 /* PCIE slot reset control */
-static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	AGESA_STATUS Status;
 	uint32_t 		FcnData;
@@ -74,10 +66,10 @@ static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINT32 Data, VOID *Conf
 	/* Get SB800 MMIO Base (AcpiMmioAddr) */
 	WriteIo8(0xCD6, 0x27);
 	Data8 = ReadIo8(0xCD7);
-	Data16=Data8<<8;
+	Data16 = Data8 << 8;
 	WriteIo8(0xCD6, 0x26);
 	Data8 = ReadIo8(0xCD7);
-	Data16|=Data8;
+	Data16 |= Data8;
 	AcpiMmioAddr = (uint32_t)Data16 << 16;
 	Status = AGESA_UNSUPPORTED;
 	GpioMmioAddr = AcpiMmioAddr + GPIO_BASE;
@@ -87,13 +79,13 @@ static AGESA_STATUS board_GnbPcieSlotReset (UINT32 Func, UINT32 Data, VOID *Conf
 		switch (ResetInfo->ResetControl) {
 		case AssertSlotReset:
 			Data8 = Read64Mem8(GpioMmioAddr+SB_GPIO_REG50);
-			Data8 &= ~(uint8_t)BIT6 ;
+			Data8 &= ~(uint8_t)BIT6;
 			Write64Mem8(GpioMmioAddr+SB_GPIO_REG50, Data8);
 			Status = AGESA_SUCCESS;
 			break;
 		case DeassertSlotReset:
 			Data8 = Read64Mem8(GpioMmioAddr+SB_GPIO_REG50);
-			Data8 |= BIT6 ;
+			Data8 |= BIT6;
 			Write64Mem8 (GpioMmioAddr+SB_GPIO_REG50, Data8);
 			Status = AGESA_SUCCESS;
 			break;

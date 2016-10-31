@@ -12,16 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include "i82801gx.h"
+#include "sata.h"
 
 #if !CONFIG_MMCONF_SUPPORT_DEFAULT
 #error ICH7 requires CONFIG_MMCONF_SUPPORT_DEFAULT
@@ -35,6 +32,11 @@ void i82801gx_enable(device_t dev)
 	reg32 = pci_read_config32(dev, PCI_COMMAND);
 	reg32 |= PCI_COMMAND_SERR;
 	pci_write_config32(dev, PCI_COMMAND, reg32);
+
+	if (dev->path.pci.devfn == PCI_DEVFN(31, 2)) {
+		printk(BIOS_DEBUG, "Set SATA mode early\n");
+		sata_enable(dev);
+	}
 }
 
 struct chip_operations southbridge_intel_i82801gx_ops = {

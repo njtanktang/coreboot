@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -33,10 +28,8 @@
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <cpu/intel/model_206ax/model_206ax.h>
 
-/* The southbridge SMI handler checks whether gnvs has a
- * valid pointer before calling the trap handler
- */
-extern global_nvs_t *gnvs;
+#define GPE_EC_SCI	1
+#define GPE_EC_WAKE	13
 
 static void mainboard_smm_init(void)
 {
@@ -103,33 +96,18 @@ static void mainboard_smi_handle_ec_sci(void)
 
 void mainboard_smi_gpi(u32 gpi_sts)
 {
-	if (gpi_sts & (1 << 12))
+	if (gpi_sts & (1 << GPE_EC_SCI))
 		mainboard_smi_handle_ec_sci();
 }
 
-static int mainboard_finalized = 0;
-
 int mainboard_smi_apmc(u8 data)
 {
-	u16 pmbase = pci_read_config16(PCI_DEV(0, 0x1f, 0), 0x40) & 0xfffc;
-	u8 tmp;
-
-	printk(BIOS_DEBUG, "%s: pmbase %04X, data %02X\n", __func__, pmbase,
-	       data);
-
-	if (!pmbase)
-		return 0;
-
 	switch (data) {
 	case APM_CNT_ACPI_ENABLE:
 		/* use 0x1600/0x1604 to prevent races with userspace */
 		ec_set_ports(0x1604, 0x1600);
-		/* route H8SCI to SCI */
-		outw(inw(ALT_GP_SMI_EN) & ~0x1000, pmbase + ALT_GP_SMI_EN);
-		tmp = pci_read_config8(PCI_DEV(0, 0x1f, 0), 0xbb);
-		tmp &= ~0x03;
-		tmp |= 0x02;
-		pci_write_config8(PCI_DEV(0, 0x1f, 0), 0xbb, tmp);
+		/* route EC_SCI to SCI */
+		gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SCI);
 		/* discard all events, and enable attention */
 		ec_write(0x80, 0x01);
 		break;
@@ -137,33 +115,25 @@ int mainboard_smi_apmc(u8 data)
 		/* we have to use port 0x62/0x66, as 0x1600/0x1604 doesn't
 		   provide a EC query function */
 		ec_set_ports(0x66, 0x62);
-		/* route H8SCI# to SMI */
-		outw(inw(pmbase + ALT_GP_SMI_EN) | 0x1000,
-		     pmbase + ALT_GP_SMI_EN);
-		tmp = pci_read_config8(PCI_DEV(0, 0x1f, 0), 0xbb);
-		tmp &= ~0x03;
-		tmp |= 0x01;
-		pci_write_config8(PCI_DEV(0, 0x1f, 0), 0xbb, tmp);
+		/* route EC_SCI to SMI */
+		gpi_route_interrupt(GPE_EC_SCI, GPI_IS_SMI);
 		/* discard all events, and enable attention */
 		ec_write(0x80, 0x01);
 		break;
-	case APM_CNT_FINALIZE:
-		printk(BIOS_DEBUG, "APMC: FINALIZE\n");
-		if (mainboard_finalized) {
-			printk(BIOS_DEBUG, "APMC#: Already finalized\n");
-			return 0;
-		}
-
-		intel_me_finalize_smm();
-		intel_pch_finalize_smm();
-		intel_sandybridge_finalize_smm();
-		intel_model_206ax_finalize_smm();
-
-		mainboard_finalized = 1;
-		break;
-
 	default:
 		break;
 	}
 	return 0;
+}
+
+void mainboard_smi_sleep(u8 slp_typ)
+{
+	if (slp_typ == 3) {
+		u8 ec_wake = ec_read(0x32);
+		/* If EC wake events are enabled, enable wake on EC WAKE GPE.  */
+		if (ec_wake & 0x14) {
+			/* Redirect EC WAKE GPE to SCI.  */
+			gpi_route_interrupt(GPE_EC_WAKE, GPI_IS_SCI);
+		}
+	}
 }

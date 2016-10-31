@@ -12,37 +12,17 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
 #include <console/console.h>
-#include <cpu/x86/lapic.h>
-
-void remap_bsp_lapic(struct bus *cpu_bus)
-{
-	struct device_path cpu_path;
-	device_t cpu;
-	u32 bsp_lapic_id = lapicid();
-
-	if (bsp_lapic_id) {
-		cpu_path.type = DEVICE_PATH_APIC;
-		cpu_path.apic.apic_id = 0;
-		cpu = find_dev_path(cpu_bus, &cpu_path);
-		if (cpu)
-			cpu->path.apic.apic_id = bsp_lapic_id;
-	}
-}
 
 device_t add_cpu_device(struct bus *cpu_bus, unsigned apic_id, int enabled)
 {
 	struct device_path cpu_path;
 	device_t cpu;
 
-	/* Build the cpu device path */
+	/* Build the CPU device path */
 	cpu_path.type = DEVICE_PATH_APIC;
 	cpu_path.apic.apic_id = apic_id;
 
@@ -68,4 +48,3 @@ void set_cpu_topology(device_t cpu, unsigned node, unsigned package, unsigned co
 	cpu->path.apic.core_id = core;
 	cpu->path.apic.thread_id = thread;
 }
-

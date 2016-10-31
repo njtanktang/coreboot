@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef HUDSON_H
@@ -55,6 +51,18 @@
 #define SPI_ROM_ENABLE                0x02
 #define SPI_BASE_ADDRESS              0xFEC10000
 
+static inline int hudson_sata_enable(void)
+{
+	/* True if IDE or AHCI. */
+	return (CONFIG_HUDSON_SATA_MODE == 0) || (CONFIG_HUDSON_SATA_MODE == 2);
+}
+
+static inline int hudson_ide_enable(void)
+{
+	/* True if IDE or LEGACY IDE. */
+	return (CONFIG_HUDSON_SATA_MODE == 0) || (CONFIG_HUDSON_SATA_MODE == 3);
+}
+
 #ifndef __SMM__
 
 void pm_write8(u8 reg, u8 value);
@@ -62,7 +70,7 @@ u8 pm_read8(u8 reg);
 void pm_write16(u8 reg, u16 value);
 u16 pm_read16(u16 reg);
 
-#ifdef __PRE_RAM__
+#ifdef __SIMPLE_DEVICE__
 void hudson_lpc_port80(void);
 void hudson_pci_port80(void);
 void hudson_clk_output_48Mhz(void);
@@ -72,7 +80,6 @@ int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos);
 
 #else
 void hudson_enable(device_t dev);
-void __attribute__((weak)) hudson_setup_sata_phys(struct device *dev);
 void s3_resume_init_data(void *FchParams);
 
 #endif /* __PRE_RAM__ */

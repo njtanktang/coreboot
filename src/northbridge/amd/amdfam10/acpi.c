@@ -1,6 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -11,15 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <string.h>
 #include <arch/acpi.h>
+#include <arch/acpigen.h>
 #include <device/pci.h>
 #include <cpu/x86/msr.h>
 #include <cpu/amd/mtrr.h>
@@ -33,7 +31,7 @@ unsigned long acpi_create_madt_lapic_nmis(unsigned long current, u16 flags, u8 l
 	device_t cpu;
 	int cpu_index = 0;
 
-	for(cpu = all_devices; cpu; cpu = cpu->next) {
+	for (cpu = all_devices; cpu; cpu = cpu->next) {
 		if ((cpu->path.type != DEVICE_PATH_APIC) ||
 		   (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
 			continue;
@@ -52,7 +50,7 @@ unsigned long acpi_create_srat_lapics(unsigned long current)
 	device_t cpu;
 	int cpu_index = 0;
 
-	for(cpu = all_devices; cpu; cpu = cpu->next) {
+	for (cpu = all_devices; cpu; cpu = cpu->next) {
 		if ((cpu->path.type != DEVICE_PATH_APIC) ||
 		   (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
 			continue;
@@ -96,18 +94,19 @@ static void set_srat_mem(void *gp, struct device *dev, struct resource *res)
 	 * next range is from 1M---
 	 * So will cut off before 1M in the mem range
 	 */
-	if((basek+sizek)<1024) return;
+	if ((basek+sizek)<1024) return;
 
-	if(basek<1024) {
+	if (basek < 1024) {
 		sizek -= 1024 - basek;
 		basek = 1024;
 	}
 
 	// need to figure out NV
-	state->current += acpi_create_srat_mem((acpi_srat_mem_t *)state->current, (res->index & 0xf), basek, sizek, 1);
+	if (res->index > 0xf)	/* Exclude MMIO resources, e.g. as set in northbridge.c amdfam10_domain_read_resources() */
+		state->current += acpi_create_srat_mem((acpi_srat_mem_t *)state->current, (res->index & 0xf), basek, sizek, 1);
 }
 
-unsigned long acpi_fill_srat(unsigned long current)
+static unsigned long acpi_fill_srat(unsigned long current)
 {
 	struct acpi_srat_mem_state srat_mem_state;
 
@@ -128,144 +127,48 @@ unsigned long acpi_fill_srat(unsigned long current)
 	return current;
 }
 
-unsigned long acpi_fill_slit(unsigned long current)
+static unsigned long acpi_fill_slit(unsigned long current)
 {
-	/* need to find out the node num at first */
-	/* fill the first 8 byte with that num */
-	/* fill the next num*num byte with distance, local is 10, 1 hop mean 20, and 2 hop with 30.... */
-
-	struct sys_info *sysinfox = (struct sys_info *)((CONFIG_RAMTOP) - sizeof(*sysinfox));
-	u8 *ln = sysinfox->ln;
-
+	/* Implement SLIT algorithm in BKDG Rev. 3.62 Section 2.3.6.1
+	 * Fill the first 8 bytes with the node number,
+	 * then fill the next num*num byte with the distance,
+	 * Distance entries vary with topology; the local node
+	 * is always 10.
+	 *
+	 * Fully connected:
+	 * Set all non-local nodes to 16
+	 *
+	 * Partially connected; with probe filter:
+	 * Set all non-local nodes to 10+(num_hops*6)
+	 *
+	 * Partially connected; without probe filter:
+	 * Set all non-local nodes to 13
+	 *
+	 * FIXME
+	 * The partially connected cases are not implemented;
+	 * once a means is found to detect partially connected
+	 * topologies, implement the remaining cases.
+	 */
 
 	u8 *p = (u8 *)current;
 	int nodes = sysconf.nodes;
 	int i,j;
-	u32 hops;
 
 	memset(p, 0, 8+nodes*nodes);
 	*p = (u8) nodes;
 	p += 8;
 
-	for(i=0;i<nodes;i++) {
-		for(j=0;j<nodes; j++) {
-			if(i==j) {
+	for (i = 0; i < nodes; i++) {
+		for (j = 0; j < nodes; j++) {
+			if (i == j)
 				p[i*nodes+j] = 10;
-			} else {
-				hops = (((ln[i*NODE_NUMS+j]>>4) & 0x7)+1);
-				p[i*nodes+j] = hops * 2 + 10;
-			}
+			else
+				p[i*nodes+j] = 16;
 		}
 	}
 
 	current += 8+nodes*nodes;
 	return current;
-}
-
-// moved from mb acpi_tables.c
-static void intx_to_stream(u32 val, u32 len, u8 *dest)
-{
-	int i;
-	for(i=0;i<len;i++) {
-		*(dest+i) = (val >> (8*i)) & 0xff;
-	}
-}
-
-static void int_to_stream(u32 val, u8 *dest)
-{
-	return intx_to_stream(val, 4, dest);
-}
-
-// used by acpi_tables.h
-void update_ssdt(void *ssdt)
-{
-	u8 *BUSN;
-	u8 *MMIO;
-	u8 *PCIO;
-	u8 *SBLK;
-	u8 *TOM1;
-	u8 *SBDN;
-	u8 *HCLK;
-	u8 *HCDN;
-	u8 *CBST;
-	u8 *CBBX;
-	u8 *CBS2;
-	u8 *CBB2;
-
-
-	int i;
-	u32 dword;
-	msr_t msr;
-
-	// the offset could be different if have different HC_NUMS, and HC_POSSIBLE_NUM and ssdt.asl
-	BUSN = ssdt+0x3b; //+5 will be next BUSN
-	MMIO = ssdt+0xe4; //+5 will be next MMIO
-	PCIO = ssdt+0x36d; //+5 will be next PCIO
-	SBLK = ssdt+0x4b2; // one byte
-	TOM1 = ssdt+0x4b9; //
-	SBDN = ssdt+0x4c3;//
-	HCLK = ssdt+0x4d1; //+5 will be next HCLK
-	HCDN = ssdt+0x57a; //+5 will be next HCDN
-	CBBX = ssdt+0x61f; //
-	CBST = ssdt+0x626;
-	CBB2 = ssdt+0x62d; //
-	CBS2 = ssdt+0x634;
-
-	for(i=0;i<HC_NUMS;i++) {
-		dword = sysconf.ht_c_conf_bus[i];
-		int_to_stream(dword, BUSN+i*5);
-	}
-
-	for(i=0;i<(HC_NUMS*2);i++) { // FIXME: change to more chain
-		dword = sysconf.conf_mmio_addrx[i]; //base
-		int_to_stream(dword, MMIO+(i*2)*5);
-		dword = sysconf.conf_mmio_addr[i]; //mask
-		int_to_stream(dword, MMIO+(i*2+1)*5);
-	}
-	for(i=0;i<HC_NUMS;i++) { // FIXME: change to more chain
-		dword = sysconf.conf_io_addrx[i];
-		int_to_stream(dword, PCIO+(i*2)*5);
-		dword = sysconf.conf_io_addr[i];
-		int_to_stream(dword, PCIO+(i*2+1)*5);
-	}
-
-	*SBLK = (u8)(sysconf.sblk);
-
-	msr = rdmsr(TOP_MEM);
-	int_to_stream(msr.lo, TOM1);
-
-	int_to_stream(sysconf.sbdn, SBDN);
-
-	for(i=0;i<sysconf.hc_possible_num;i++) {
-		int_to_stream(sysconf.pci1234[i], HCLK + i*5);
-		int_to_stream(sysconf.hcdn[i],	   HCDN + i*5);
-	}
-	for(i=sysconf.hc_possible_num; i<HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
-		int_to_stream(0x00000000, HCLK + i*5);
-		int_to_stream(0x20202020, HCDN + i*5);
-	}
-
-	*CBBX = (u8)(CONFIG_CBB);
-
-	if(CONFIG_CBB == 0xff) {
-		*CBST = (u8) (0x0f);
-	} else {
-		if((sysconf.pci1234[0] >> 12) & 0xff) { //sb chain on  other than bus 0
-			*CBST = (u8) (0x0f);
-		}
-		else {
-			*CBST = (u8) (0x00);
-		}
-	}
-
-	if((CONFIG_CBB == 0xff) && (sysconf.nodes>32)) {
-		 *CBS2 = 0x0f;
-		 *CBB2 = (u8)(CONFIG_CBB-1);
-	} else {
-		*CBS2 = 0x00;
-		*CBB2 = 0x00;
-	}
-
 }
 
 void update_ssdtx(void *ssdtx, int i)
@@ -290,90 +193,163 @@ void update_ssdtx(void *ssdtx, int i)
 
 }
 
-static void update_sspr(void *sspr, u32 nodeid, u32 cpuindex)
+void northbridge_acpi_write_vars(device_t device)
 {
-	u8 *CPU;
-	u8 *CPUIN;
-	u8 *COREFREQ;
-	u8 *POWER;
-	u8 *TRANSITION_LAT;
-	u8 *BUSMASTER_LAT;
-	u8 *CONTROL;
-	u8 *STATUS;
-	unsigned offset = 0x94 - 0x7f;
+	/*
+	 * If more than one physical CPU is installed, northbridge_acpi_write_vars()
+	 * is called more than once and the resultant SSDT table is corrupted
+	 * (duplicated entries).
+	 * This prevents Linux from booting, with log messages like these:
+	 * ACPI Error: [BUSN] Namespace lookup failure, AE_ALREADY_EXISTS (/dswload-353)
+	 * ACPI Exception: AE_ALREADY_EXISTS, During name lookup/catalog (/psobject-222)
+	 * followed by a slew of ACPI method failures and a hang when the invalid PCI
+	 * resource entries are used.
+	 * This routine prevents the SSDT table from being corrupted.
+	 */
+	static uint8_t ssdt_generated = 0;
+	if (ssdt_generated)
+		return;
+	ssdt_generated = 1;
+
+	msr_t msr;
+	char pscope[] = "\\_SB.PCI0";
 	int i;
 
-	CPU = sspr + 0x38;
-	CPUIN = sspr + 0x3a;
+	get_bus_conf();	/* it will get sblk, pci1234, hcdn, and sbdn */
 
-	COREFREQ = sspr + 0x7f; //2 byte
-	POWER = sspr + 0x82; //3 bytes
-	TRANSITION_LAT = sspr + 0x87; //two bytes
-	BUSMASTER_LAT = sspr + 0x8a; //two bytes
-	CONTROL = sspr + 0x8d;
-	STATUS = sspr + 0x8f;
+	acpigen_write_scope(pscope);
 
-	snprintf((char*)CPU, 3, "%02x", (char)cpuindex);
-	*CPUIN = (u8) cpuindex;
-
-	for(i=0;i<sysconf.p_state_num;i++) {
-		struct p_state_t *p_state = &sysconf.p_state[nodeid * 5 + i];
-		intx_to_stream(p_state->corefreq, 2, COREFREQ + i*offset);
-		intx_to_stream(p_state->power, 3, POWER + i*offset);
-		intx_to_stream(p_state->transition_lat, 2, TRANSITION_LAT + i*offset);
-		intx_to_stream(p_state->busmaster_lat, 2, BUSMASTER_LAT + i*offset);
-		*((u8 *)(CONTROL + i*offset)) =(u8) p_state->control;
-		*((u8 *)(STATUS + i*offset)) =(u8) p_state->status;
+	acpigen_write_name("BUSN");
+	acpigen_write_package(HC_NUMS);
+	for (i = 0; i < HC_NUMS; i++) {
+		acpigen_write_dword(sysconf.ht_c_conf_bus[i]);
 	}
+	// minus the opcode
+	acpigen_pop_len();
+
+	acpigen_write_name("MMIO");
+
+	acpigen_write_package(HC_NUMS * 4);
+
+	for (i = 0; i<(HC_NUMS*2); i++) { // FIXME: change to more chain
+		acpigen_write_dword(sysconf.conf_mmio_addrx[i]); //base
+		acpigen_write_dword(sysconf.conf_mmio_addr[i]); //mask
+	}
+	// minus the opcode
+	acpigen_pop_len();
+
+	acpigen_write_name("PCIO");
+
+	acpigen_write_package(HC_NUMS * 2);
+
+	for (i = 0; i < HC_NUMS; i++) { // FIXME: change to more chain
+		acpigen_write_dword(sysconf.conf_io_addrx[i]);
+		acpigen_write_dword(sysconf.conf_io_addr[i]);
+	}
+
+	// minus the opcode
+	acpigen_pop_len();
+
+	acpigen_write_name_byte("SBLK", sysconf.sblk);
+
+	msr = rdmsr(TOP_MEM);
+	acpigen_write_name_dword("TOM1", msr.lo);
+
+	msr = rdmsr(TOP_MEM2);
+	/*
+	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
+	 * here.
+	 * See http://www.acpi.info/presentations/S01USMOBS169_OS%2520new.ppt
+	 * slide 22ff.
+	 * Shift value right by 20 bit to make it fit into 32bit,
+	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
+	 */
+	acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
+
+
+	acpigen_write_name_dword("SBDN", sysconf.sbdn);
+
+	acpigen_write_name("HCLK");
+
+	acpigen_write_package(HC_POSSIBLE_NUM);
+
+	for (i = 0; i < sysconf.hc_possible_num; i++) {
+		acpigen_write_dword(sysconf.pci1234[i]);
+	}
+	for (i = sysconf.hc_possible_num; i < HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
+		acpigen_write_dword(0x00000000);
+	}
+	// minus the opcode
+	acpigen_pop_len();
+
+	acpigen_write_name("HCDN");
+
+	acpigen_write_package(HC_POSSIBLE_NUM);
+
+	for (i = 0; i < sysconf.hc_possible_num; i++) {
+		acpigen_write_dword(sysconf.hcdn[i]);
+	}
+	for (i = sysconf.hc_possible_num; i < HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
+		acpigen_write_dword(0x20202020);
+	}
+	// minus the opcode
+	acpigen_pop_len();
+
+	acpigen_write_name_byte("CBB", CONFIG_CBB);
+
+	u8 CBST, CBB2, CBS2;
+
+	if (CONFIG_CBB == 0xff) {
+		CBST = (u8) (0x0f);
+	} else {
+		if ((sysconf.pci1234[0] >> 12) & 0xff) { //sb chain on  other than bus 0
+			CBST = (u8) (0x0f);
+		} else {
+			CBST = (u8) (0x00);
+		}
+	}
+
+	acpigen_write_name_byte("CBST", CBST);
+
+	if ((CONFIG_CBB == 0xff) && (sysconf.nodes > 32)) {
+		 CBS2 = 0x0f;
+		 CBB2 = (u8)(CONFIG_CBB-1);
+	} else {
+		CBS2 = 0x00;
+		CBB2 = 0x00;
+	}
+
+	acpigen_write_name_byte("CBB2", CBB2);
+	acpigen_write_name_byte("CBS2", CBS2);
+
+	//minus opcode
+	acpigen_pop_len();
 }
 
-extern const unsigned char AmlCode_sspr5[];
-extern const unsigned char AmlCode_sspr4[];
-extern const unsigned char AmlCode_sspr3[];
-extern const unsigned char AmlCode_sspr2[];
-extern const unsigned char AmlCode_sspr1[];
-
-/* fixme: find one good way for different p_state_num */
-unsigned long acpi_add_ssdt_pstates(acpi_rsdp_t *rsdp, unsigned long current)
+unsigned long northbridge_write_acpi_tables(device_t device,
+					    unsigned long current,
+					    struct acpi_rsdp *rsdp)
 {
-	device_t cpu;
-	int cpu_index = 0;
+	acpi_srat_t *srat;
+	acpi_slit_t *slit;
 
-	acpi_header_t *ssdt;
+	get_bus_conf();	/* it will get sblk, pci1234, hcdn, and sbdn */
 
-	if(!sysconf.p_state_num) return current;
+	/* SRAT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
+	srat = (acpi_srat_t *) current;
+	acpi_create_srat(srat, acpi_fill_srat);
+	current += srat->header.length;
+	acpi_add_table(rsdp, srat);
 
-	void *AmlCode_sspr;
-	switch(sysconf.p_state_num) {
-		case 1: AmlCode_sspr = &AmlCode_sspr1; break;
-		case 2: AmlCode_sspr = &AmlCode_sspr2; break;
-		case 3: AmlCode_sspr = &AmlCode_sspr3; break;
-		case 4: AmlCode_sspr = &AmlCode_sspr4; break;
-		default: AmlCode_sspr = &AmlCode_sspr5; break;
-	}
+	/* SLIT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
+	slit = (acpi_slit_t *) current;
+	acpi_create_slit(slit, acpi_fill_slit);
+	current += slit->header.length;
+	acpi_add_table(rsdp, slit);
 
-	for(cpu = all_devices; cpu; cpu = cpu->next) {
-		if ((cpu->path.type != DEVICE_PATH_APIC) ||
-		   (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
-			continue;
-		}
-		if (!cpu->enabled) {
-			 continue;
-		}
-		printk(BIOS_DEBUG, "ACPI: pstate cpu_index=%02x, node_id=%02x, core_id=%02x\n", cpu_index, cpu->path.apic.node_id, cpu->path.apic.core_id);
-
-		current	  = ALIGN(current, 16);
-		ssdt = (acpi_header_t *)current;
-		memcpy(ssdt, AmlCode_sspr, sizeof(acpi_header_t));
-		current += ssdt->length;
-		memcpy(ssdt, AmlCode_sspr, ssdt->length);
-		update_sspr((void*)ssdt,cpu->path.apic.node_id, cpu_index);
-		/* recalculate checksum */
-		ssdt->checksum = 0;
-		ssdt->checksum = acpi_checksum((unsigned char *)ssdt,ssdt->length);
-		acpi_add_table(rsdp, ssdt);
-
-		cpu_index++;
-	}
 	return current;
 }

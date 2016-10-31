@@ -31,15 +31,20 @@
 
 #ifdef LIBPAYLOAD
 # include <libpayload-config.h>
-# ifdef CONFIG_LZMA
+# if IS_ENABLED(CONFIG_LP_LZMA)
 #  include <lzma.h>
 #  define CBFS_CORE_WITH_LZMA
+# endif
+# if IS_ENABLED(CONFIG_LP_LZ4)
+#  include <lz4.h>
+#  define CBFS_CORE_WITH_LZ4
 # endif
 # define CBFS_MINI_BUILD
 #elif defined(__SMM__)
 # define CBFS_MINI_BUILD
 #else
 # define CBFS_CORE_WITH_LZMA
+# define CBFS_CORE_WITH_LZ4
 # include <lib.h>
 #endif
 
@@ -55,24 +60,11 @@
 # include <console/console.h>
 # define ERROR(x...) printk(BIOS_ERR, "CBFS: " x)
 # define LOG(x...) printk(BIOS_INFO, "CBFS: " x)
-# if CONFIG_DEBUG_CBFS
+# if CONFIG_LP_DEBUG_CBFS
 #  define DEBUG(x...) printk(BIOS_SPEW, "CBFS: " x)
 # else
 #  define DEBUG(x...)
 # endif
-#endif
-
-#if defined(CONFIG_CBFS_HEADER_ROM_OFFSET) && (CONFIG_CBFS_HEADER_ROM_OFFSET)
-# define CBFS_HEADER_ROM_ADDRESS (CONFIG_CBFS_HEADER_ROM_OFFSET)
-#else
-/* ugly hack: this assumes that "media" exists
-              in the scope where the macro is used. */
-static uint32_t fetch_x86_header(struct cbfs_media *media)
-{
-	uint32_t *header_ptr = media->map(media, 0xfffffffc, 4);
-	return *header_ptr;
-}
-# define CBFS_HEADER_ROM_ADDRESS fetch_x86_header(media)
 #endif
 
 #include "cbfs_core.c"
@@ -92,41 +84,14 @@ static void tohex16(unsigned int val, char* dest)
 }
 
 void *cbfs_load_optionrom(struct cbfs_media *media, uint16_t vendor,
-			  uint16_t device, void *dest)
+			  uint16_t device)
 {
 	char name[17] = "pciXXXX,XXXX.rom";
-	struct cbfs_optionrom *orom;
-	uint8_t *src;
 
 	tohex16(vendor, name+3);
 	tohex16(device, name+8);
 
-	orom = (struct cbfs_optionrom *)
-		cbfs_get_file_content(media, name, CBFS_TYPE_OPTIONROM, NULL);
-
-	if (orom == NULL)
-		return NULL;
-
-	/* They might have specified a dest address. If so, we can decompress.
-	 * If not, there's not much hope of decompressing or relocating the rom.
-	 * in the common case, the expansion rom is uncompressed, we
-	 * pass 0 in for the dest, and all we have to do is find the rom and
-	 * return a pointer to it.
-	 */
-
-	/* BUG: the cbfstool is (not yet) including a cbfs_optionrom header */
-	src = (uint8_t*)orom; // + sizeof(struct cbfs_optionrom);
-
-	if (! dest)
-		return src;
-
-	if (!cbfs_decompress(ntohl(orom->compression),
-			     src,
-			     dest,
-			     ntohl(orom->len)))
-		return NULL;
-
-	return dest;
+	return cbfs_get_file_content(media, name, CBFS_TYPE_OPTIONROM, NULL);
 }
 
 void * cbfs_load_stage(struct cbfs_media *media, const char *name)
@@ -135,24 +100,26 @@ void * cbfs_load_stage(struct cbfs_media *media, const char *name)
 		cbfs_get_file_content(media, name, CBFS_TYPE_STAGE, NULL);
 	/* this is a mess. There is no ntohll. */
 	/* for now, assume compatible byte order until we solve this. */
-	uint32_t entry;
+	uintptr_t entry;
 	uint32_t final_size;
 
 	if (stage == NULL)
 		return (void *) -1;
 
-	LOG("loading stage %s @ 0x%x (%d bytes), entry @ 0x%llx\n",
+	LOG("loading stage %s @ 0x%p (%d bytes), entry @ 0x%llx\n",
 			name,
-			(uint32_t) stage->load, stage->memlen,
+			(void*)(uintptr_t) stage->load, stage->memlen,
 			stage->entry);
 
 	final_size = cbfs_decompress(stage->compression,
 				     ((unsigned char *) stage) +
 				     sizeof(struct cbfs_stage),
-				     (void *) (uint32_t) stage->load,
+				     (void *) (uintptr_t) stage->load,
 				     stage->len);
-	if (!final_size)
-		return (void *) -1;
+	if (!final_size) {
+		entry = -1;
+		goto out;
+	}
 
 	memset((void *)((uintptr_t)stage->load + final_size), 0,
 	       stage->memlen - final_size);
@@ -162,6 +129,8 @@ void * cbfs_load_stage(struct cbfs_media *media, const char *name)
 	entry = stage->entry;
 	// entry = ntohll(stage->entry);
 
+out:
+	free(stage);
 	return (void *) entry;
 }
 
@@ -176,12 +145,14 @@ int cbfs_execute_stage(struct cbfs_media *media, const char *name)
 	if (ntohl(stage->compression) != CBFS_COMPRESS_NONE) {
 		LOG("Unable to run %s:  Compressed file"
 		       "Not supported for in-place execution\n", name);
+		free(stage);
 		return 1;
 	}
 
-	/* FIXME: This isn't right */
-	LOG("run @ %p\n", (void *) ntohl((uint32_t) stage->entry));
-	return run_address((void *)(uintptr_t)ntohll(stage->entry));
+	LOG("run @ %p\n", (void *) (uintptr_t)ntohll(stage->entry));
+	int result = run_address((void *)(uintptr_t)ntohll(stage->entry));
+	free(stage);
+	return result;
 }
 
 void *cbfs_load_payload(struct cbfs_media *media, const char *name)
@@ -191,7 +162,22 @@ void *cbfs_load_payload(struct cbfs_media *media, const char *name)
 }
 
 struct cbfs_file *cbfs_find(const char *name) {
-	return cbfs_get_file(CBFS_DEFAULT_MEDIA, name);
+	struct cbfs_handle *handle = cbfs_get_handle(CBFS_DEFAULT_MEDIA, name);
+	struct cbfs_media *m = &handle->media;
+	void *ret;
+
+	if (!handle)
+		return NULL;
+
+	ret = m->map(m, handle->media_offset,
+		     handle->content_offset + handle->content_size);
+	if (ret == CBFS_MEDIA_INVALID_MAP_ADDRESS) {
+		free(handle);
+		return NULL;
+	}
+
+	free(handle);
+	return ret;
 }
 
 void *cbfs_find_file(const char *name, int type) {
@@ -208,8 +194,8 @@ void *cbfs_simple_buffer_map(struct cbfs_simple_buffer *buffer,
 			     struct cbfs_media *media,
 			     size_t offset, size_t count) {
 	void *address = buffer->buffer + buffer->allocated;;
-	DEBUG("simple_buffer_map(offset=%d, count=%d): "
-	      "allocated=%d, size=%d, last_allocate=%d\n",
+	DEBUG("simple_buffer_map(offset=%zu, count=%zu): "
+	      "allocated=%zu, size=%zu, last_allocate=%zu\n",
 	    offset, count, buffer->allocated, buffer->size,
 	    buffer->last_allocate);
 	if (buffer->allocated + count >= buffer->size)
@@ -229,7 +215,7 @@ void *cbfs_simple_buffer_unmap(struct cbfs_simple_buffer *buffer,
 	// TODO Add simple buffer management so we can free more than last
 	// allocated one.
 	DEBUG("simple_buffer_unmap(address=0x%p): "
-	      "allocated=%d, size=%d, last_allocate=%d\n",
+	      "allocated=%zu, size=%zu, last_allocate=%zu\n",
 	    address, buffer->allocated, buffer->size,
 	    buffer->last_allocate);
 	if ((buffer->buffer + buffer->allocated - buffer->last_allocate) ==

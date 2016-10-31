@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/cpu.h>
@@ -27,16 +23,18 @@
 #include <device/device.h>
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
-#include <romstage_handoff.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <baytrail/gpio.h>
-#include <baytrail/lpc.h>
-#include <baytrail/msr.h>
-#include <baytrail/nvs.h>
-#include <baytrail/pattrs.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/gpio.h>
+#include <soc/lpc.h>
+#include <soc/msr.h>
+#include <soc/nvs.h>
+#include <soc/pattrs.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/ramstage.h>
+#include <soc/iosf.h>
 
 /* Global PATTRS */
 DEFINE_PATTRS;
@@ -71,7 +69,9 @@ static inline void fill_in_msr(msr_t *msr, int idx)
 	}
 }
 
-static const char *stepping_str[] = { "A0", "A1", "B0", "B1", "B2", "B3" };
+static const char *stepping_str[] = {
+	"A0", "A1", "B0", "B1", "B2", "B3", "C0", "D0",
+};
 
 static void fill_in_pattrs(void)
 {
@@ -83,7 +83,13 @@ static void fill_in_pattrs(void)
 	dev = dev_find_slot(0, PCI_DEVFN(LPC_DEV, LPC_FUNC));
 	attrs->revid = pci_read_config8(dev, REVID);
 	/* The revision to stepping IDs have two values per metal stepping. */
-	if (attrs->revid >= RID_B_STEPPING_START) {
+	if (attrs->revid >= RID_D_STEPPING_START) {
+		attrs->stepping = (attrs->revid - RID_D_STEPPING_START) / 2;
+		attrs->stepping += STEP_D0;
+	} else if (attrs->revid >= RID_C_STEPPING_START) {
+		attrs->stepping = (attrs->revid - RID_C_STEPPING_START) / 2;
+		attrs->stepping += STEP_C0;
+	} else if (attrs->revid >= RID_B_STEPPING_START) {
 		attrs->stepping = (attrs->revid - RID_B_STEPPING_START) / 2;
 		attrs->stepping += STEP_B0;
 	} else {
@@ -124,37 +130,63 @@ static void fill_in_pattrs(void)
 	attrs->bclk_khz = bus_freq_khz();
 }
 
-static inline void set_acpi_sleep_type(int val)
+/* Save bit index for first enabled event in PM1_STS for \_SB._SWS */
+static void s3_save_acpi_wake_source(global_nvs_t *gnvs)
 {
-#if CONFIG_HAVE_ACPI_RESUME
-	acpi_slp_type = val;
-#endif
+	struct chipset_power_state *ps = cbmem_find(CBMEM_ID_POWER_STATE);
+	uint16_t pm1;
+
+	if (!ps)
+		return;
+
+	pm1 = ps->pm1_sts & ps->pm1_en;
+
+	/* Scan for first set bit in PM1 */
+	for (gnvs->pm1i = 0; gnvs->pm1i < 16; gnvs->pm1i++) {
+		if (pm1 & 1)
+			break;
+		pm1 >>= 1;
+	}
+
+	/* If unable to determine then return -1 */
+	if (gnvs->pm1i >= 16)
+		gnvs->pm1i = -1;
+
+	printk(BIOS_DEBUG, "ACPI System Wake Source is PM1 Index %d\n",
+	       gnvs->pm1i);
 }
 
 static void s3_resume_prepare(void)
 {
 	global_nvs_t *gnvs;
-	struct romstage_handoff *romstage_handoff;
 
 	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(global_nvs_t));
-
-	romstage_handoff = cbmem_find(CBMEM_ID_ROMSTAGE_INFO);
-	if (romstage_handoff == NULL || romstage_handoff->s3_resume == 0) {
-		if (gnvs != NULL) {
-			memset(gnvs, 0, sizeof(global_nvs_t));
-		}
-		set_acpi_sleep_type(0);
+	if (gnvs == NULL)
 		return;
-	}
 
-	set_acpi_sleep_type(3);
+	if (!acpi_is_wakeup_s3())
+		memset(gnvs, 0, sizeof(global_nvs_t));
+	else
+		s3_save_acpi_wake_source(gnvs);
 }
 
-void baytrail_init_pre_device(void)
+static void baytrail_enable_2x_refresh_rate(void)
 {
-	struct soc_gpio_config *config;
+	u32 reg;
+	reg = iosf_dunit_read(0x8);
+	reg = reg & ~0x7000;
+	reg = reg | 0x2000;
+	iosf_dunit_write(0x8, reg);
+}
+
+void baytrail_init_pre_device(struct soc_intel_baytrail_config *config)
+{
+	struct soc_gpio_config *gpio_config;
 
 	fill_in_pattrs();
+
+	if (!config->disable_ddr_2x_refresh_rate)
+		baytrail_enable_2x_refresh_rate();
 
 	/* Allow for SSE instructions to be executed. */
 	write_cr4(read_cr4() | CR4_OSFXSR | CR4_OSXMMEXCPT);
@@ -166,8 +198,8 @@ void baytrail_init_pre_device(void)
 	baytrail_run_reference_code();
 
 	/* Get GPIO initial states from mainboard */
-	config = mainboard_get_gpios();
-	setup_soc_gpios(config);
+	gpio_config = mainboard_get_gpios();
+	setup_soc_gpios(gpio_config, config->enable_xdp_tap);
 
 	baytrail_init_scc();
 }

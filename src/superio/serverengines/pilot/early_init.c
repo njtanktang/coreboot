@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* PILOT Super I/O is only based on LPC observation done on factory system. */
@@ -32,15 +28,13 @@
  * Logical device 4, 5 and 7 are being deactivated. Logical Device 1 seems to
  * be another serial (?), it is also deactivated on the HP machine.
  */
-void pilot_early_init(device_t dev)
+void pilot_early_init(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 
-	print_debug("Using port: ");
-	print_debug_hex16(port);
-	print_debug("\n");
+	printk(BIOS_DEBUG, "Using port: %04x\n", port);
 	pilot_disable_serial(PNP_DEV(port, 0x1));
-	print_debug("disable serial 1\n");
+	printk(BIOS_DEBUG, "disable serial 1\n");
 
 	pnp_enter_ext_func_mode(dev);
 	pnp_set_logical_device(PNP_DEV(port, 0x3));

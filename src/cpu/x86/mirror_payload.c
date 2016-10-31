@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -22,9 +18,9 @@
 #include <string.h>
 #include <console/console.h>
 #include <bootmem.h>
-#include <payload_loader.h>
+#include <program_loading.h>
 
-void mirror_payload(struct payload *payload)
+void mirror_payload(struct prog *payload)
 {
 	char *buffer;
 	size_t size;
@@ -34,8 +30,8 @@ void mirror_payload(struct payload *payload)
 	const uintptr_t intra_cacheline_mask = cacheline_size - 1;
 	const uintptr_t cacheline_mask = ~intra_cacheline_mask;
 
-	src = payload->backing_store.data;
-	size = payload->backing_store.size;
+	src = prog_start(payload);
+	size = prog_size(payload);
 
 	/*
 	 * Adjust size so that the start and end points are aligned to a
@@ -67,5 +63,5 @@ void mirror_payload(struct payload *payload)
 	memcpy(buffer, src, size);
 
 	/* Update the payload's backing store. */
-	payload->backing_store.data = &buffer[alignment_diff];
+	prog_set_area(payload, &buffer[alignment_diff], prog_size(payload));
 }

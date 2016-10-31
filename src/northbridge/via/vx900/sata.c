@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <console/console.h>
@@ -24,7 +21,7 @@
 #include "vx900.h"
 
 /**
- * @file sata.c
+ * @file vx900/sata.c
  *
  * STATUS: Pretty good
  * The only issue is the SATA EPHY configuration. We do not know if it is board
@@ -39,52 +36,52 @@ static void vx900_print_sata_errors(u32 flags)
 	printk(BIOS_DEBUG, "\tCOMWAKE %s\n",
 	       (flags & (1 << 16)) ? "detected" : "not detected");
 	printk(BIOS_DEBUG, "\tExchange as determined by COMINIT %s\n",
-	       (flags & (1 << 26)) ? "occured" : "not occured");
+	       (flags & (1 << 26)) ? "occurred" : "not occurred");
 	printk(BIOS_DEBUG, "\tPort selector presence %s\n",
 	       (flags & (1 << 27)) ? "detected" : "not detected");
 	/* Errors */
 	if (flags & (1 << 0))
-		print_debug("\tRecovered data integrity ERROR\n");
+		printk(BIOS_DEBUG, "\tRecovered data integrity ERROR\n");
 	if (flags & (1 << 1))
-		print_debug("\tRecovered data communication ERROR\n");
+		printk(BIOS_DEBUG, "\tRecovered data communication ERROR\n");
 	if (flags & (1 << 8))
-		print_debug("\tNon-recovered Transient Data Integrity ERROR\n");
+		printk(BIOS_DEBUG, "\tNon-recovered Transient Data Integrity ERROR\n");
 	if (flags & (1 << 9))
-		print_debug("\tNon-recovered Persistent Communication or"
+		printk(BIOS_DEBUG, "\tNon-recovered Persistent Communication or"
 			    "\tData Integrity ERROR\n");
 	if (flags & (1 << 10))
-		print_debug("\tProtocol ERROR\n");
+		printk(BIOS_DEBUG, "\tProtocol ERROR\n");
 	if (flags & (1 << 11))
-		print_debug("\tInternal ERROR\n");
+		printk(BIOS_DEBUG, "\tInternal ERROR\n");
 	if (flags & (1 << 17))
-		print_debug("\tPHY Internal ERROR\n");
+		printk(BIOS_DEBUG, "\tPHY Internal ERROR\n");
 	if (flags & (1 << 19))
-		print_debug("\t10B to 8B Decode ERROR\n");
+		printk(BIOS_DEBUG, "\t10B to 8B Decode ERROR\n");
 	if (flags & (1 << 20))
-		print_debug("\tDisparity ERROR\n");
+		printk(BIOS_DEBUG, "\tDisparity ERROR\n");
 	if (flags & (1 << 21))
-		print_debug("\tCRC ERROR\n");
+		printk(BIOS_DEBUG, "\tCRC ERROR\n");
 	if (flags & (1 << 22))
-		print_debug("\tHandshake ERROR\n");
+		printk(BIOS_DEBUG, "\tHandshake ERROR\n");
 	if (flags & (1 << 23))
-		print_debug("\tLink Sequence ERROR\n");
+		printk(BIOS_DEBUG, "\tLink Sequence ERROR\n");
 	if (flags & (1 << 24))
-		print_debug("\tTransport State Transition ERROR\n");
+		printk(BIOS_DEBUG, "\tTransport State Transition ERROR\n");
 	if (flags & (1 << 25))
-		print_debug("\tUNRECOGNIZED FIS type\n");
+		printk(BIOS_DEBUG, "\tUNRECOGNIZED FIS type\n");
 }
 
 static void vx900_dbg_sata_errors(device_t dev)
 {
 	/* Port 0 */
 	if (pci_read_config8(dev, 0xa0) & (1 << 0)) {
-		print_debug("Device detected in SATA port 0.\n");
+		printk(BIOS_DEBUG, "Device detected in SATA port 0.\n");
 		u32 flags = pci_read_config32(dev, 0xa8);
 		vx900_print_sata_errors(flags);
 	};
 	/* Port 1 */
 	if (pci_read_config8(dev, 0xa1) & (1 << 0)) {
-		print_debug("Device detected in SATA port 1.\n");
+		printk(BIOS_DEBUG, "Device detected in SATA port 1.\n");
 		u32 flags = pci_read_config32(dev, 0xac);
 		vx900_print_sata_errors(flags);
 	};
@@ -147,21 +144,18 @@ static void vx900_sata_write_phy_config(device_t dev, sata_phy_config cfg)
 
 static void vx900_sata_dump_phy_config(sata_phy_config cfg)
 {
-	print_debug("SATA PHY config:\n");
+	printk(BIOS_DEBUG, "SATA PHY config:\n");
 	int i;
 	for (i = 0; i < sizeof(sata_phy_config); i++) {
 		unsigned char val;
-		if ((i & 0x0f) == 0) {
-			print_debug_hex8(i);
-			print_debug_char(':');
-		}
+		if ((i & 0x0f) == 0)
+			printk(BIOS_DEBUG, "%02x:", i);
 		val = cfg[i];
 		if ((i & 7) == 0)
-			print_debug(" |");
-		print_debug_char(' ');
-		print_debug_hex8(val);
+			printk(BIOS_DEBUG, " |");
+		printk(BIOS_DEBUG, " %02x", val);
 		if ((i & 0x0f) == 0x0f) {
-			print_debug("\n");
+			printk(BIOS_DEBUG, "\n");
 		}
 	}
 }
@@ -205,7 +199,7 @@ static void vx900_sata_init(device_t dev)
 	/* Resend COMRESET When Recovering SATA Gen2 Device Error */
 	pci_mod_config8(dev, 0x62, 1 << 1, 1 << 7);
 
-	/* Fix "PMP Device Can’t Detect HDD Normally" (VIA Porting Guide)
+	/* Fix "PMP Device Can't Detect HDD Normally" (VIA Porting Guide)
 	 * SATA device detection will not work unless we clear these bits.
 	 * Without doing this, SeaBIOS (and potentially other payloads) will
 	 * timeout when detecting SATA devices */
@@ -217,8 +211,8 @@ static void vx900_sata_init(device_t dev)
 	 * reset and check the BSY bit of one port only, and the BSY bit of
 	 * other port would be 1, then it does another software reset
 	 * immediately and causes the system hang.
-	 * This is because the first software reset doesn’t finish, and the
-	 * state machine of the host controller conflicts, it can’t finish the
+	 * This is because the first software reset doesn't finish, and the
+	 * state machine of the host controller conflicts, it can't finish the
 	 * second one anymore. The BSY bit of slave port would be always 1 after
 	 * the second software reset issues. BIOS should set the following
 	 * bit to avoid this issue. */

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -24,11 +20,12 @@
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <cpu/x86/cache.h>
+#include <cpu/intel/romstage.h>
 #include <arch/cpu.h>
 #include <console/console.h>
 #if 0
 #include "ram/ramtest.c"
-#include "southbridge/intel/sch/early_smbus.c"
+#include "soc/intel/sch/early_smbus.c"
 #endif
 
 #define RFID_TEST 0
@@ -222,7 +219,7 @@ void transaction3(unsigned char dev_addr)
 
 	// sch_SMbus_regs ();
 	//check the status register for busy state
-	//temp=inb(SMBusBase+SMBHSTSTS);
+	//temp = inb(SMBusBase+SMBHSTSTS);
 	//printk(BIOS_DEBUG, "SMBus Busy.. status =%x\r\n",temp);
 	//sch_SMbus_regs ();
 	//printk(BIOS_DEBUG, "SMBHSTSTS. =%x\r\n",inb(SMBusBase+SMBHSTSTS));
@@ -262,7 +259,7 @@ int selectcard(void)
 {
 	int i;
 
-	printk(BIOS_DEBUG, "%s", "\r\nCase 9....... \n\r");
+	printk(BIOS_DEBUG, "%s", "\r\nCase 9.......\r\n");
 	// send the length byte and command code through RFID interface
 
 	transaction1(RFID_ADDR);
@@ -272,9 +269,9 @@ int selectcard(void)
 }
 #endif
 
-#include "northbridge/intel/sch/early_init.c"
-#include "northbridge/intel/sch/raminit.h"
-#include "northbridge/intel/sch/raminit.c"
+#include "soc/intel/sch/early_init.c"
+#include <soc/intel/sch/raminit.h>
+#include "soc/intel/sch/raminit.c"
 
 static void sch_enable_lpc(void)
 {
@@ -291,7 +288,7 @@ static void sch_shadow_CMC(void)
 
 	/* FIXME: proper dest, proper src, and wbinvd, too */
 	memcpy((void *)CMC_SHADOW, (void *)0xfffd0000, 64 * 1024);
-	// __asm__ volatile ("wbinvd \n"
+	// __asm__ volatile ("wbinvd\n"
 	//);
 	printk(BIOS_DEBUG, "copy done ");
 	memcpy((void *)0x3f5f0000, (void *)0x3faf0000, 64 * 1024);
@@ -332,7 +329,7 @@ static void poulsbo_setup_Stage2Regs(void)
 	printk(BIOS_DEBUG, " done.\n");
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	int boot_mode = 0;
 

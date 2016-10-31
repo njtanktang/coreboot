@@ -31,33 +31,40 @@
 
 export KERNELVERSION      := 0.2.0
 
-ARCHDIR-$(CONFIG_ARCH_ARMV7)   := armv7
-ARCHDIR-$(CONFIG_ARCH_X86)     := x86
+ARCHDIR-$(CONFIG_LP_ARCH_ARM)     := arm
+ARCHDIR-$(CONFIG_LP_ARCH_ARM64)   := arm64
+ARCHDIR-$(CONFIG_LP_ARCH_MIPS)    := mips
+ARCHDIR-$(CONFIG_LP_ARCH_X86)     := x86
 DESTDIR ?= install
 
 real-target: lib
 
-classes-$(CONFIG_PCI) += libpci
-classes-$(CONFIG_LIBC) += libc
-classes-$(CONFIG_CURSES) += libcurses
-classes-$(CONFIG_PDCURSES) += libmenu libform libpanel
-classes-$(CONFIG_CBFS) += libcbfs
-classes-$(CONFIG_LZMA) += liblzma
+classes-$(CONFIG_LP_PCI) += libpci
+classes-$(CONFIG_LP_LIBC) += libc
+classes-$(CONFIG_LP_CURSES) += libcurses
+classes-$(CONFIG_LP_PDCURSES) += libmenu libform libpanel
+classes-$(CONFIG_LP_CBFS) += libcbfs
+classes-$(CONFIG_LP_LZMA) += liblzma
+classes-$(CONFIG_LP_LZ4) += liblz4
+classes-$(CONFIG_LP_REMOTEGDB) += libgdb
 libraries := $(classes-y)
 classes-y += head.o
 
 subdirs-y := arch/$(ARCHDIR-y)
-subdirs-y += crypto libc drivers libpci
-subdirs-$(CONFIG_CURSES) += curses
-subdirs-$(CONFIG_CBFS) += libcbfs
-subdirs-$(CONFIG_LZMA) += liblzma
+subdirs-y += crypto libc drivers libpci gdb
+subdirs-$(CONFIG_LP_CURSES) += curses
+subdirs-$(CONFIG_LP_CBFS) += libcbfs
+subdirs-$(CONFIG_LP_LZMA) += liblzma
+subdirs-$(CONFIG_LP_LZ4) += liblz4
 
-INCLUDES := -Iinclude -Iinclude/$(ARCHDIR-y) -I$(obj)
-CFLAGS =  $(EXTRA_CFLAGS) $(INCLUDES) -Os -pipe -nostdinc
+INCLUDES := -Iinclude -Iinclude/$(ARCHDIR-y) -I$(obj) -include include/kconfig.h
+
+CFLAGS +=  $(EXTRA_CFLAGS) $(INCLUDES) -Os -pipe -nostdinc -ggdb3
 CFLAGS += -nostdlib -fno-builtin -ffreestanding -fomit-frame-pointer
+CFLAGS += -ffunction-sections -fdata-sections
 CFLAGS += -Wall -Wundef -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS += -Wwrite-strings -Wredundant-decls -Wno-trigraphs
-CFLAGS += -Wstrict-aliasing -Wshadow
+CFLAGS += -Wstrict-aliasing -Wshadow -Werror
 
 $(obj)/libpayload-config.h: $(KCONFIG_AUTOHEADER)
 	cmp $@ $< 2>/dev/null || cp $< $@
@@ -68,22 +75,22 @@ lib: $$(library-targets) $(obj)/head.o
 extract_nth=$(word $(1), $(subst |, ,$(2)))
 
 #######################################################################
-# Add handler for special include files 
+# Add handler for special include files
 $(call add-special-class,includes)
 includes-handler= \
 		$(if $(wildcard $(1)$(call extract_nth,1,$(2))), \
 			$(eval includes += $(1)$(2)))
 
 $(obj)/libpayload.a: $(foreach class,$(libraries),$$($(class)-objs))
-	printf "    AR         $(subst $(shell pwd)/,,$(@))\n"
+	printf "    AR         $(subst $(CURDIR)/,,$(@))\n"
 	$(AR) rc $@ $^
 
 $(obj)/%.a: $$(%-objs)
-	printf "    AR         $(subst $(shell pwd)/,,$(@))\n"
+	printf "    AR         $(subst $(CURDIR)/,,$(@))\n"
 	$(AR) rc $@ $^
 
 $(obj)/head.o: $(obj)/arch/$(ARCHDIR-y)/head.head.o.o
-	printf "    CP         $(subst $(shell pwd)/,,$(@))\n"
+	printf "    CP         $(subst $(CURDIR)/,,$(@))\n"
 	cp $^ $@
 
 install: real-target
@@ -111,6 +118,7 @@ install: real-target
 	install -m 755 bin/lpas $(DESTDIR)/libpayload/bin
 	install -m 644 bin/lp.functions $(DESTDIR)/libpayload/bin
 	install -m 644 $(DOTCONFIG) $(DESTDIR)/libpayload/libpayload.config
+	install -m 755 .xcompile $(DESTDIR)/libpayload/libpayload.xcompile
 
 clean-for-update-target:
 	rm -f $(addsuffix .a,$(addprefix $(obj)/,$(libraries))) $(obj)/libpayload.a
@@ -122,9 +130,10 @@ junit.xml:
 	echo '<?xml version="1.0" encoding="utf-8"?><testsuite>' > $@.tmp
 	for i in $(filter-out %.old,$(wildcard configs/*)); do \
 		$(MAKE) clean; \
-		yes | $(MAKE) oldconfig DOTCONFIG=$$i 2>/dev/null >/dev/null; \
+		cp "$$i" junit_config; \
+		$(MAKE) olddefconfig DOTCONFIG=junit_config V=$(V) Q=$(Q) 2>/dev/null >/dev/null; \
 		echo "<testcase classname='libpayload' name='$$i'>" >> $@.tmp; \
-		$(MAKE) CONFIG_CCACHE=$(CONFIG_CCACHE) DOTCONFIG=$$i >> $@.tmp.2 2>&1 && type="system-out" || type="failure"; \
+		$(MAKE) V=$(V) Q=$(Q) CONFIG_LP_CCACHE=$(CONFIG_LP_CCACHE) DOTCONFIG=junit_config >> $@.tmp.2 2>&1 && type="system-out" || type="failure"; \
 		if [ $$type = "failure" ]; then \
 			echo "<failure type='buildFailed'>" >> $@.tmp; \
 		else \
@@ -138,4 +147,3 @@ junit.xml:
 	done
 	echo "</testsuite>" >> $@.tmp
 	mv $@.tmp $@
-

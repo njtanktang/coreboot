@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef CHIPSET_FSP_UTIL_H
@@ -60,6 +56,9 @@
 #define FSP_IMAGE_ID_DWORD1 0x00505346
 #endif
 
+#ifdef __PRE_RAM__
+void main(FSP_INFO_HEADER *fsp_info_header);
 void romstage_main_continue(EFI_STATUS status, VOID *HobListPtr);
+#endif
 
 #endif /* CHIPSET_FSP_UTIL_H */

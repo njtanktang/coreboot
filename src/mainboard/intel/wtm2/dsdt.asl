@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define ENABLE_TPM
@@ -33,26 +29,31 @@ DefinitionBlock(
 	#include "acpi/platform.asl"
 
 	// global NVS and variables
-	#include <southbridge/intel/lynxpoint/acpi/globalnvs.asl>
+	#include <soc/intel/broadwell/acpi/globalnvs.asl>
 
 	// General Purpose Events
 	//#include "acpi/gpe.asl"
 
-	#include "acpi/thermal.asl"
-
-	#include "../../../cpu/intel/haswell/acpi/cpu.asl"
+	// CPU
+	#include <soc/intel/broadwell/acpi/cpu.asl>
 
 	Scope (\_SB) {
 		Device (PCI0)
 		{
-			#include <northbridge/intel/haswell/acpi/haswell.asl>
-			#include <southbridge/intel/lynxpoint/acpi/pch.asl>
+			#include <soc/intel/broadwell/acpi/systemagent.asl>
+			#include <soc/intel/broadwell/acpi/pch.asl>
 		}
 	}
 
-	#include "acpi/chromeos.asl"
+	// Thermal handler
+	#include "acpi/thermal.asl"
+
+	// Chrome OS specific
 	#include <vendorcode/google/chromeos/acpi/chromeos.asl>
 
-	/* Chipset specific sleep states */
-	#include <southbridge/intel/lynxpoint/acpi/sleepstates.asl>
+	// Chipset specific sleep states
+	#include <soc/intel/broadwell/acpi/sleepstates.asl>
+
+	// Mainboard specific
+	#include "acpi/mainboard.asl"
 }

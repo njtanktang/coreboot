@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 unsigned int get_sbdn(unsigned bus);
@@ -34,14 +30,15 @@ unsigned int get_sbdn(unsigned bus);
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
+#include <halt.h>
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include "northbridge/amd/amdk8/debug.c"
 #include <superio/ite/common/ite.h>
 #include <superio/ite/it8712f/it8712f.h>
 #include "southbridge/via/vt8237r/early_smbus.c"
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include <spd.h>
 
@@ -57,7 +54,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 }
 
 #include "southbridge/via/k8t890/early_car.c"
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit_f.c"
@@ -69,7 +66,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 
 static void ldtstop_sb(void)
 {
-	print_debug("toggle LDTSTP#\n");
+	printk(BIOS_DEBUG, "toggle LDTSTP#\n");
 
 	/* fix errata #181, disable DRAM controller it will get enabled later */
 	u8 tmp = pci_read_config8(PCI_DEV(0, 0x18, 2), 0x94);
@@ -80,7 +77,7 @@ static void ldtstop_sb(void)
 	reg = reg ^ (1 << 0);
 	outb(reg, VT8237R_ACPI_IO_BASE + 0x5c);
 	reg = inb(VT8237R_ACPI_IO_BASE + 0x15);
-	print_debug("done\n");
+	printk(BIOS_DEBUG, "done\n");
 }
 
 #include "cpu/amd/model_fxx/fidvid.c"
@@ -91,7 +88,7 @@ void soft_reset(void)
 	uint8_t tmp;
 
 	set_bios_reset();
-	print_debug("soft reset \n");
+	printk(BIOS_DEBUG, "soft reset\n");
 
 	/* PCI reset */
 	tmp = pci_read_config8(PCI_DEV(0, 0x11, 0), 0x4f);
@@ -99,15 +96,12 @@ void soft_reset(void)
 	/* FIXME from S3 set bit1 to disable USB reset VT8237A/S */
 	pci_write_config8(PCI_DEV(0, 0x11, 0), 0x4f, tmp);
 
-	while (1) {
-		/* daisy daisy ... */
-		hlt();
-	}
+	halt();
 }
 
 unsigned int get_sbdn(unsigned bus)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_locate_device_on_bus(PCI_ID(PCI_VENDOR_ID_VIA,
 					PCI_DEVICE_ID_VIA_VT8237R_LPC), bus);
@@ -134,7 +128,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	console_init();
 	enable_rom_decode();
 
-	printk(BIOS_INFO, "now booting... \n");
+	printk(BIOS_INFO, "now booting...\n");
 
 	if (bist == 0)
 		bsp_apicid = init_cpus(cpu_init_detectedx, sysinfo);
@@ -156,11 +150,11 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	ht_setup_chains_x(sysinfo); /* Init sblnk and sbbusn, nodes, sbdn. */
 
 	needs_reset = optimize_link_coherent_ht();
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 	needs_reset |= k8t890_early_setup_ht();
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 
 	vt8237_early_network_init(NULL);
 	vt8237_early_spi_init();
@@ -176,7 +170,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	vt8237_sb_enable_fid_vid();
 
 	enable_fid_change();
-	print_debug("after enable_fid_change\n");
+	printk(BIOS_DEBUG, "after enable_fid_change\n");
 
 	init_fidvid_bsp(bsp_apicid);
 

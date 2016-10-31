@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -36,7 +32,7 @@
 
 void enable_smbus(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_locate_device(PCI_ID(PCI_VENDOR_ID_NVIDIA,
 				PCI_DEVICE_ID_NVIDIA_CK804_SMB), 0);
@@ -54,7 +50,7 @@ void enable_smbus(void)
 	outb(inb(SMBUS_BASE(0) + SMBHSTSTAT), SMBUS_BASE(0) + SMBHSTSTAT);
 	outb(inb(SMBUS_BASE(1) + SMBHSTSTAT), SMBUS_BASE(1) + SMBHSTSTAT);
 
-	print_debug("SMBus controller enabled\n");
+	printk(BIOS_DEBUG, "SMBus controller enabled\n");
 }
 
 int ck804_smbus_read_byte(unsigned bus, unsigned device, unsigned address)

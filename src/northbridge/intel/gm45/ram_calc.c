@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Use simple device model for this file even in ramstage
@@ -43,6 +38,8 @@ u32 decode_igd_memory_size(const u32 gms)
 		return  16 << 10;
 	case 5:
 		return  32 << 10;
+	case 6:
+		return  48 << 10;
 	case 7:
 		return  64 << 10;
 	case 8:
@@ -84,7 +81,7 @@ u32 decode_igd_gtt_size(const u32 gsm)
 	}
 }
 
-unsigned long get_top_of_ram(void)
+static uintptr_t smm_region_start(void)
 {
 	const pci_devfn_t dev = PCI_DEV(0, 0, 0);
 
@@ -102,4 +99,9 @@ unsigned long get_top_of_ram(void)
 		tor -= decode_igd_gtt_size((ggc >> 8) & 0xf) << 10;
 	}
 	return tor;
+}
+
+void *cbmem_top(void)
+{
+	return (void *) smm_region_start();
 }

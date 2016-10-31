@@ -1,11 +1,32 @@
 /******************************************************************************
  * Copyright (c) 2004, 2008 IBM Corporation
  * Copyright (c) 2009 Pattrick Hueper <phueper@hueper.net>
+ *
  * All rights reserved.
- * This program and the accompanying materials
- * are made available under the terms of the BSD License
- * which accompanies this distribution, and is available at
- * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer
+ *   in the documentation and/or other materials provided with the
+ *   distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
  *     IBM Corporation - initial implementation
@@ -16,7 +37,7 @@
 #include <timer.h>
 #include <types.h>
 
-#if CONFIG_X86EMU_DEBUG_TIMINGS
+#if IS_ENABLED(CONFIG_X86EMU_DEBUG_TIMINGS)
 extern struct mono_time zero;
 #endif
 extern u32 debug_flags;
@@ -50,7 +71,7 @@ static inline void set_ci(void) {};
  * ||||||||||-DEBUG_PRINT_INT10 - let INT10 (i.e. character output) calls print messages to Debug output
  * |||||||||||-DEBUG_INTR - Print messages related to interrupt handling
  * ||||||||||||-DEBUG_CHECK_VMEM_ACCESS - Print messages related to accesse to certain areas of the virtual Memory (e.g. BDA (BIOS Data Area) or Interrupt Vectors)
- * |||||||||||||-DEBUG_MEM - Print memory access made by option rom (NOTE: this also includes accesses to fetch instructions)
+ * |||||||||||||-DEBUG_MEM - Print memory access made by option ROM (NOTE: this also includes accesses to fetch instructions)
  * ||||||||||||||-DEBUG_IO - Print I/O access made by option rom
  * 11000111111111 - Max Binary Value, Debug All (WARNING: - This could run for hours)
  */
@@ -70,7 +91,7 @@ static inline void set_ci(void) {};
 // set to enable tracing of JMPs in x86emu
 #define DEBUG_JMP 0x2000
 
-#if CONFIG_X86EMU_DEBUG
+#if IS_ENABLED(CONFIG_X86EMU_DEBUG)
 
 #define CHECK_DBG(_flag) if (debug_flags & _flag)
 
@@ -78,7 +99,7 @@ static inline void set_ci(void) {};
 // prints the CS:IP before the printout, NOTE: actually its CS:IP of the _next_ instruction
 // to be executed, since the x86emu advances CS:IP _before_ actually executing an instruction
 
-#if CONFIG_X86EMU_DEBUG_TIMINGS
+#if IS_ENABLED(CONFIG_X86EMU_DEBUG_TIMINGS)
 #define DEBUG_PRINTF_CS_IP(_x...) DEBUG_PRINTF("[%08lx]%x:%x ", (current_time_from(&zero)).microseconds, M.x86.R_CS, M.x86.R_IP); DEBUG_PRINTF(_x);
 #else
 #define DEBUG_PRINTF_CS_IP(_x...) DEBUG_PRINTF("%x:%x ", M.x86.R_CS, M.x86.R_IP); DEBUG_PRINTF(_x);

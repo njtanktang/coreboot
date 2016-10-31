@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,6 +19,7 @@
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <arch/io.h>
+#include <halt.h>
 
 #include <cpu/intel/microcode/microcode.c>
 #include "haswell.h"
@@ -43,10 +40,10 @@ static void set_var_mtrr(
 	msr_t basem, maskm;
 	basem.lo = base | type;
 	basem.hi = 0;
-	wrmsr(MTRRphysBase_MSR(reg), basem);
-	maskm.lo = ~(size - 1) | MTRRphysMaskValid;
+	wrmsr(MTRR_PHYS_BASE(reg), basem);
+	maskm.lo = ~(size - 1) | MTRR_PHYS_MASK_VALID;
 	maskm.hi = (1 << (CONFIG_CPU_ADDR_BITS - 32)) - 1;
-	wrmsr(MTRRphysMask_MSR(reg), maskm);
+	wrmsr(MTRR_PHYS_MASK(reg), maskm);
 }
 
 static void enable_rom_caching(void)
@@ -60,7 +57,7 @@ static void enable_rom_caching(void)
 	/* Enable Variable MTRRs */
 	msr.hi = 0x00000000;
 	msr.lo = 0x00000800;
-	wrmsr(MTRRdefType_MSR, msr);
+	wrmsr(MTRR_DEF_TYPE_MSR, msr);
 }
 
 static void set_flex_ratio_to_tdp_nominal(void)
@@ -106,25 +103,21 @@ static void set_flex_ratio_to_tdp_nominal(void)
 	/* Issue warm reset, will be "CPU only" due to soft reset data */
 	outb(0x0, 0xcf9);
 	outb(0x6, 0xcf9);
-	while (1) {
-		asm("hlt");
-	}
+	halt();
 }
 
 static void check_for_clean_reset(void)
 {
 	msr_t msr;
-	msr = rdmsr(MTRRdefType_MSR);
+	msr = rdmsr(MTRR_DEF_TYPE_MSR);
 
 	/* Use the MTRR default type MSR as a proxy for detecting INIT#.
 	 * Reset the system if any known bits are set in that MSR. That is
 	 * an indication of the CPU not being properly reset. */
-	if (msr.lo & (MTRRdefTypeEn | MTRRdefTypeFixEn)) {
+	if (msr.lo & (MTRR_DEF_TYPE_EN | MTRR_DEF_TYPE_FIX_EN)) {
 		outb(0x0, 0xcf9);
 		outb(0x6, 0xcf9);
-		while (1) {
-			asm("hlt");
-		}
+		halt();
 	}
 }
 

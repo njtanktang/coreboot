@@ -11,15 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "coreinfo.h"
 
-#ifdef CONFIG_MODULE_NVRAM
+#if IS_ENABLED(CONFIG_MODULE_NVRAM)
 
 /**
  * Dump 256 bytes of NVRAM.
@@ -30,7 +26,7 @@ static void dump_nvram(WINDOW *win, int row, int col)
 
 	/* Print vertical and horizontal index numbers. */
 	for (i = 0; i < 16; i++) {
-		mvwprintw(win, ((i < 8) ? 4 : 5) + i, 1, "%2.2X ", i);
+		mvwprintw(win, ((i < 8) ? 4 : 5) + i, 1, "%2.2X ", i * 0x10);
 		mvwprintw(win, 2, 4 + (i * 3), "%2.2X ", i);
 	}
 

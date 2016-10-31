@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -164,18 +159,18 @@ static void mbi_call(u8 subf, banner_id_t *banner_id)
 		printk(BIOS_DEBUG, "|- MBI_QueryInterface\n");
 		version = (version_t *)banner_id;
 		version->banner.retsts = MSH_OK;
-		version->versionmajor=1;
-		version->versionminor=3;
-		version->smicombuffersize=0x1000;
+		version->versionmajor = 1;
+		version->versionminor = 3;
+		version->smicombuffersize = 0x1000;
 		break;
 	}
 	case 0x0002:
 		printk(BIOS_DEBUG, "|- MBI_Attach\n");
-		printk(BIOS_DEBUG, "|  |- Not Implemented!\n");
+		printk(BIOS_DEBUG, "|  |- Not Implemented!\n");
 		break;
 	case 0x0003:
 		printk(BIOS_DEBUG, "|- MBI_Detach\n");
-		printk(BIOS_DEBUG, "|  |- Not Implemented!\n");
+		printk(BIOS_DEBUG, "|  |- Not Implemented!\n");
 		break;
 	case 0x0201: {
 		obj_header_t *obj_header = (obj_header_t *)banner_id;
@@ -183,10 +178,10 @@ static void mbi_call(u8 subf, banner_id_t *banner_id)
 		printk(BIOS_DEBUG, "|- MBI_GetObjectHeader\n");
 		printk(BIOS_DEBUG, "|  |- objnum = %d\n", obj_header->objnum);
 
-		int i, count=0;
+		int i, count = 0;
 		obj_header->banner.retsts = MSH_IF_NOT_FOUND;
 
-		for (i=0; i<mbi_len;) {
+		for (i = 0; i < mbi_len;) {
 			int len;
 
 			if (!(mbi[i] == 0xf0 && mbi [i+1] == 0xf6)) {
@@ -212,7 +207,7 @@ static void mbi_call(u8 subf, banner_id_t *banner_id)
 				obj_header->banner.retsts = MSH_OK;
 				printk(BIOS_DEBUG, "|     |- MBI module '");
 				int j;
-				for (j=0; j < mbi_header->name_len && mbi_header->name[j]; j++)
+				for (j = 0; j < mbi_header->name_len && mbi_header->name[j]; j++)
 					printk(BIOS_DEBUG, "%c",  mbi_header->name[j]);
 				printk(BIOS_DEBUG, "' found.\n");
 #ifdef DEBUG_SMI_I82830
@@ -240,10 +235,10 @@ static void mbi_call(u8 subf, banner_id_t *banner_id)
 		printk(BIOS_DEBUG, "|  |- buflen = %x\n", getobj->buflen);
 		printk(BIOS_DEBUG, "|  |- buffer = %x\n", getobj->buffer);
 
-		int i, count=0;
+		int i, count = 0;
 		getobj->banner.retsts = MSH_IF_NOT_FOUND;
 
-		for (i=0; i< mbi_len;) {
+		for (i = 0; i< mbi_len;) {
 			int headerlen, objectlen;
 
 			if (!(mbi[i] == 0xf0 && mbi [i+1] == 0xf6)) {
@@ -297,7 +292,7 @@ static void mbi_call(u8 subf, banner_id_t *banner_id)
 
 static void smi_interface_call(void)
 {
-	u32 mmio = pci_read_config32(PCI_DEV(0, 0x02, 0), 0x14);
+  u8 *mmio = (u8 *)pci_read_config32(PCI_DEV(0, 0x02, 0), 0x14);
 	// mmio &= 0xfff80000;
 	// printk(BIOS_DEBUG, "mmio=%x\n", mmio);
 	u16 swsmi = pci_read_config16(PCI_DEV(0, 0x02, 0), 0xe0);

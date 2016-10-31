@@ -3,14 +3,14 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/gx2def.h>
-#include "southbridge/amd/cs5535/cs5535.h"
+#include <southbridge/amd/cs5535/cs5535.h>
 #include "southbridge/amd/cs5535/early_smbus.c"
 #include "southbridge/amd/cs5535/early_setup.c"
 
@@ -53,9 +53,8 @@ static inline int spd_read_byte(unsigned int device, unsigned int address)
 
 #if CONFIG_DEBUG_SMBUS
 	if (address >= sizeof(spdbytes) || spdbytes[address] == 0xFF) {
-		print_err("ERROR: spd_read_byte(DIMM0, 0x");
-		print_err_hex8(address);
-		print_err(") returns 0xff\n");
+		printk(BIOS_ERR, "ERROR: spd_read_byte(DIMM0, 0x%02x) "
+			"returns 0xff\n", address);
 	}
 #endif
 
@@ -63,7 +62,7 @@ static inline int spd_read_byte(unsigned int device, unsigned int address)
 	return (address < sizeof(spdbytes)) ? spdbytes[address] : 0xFF;
 }
 
-#include "northbridge/amd/gx2/raminit.h"
+#include <northbridge/amd/gx2/raminit.h>
 #include "northbridge/amd/gx2/pll_reset.c"
 #include "northbridge/amd/gx2/raminit.c"
 #include "lib/generic_sdram.c"
@@ -85,29 +84,29 @@ void main(unsigned long bist)
 	console_init();
 
 	cs5535_early_setup();
-	print_err("done cs5535 early\n");
+	printk(BIOS_ERR, "done cs5535 early\n");
 
 	/* Halt if there was a built in self test failure */
 	report_bist_failure(bist);
 
 	pll_reset();
-	print_err("done pll_reset\n");
+	printk(BIOS_ERR, "done pll_reset\n");
 
 	cpuRegInit();
-	print_err("done cpuRegInit\n");
+	printk(BIOS_ERR, "done cpuRegInit\n");
 
 	sdram_initialize(1, memctrl);
 
-	print_err("Done sdram_initialize\n");
-	print_err("Disable watchdog\n");
+	printk(BIOS_ERR, "Done sdram_initialize\n");
+	printk(BIOS_ERR, "Disable watchdog\n");
 	outb( 0x87, 0x4E);                            //enter SuperIO configuration mode
 	outb( 0x87, 0x4E);
 
-   	outb(0x20, 0x4e);
+	outb(0x20, 0x4e);
 	temp = inb(0x4f);
-	print_debug_hex8(temp);
+	printk(BIOS_DEBUG, "%02x", temp);
 	if (temp != 0x52){
-		print_err("CAN NOT READ SUPERIO VID\n");
+		printk(BIOS_ERR, "CAN NOT READ SUPERIO VID\n");
 	}
 
 	outb(0x29, 0x4e);
@@ -121,9 +120,9 @@ void main(unsigned long bist)
 	outb( 0xC7, 0x4F);
 	outb( 0xF1, 0x4E);                            //clr GP33 (Bit4) value in cofiguration register F1h to \u20181\u2019 disables
 	temp = inb(0x4F);                            //watchdog function. Make sure to let the other Bits unchanged!
-	print_debug_hex8(temp);print_debug(":");
+	printk(BIOS_DEBUG, "%02x:", temp);
 	temp = temp & ~8;
 	outb( temp, 0x4F);
 	temp = inb(0x4F);                            //watchdog function. Make sure to let the other Bits unchanged!
-	print_debug_hex8(temp);print_debug("\n");
+	printk(BIOS_DEBUG, "%02x\n", temp);
 }

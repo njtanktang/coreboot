@@ -1,7 +1,18 @@
-/*  vtxprintf.c, from
- *    linux/lib/vsprintf.c
+/*
+ * This file is part of the coreboot project.
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * vtxprintf.c, originally from linux/lib/vsprintf.c
  */
 
 #include <console/console.h>
@@ -9,6 +20,10 @@
 #include <string.h>
 
 #define call_tx(x) tx_byte(x, data)
+
+#if !CONFIG_ARCH_MIPS
+#define SUPPORT_64BIT_INTS
+#endif
 
 /* haha, don't need ctype.c */
 #define isdigit(c)	((c) >= '0' && (c) <= '9')
@@ -33,13 +48,25 @@ static int skip_atoi(const char **s)
 #define LARGE	64		/* use 'ABCDEF' instead of 'abcdef' */
 
 static int number(void (*tx_byte)(unsigned char byte, void *data),
-	unsigned long long num, int base, int size, int precision, int type,
+	unsigned long long inum, int base, int size, int precision, int type,
 	void *data)
 {
 	char c,sign,tmp[66];
 	const char *digits="0123456789abcdefghijklmnopqrstuvwxyz";
 	int i;
 	int count = 0;
+#ifdef SUPPORT_64BIT_INTS
+	unsigned long long num = inum;
+#else
+	unsigned long num = (long)inum;
+
+	if (num != inum) {
+		/* Alert user to an incorrect result by printing #^!. */
+		call_tx('#');
+		call_tx('^');
+		call_tx('!');
+	}
+#endif
 
 	if (type & LARGE)
 		digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -79,7 +106,7 @@ static int number(void (*tx_byte)(unsigned char byte, void *data),
 		precision = i;
 	size -= precision;
 	if (!(type&(ZEROPAD+LEFT)))
-		while(size-->0)
+		while (size-->0)
 			call_tx(' '), count++;
 	if (sign)
 		call_tx(sign), count++;

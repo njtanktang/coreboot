@@ -13,25 +13,25 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-#
+
+ifeq ($(CONFIG_NORTHBRIDGE_INTEL_FSP_SANDYBRIDGE)$(CONFIG_NORTHBRIDGE_INTEL_FSP_IVYBRIDGE),y)
 
 subdirs-y += fsp
 ramstage-y += northbridge.c
+ramstage-y += ram_calc.c
 ramstage-y += gma.c
 
-ramstage-$(CONFIG_GENERATE_ACPI_TABLES) += acpi.c
+ramstage-y += acpi.c
 
 romstage-y += raminit.c
+romstage-y += ram_calc.c
 romstage-y += early_init.c
 romstage-y += report_platform.c
-romstage-y += ../../../arch/x86/lib/walkcbfs.S
+romstage-y += ../../../arch/x86/walkcbfs.S
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += udelay.c
 smm-$(CONFIG_HAVE_SMI_HANDLER) += finalize.c
 
 CPPFLAGS_common += -I$(src)/northbridge/intel/fsp_sandybridge/fsp
 
-$(obj)/northbridge/intel/fsp_sandybridge/acpi.ramstage.o : $(obj)/build.h
+endif

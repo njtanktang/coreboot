@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -27,8 +23,9 @@
 #include <pc80/i8259.h>
 #include <console/console.h>	/* printk */
 #include <device/pci_ehci.h>
+#include <arch/acpi.h>
 #include "lpc.h"		/* lpc_read_resources */
-#include "SbPlatform.h" 	/* Platfrom Specific Definitions */
+#include "SbPlatform.h" 	/* Platform Specific Definitions */
 #include "chip.h" 		/* struct southbridge_amd_cimx_sb900_config */
 
 
@@ -53,7 +50,7 @@ static AMDSBCFG *sb_config = &sb_late_cfg;
  *
  * @param[in] func      Southbridge CIMx Function ID.
  * @param[in] data      Southbridge Input Data.
- * @param[in] sb_config Southbridge configuration structure pointer.
+ * @param[in] config    Southbridge configuration structure pointer.
  *
  */
 u32 sb900_callout_entry(u32 func, u32 data, void* config)
@@ -102,14 +99,14 @@ static void lpc_init(device_t dev)
 	printk(BIOS_DEBUG, "SB900 - Late.c - lpc_init - Start.\n");
 	/* SB Configure HPET base and enable bit */
 //-	hpetInit(sb_config, &(sb_config->BuildParameters));
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
 
 	/* Initialize the real time clock.
-	 * The 0 argument tells rtc_init not to
+	 * The 0 argument tells cmos_init not to
 	 * update CMOS unless it is invalid.
-	 * 1 tells rtc_init to always initialize the CMOS.
+	 * 1 tells cmos_init to always initialize the CMOS.
 	 */
-	rtc_init(0);
+	cmos_init(0);
 
 	setup_i8259(); /* Initialize i8259 pic */
 	setup_i8254(); /* Initialize i8254 timers */
@@ -117,19 +114,28 @@ static void lpc_init(device_t dev)
 	printk(BIOS_DEBUG, "SB900 - Late.c - lpc_init - End.\n");
 }
 
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
+
 static struct device_operations lpc_ops = {
-        .read_resources = lpc_read_resources,
-        .set_resources = lpc_set_resources,
-        .enable_resources = lpc_enable_resources,
-        .init = lpc_init,
-        .scan_bus = scan_static_bus,
-        .ops_pci = &lops_pci,
+	.read_resources = lpc_read_resources,
+	.set_resources = lpc_set_resources,
+	.enable_resources = lpc_enable_resources,
+	.init = lpc_init,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables = acpi_write_hpet,
+#endif
+	.scan_bus = scan_lpc_bus,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver lpc_driver __pci_driver = {
-        .ops = &lpc_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_LPC,
+	.ops = &lpc_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_LPC,
 };
 
 
@@ -233,18 +239,18 @@ static void azalia_init(struct device *dev)
 }
 
 static struct device_operations azalia_ops = {
-        .read_resources = pci_dev_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_dev_enable_resources,
-        .init = azalia_init,
-        .scan_bus = 0,
-        .ops_pci = &lops_pci,
+	.read_resources = pci_dev_read_resources,
+	.set_resources = pci_dev_set_resources,
+	.enable_resources = pci_dev_enable_resources,
+	.init = azalia_init,
+	.scan_bus = 0,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver azalia_driver __pci_driver = {
-        .ops = &azalia_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_HDA,
+	.ops = &azalia_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_HDA,
 };
 
 
@@ -257,18 +263,18 @@ static void gec_init(struct device *dev)
 }
 
 static struct device_operations gec_ops = {
-        .read_resources = pci_dev_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_dev_enable_resources,
-        .init = gec_init,
-        .scan_bus = 0,
-        .ops_pci = &lops_pci,
+	.read_resources = pci_dev_read_resources,
+	.set_resources = pci_dev_set_resources,
+	.enable_resources = pci_dev_enable_resources,
+	.init = gec_init,
+	.scan_bus = 0,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver gec_driver __pci_driver = {
-        .ops = &gec_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_GEC,
+	.ops = &gec_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_GEC,
 };
 
 
@@ -280,19 +286,19 @@ static void pcie_init(device_t dev)
 }
 
 static struct device_operations pci_ops = {
-        .read_resources = pci_bus_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_bus_enable_resources,
-        .init = pcie_init,
-        .scan_bus = pci_scan_bridge,
-        .reset_bus = pci_bus_reset,
-        .ops_pci = &lops_pci,
+	.read_resources = pci_bus_read_resources,
+	.set_resources = pci_dev_set_resources,
+	.enable_resources = pci_bus_enable_resources,
+	.init = pcie_init,
+	.scan_bus = pci_scan_bridge,
+	.reset_bus = pci_bus_reset,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver pci_driver __pci_driver = {
-        .ops = &pci_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_PCI,
+	.ops = &pci_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_PCI,
 };
 
 
@@ -309,30 +315,30 @@ struct device_operations bridge_ops = {
 
 /* 0:15:0 PCIe PortA */
 static const struct pci_driver PORTA_driver __pci_driver = {
-        .ops = &bridge_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_PCIEA,
+	.ops = &bridge_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_PCIEA,
 };
 
 /* 0:15:1 PCIe PortB */
 static const struct pci_driver PORTB_driver __pci_driver = {
-        .ops = &bridge_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_PCIEB,
+	.ops = &bridge_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_PCIEB,
 };
 
 /* 0:15:2 PCIe PortC */
 static const struct pci_driver PORTC_driver __pci_driver = {
-        .ops = &bridge_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_PCIEC,
+	.ops = &bridge_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_PCIEC,
 };
 
 /* 0:15:3 PCIe PortD */
 static const struct pci_driver PORTD_driver __pci_driver = {
-        .ops = &bridge_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = PCI_DEVICE_ID_ATI_SB900_PCIED,
+	.ops = &bridge_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = PCI_DEVICE_ID_ATI_SB900_PCIED,
 };
 
 

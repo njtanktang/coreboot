@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -30,7 +26,7 @@
 #define HDA_ICII_BUSY (1 << 0)
 #define HDA_ICII_VALID (1 << 1)
 
-static int set_bits(u32 port, u32 mask, u32 val)
+static int set_bits(void *port, u32 mask, u32 val)
 {
 	u32 dword;
 	int count;
@@ -59,7 +55,7 @@ static int set_bits(u32 port, u32 mask, u32 val)
 	return 0;
 }
 
-static u32 codec_detect(u32 base)
+static u32 codec_detect(void *base)
 {
 	u32 dword;
 
@@ -157,11 +153,11 @@ static u32 find_verb(u32 viddid, u32 ** verb)
 	device_t azalia_dev = dev_find_slot(0, PCI_DEVFN(0x14, 2));
 	struct southbridge_amd_sb600_config *cfg =
 	    (struct southbridge_amd_sb600_config *)azalia_dev->chip_info;
+	if (!cfg)
+		return 0;
 	printk(BIOS_DEBUG, "Dev=%s\n", dev_path(azalia_dev));
 	printk(BIOS_DEBUG, "Default viddid=%x\n", cfg->hda_viddid);
 	printk(BIOS_DEBUG, "Reading viddid=%x\n", viddid);
-	if (!cfg)
-		return 0;
 	if (viddid != cfg->hda_viddid)
 		return 0;
 	*verb = (u32 *) cim_verb_data;
@@ -172,15 +168,15 @@ static u32 find_verb(u32 viddid, u32 ** verb)
  *  Wait 50usec for the codec to indicate it is ready
  *  no response would imply that the codec is non-operative
  */
-static int wait_for_ready(u32 base)
+static int wait_for_ready(void *base)
 {
 	/* Use a 50 usec timeout - the Linux kernel uses the
 	 * same duration */
 
 	int timeout = 50;
 
-	while(timeout--) {
-		u32 dword=read32(base +  HDA_ICII_REG);
+	while (timeout--) {
+		u32 dword = read32(base +  HDA_ICII_REG);
 		if (!(dword & HDA_ICII_BUSY))
 			return 0;
 		udelay(1);
@@ -194,13 +190,13 @@ static int wait_for_ready(u32 base)
  *  the previous command.  No response would imply that the code
  *  is non-operative
  */
-static int wait_for_valid(u32 base)
+static int wait_for_valid(void *base)
 {
 	/* Use a 50 usec timeout - the Linux kernel uses the
 	 * same duration */
 
 	int timeout = 50;
-	while(timeout--) {
+	while (timeout--) {
 		u32 dword = read32(base + HDA_ICII_REG);
 		if ((dword & (HDA_ICII_VALID | HDA_ICII_BUSY)) ==
 			HDA_ICII_VALID)
@@ -211,7 +207,7 @@ static int wait_for_valid(u32 base)
 	return -1;
 }
 
-static void codec_init(u32 base, int addr)
+static void codec_init(void *base, int addr)
 {
 	u32 dword;
 	u32 *verb;
@@ -253,7 +249,7 @@ static void codec_init(u32 base, int addr)
 	printk(BIOS_DEBUG, "verb loaded!\n");
 }
 
-static void codecs_init(u32 base, u32 codec_mask)
+static void codecs_init(void *base, u32 codec_mask)
 {
 	int i;
 	for (i = 2; i >= 0; i--) {
@@ -266,7 +262,7 @@ static void hda_init(struct device *dev)
 {
 	u8 byte;
 	u32 dword;
-	u32 base;
+	void *base;
 	struct resource *res;
 	u32 codec_mask;
 	device_t sm_dev;
@@ -300,8 +296,8 @@ static void hda_init(struct device *dev)
 	if (!res)
 		return;
 
-	base = (u32)res->base;
-	printk(BIOS_DEBUG, "base = 0x%x\n", base);
+	base = res2mmio(res, 0, 0);
+	printk(BIOS_DEBUG, "base = 0x%p\n", base);
 	codec_mask = codec_detect(base);
 
 	if (codec_mask) {

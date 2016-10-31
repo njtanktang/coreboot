@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* RAM driver for the SMSC MEC1308 Super I/O chip */
@@ -30,7 +26,7 @@
 #include <stdlib.h>
 #include "mec1308.h"
 
-static void mec1308_init(device_t dev)
+static void mec1308_init(struct device *dev)
 {
 
 	if (!dev->enabled)
@@ -38,7 +34,7 @@ static void mec1308_init(device_t dev)
 
 	switch(dev->path.pnp.device) {
 	case MEC1308_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }
@@ -62,7 +58,7 @@ static struct pnp_info pnp_dev_info[] = {
 	{ &ops, MEC1308_MBX,  PNP_IO0, { 0x7ff, 0 } },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops,
 			   ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
@@ -72,4 +68,3 @@ struct chip_operations superio_smsc_mec1308_ops = {
 	CHIP_NAME("SMSC MEC1308 EC SuperIO Interface")
 	.enable_dev = enable_dev
 };
-

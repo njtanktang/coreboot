@@ -12,14 +12,12 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_I440BX
 	bool
 	select HAVE_DEBUG_RAM_SETUP
+	select LATE_CBMEM_INIT
+	select UDELAY_IO
 
 config SDRAMPWR_4DIMM
 	bool
@@ -33,4 +31,3 @@ config SDRAMPWR_4DIMM
 	  If your board has 4 DIMM slots, you must use select this option, in
 	  your Kconfig file of the board. On boards with 3 DIMM slots,
 	  do _not_ select this option.
-

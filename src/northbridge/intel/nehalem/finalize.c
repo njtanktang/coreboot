@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -24,7 +20,7 @@
 
 #define PCI_DEV_SNB PCI_DEV(0, 0, 0)
 
-void intel_sandybridge_finalize_smm(void)
+void intel_nehalem_finalize_smm(void)
 {
 	pcie_or_config16(PCI_DEV_SNB, 0x50, 1 << 0);	/* GGC */
 	pcie_or_config32(PCI_DEV_SNB, 0x5c, 1 << 0);	/* DPR */

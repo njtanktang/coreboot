@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "Filecode.h"
@@ -94,7 +90,7 @@ gpioEarlyInit(
 	for (Index = 0; Index < MAX_GPIO_NO; Index++) {
 		if (!(((Index >= GPIO_RSVD_ZONE0_S) && (Index <= GPIO_RSVD_ZONE0_E)) || ((Index >= GPIO_RSVD_ZONE1_S) && (Index <= GPIO_RSVD_ZONE1_E)))) {
 			if ((StripInfo >= boardRevC) || ((Index != GPIO_111) && (Index != GPIO_113))) {
-				// Configure multi-funtion
+				// Configure multi-function
 				Mmio8_And_Or (IoMuxMmioAddr, Index, 0x00, (gpio_table[Index].select & ~NonGpio));
 			}
 			// Configure GPIO
@@ -183,7 +179,7 @@ gpioEarlyInit(
 	RWMEM (IoMuxMmioAddr + SB_GPIO_REG28, AccWidthUint8, 00, 0x1);      // GPIO
 	RWMEM (GpioMmioAddr + SB_GPIO_REG28, AccWidthUint8, 0x03, BIT5);    // GPI
 
-	// set BIT3=1 (PULLUP disable), BIT4=0 (PULLDOWN Disable), BIT6=0 (Output LOW)
+	// set BIT3 = 1 (PULLUP disable), BIT4 = 0 (PULLDOWN Disable), BIT6 = 0 (Output LOW)
 	RWMEM (GpioMmioAddr + SB_GPIO_REG55, AccWidthUint8, 0x23, BIT3);
 	RWMEM (GpioMmioAddr + SB_GPIO_REG09, AccWidthUint8, 0x23, BIT3);
 	RWMEM (GpioMmioAddr + SB_GPIO_REG10, AccWidthUint8, 0x23, BIT3);
@@ -361,7 +357,7 @@ gpioEarlyInit(
 	}
 	//		else
 	//		{ // 0 - AUTO
-	//			// set BIT3=1 (PULLUP disable), BIT4=0 (PULLDOWN Disable)
+	//			// set BIT3 = 1 (PULLUP disable), BIT4 = 0 (PULLDOWN Disable)
 	//			RWMEM (GpioMmioAddr + SB_GPIO_REG197, AccWidthUint8, 0x23, BIT3);
 	//			RWMEM (GpioMmioAddr + SB_GPIO_REG25, AccWidthUint8, 0x23, BIT3);
 	//		}
@@ -381,7 +377,7 @@ gpioEarlyInit(
 	}
 	//		else
 	//		{ // 0 - AUTO
-	//			// set BIT3=1 (PULLUP disable), BIT4=0 (PULLDOWN Disable), BIT6=1 (output HIGH)
+	//			// set BIT3 = 1 (PULLUP disable), BIT4 = 0 (PULLDOWN Disable), BIT6 = 1 (output HIGH)
 	//			RWMEM (GpioMmioAddr + SB_GPIO_REG27, AccWidthUint8, 0x03, BIT6);
 	//			RWMEM (GpioMmioAddr + SB_GPIO_REG27, AccWidthUint8, 0x63, BIT3);
 	//

@@ -42,9 +42,9 @@ Definitions:
 //#define VALIDATE_DIMM_COMPATIBILITY
 
 #if CONFIG_DEBUG_RAM_SETUP
-#define RAM_DEBUG_MESSAGE(x)	print_debug(x)
-#define RAM_DEBUG_HEX32(x)	print_debug_hex32(x)
-#define RAM_DEBUG_HEX8(x)	print_debug_hex8(x)
+#define RAM_DEBUG_MESSAGE(x)	printk(BIOS_DEBUG, x)
+#define RAM_DEBUG_HEX32(x)	printk(BIOS_DEBUG, "%08x", x)
+#define RAM_DEBUG_HEX8(x)	printk(BIOS_DEBUG, "%02x", x)
 #define DUMPNORTH()		dump_pci_device(MCHDEV)
 #else
 #define RAM_DEBUG_MESSAGE(x)
@@ -63,7 +63,7 @@ Definitions:
 // NOTE: This used to be 0x100000.
 //       That doesn't work on systems where A20M# is asserted, because
 //       attempts to access 0x1000NN end up accessing 0x0000NN.
-#define RCOMP_MMIO 0x200000
+#define RCOMP_MMIO ((u8 *)0x200000)
 
 struct dimm_size {
 	unsigned long side1;
@@ -605,7 +605,7 @@ static uint8_t spd_get_supported_dimms(const struct mem_controller *ctrl)
 		    spd_read_byte(channel1_dimm, SPD_MODULE_ATTRIBUTES);
 		if (!(spd_value & MODULE_REGISTERED) || (spd_value < 0)) {
 
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 			continue;
 		}
 #ifdef VALIDATE_DIMM_COMPATIBILITY
@@ -633,11 +633,11 @@ static uint8_t spd_get_supported_dimms(const struct mem_controller *ctrl)
 			// Made it through all the checks, this DIMM pair is usable
 			dimm_mask |= ((1 << i) | (1 << (MAX_DIMM_SOCKETS_PER_CHANNEL + i)));
 		} else
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 #else
 		switch (bDualChannel) {
 		case 0:
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 			break;
 
 		default:
@@ -665,7 +665,7 @@ SDRAM configuration functions:
 static void do_ram_command(uint8_t command, uint16_t jedec_mode_bits)
 {
 	uint8_t dimm_start_64M_multiple;
-	uint32_t dimm_start_address;
+	uintptr_t dimm_start_address;
 	uint32_t dram_controller_mode;
 	uint8_t i;
 
@@ -713,7 +713,7 @@ static void do_ram_command(uint8_t command, uint16_t jedec_mode_bits)
 		if (dimm_end_64M_multiple > dimm_start_64M_multiple) {
 			dimm_start_address &= 0x3ffffff;
 			dimm_start_address |= dimm_start_64M_multiple << 26;
-			read32(dimm_start_address);
+			read32((void *)dimm_start_address);
 			// Set the start of the next DIMM
 			dimm_start_64M_multiple = dimm_end_64M_multiple;
 		}
@@ -986,10 +986,10 @@ static inline void __attribute__((always_inline))
 		 */
 
 		/* Disable and invalidate all cache. */
-		msr_t xip_mtrr = rdmsr(MTRRphysMask_MSR(1));
-		xip_mtrr.lo &= ~MTRRphysMaskValid;
+		msr_t xip_mtrr = rdmsr(MTRR_PHYS_MASK(1));
+		xip_mtrr.lo &= ~MTRR_PHYS_MASK_VALID;
 		invd();
-		wrmsr(MTRRphysMask_MSR(1), xip_mtrr);
+		wrmsr(MTRR_PHYS_MASK(1), xip_mtrr);
 		invd();
 
 		RAM_DEBUG_MESSAGE("ECC state initialized.\n");
@@ -1007,10 +1007,10 @@ static inline void __attribute__((always_inline))
 		unsigned int a1, a2;
 		asm volatile("movd %%xmm2, %%eax;" : "=a" (a1) ::);
 		asm volatile("movd %%xmm3, %%eax;" : "=a" (a2) ::);
-		printk(BIOS_DEBUG, "return EIP @ %x = %x\n", a1, a2);
+		printk(BIOS_DEBUG, "return EIP @ %x = %x\n", a1, a2);
 		asm volatile("movd %%xmm0, %%eax;" : "=a" (a1) ::);
 		asm volatile("movd %%xmm1, %%eax;" : "=a" (a2) ::);
-		printk(BIOS_DEBUG, "return EIP @ %x = %x\n", a1, a2);
+		printk(BIOS_DEBUG, "return EIP @ %x = %x\n", a1, a2);
 #endif
 	}
 
@@ -1132,7 +1132,7 @@ static void configure_e7501_dram_timing(const struct mem_controller *ctrl,
 
 	/* Trd */
 
-	/* Set to a 7 clock read delay. This is for 133Mhz
+	/* Set to a 7 clock read delay. This is for 133MHz
 	 *  with a CAS latency of 2.5  if 2.0 a 6 clock
 	 *  delay is good  */
 
@@ -1379,13 +1379,13 @@ static void configure_e7501_dram_controller_mode(const struct
 		die_on_spd_error(value);
 		value &= 0x7f;	// Mask off self-refresh bit
 		if (value > MAX_SPD_REFRESH_RATE) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// Get the appropriate E7501 refresh mode for this DIMM
 		dimm_refresh_mode = refresh_rate_map[value];
 		if (dimm_refresh_mode > 7) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// If this DIMM requires more frequent refresh than others,
@@ -1521,7 +1521,7 @@ static void RAM_RESET_DDR_PTR(void)
  * @param src_addr TODO
  * @param dst_addr TODO
  */
-static void write_8dwords(const uint32_t *src_addr, uint32_t dst_addr)
+static void write_8dwords(const uint32_t *src_addr, u8 *dst_addr)
 {
 	int i;
 	for (i = 0; i < 8; i++) {
@@ -1627,7 +1627,7 @@ static void ram_set_rcomp_regs(void)
 {
 	/* Set the RCOMP MMIO base address */
 	mchtest_control(RCOMP_BAR_ENABLE);
-	pci_write_config32(MCHDEV, SMRBASE, RCOMP_MMIO);
+	pci_write_config32(MCHDEV, SMRBASE, (uintptr_t)RCOMP_MMIO);
 
 	/* Block RCOMP updates while we configure the registers */
 	rcomp_smr_control(RCOMP_HOLD);
@@ -1710,7 +1710,7 @@ static void sdram_enable(const struct mem_controller *ctrl)
 	/* And for good luck 6 more CBRs */
 	RAM_DEBUG_MESSAGE("Ram Enable 8\n");
 	int i;
-	for(i=0; i<8; i++)
+	for (i = 0; i < 8; i++)
 		do_ram_command(RAM_COMMAND_CBR, 0);
 
 	/* 9 mode register set */
@@ -1767,7 +1767,7 @@ static void sdram_set_spd_registers(const struct mem_controller *ctrl)
 	dimm_mask = spd_get_supported_dimms(ctrl);
 
 	if (dimm_mask == 0) {
-		print_debug("No usable memory for this controller\n");
+		printk(BIOS_DEBUG, "No usable memory for this controller\n");
 	} else {
 		enable_e7501_clocks(dimm_mask);
 
@@ -1823,7 +1823,7 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 	/* Disable legacy MMIO (0xC0000-0xEFFFF is DRAM) */
 	int i;
 	pci_write_config8(MCHDEV, PAM_0, 0x30);
-	for (i=1; i<=6; i++)
+	for (i = 1; i <= 6; i++)
 		pci_write_config8(MCHDEV, PAM_0 + i, 0x33);
 
 	/* Conservatively say each row has 64MB of ram, we will fix this up later

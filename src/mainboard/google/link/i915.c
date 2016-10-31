@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -31,7 +27,6 @@
 #include <arch/io.h>
 #include <arch/interrupt.h>
 #include <boot/coreboot_tables.h>
-#include "hda_verb.h"
 #include "onboard.h"
 #include "ec.h"
 #include <southbridge/intel/bd82x6x/pch.h>
@@ -39,7 +34,6 @@
 #include <smbios.h>
 #include <device/pci.h>
 #include <ec/google/chromeec/ec.h>
-#include <cbfs_core.h>
 
 #include <cpu/x86/tsc.h>
 #include <cpu/x86/cache.h>
@@ -78,7 +72,7 @@ const u32 link_edid_data[] = {
 static char *regname(unsigned long addr)
 {
 	static char name[16];
-	snprintf(name, sizeof (name), "0x%lx", addr);
+	snprintf(name, sizeof(name), "0x%lx", addr);
 	return name;
 }
 
@@ -154,7 +148,7 @@ static void palette(void)
 	unsigned long color = 0;
 
 	for(i = 0; i < 256; i++, color += 0x010101){
-		io_i915_WRITE32(color, _LGC_PALETTE_A + (i<<2));
+		io_i915_WRITE32(color, _LGC_PALETTE_A + (i << 2));
 	}
 }
 
@@ -236,8 +230,8 @@ static int run(int index)
 	return i+1;
 }
 
-int i915lightup(const struct northbridge_intel_sandybridge_config *info,
-		u32 pphysbase, u16 piobase, u32 pmmio, u32 pgfx)
+int i915lightup_sandy(const struct i915_gpu_controller_info *info,
+		      u32 pphysbase, u16 piobase, u32 pmmio, u32 pgfx)
 {
 	static struct edid edid;
 	int edid_ok;
@@ -258,7 +252,7 @@ int i915lightup(const struct northbridge_intel_sandybridge_config *info,
 	edid_ok = decode_edid((unsigned char *)&link_edid_data,
 			      sizeof(link_edid_data), &edid);
 	printk(BIOS_SPEW, "decode edid returns %d\n", edid_ok);
-	edid.bpp = 32;
+	edid.framebuffer_bits_per_pixel = 32;
 
 	htotal = (edid.ha - 1) | ((edid.ha + edid.hbl- 1) << 16);
 	printk(BIOS_SPEW, "I915_WRITE(HTOTAL(pipe), %08x)\n", htotal);
@@ -283,57 +277,57 @@ int i915lightup(const struct northbridge_intel_sandybridge_config *info,
 
 	index = run(0);
 	printk(BIOS_SPEW, "Run returns %d\n", index);
-	auxout[0] = 1<<31 /* dp */|0x1<<28/*R*/|DP_DPCD_REV<<8|0xe;
+	auxout[0] = 1 << 31 /* dp */|0x1 << 28/*R*/|DP_DPCD_REV << 8|0xe;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 4, auxin, 14);
-	auxout[0] = 0<<31 /* i2c */|1<<30|0x0<<28/*W*/|0x0<<8|0x0;
+	auxout[0] = 0 << 31 /* i2c */|1 << 30|0x0 << 28/*W*/|0x0 << 8|0x0;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 3, auxin, 0);
 	index = run(index);
 	printk(BIOS_SPEW, "Run returns %d\n", index);
-	auxout[0] = 0<<31 /* i2c */|0<<30|0x0<<28/*W*/|0x0<<8|0x0;
+	auxout[0] = 0 << 31 /* i2c */|0 << 30|0x0 << 28/*W*/|0x0 << 8|0x0;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 3, auxin, 0);
 	index = run(index);
 	printk(BIOS_SPEW, "Run returns %d\n", index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_SET_POWER<<8|0x0;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_SET_POWER << 8|0x0;
 	auxout[1] = 0x01000000;
 	/* DP_SET_POWER_D0 | DP_PSR_SINK_INACTIVE */
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 5, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_LINK_BW_SET<<8|0x8;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_LINK_BW_SET << 8|0x8;
 	auxout[1] = 0x0a840000;
 	/*( DP_LINK_BW_2_7 &0xa)|0x0000840a*/
 	auxout[2] = 0x00000000;
 	auxout[3] = 0x01000000;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 13, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_TRAINING_PATTERN_SET<<8|0x0;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_TRAINING_PATTERN_SET << 8|0x0;
 	auxout[1] = 0x21000000;
 	/* DP_TRAINING_PATTERN_1 | DP_LINK_SCRAMBLING_DISABLE |
 	 * 	DP_SYMBOL_ERROR_COUNT_BOTH |0x00000021*/
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 5, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_TRAINING_LANE0_SET<<8|0x3;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_TRAINING_LANE0_SET << 8|0x3;
 	auxout[1] = 0x00000000;
 	/* DP_TRAIN_VOLTAGE_SWING_400 | DP_TRAIN_PRE_EMPHASIS_0 |0x00000000*/
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 8, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x1<<28/*R*/|DP_LANE0_1_STATUS<<8|0x5;
+	auxout[0] = 1 << 31 /* dp */|0x1 << 28/*R*/|DP_LANE0_1_STATUS << 8|0x5;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 4, auxin, 5);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_TRAINING_PATTERN_SET<<8|0x0;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_TRAINING_PATTERN_SET << 8|0x0;
 	auxout[1] = 0x22000000;
 	/* DP_TRAINING_PATTERN_2 | DP_LINK_SCRAMBLING_DISABLE |
 	 * 	DP_SYMBOL_ERROR_COUNT_BOTH |0x00000022*/
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 5, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_TRAINING_LANE0_SET<<8|0x3;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_TRAINING_LANE0_SET << 8|0x3;
 	auxout[1] = 0x00000000;
 	/* DP_TRAIN_VOLTAGE_SWING_400 | DP_TRAIN_PRE_EMPHASIS_0 |0x00000000*/
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 8, auxin, 0);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x1<<28/*R*/|DP_LANE0_1_STATUS<<8|0x5;
+	auxout[0] = 1 << 31 /* dp */|0x1 << 28/*R*/|DP_LANE0_1_STATUS << 8|0x5;
 	intel_dp_aux_ch(DPA_AUX_CH_CTL, DPA_AUX_CH_DATA1, auxout, 4, auxin, 5);
 	index = run(index);
-	auxout[0] = 1<<31 /* dp */|0x0<<28/*W*/|DP_TRAINING_PATTERN_SET<<8|0x0;
+	auxout[0] = 1 << 31 /* dp */|0x0 << 28/*W*/|DP_TRAINING_PATTERN_SET << 8|0x0;
 	auxout[1] = 0x00000000;
 	/* DP_TRAINING_PATTERN_DISABLE | DP_LINK_QUAL_PATTERN_DISABLE |
 	 * 	DP_SYMBOL_ERROR_COUNT_BOTH |0x00000000*/
@@ -374,7 +368,7 @@ int i915lightup(const struct northbridge_intel_sandybridge_config *info,
 		(void *)graphics, FRAME_BUFFER_BYTES);
 	memset((void *)graphics, 0, FRAME_BUFFER_BYTES);
 	printk(BIOS_SPEW, "%ld microseconds\n", globalmicroseconds());
-	set_vbe_mode_info_valid(&edid, graphics);
+	set_vbe_mode_info_valid(&edid, (uintptr_t)graphics);
 	i915_init_done = 1;
 	return i915_init_done;
 }

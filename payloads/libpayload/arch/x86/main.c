@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+#include <exception.h>
 #include <libpayload.h>
 
 unsigned long loader_eax;  /**< The value of EAX passed from the loader */
@@ -50,9 +51,11 @@ void start_main(void)
 	lib_get_sysinfo();
 
 	/* Optionally set up the consoles. */
-#ifndef CONFIG_SKIP_CONSOLE_INIT
+#if !IS_ENABLED(CONFIG_LP_SKIP_CONSOLE_INIT)
 	console_init();
 #endif
+
+	exception_init();
 
 	/*
 	 * Any other system init that has to happen before the

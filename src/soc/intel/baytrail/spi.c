@@ -1,9 +1,6 @@
 /*
  * Copyright (c) 2013 Google Inc.
  *
- * See file CREDITS for list of people who contributed to this
- * project.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -13,25 +10,21 @@
  * but without any warranty; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
- * MA 02111-1307 USA
  */
 
 /* This file is derived from the flashrom project. */
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <bootstate.h>
 #include <delay.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <device/pci_ids.h>
 #include <spi_flash.h>
 
-#include <baytrail/lpc.h>
-#include <baytrail/pci_devs.h>
+#include <soc/lpc.h>
+#include <soc/pci_devs.h>
 
 #ifdef __SMM__
 #define pci_read_config_byte(dev, reg, targ)\
@@ -195,33 +188,33 @@ static u32 readl_(const void *addr)
 
 static void writeb_(u8 b, const void *addr)
 {
-	write8((unsigned long)addr, b);
+	write8(addr, b);
 	printk(BIOS_DEBUG, "wrote %2.2x to %4.4x\n",
 	       b, ((unsigned) addr & 0xffff) - 0xf020);
 }
 
 static void writew_(u16 b, const void *addr)
 {
-	write16((unsigned long)addr, b);
+	write16(addr, b);
 	printk(BIOS_DEBUG, "wrote %4.4x to %4.4x\n",
 	       b, ((unsigned) addr & 0xffff) - 0xf020);
 }
 
 static void writel_(u32 b, const void *addr)
 {
-	write32((unsigned long)addr, b);
+	write32(addr, b);
 	printk(BIOS_DEBUG, "wrote %8.8x to %4.4x\n",
 	       b, ((unsigned) addr & 0xffff) - 0xf020);
 }
 
 #else /* CONFIG_DEBUG_SPI_FLASH ^^^ enabled  vvv NOT enabled */
 
-#define readb_(a) read8((uint32_t)a)
-#define readw_(a) read16((uint32_t)a)
-#define readl_(a) read32((uint32_t)a)
-#define writeb_(val, addr) write8((uint32_t)addr, val)
-#define writew_(val, addr) write16((uint32_t)addr, val)
-#define writel_(val, addr) write32((uint32_t)addr, val)
+#define readb_(a) read8(a)
+#define readw_(a) read16(a)
+#define readl_(a) read32(a)
+#define writeb_(val, addr) write8(addr, val)
+#define writew_(val, addr) write16(addr, val)
+#define writel_(val, addr) write32(addr, val)
 
 #endif  /* CONFIG_DEBUG_SPI_FLASH ^^^ NOT enabled */
 
@@ -266,14 +259,7 @@ static void ich_set_bbar(uint32_t minaddr)
 	writel_(ichspi_bbar, cntlr.bbar);
 }
 
-int spi_cs_is_valid(unsigned int bus, unsigned int cs)
-{
-	printk(BIOS_DEBUG, "spi_cs_is_valid used but not implemented\n");
-	return 0;
-}
-
-struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
-		unsigned int max_hz, unsigned int mode)
+struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs)
 {
 	ich_spi_slave *slave = malloc(sizeof(*slave));
 
@@ -323,6 +309,13 @@ void spi_init(void)
 	ich_set_bbar(0);
 }
 
+static void spi_init_cb(void *unused)
+{
+	spi_init();
+}
+
+BOOT_STATE_INIT_ENTRY(BS_DEV_INIT, BS_ON_ENTRY, spi_init_cb, NULL);
+
 int spi_claim_bus(struct spi_slave *slave)
 {
 	/* Handled by ICH automatically. */
@@ -330,16 +323,6 @@ int spi_claim_bus(struct spi_slave *slave)
 }
 
 void spi_release_bus(struct spi_slave *slave)
-{
-	/* Handled by ICH automatically. */
-}
-
-void spi_cs_activate(struct spi_slave *slave)
-{
-	/* Handled by ICH automatically. */
-}
-
-void spi_cs_deactivate(struct spi_slave *slave)
 {
 	/* Handled by ICH automatically. */
 }
@@ -482,7 +465,7 @@ static int spi_setup_offset(spi_transaction *trans)
  */
 static int ich_status_poll(u16 bitmask, int wait_til_set)
 {
-	int timeout = 6000; /* This will result in 60 ms */
+	int timeout = 40000; /* This will result in 400 ms */
 	u16 status = 0;
 
 	while (timeout--) {
@@ -500,8 +483,13 @@ static int ich_status_poll(u16 bitmask, int wait_til_set)
 	return -1;
 }
 
+unsigned int spi_crop_chunk(unsigned int cmd_len, unsigned int buf_len)
+{
+	return min(cntlr.databytes, buf_len);
+}
+
 int spi_xfer(struct spi_slave *slave, const void *dout,
-		unsigned int bitsout, void *din, unsigned int bitsin)
+		unsigned int bytesout, void *din, unsigned int bytesin)
 {
 	uint16_t control;
 	int16_t opcode_index;
@@ -509,24 +497,19 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	int status;
 
 	spi_transaction trans = {
-		dout, bitsout / 8,
-		din, bitsin / 8,
+		dout, bytesout,
+		din, bytesin,
 		0xff, 0xff, 0
 	};
 
 	/* There has to always at least be an opcode. */
-	if (!bitsout || !dout) {
+	if (!bytesout || !dout) {
 		printk(BIOS_DEBUG, "ICH SPI: No opcode for transfer\n");
 		return -1;
 	}
 	/* Make sure if we read something we have a place to put it. */
-	if (bitsin != 0 && !din) {
+	if (bytesin != 0 && !din) {
 		printk(BIOS_DEBUG, "ICH SPI: Read but no target buffer\n");
-		return -1;
-	}
-	/* Right now we don't support writing partial bytes. */
-	if (bitsout % 8 || bitsin % 8) {
-		printk(BIOS_DEBUG, "ICH SPI: Accessing partial bytes not supported\n");
 		return -1;
 	}
 
@@ -566,7 +549,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 
 		/*
 		 * This is a 'no data' command (like Write Enable), its
-		 * bitesout size was 1, decremented to zero while executing
+		 * bytesout size was 1, decremented to zero while executing
 		 * spi_setup_opcode() above. Tell the chip to send the
 		 * command.
 		 */
@@ -586,7 +569,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	}
 
 	/*
-	 * Check if this is a write command atempting to transfer more bytes
+	 * Check if this is a write command attempting to transfer more bytes
 	 * than the controller can handle. Iterations for writes are not
 	 * supported here because each SPI write command needs to be preceded
 	 * and followed by other SPI commands, and this sequence is controlled
@@ -594,7 +577,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	 */
 	if (trans.bytesout > cntlr.databytes) {
 		printk(BIOS_DEBUG, "ICH SPI: Too much to write. Does your SPI chip driver use"
-		     " CONTROLLER_PAGE_LIMIT?\n");
+		     " spi_crop_chunk()?\n");
 		return -1;
 	}
 

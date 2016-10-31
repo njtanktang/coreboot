@@ -11,20 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
-#include "common.h"
-#include "cbfs.h"
-#include "cbfs_image.h"
 #include "fit.h"
 
 /* FIXME: This code assumes it is being executed on a little endian machine. */
@@ -48,7 +41,7 @@ struct fit_entry {
 
 struct fit_table {
 	struct fit_entry header;
-	struct fit_entry entries[0];
+	struct fit_entry entries[];
 } __attribute__ ((packed));
 
 struct microcode_header {
@@ -69,9 +62,9 @@ struct microcode_entry {
 	int size;
 };
 
-static inline void *rom_buffer_pointer(struct cbfs_image *image, int offset)
+static inline void *rom_buffer_pointer(struct buffer *buffer, int offset)
 {
-	return &image->buffer.data[offset];
+	return &buffer->data[offset];
 }
 
 static inline int fit_entry_size_bytes(struct fit_entry *entry)
@@ -104,9 +97,10 @@ static inline int fit_entry_type(struct fit_entry *entry)
  * in the host address space at [4G - romsize -> 4G). It also assume all
  * pointers have values within this address range.
  */
-static inline int ptr_to_offset(uint32_t theromsize, uint32_t host_ptr)
+static inline int ptr_to_offset(fit_offset_converter_t helper,
+				const struct buffer *region, uint32_t host_ptr)
 {
-	return (int)(theromsize + host_ptr);
+	return helper(region, -host_ptr);
 }
 
 /*
@@ -114,25 +108,28 @@ static inline int ptr_to_offset(uint32_t theromsize, uint32_t host_ptr)
  * in the host address space at [4G - romsize -> 4G). It also assume all
  * pointers have values within this address range.
  */
-static inline uint32_t offset_to_ptr(uint32_t theromsize, int offset)
+static inline uint32_t offset_to_ptr(fit_offset_converter_t helper,
+				     const struct buffer *region, int offset)
 {
-	return -(theromsize - (uint32_t )offset);
+	return -helper(region, offset);
 }
 
-static struct fit_table *locate_fit_table(struct cbfs_image *image)
+static struct fit_table *locate_fit_table(fit_offset_converter_t offset_helper,
+					  struct buffer *buffer)
 {
 	struct fit_table *table;
 	uint32_t *fit_pointer;
 
-	fit_pointer = rom_buffer_pointer(image,
-                              ptr_to_offset(image->buffer.size, FIT_POINTER_LOCATION));
+	fit_pointer = rom_buffer_pointer(buffer,
+			ptr_to_offset(offset_helper, buffer,
+			FIT_POINTER_LOCATION));
 
 	/* Ensure pointer is below 4GiB and within 16MiB of 4GiB */
 	if (fit_pointer[1] != 0 || fit_pointer[0] < FIT_TABLE_LOWEST_ADDRESS)
 		return NULL;
 
-	table = rom_buffer_pointer(image,
-	                           ptr_to_offset(image->buffer.size, *fit_pointer));
+	table = rom_buffer_pointer(buffer,
+			   ptr_to_offset(offset_helper, buffer, *fit_pointer));
 
 	/* Check that the address field has the proper signature. */
 	if (strncmp((const char *)&table->header.address, FIT_HEADER_ADDRESS,
@@ -168,9 +165,10 @@ static void update_fit_checksum(struct fit_table *fit)
 	fit->header.checksum = -result;
 }
 
-static void add_microcodde_entries(struct cbfs_image *image,
-                                   struct fit_table *fit,
-                                   struct microcode_entry *mcus, int num_mcus)
+static void add_microcodde_entries(struct fit_table *fit,
+				   const struct cbfs_image *image,
+				   int num_mcus, struct microcode_entry *mcus,
+				   fit_offset_converter_t offset_helper)
 {
 	int i;
 
@@ -178,13 +176,23 @@ static void add_microcodde_entries(struct cbfs_image *image,
 		struct fit_entry *entry = &fit->entries[i];
 		struct microcode_entry *mcu = &mcus[i];
 
-		entry->address = offset_to_ptr(image->buffer.size, mcu->offset);
+		entry->address = offset_to_ptr(offset_helper, &image->buffer,
+								mcu->offset);
 		fit_entry_update_size(entry, mcu->size);
 		entry->version = FIT_MICROCODE_VERSION;
 		entry->type_checksum_valid = FIT_TYPE_MICROCODE;
 		entry->checksum = 0;
 		fit_entry_add_size(&fit->header, sizeof(struct fit_entry));
 	}
+}
+
+static void cbfs_file_get_header(struct buffer *buf, struct cbfs_file *file)
+{
+	bgets(buf, &file->magic, sizeof(file->magic));
+	file->len = xdr_be.get32(buf);
+	file->type = xdr_be.get32(buf);
+	file->attributes_offset = xdr_be.get32(buf);
+	file->offset = xdr_be.get32(buf);
 }
 
 static int fit_header(void *ptr, uint32_t *current_offset, uint32_t *file_length)
@@ -207,15 +215,15 @@ static int parse_microcode_blob(struct cbfs_image *image,
 	uint32_t current_offset;
 	uint32_t file_length;
 
-	current_offset = (int)((char *)mcode_file - image->buffer.data);
 	fit_header(mcode_file, &current_offset, &file_length);
+	current_offset += (int)((char *)mcode_file - image->buffer.data);
 
 	num_mcus = 0;
 	while (file_length > sizeof(struct microcode_header))
 	{
-		struct microcode_header *mcu_header;
+		const struct microcode_header *mcu_header;
 
-		mcu_header = rom_buffer_pointer(image, current_offset);
+		mcu_header = rom_buffer_pointer(&image->buffer, current_offset);
 
 		/* Quickly sanity check a prospective microcode update. */
 		if (mcu_header->total_size < sizeof(*mcu_header))
@@ -243,8 +251,9 @@ static int parse_microcode_blob(struct cbfs_image *image,
 	return 0;
 }
 
-int fit_update_table(struct cbfs_image *image, int empty_entries,
-                     const char *microcode_blob_name)
+int fit_update_table(struct buffer *bootblock, struct cbfs_image *image,
+		     const char *microcode_blob_name, int empty_entries,
+		     fit_offset_converter_t offset_fn)
 {
 	struct fit_table *fit;
 	struct cbfs_file *mcode_file;
@@ -252,7 +261,7 @@ int fit_update_table(struct cbfs_image *image, int empty_entries,
 	int ret = 0;
 	// struct rom_image image = { .rom = rom, .size = romsize, };
 
-	fit = locate_fit_table(image);
+	fit = locate_fit_table(offset_fn, bootblock);
 
 	if (!fit) {
 		ERROR("FIT not found.\n");
@@ -279,7 +288,7 @@ int fit_update_table(struct cbfs_image *image, int empty_entries,
 		goto out;
 	}
 
-	add_microcodde_entries(image, fit, mcus, empty_entries);
+	add_microcodde_entries(fit, image, empty_entries, mcus, offset_fn);
 	update_fit_checksum(fit);
 
 out:

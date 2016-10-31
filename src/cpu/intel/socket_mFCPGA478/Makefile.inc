@@ -1,4 +1,3 @@
-ramstage-y += socket_mFCPGA478.c
 subdirs-y += ../model_69x
 subdirs-y += ../model_6dx
 subdirs-y += ../model_6ex
@@ -12,4 +11,5 @@ subdirs-y += ../microcode
 subdirs-y += ../hyperthreading
 subdirs-y += ../speedstep
 
-cpu_incs += $(src)/cpu/intel/model_6ex/cache_as_ram.inc
+cpu_incs-y += $(src)/cpu/intel/model_6ex/cache_as_ram.inc
+romstage-y += ../car/romstage.c

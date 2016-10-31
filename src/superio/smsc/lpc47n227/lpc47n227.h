@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_SMSC_LPC47N227_LPC47N227_H
@@ -31,5 +27,10 @@
 #define LPC47N227_KBDC             5	/* Keyboard */
 
 #define LPC47N227_MAX_CONFIG_REGISTER	0x39
+
+void pnp_enter_conf_state(pnp_devfn_t dev);
+void pnp_exit_conf_state(pnp_devfn_t dev);
+
+void lpc47n227_enable_serial(pnp_devfn_t dev, u16 iobase);
 
 #endif

@@ -12,15 +12,12 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 ramstage-$(CONFIG_EC_GOOGLE_CHROMEEC) += ec.c
 
 romstage-y += chromeos.c
 ramstage-y += chromeos.c
+ramstage-$(CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT) += gma.c i915io.c
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += smihandler.c
 
@@ -38,14 +35,14 @@ SPD_SOURCES += Elpida_EDJ4216EFBG	# 6: 2GB / CH0 + CH1
 
 SPD_DEPS := $(foreach f, $(SPD_SOURCES), src/mainboard/$(MAINBOARDDIR)/$(f).spd.hex)
 
-# Include spd rom data
+# Include spd ROM data
 $(SPD_BIN): $(SPD_DEPS)
 	for f in $+; \
 	  do for c in $$(cat $$f | grep -v ^#); \
-	    do echo -e -n "\\x$$c"; \
+	    do printf $$(printf '\%o' 0x$$c); \
 	  done; \
 	done > $@
 
 cbfs-files-y += spd.bin
 spd.bin-file := $(SPD_BIN)
-spd.bin-type := 0xab
+spd.bin-type := spd

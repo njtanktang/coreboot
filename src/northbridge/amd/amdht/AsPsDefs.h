@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2007-2008 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -254,7 +251,7 @@
 #define DUAL_PLANE_NB_VID_SHIFT 17/* for CPU rev <= C */
 
 
-#define NM_PS_REG 5			/* number of P-state MSR registers */
+#define NM_PS_REG (is_fam15h()?8:5)	/* number of P-state MSR registers */
 
 /* sFidVidInit.outFlags defines */
 #define PWR_CK_OK 0			/* System board check OK */
@@ -294,6 +291,6 @@
 
 #define TSC_FREQ_SEL_MASK (1 << TSC_FREQ_SEL_SHIFT)
 
-#define  WAIT_PSTATE_TIMEOUT 80000000  /* 0.1 s , unit : 1.25 ns */
+#define WAIT_PSTATE_TIMEOUT 80000000  /* 0.1 s , unit : 1.25 ns */
 
 #endif

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -77,7 +72,7 @@ static void configure_c_states(void)
 	msr.lo &= ~(1 << 9); // Issue a  single stop grant cycle upon stpclk
 	msr.lo |= (1 << 3); // Dynamic L2
 
-        /* Number of supported C-States */
+	/* Number of supported C-States */
 	msr.lo &= ~7;
 	msr.lo |= HIGHEST_CLEVEL; // support at most C3
 
@@ -161,7 +156,7 @@ static void configure_pic_thermal_sensors(void)
 	wrmsr(PIC_SENS_CFG, msr);
 }
 
-static void model_6fx_init(device_t cpu)
+static void model_6fx_init(struct device *cpu)
 {
 	char processor_name[49];
 
@@ -182,7 +177,7 @@ static void model_6fx_init(device_t cpu)
 	/* Setup Page Attribute Tables (PAT) */
 	// TODO set up PAT
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 	/* Enable virtualization */
@@ -197,7 +192,7 @@ static void model_6fx_init(device_t cpu)
 	/* PIC thermal sensor control */
 	configure_pic_thermal_sensors();
 
-	/* Start up my cpu siblings */
+	/* Start up my CPU siblings */
 	intel_sibling_init(cpu);
 }
 
@@ -221,4 +216,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,
 };
-

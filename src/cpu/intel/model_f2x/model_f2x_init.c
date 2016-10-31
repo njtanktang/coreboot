@@ -1,3 +1,16 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <console/console.h>
 #include <device/device.h>
 #include <string.h>
@@ -9,7 +22,7 @@
 #include <cpu/intel/hyperthreading.h>
 #include <cpu/x86/cache.h>
 
-static void model_f2x_init(device_t cpu)
+static void model_f2x_init(struct device *cpu)
 {
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
@@ -23,10 +36,10 @@ static void model_f2x_init(device_t cpu)
 		intel_update_microcode_from_cbfs();
 	}
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
-	/* Start up my cpu siblings */
+	/* Start up my CPU siblings */
 	intel_sibling_init(cpu);
 };
 

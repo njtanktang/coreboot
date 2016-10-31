@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* This file contains functions for odt setting on registered DDR3 dimms */
@@ -43,19 +40,21 @@
  *
  *   This function set Rtt_Nom for registered DDR3 dimms on targeted dimm.
  *
+ *     @param      *pMCTData
  *     @param[in]  *pDCTData - Pointer to buffer with information about each DCT
- *                 dimm - targeted dimm
- *                 wl - current mode, either write levelization mode or normal mode
- *                 MemClkFreq - current frequency
+ *     @param      dimm - targeted dimm
+ *     @param      wl - current mode, either write levelization mode or normal mode
+ *     @param      MemClkFreq - current frequency
+ *     @param      rank
  *
- *      @return    tempW1 - Rtt_Nom
+ *     @return     tempW1 - Rtt_Nom
  */
 static u32 RttNomTargetRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm, BOOL wl, u8 MemClkFreq, u8 rank)
 {
 	u32 tempW1;
 	tempW1 = 0;
 	if (wl) {
-		switch (pMCTData->PlatMaxDimmsDct) {
+		switch (mctGet_NVbits(NV_MAX_DIMMS_PER_CH)) {
 		case 2:
 			/* 2 dimms per channel */
 			if (pDCTData->MaxDimmsInstalled == 1) {
@@ -109,7 +108,7 @@ static u32 RttNomTargetRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 d
 			ASSERT (FALSE);
 		}
 	} else {
-		switch (pMCTData->PlatMaxDimmsDct) {
+		switch (mctGet_NVbits(NV_MAX_DIMMS_PER_CH)) {
 		case 2:
 			/* 2 dimms per channel */
 			if ((pDCTData->DimmRanks[dimm] == 4) && (rank == 1)) {
@@ -154,16 +153,18 @@ static u32 RttNomTargetRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 d
  *
  *   This function set Rtt_Nom for registered DDR3 dimms on non-targeted dimm.
  *
+ *     @param      *pMCTData
  *     @param[in]  *pDCTData - Pointer to buffer with information about each DCT
- *                 dimm - non-targeted dimm
- *                 wl - current mode, either write levelization mode or normal mode
- *                 MemClkFreq - current frequency
+ *     @param      dimm - non-targeted dimm
+ *     @param      wl - current mode, either write levelization mode or normal mode
+ *     @param      MemClkFreq - current frequency
+ *     @param      rank
  *
  *      @return    tempW1 - Rtt_Nom
  */
 static u32 RttNomNonTargetRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm, BOOL wl, u8 MemClkFreq, u8 rank)
 {
-	if ((wl) && (pMCTData->PlatMaxDimmsDct == 2) && (pDCTData->DimmRanks[dimm] == 2) && (rank == 1)) {
+	if ((wl) && (mctGet_NVbits(NV_MAX_DIMMS_PER_CH) == 2) && (pDCTData->DimmRanks[dimm] == 2) && (rank == 1)) {
 		return 0x00;	/* for non-target dimm during WL, the second rank of a DR dimm need to have Rtt_Nom = OFF */
 	} else {
 		return RttNomTargetRegDimm (pMCTData, pDCTData, dimm, FALSE, MemClkFreq, rank);	/* otherwise, the same as target dimm in normal mode. */
@@ -176,13 +177,16 @@ static u32 RttNomNonTargetRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u
  *
  *   This function set Rtt_Wr for registered DDR3 dimms.
  *
+ *     @param      pMCTData
  *     @param[in]  *pDCTData - Pointer to buffer with information about each DCT
- *                 dimm - targeted dimm
- *                 wl - current mode, either write levelization mode or normal mode
- *                 MemClkFreq - current frequency
+ *     @param      dimm - targeted dimm
+ *     @param      wl - current mode, either write levelization mode or normal mode
+ *     @param      MemClkFreq - current frequency
+ *     @param      rank
  *
  *      @return    tempW1 - Rtt_Wr
  */
+
 static u32 RttWrRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm, BOOL wl, u8 MemClkFreq, u8 rank)
 {
 	u32 tempW1;
@@ -190,7 +194,7 @@ static u32 RttWrRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm, BO
 	if (wl) {
 		tempW1 = 0x00;	/* Rtt_WR = OFF */
 	} else {
-		switch (pMCTData->PlatMaxDimmsDct) {
+		switch (mctGet_NVbits(NV_MAX_DIMMS_PER_CH)) {
 		case 2:
 			if (pDCTData->MaxDimmsInstalled == 1) {
 				if (pDCTData->DimmRanks[dimm] != 4) {
@@ -238,8 +242,9 @@ static u32 RttWrRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm, BO
  *
  *   This function set WrLvOdt for registered DDR3 dimms.
  *
+ *     @param      *pMCTData
  *     @param[in]  *pDCTData - Pointer to buffer with information about each DCT
- *                 dimm - targeted dimm
+ *     @param      dimm - targeted dimm
  *
  *      @return    WrLvOdt
  */
@@ -254,7 +259,7 @@ static u8 WrLvOdtRegDimm (sMCTStruct *pMCTData, sDCTStruct *pDCTData, u8 dimm)
 		}
 		i += 2;
 	}
-	if (pMCTData->PlatMaxDimmsDct == 2) {
+	if (mctGet_NVbits(NV_MAX_DIMMS_PER_CH) == 2) {
 		if ((pDCTData->DimmRanks[dimm] == 4) && (pDCTData->MaxDimmsInstalled != 1)) {
 			if (dimm >= 2) {
 				WrLvOdt1 = (u8)bitTestReset (WrLvOdt1, (dimm - 2));

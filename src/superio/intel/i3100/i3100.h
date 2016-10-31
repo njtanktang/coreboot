@@ -12,14 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef SUPERIO_INTEL_I3100_I3100_H
-#define SUPERIO_INTEL_I3100_I3100_H
+#ifndef SUPERIO_INTEL_I3100_H
+#define SUPERIO_INTEL_I3100_H
 
 /*
  * Datasheet:
@@ -61,4 +57,10 @@
 #define I3100_UART_CLK_PREDIVIDE_8	0x01
 #define I3100_UART_CLK_PREDIVIDE_26	0x02
 
-#endif
+#include <arch/io.h>
+#include <stdint.h>
+
+void i3100_configure_uart_clk(pnp_devfn_t dev, u8 predivide);
+void i3100_enable_serial(pnp_devfn_t dev, u16 iobase);
+
+#endif /* SUPERIO_INTEL_I3100_H */

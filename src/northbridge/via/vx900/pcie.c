@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <arch/io.h>
@@ -26,7 +23,7 @@
 #include "vx900.h"
 
 /**
- * @file pcie.c
+ * @file vx900/pcie.c
  *
  * STATUS:
  * We do part of the sequence to initialize the PCIE link. The problem is that
@@ -55,7 +52,7 @@ static void vx900_pcie_link_init(device_t dev)
 
 	/* Step 2: Wait for device to enter L0 state */
 	/* FIXME: implement timeout detection */
-	while (0x8a != pci_read_config8(dev, 0x1c3)) ;
+	while (0x8a != pci_read_config8(dev, 0x1c3));
 
 	/* Step 3: Clear PCIe error status, then check for failures */
 	pci_write_config32(dev, 0x104, 0xffffffff);
@@ -72,11 +69,11 @@ static void vx900_pcie_link_init(device_t dev)
 
 	pci_write_config8(dev, 0xa4, 0xff);
 	if (pci_read_config8(dev, 0x4a) & (1 << 3))
-		print_debug("Unsupported request detected.\n");
+		printk(BIOS_DEBUG, "Unsupported request detected.\n");
 
 	pci_write_config8(dev, 0x15a, 0xff);
 	if (pci_read_config8(dev, 0x15a) & (1 << 1))
-		print_debug("Negotiation pending.\n");
+		printk(BIOS_DEBUG, "Negotiation pending.\n");
 
 	/* Step 4: Read vendor ID */
 	/* FIXME: Do we want to run through the whole sequence and delay boot

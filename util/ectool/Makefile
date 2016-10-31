@@ -13,20 +13,20 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 CC = gcc
 CFLAGS = -O2 -Wall -W
 PROGRAM = ectool
 INSTALL = /usr/bin/install
 PREFIX  = /usr/local
+OS_ARCH = $(shell uname)
 
-OS_ARCH = $(shell uname -o)
-ifeq ($(OS_ARCH), Cygwin)
+ifeq ($(shell uname -o 2>/dev/null), Cygwin)
 LDFLAGS = -lioperm
+endif
+
+ifeq ($(OS_ARCH), NetBSD)
+LDFLAGS = -l$(shell uname -p)
 endif
 
 all: $(PROGRAM)
@@ -38,7 +38,11 @@ install: $(PROGRAM)
 	$(INSTALL) $(PROGRAM) $(PREFIX)/sbin
 
 clean:
-	rm *.o $(PROGRAM)
+	rm -f *.o $(PROGRAM) junit.xml
+
+distclean: clean
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $^ -I. -o $@
+
+.PHONY: all install clean distclean

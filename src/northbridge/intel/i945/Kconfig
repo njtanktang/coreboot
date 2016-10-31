@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_I945
 	bool
@@ -26,9 +22,10 @@ config NORTHBRIDGE_SPECIFIC_OPTIONS # dummy
 	def_bool y
 	select MMCONF_SUPPORT
 	select MMCONF_SUPPORT_DEFAULT
-	select DYNAMIC_CBMEM
 	select HAVE_DEBUG_RAM_SETUP
 	select LAPIC_MONOTONIC_TIMER
+	select VGA
+	select INTEL_GMA_ACPI
 
 config NORTHBRIDGE_INTEL_SUBTYPE_I945GC
 	def_bool n
@@ -41,7 +38,8 @@ config BOOTBLOCK_NORTHBRIDGE_INIT
 
 config VGA_BIOS_ID
 	string
-	default "8086,27a2"
+	default "8086,27a2" if NORTHBRIDGE_INTEL_SUBTYPE_I945GM
+	default "8086,2772" if NORTHBRIDGE_INTEL_SUBTYPE_I945GC
 
 config CHANNEL_XOR_RANDOMIZATION
 	bool

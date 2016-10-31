@@ -1,18 +1,31 @@
 /*
- * How we use DRAM on Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2014  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ *
+ * How we use DRAM on Allwinner CPUs
  */
 
 #include <config.h>
+#include <symbols.h>
 
 /*
  * Put CBMEM at top of RAM
  */
 static inline void *a1x_get_cbmem_top(void)
 {
-	return (void *)CONFIG_SYS_SDRAM_BASE + (CONFIG_DRAM_SIZE_MB << 20);
+	return _dram + (CONFIG_DRAM_SIZE_MB << 20);
 }
 
 /*

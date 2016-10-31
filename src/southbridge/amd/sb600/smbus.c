@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "smbus.h"
@@ -185,7 +181,7 @@ static void alink_ab_indx(u32 reg_space, u32 reg_addr, u32 mask, u32 val)
 	tmp |= val;
 
 	/* printk(BIOS_DEBUG, "about write %x, index=%x", tmp, (reg_space&0x3)<<30 | reg_addr); */
-	outl((reg_space & 0x3) << 30 | reg_addr, AB_INDX);	/* probably we dont have to do it again. */
+	outl((reg_space & 0x3) << 30 | reg_addr, AB_INDX);	/* probably we don't have to do it again. */
 	outl(tmp, AB_DATA);
 }
 

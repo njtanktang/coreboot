@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,13 +19,13 @@
 
 void gm45_early_init(void)
 {
-	const device_t d0f0 = PCI_DEV(0, 0, 0);
+	const pci_devfn_t d0f0 = PCI_DEV(0, 0, 0);
 
 	/* Setup MCHBAR. */
-	pci_write_config32(d0f0, D0F0_MCHBAR_LO, DEFAULT_MCHBAR | 1);
+	pci_write_config32(d0f0, D0F0_MCHBAR_LO, (uintptr_t)DEFAULT_MCHBAR | 1);
 
 	/* Setup DMIBAR. */
-	pci_write_config32(d0f0, D0F0_DMIBAR_LO, DEFAULT_DMIBAR | 1);
+	pci_write_config32(d0f0, D0F0_DMIBAR_LO, (uintptr_t)DEFAULT_DMIBAR | 1);
 
 	/* Setup EPBAR. */
 	pci_write_config32(d0f0, D0F0_EPBAR_LO, DEFAULT_EPBAR | 1);
@@ -45,4 +41,3 @@ void gm45_early_init(void)
 	pci_write_config8(d0f0, D0F0_PAM(5), 0x33);
 	pci_write_config8(d0f0, D0F0_PAM(6), 0x33);
 }
-

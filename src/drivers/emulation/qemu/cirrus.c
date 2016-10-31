@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -212,7 +207,7 @@ write_hidden_dac (uint8_t data)
 }
 #endif
 
-static void cirrus_init(device_t dev)
+static void cirrus_init(struct device *dev)
 {
 #if IS_ENABLED(CONFIG_FRAMEBUFFER_KEEP_VESA_MODE)
 	uint8_t cr_ext, cr_overlay;
@@ -333,12 +328,11 @@ static void cirrus_init(device_t dev)
 
 
 	struct edid edid;
-	edid.ha = width;
-	edid.va = height;
-	edid.x_resolution = width;
-	edid.y_resolution = height;
-	edid.bytes_per_line = width * 4;
-	edid.bpp = 32;
+	edid.mode.ha = width;
+	edid.mode.va = height;
+	edid.panel_bits_per_color = 8;
+	edid.panel_bits_per_pixel = 24;
+	edid_set_framebuffer_bits_per_pixel(&edid, 32, 0);
 	set_vbe_mode_info_valid(&edid, addr);
 #else
 	vga_misc_write(0x1);

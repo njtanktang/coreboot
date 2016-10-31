@@ -11,12 +11,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <arch/acpi.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <device/device.h>
@@ -25,7 +22,9 @@
 #include <kconfig.h>
 #include <stdlib.h>
 #include <string.h>
+#include <smbios.h>
 #include <pc80/mc146818rtc.h>
+#include <pc80/keyboard.h>
 
 #include "h8.h"
 #include "chip.h"
@@ -61,6 +60,15 @@ static void h8_wwan_enable(int on)
 		ec_set_bit(0x3a, 6);
 	else
 		ec_clr_bit(0x3a, 6);
+}
+
+/* Controls radio-off pin in UWB MiniPCIe slot.  */
+static void h8_uwb_enable(int on)
+{
+	if (on)
+		ec_set_bit(0x31, 2);
+	else
+		ec_clr_bit(0x31, 2);
 }
 
 static void h8_fn_ctrl_swap(int on)
@@ -142,7 +150,7 @@ u8 h8_build_id_and_function_spec_version(char *buf, u8 buf_len)
 	for (i = 0; i < 8; i++) {
 		c = ec_read(0xf0 + i);
 		if (c < 0x20 || c > 0x7f) {
-		  i = snprintf(str, sizeof (str), "*INVALID");
+			i = snprintf(str, sizeof (str), "*INVALID");
 			break;
 		}
 		str[i] = c;
@@ -157,11 +165,32 @@ u8 h8_build_id_and_function_spec_version(char *buf, u8 buf_len)
 	return i;
 }
 
-static void h8_enable(device_t dev)
+static void h8_smbios_strings(struct device *dev, struct smbios_type11 *t)
+{
+	char tpec[] = "IBM ThinkPad Embedded Controller -[                 ]-";
+
+	h8_build_id_and_function_spec_version(tpec + 35, 17);
+
+	t->count = smbios_add_string(t->eos, tpec);
+}
+
+static void h8_init(device_t dev)
+{
+	pc_keyboard_init(NO_AUX_DEVICE);
+}
+
+struct device_operations h8_dev_ops = {
+	.get_smbios_strings = h8_smbios_strings,
+	.init = h8_init,
+};
+
+static void h8_enable(struct device *dev)
 {
 	struct ec_lenovo_h8_config *conf = dev->chip_info;
 	u8 val, tmp;
 	u8 beepmask0, beepmask1, config1;
+
+	dev->ops = &h8_dev_ops;
 
 	h8_log_ec_version();
 
@@ -201,6 +230,9 @@ static void h8_enable(device_t dev)
 
 	ec_write(H8_SOUND_REPEAT, 0x00);
 
+	/* silence sounds in queue */
+	ec_write(H8_SOUND_REG, 0x00);
+
 	ec_write(0x10, conf->event0_enable);
 	ec_write(0x11, conf->event1_enable);
 	ec_write(0x12, conf->event2_enable);
@@ -227,7 +259,7 @@ static void h8_enable(device_t dev)
 	h8_trackpoint_enable(1);
 	h8_usb_power_enable(1);
 
-	if (get_option(&val, "volume") == CB_SUCCESS)
+	if (get_option(&val, "volume") == CB_SUCCESS && !acpi_is_wakeup_s3())
 		ec_write(H8_VOLUME_CONTROL, val);
 
 	if (get_option(&val, "bluetooth") != CB_SUCCESS)
@@ -238,6 +270,13 @@ static void h8_enable(device_t dev)
 		val = 1;
 
 	h8_wwan_enable(val);
+
+	if (conf->has_uwb) {
+		if (get_option(&val, "uwb") != CB_SUCCESS)
+			val = 1;
+
+		h8_uwb_enable(val);
+	}
 
 	if (get_option(&val, "fn_ctrl_swap") != CB_SUCCESS)
 		val = 0;
@@ -257,11 +296,11 @@ static void h8_enable(device_t dev)
 	h8_set_audio_mute(0);
 
 #if !IS_ENABLED(CONFIG_H8_DOCK_EARLY_INIT)
-	h8_mainboard_init_dock ();
+	h8_mainboard_init_dock();
 #endif
 }
 
 struct chip_operations ec_lenovo_h8_ops = {
 	CHIP_NAME("Lenovo H8 EC")
-	.enable_dev = h8_enable
+	.enable_dev = h8_enable,
 };

@@ -11,17 +11,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SB600_H
 #define SB600_H
 
+#ifndef __ACPI__
 #include <device/pci_ids.h>
 #include "chip.h"
+#endif
 
 /* Power management index/data registers */
 #define PM_INDEX	0xcd6
@@ -29,15 +27,21 @@
 #define PM2_INDEX	0xcd0
 #define PM2_DATA	0xcd1
 
+#define HPET_BASE_ADDRESS 0xfed00000
+
+#ifndef __ACPI__
 extern void pm_iowrite(u8 reg, u8 value);
 extern u8 pm_ioread(u8 reg);
 extern void pm2_iowrite(u8 reg, u8 value);
 extern u8 pm2_ioread(u8 reg);
-extern void set_sm_enable_bits(device_t sm_dev, u32 reg_pos, u32 mask, u32 val);
 
+#ifndef __SIMPLE_DEVICE__
+extern void set_sm_enable_bits(device_t sm_dev, u32 reg_pos, u32 mask, u32 val);
 void sb600_enable(device_t dev);
+#endif
 
 void sb600_lpc_port80(void);
 void sb600_pci_port80(void);
 
+#endif /* __ACPI__ */
 #endif /* SB600_H */

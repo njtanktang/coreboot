@@ -31,27 +31,27 @@
 #include <libpayload.h>
 #include <video_console.h>
 
-#ifdef CONFIG_GEODELX_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_GEODELX_VIDEO_CONSOLE)
 extern struct video_console geodelx_video_console;
 #endif
 
-#ifdef CONFIG_COREBOOT_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_COREBOOT_VIDEO_CONSOLE)
 extern struct video_console coreboot_video_console;
 #endif
 
-#ifdef CONFIG_VGA_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_VGA_VIDEO_CONSOLE)
 extern struct video_console vga_video_console;
 #endif
 
 static struct video_console *console_list[] =
 {
-#ifdef CONFIG_GEODELX_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_GEODELX_VIDEO_CONSOLE)
 	&geodelx_video_console,
 #endif
-#ifdef CONFIG_COREBOOT_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_COREBOOT_VIDEO_CONSOLE)
 	&coreboot_video_console,
 #endif
-#ifdef CONFIG_VGA_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_VGA_VIDEO_CONSOLE)
 	&vga_video_console,
 #endif
 };
@@ -60,7 +60,6 @@ static struct video_console *console;
 
 static int cursorx;
 static int cursory;
-static unsigned int cursor_enabled = 1;
 
 void video_get_rows_cols(unsigned int *rows, unsigned int *cols)
 {
@@ -74,7 +73,7 @@ void video_get_rows_cols(unsigned int *rows, unsigned int *cols)
 
 static void video_console_fixup_cursor(void)
 {
-	if (!cursor_enabled)
+	if (!console)
 		return;
 
 	if (cursorx < 0)
@@ -93,7 +92,7 @@ static void video_console_fixup_cursor(void)
 		cursory--;
 	}
 
-	if (console && console->set_cursor)
+	if (console->set_cursor)
 		console->set_cursor(cursorx, cursory);
 }
 
@@ -101,11 +100,6 @@ void video_console_cursor_enable(int state)
 {
 	if (console && console->enable_cursor)
 		console->enable_cursor(state);
-
-	cursor_enabled = state;
-
-	if (cursor_enabled)
-		video_console_fixup_cursor();
 }
 
 void video_console_clear(void)
@@ -128,6 +122,9 @@ void video_console_putc(u8 row, u8 col, unsigned int ch)
 
 void video_console_putchar(unsigned int ch)
 {
+	if (!console)
+		return;
+
 	/* replace black-on-black with light-gray-on-black.
 	 * do it here, instead of in libc/console.c
 	 */
@@ -141,6 +138,7 @@ void video_console_putchar(unsigned int ch)
 		break;
 
 	case '\n':
+		cursorx = 0;
 		cursory++;
 		break;
 
@@ -153,20 +151,60 @@ void video_console_putchar(unsigned int ch)
 		break;
 
 	case '\t':
-		while(cursorx % 8 && cursorx < console->columns) {
-			if (console)
-				console->putc(cursory, cursorx, (ch & 0xFF00) | ' ');
-
-			cursorx++;
-		}
+		while(cursorx % 8 && cursorx < console->columns)
+			console->putc(cursory, cursorx++, (ch & 0xFF00) | ' ');
 		break;
 	default:
-		if (console)
-			console->putc(cursory, cursorx++, ch);
+		console->putc(cursory, cursorx++, ch);
 		break;
 	}
 
 	video_console_fixup_cursor();
+}
+
+void video_printf(int foreground, int background, enum video_printf_align align,
+		  const char *fmt, ...)
+{
+	int i = 0, len;
+	char str[200];
+
+	va_list ap;
+	va_start(ap, fmt);
+	len = vsnprintf(str, ARRAY_SIZE(str), fmt, ap);
+	va_end(ap);
+	if (len <= 0)
+		return;
+
+	/* vsnprintf can return len larger than size. when it happens,
+	 * only size-1 characters have been actually written. */
+	if (len >= ARRAY_SIZE(str))
+		len = ARRAY_SIZE(str) - 1;
+
+	if (len > console->columns) {
+		cursorx = 0;
+	} else {
+		switch (align) {
+		case VIDEO_PRINTF_ALIGN_LEFT:
+			cursorx = 0;
+			break;
+		case VIDEO_PRINTF_ALIGN_CENTER:
+			cursorx = (console->columns - len) / 2;
+			break;
+		case VIDEO_PRINTF_ALIGN_RIGHT:
+			cursorx = console->columns - len;
+			break;
+		default:
+			break;
+		}
+	}
+
+	foreground &= 0xf;
+	foreground <<= 8;
+	background &= 0xf;
+	background <<= 12;
+
+	while (str[i])
+		video_console_putchar(str[i++] | foreground | background);
 }
 
 void video_console_get_cursor(unsigned int *x, unsigned int *y, unsigned int *en)
@@ -175,7 +213,7 @@ void video_console_get_cursor(unsigned int *x, unsigned int *y, unsigned int *en
 	*y=0;
 	*en=0;
 
-	if (console->get_cursor)
+	if (console && console->get_cursor)
 		console->get_cursor(x, y, en);
 
 	*x = cursorx;
@@ -196,6 +234,7 @@ static struct console_output_driver cons = {
 int video_init(void)
 {
 	int i;
+	unsigned int dummy_cursor_enabled;
 
 	for (i = 0; i < ARRAY_SIZE(console_list); i++) {
 		if (console_list[i]->init())
@@ -206,7 +245,7 @@ int video_init(void)
 		if (console->get_cursor)
 			console->get_cursor((unsigned int*)&cursorx,
 					    (unsigned int*)&cursory,
-					    &cursor_enabled);
+					    &dummy_cursor_enabled);
 
 		if (cursorx) {
 			cursorx = 0;
@@ -221,9 +260,9 @@ int video_init(void)
 
 int video_console_init(void)
 {
-	video_init();
-	if (console)
-		console_add_output_driver(&cons);
+	int ret = video_init();
+	if (ret)
+		return ret;
+	console_add_output_driver(&cons);
 	return 0;
 }
-

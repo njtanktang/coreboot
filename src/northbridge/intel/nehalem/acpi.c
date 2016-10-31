@@ -14,11 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #define __SIMPLE_DEVICE__
@@ -31,7 +26,11 @@
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <build.h>
+#include <drivers/intel/gma/intel_bios.h>
+#include <arch/acpigen.h>
+#include <cpu/cpu.h>
+#include <drivers/intel/gma/i915.h>
+#include <cbmem.h>
 #include "nehalem.h"
 
 unsigned long acpi_fill_mcfg(unsigned long current)
@@ -116,7 +115,7 @@ static int init_opregion_vbt(igd_opregion_t * opregion)
 	optionrom_header_t *oprom = (optionrom_header_t *) vbios;
 	optionrom_vbt_t *vbt = (optionrom_vbt_t *) (vbios + oprom->vbt_offset);
 
-	if (read32((unsigned long)vbt->hdr_signature) != VBT_SIGNATURE) {
+	if (read32(vbt->hdr_signature) != VBT_SIGNATURE) {
 		printk(BIOS_DEBUG, "VBT not found!\n");
 		return 1;
 	}
@@ -131,7 +130,7 @@ static int init_opregion_vbt(igd_opregion_t * opregion)
 /* Initialize IGD OpRegion, called from ACPI code */
 int init_igd_opregion(igd_opregion_t * opregion)
 {
-	device_t igd;
+	pci_devfn_t igd;
 	u16 reg16;
 
 	memset((void *)opregion, 0, sizeof(igd_opregion_t));
@@ -139,7 +138,7 @@ int init_igd_opregion(igd_opregion_t * opregion)
 	// FIXME if IGD is disabled, we should exit here.
 
 	memcpy(&opregion->header.signature, IGD_OPREGION_SIGNATURE,
-	       sizeof(IGD_OPREGION_SIGNATURE));
+		sizeof(opregion->header.signature));
 
 	/* 8kb */
 	opregion->header.size = sizeof(igd_opregion_t) / 1024;
@@ -194,4 +193,15 @@ int init_igd_opregion(igd_opregion_t * opregion)
 	outw(DEFAULT_PMBASE + GPE0_EN, reg16);
 
 	return 0;
+}
+
+void *igd_make_opregion(void)
+{
+	igd_opregion_t *opregion;
+
+	printk(BIOS_DEBUG, "ACPI:    * IGD OpRegion\n");
+	opregion = cbmem_add(CBMEM_ID_IGD_OPREGION, sizeof(*opregion));
+	if (opregion)
+		init_igd_opregion(opregion);
+	return opregion;
 }

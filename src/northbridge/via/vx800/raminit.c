@@ -11,20 +11,24 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <spd.h>
 #include <delay.h>
 
+#ifdef __clang__
+/* Silence clang warnings via pragmas to avoid the problems in this file
+   blocking analyzes for the rest of the tree.  */
+#pragma clang diagnostic ignored "-Wsometimes-uninitialized"
+#pragma clang diagnostic ignored "-Wconstant-logical-operand"
+#pragma clang diagnostic ignored "-Warray-bounds"
+#endif
+
 #if CONFIG_DEBUG_RAM_SETUP
-#define PRINT_DEBUG_MEM(x)		print_debug(x)
-#define PRINT_DEBUG_MEM_HEX8(x)		print_debug_hex8(x)
-#define PRINT_DEBUG_MEM_HEX16(x)	print_debug_hex16(x)
-#define PRINT_DEBUG_MEM_HEX32(x)	print_debug_hex32(x)
+#define PRINT_DEBUG_MEM(x)		printk(BIOS_DEBUG, x)
+#define PRINT_DEBUG_MEM_HEX8(x)		printk(BIOS_DEBUG, "%02x", x)
+#define PRINT_DEBUG_MEM_HEX16(x)	printk(BIOS_DEBUG, "%04x", x)
+#define PRINT_DEBUG_MEM_HEX32(x)	printk(BIOS_DEBUG, "%08x", x)
 #define DUMPNORTH()			dump_pci_device(PCI_DEV(0, 0, 0))
 #else
 #define PRINT_DEBUG_MEM(x)

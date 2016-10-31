@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Use simple device model for this file even in ramstage
@@ -26,7 +22,7 @@
 #include "SbPlatform.h"
 #include "sb_cimx.h"
 #include <console/console.h>
-#include <console/loglevel.h>
+#include <commonlib/loglevel.h>
 #include "smbus.h"
 
 /**
@@ -64,7 +60,7 @@ void sb_poweron_init(void)
 	outb(0xEA, 0xCD6);
 	data = inb(0xCD7);
 	data &= !BIT0;
-	if(!CONFIG_PCIB_ENABLE) {
+	if (!CONFIG_PCIB_ENABLE) {
 		data |= BIT0;
 	}
 	outb(data, 0xCD7);
@@ -74,7 +70,7 @@ void sb_poweron_init(void)
 	//AmdSbDispatcher(&sb_early_cfg);
 	//TODO
 	//AMD_IMAGE_HEADER was missing, when using AmdSbDispatcher,
-	// VerifyImage() will fail, LocateImage() take minitues to find the image.
+	// VerifyImage() will fail, LocateImage() takes minutes to find the image.
 	sbPowerOnInit(&sb_early_cfg);
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_poweron_init - End.\n");
 }
@@ -93,13 +89,14 @@ void sb_before_pci_init(void)
 	//AmdSbDispatcher(&sb_early_cfg);
 	//TODO
 	//AMD_IMAGE_HEADER was missing, when using AmdSbDispatcher,
-	// VerifyImage() will fail, LocateImage() take minitues to find the image.
+	// VerifyImage() will fail, LocateImage() takes minutes to find the image.
 	sbBeforePciInit(&sb_early_cfg);
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_before_pci_init - End.\n");
 }
 
 void sb_After_Pci_Init(void)
 {
+#if !CONFIG_BOARD_AMD_DINAR
 	AMDSBCFG sb_early_cfg;
 
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_After_Pci_Init - Start.\n");
@@ -108,9 +105,10 @@ void sb_After_Pci_Init(void)
 	//AmdSbDispatcher(&sb_early_cfg);
 	//TODO
 	//AMD_IMAGE_HEADER was missing, when using AmdSbDispatcher,
-	// VerifyImage() will fail, LocateImage() take minitues to find the image.
+	// VerifyImage() will fail, LocateImage() takes minutes to find the image.
 	sbAfterPciInit(&sb_early_cfg);
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_After_Pci_Init - End.\n");
+#endif
 }
 
 void sb_Mid_Post_Init(void)
@@ -123,13 +121,14 @@ void sb_Mid_Post_Init(void)
 	//AmdSbDispatcher(&sb_early_cfg);
 	//TODO
 	//AMD_IMAGE_HEADER was missing, when using AmdSbDispatcher,
-	// VerifyImage() will fail, LocateImage() take minitues to find the image.
+	// VerifyImage() will fail, LocateImage() takes minutes to find the image.
 	sbMidPostInit(&sb_early_cfg);
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_Mid_Post_Init - End.\n");
 }
 
 void sb_Late_Post(void)
 {
+#if !CONFIG_BOARD_AMD_DINAR
 	AMDSBCFG sb_early_cfg;
 	u8 data;
 
@@ -139,7 +138,7 @@ void sb_Late_Post(void)
 	//AmdSbDispatcher(&sb_early_cfg);
 	//TODO
 	//AMD_IMAGE_HEADER was missing, when using AmdSbDispatcher,
-	// VerifyImage() will fail, LocateImage() take minitues to find the image.
+	// VerifyImage() will fail, LocateImage() takes minutes to find the image.
 	sbLatePost(&sb_early_cfg);
 
 	//Set ACPI SCI IRQ to 0x9.
@@ -160,4 +159,5 @@ void sb_Late_Post(void)
 	}
 
 	printk(BIOS_SPEW, "SB900 - Early.c - sb_Late_Post - End.\n");
+#endif
 }

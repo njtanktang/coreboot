@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdio.h>
@@ -27,6 +23,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include "inteltool.h"
+
+#ifdef __NetBSD__
+#include <machine/sysarch.h>
+#endif
 
 /*
  * http://pci-ids.ucw.cz/read/PC/8086
@@ -61,7 +61,12 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82Q35, "Q35" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82X38, "X38/X48" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_32X0, "3200/3210" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82X4X, "GL40/GS40/GM45/GS45/PM45" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82XX4X, "GL40/GS40/GM45/GS45/PM45" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82Q45, "Q45/Q43" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82G45, "G45/G43/P45/P43" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82G41, "G41" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82B43, "B43 (Base)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82B43_2, "B43 (Soft)" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82X58, "X58" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_I5000P, "Intel i5000P Memory Controller Hub" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_I5000X, "Intel i5000X Memory Controller Hub" },
@@ -73,12 +78,19 @@ static const struct {
 	/* Host bridges /DRAM controllers integrated in CPUs */
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_0TH_GEN, "0th generation (Nehalem family) Core Processor" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_1ST_GEN, "1st generation (Westmere family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_2ND_GEN, "2nd generation (Sandy Bridge family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_A, "3rd generation (Ivy Bridge family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_B, "3rd generation (Ivy Bridge family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_C, "3rd generation (Ivy Bridge family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_D, "3rd generation (Ivy Bridge family) Core Processor" },
-	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_4TH_GEN, "4th generation (Haswell family) Core Processor" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_D, "2nd generation (Sandy Bridge family) Core Processor (Desktop)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_M, "2nd generation (Sandy Bridge family) Core Processor (Mobile)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_2ND_GEN_E3, "2nd generation (Sandy Bridge family) Core Processor (Xeon E3)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_D, "3rd generation (Ivy Bridge family) Core Processor (Desktop)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_M, "3rd generation (Ivy Bridge family) Core Processor (Mobile)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_E3, "3rd generation (Ivy Bridge family) Core Processor (Xeon E3 v2)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_3RD_GEN_015c, "3rd generation (Ivy Bridge family) Core Processor" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_D, "4th generation (Haswell family) Core Processor (Desktop)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_M, "4th generation (Haswell family) Core Processor (Mobile)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_E3, "4th generation (Haswell family) Core Processor (Xeon E3 v3)" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_4TH_GEN_U, "4th generation (Haswell family) Core Processor ULT" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CORE_5TH_GEN_U, "5th generation (Broadwell family) Core Processor ULT" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BAYTRAIL, "Bay Trail" },
 	/* Southbridges (LPC controllers) */
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371XX, "371AB/EB/MB" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH10R, "ICH10R" },
@@ -89,6 +101,7 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH9M, "ICH9M" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH9ME, "ICH9M-E" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH8M, "ICH8-M" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH8ME, "ICH8M-E" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH8, "ICH8" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_NM10, "NM10" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICH7MDH, "ICH7-M DH" },
@@ -153,7 +166,12 @@ static const struct {
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HM75, "HM75" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_HM70, "HM70" },
 	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_NM70, "NM70" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_FULL, "Lynx Point Low Power Full Featured Engineering Sample" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_PREM, "Lynx Point Low Power Premium SKU" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_LYNXPOINT_LP_BASE, "Lynx Point Low Power Base SKU" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_WILDCATPOINT_LP, "Wildcat Point Low Power SKU" },
 	{ PCI_VENDOR_ID_INTEL, 0x2310, "DH89xxCC" },
+	{ PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BAYTRAIL_LPC, "Bay Trail" },
 };
 
 #ifndef __DARWIN__
@@ -192,28 +210,30 @@ void print_version(void)
     "This program is distributed in the hope that it will be useful,\n"
     "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
     "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
-    "GNU General Public License for more details.\n\n"
-    "You should have received a copy of the GNU General Public License\n"
-    "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
+    "GNU General Public License for more details.\n\n");
 }
 
 void print_usage(const char *name)
 {
-	printf("usage: %s [-vh?gGrpmedPMa]\n", name);
+	printf("usage: %s [-vh?gGrpmedPMaAsfSR]\n", name);
 	printf("\n"
 	     "   -v | --version:                   print the version\n"
 	     "   -h | --help:                      print this help\n\n"
-	     "   -g | --gpio:                      dump soutbridge GPIO registers\n"
+	     "   -s | --spi:                       dump southbridge spi and bios_cntrl registers\n"
+	     "   -f | --gfx:                       dump graphics registers (UNSAFE: may hang system!)\n"
+	     "   -R | --ahci:                      dump AHCI registers\n"
+	     "   -g | --gpio:                      dump southbridge GPIO registers\n"
 	     "   -G | --gpio-diffs:                show GPIO differences from defaults\n"
-	     "   -r | --rcba:                      dump soutbridge RCBA registers\n"
-	     "   -p | --pmbase:                    dump soutbridge Power Management registers\n\n"
+	     "   -r | --rcba:                      dump southbridge RCBA registers\n"
+	     "   -p | --pmbase:                    dump southbridge Power Management registers\n\n"
 	     "   -m | --mchbar:                    dump northbridge Memory Controller registers\n"
+	     "   -S FILE | --spd=FILE:             create a file storing current timings (implies -m)\n"
 	     "   -e | --epbar:                     dump northbridge EPBAR registers\n"
 	     "   -d | --dmibar:                    dump northbridge DMIBAR registers\n"
 	     "   -P | --pciexpress:                dump northbridge PCIEXBAR registers\n\n"
 	     "   -M | --msrs:                      dump CPU MSRs\n"
 	     "   -A | --ambs:                      dump AMB registers\n"
-	     "   -a | --all:                       dump all known registers\n"
+	     "   -a | --all:                       dump all known (safe) registers\n"
 	     "\n");
 	exit(1);
 }
@@ -221,15 +241,17 @@ void print_usage(const char *name)
 int main(int argc, char *argv[])
 {
 	struct pci_access *pacc;
-	struct pci_dev *sb = NULL, *nb, *dev;
+	struct pci_dev *sb = NULL, *nb, *gfx = NULL, *ahci = NULL, *dev;
+	const char *dump_spd_file = NULL;
 	int i, opt, option_index = 0;
 	unsigned int id;
 
-	char *sbname = "unknown", *nbname = "unknown";
+	char *sbname = "unknown", *nbname = "unknown", *gfxname = "unknown";
 
 	int dump_gpios = 0, dump_mchbar = 0, dump_rcba = 0;
 	int dump_pmbase = 0, dump_epbar = 0, dump_dmibar = 0;
 	int dump_pciexbar = 0, dump_coremsrs = 0, dump_ambs = 0;
+	int dump_spi = 0, dump_gfx = 0, dump_ahci = 0;
 	int show_gpio_diffs = 0;
 
 	static struct option long_options[] = {
@@ -245,19 +267,33 @@ int main(int argc, char *argv[])
 		{"pciexpress", 0, 0, 'P'},
 		{"msrs", 0, 0, 'M'},
 		{"ambs", 0, 0, 'A'},
+		{"spi", 0, 0, 's'},
+		{"spd", 0, 0, 'S'},
 		{"all", 0, 0, 'a'},
+		{"gfx", 0, 0, 'f'},
+		{"ahci", 0, 0, 'R'},
 		{0, 0, 0, 0}
 	};
 
-	while ((opt = getopt_long(argc, argv, "vh?gGrpmedPMaA",
+	while ((opt = getopt_long(argc, argv, "vh?gGrpmedPMaAsfRS:",
                                   long_options, &option_index)) != EOF) {
 		switch (opt) {
 		case 'v':
 			print_version();
 			exit(0);
 			break;
+		case 'S':
+			dump_spd_file = optarg;
+			dump_mchbar = 1;
+			break;
 		case 'g':
 			dump_gpios = 1;
+			break;
+		case 'f':
+			dump_gfx = 1;
+			break;
+		case 'R':
+			dump_ahci = 1;
 			break;
 		case 'G':
 			show_gpio_diffs = 1;
@@ -294,9 +330,14 @@ int main(int argc, char *argv[])
 			dump_pciexbar = 1;
 			dump_coremsrs = 1;
 			dump_ambs = 1;
+			dump_spi = 1;
+			dump_ahci = 1;
 			break;
 		case 'A':
 			dump_ambs = 1;
+			break;
+		case 's':
+			dump_spi = 1;
 			break;
 		case 'h':
 		case '?':
@@ -310,6 +351,14 @@ int main(int argc, char *argv[])
 #if defined(__FreeBSD__)
 	if (open("/dev/io", O_RDWR) < 0) {
 		perror("/dev/io");
+#elif defined(__NetBSD__)
+# ifdef __i386__
+	if (i386_iopl(3)) {
+		perror("iopl");
+# else
+	if (x86_64_iopl(3)) {
+		perror("iopl");
+# endif
 #else
 	if (iopl(3)) {
 		perror("iopl");
@@ -334,13 +383,14 @@ int main(int argc, char *argv[])
 		pci_fill_info(dev, PCI_FILL_CLASS);
 		/* The ISA/LPC bridge can be 0x1f, 0x07, or 0x04 so we probe. */
 		if (dev->device_class == 0x0601) { /* ISA/LPC bridge */
-			if (sb == NULL)
+			if (sb == NULL) {
 				sb = dev;
-			else
+			} else {
 				fprintf(stderr, "Multiple devices with class ID"
 					" 0x0601, using %02x%02x:%02x.%02x\n",
-					dev->domain, dev->bus, dev->dev,
-					dev->func);
+					sb->domain, sb->bus, sb->dev, sb->func);
+				break;
+			}
 		}
 	}
 
@@ -369,6 +419,24 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	gfx = pci_get_dev(pacc, 0, 0, 0x02, 0);
+
+	if (gfx) {
+		pci_fill_info(gfx, PCI_FILL_IDENT|PCI_FILL_BASES|PCI_FILL_SIZES|PCI_FILL_CLASS);
+
+		if (gfx->vendor_id != PCI_VENDOR_ID_INTEL)
+			gfx = 0;
+	}
+
+	ahci = pci_get_dev(pacc, 0, 0, 0x1f, 2);
+
+	if (ahci) {
+		pci_fill_info(ahci, PCI_FILL_IDENT|PCI_FILL_BASES|PCI_FILL_SIZES|PCI_FILL_CLASS);
+
+		if (ahci->vendor_id != PCI_VENDOR_ID_INTEL)
+			ahci = 0;
+	}
+
 	id = cpuid(1);
 
 	/* Intel has suggested applications to display the family of a CPU as
@@ -388,12 +456,22 @@ int main(int argc, char *argv[])
 	for (i = 0; i < ARRAY_SIZE(supported_chips_list); i++)
 		if (sb->device_id == supported_chips_list[i].device_id)
 			sbname = supported_chips_list[i].name;
+	if (gfx) {
+		for (i = 0; i < ARRAY_SIZE(supported_chips_list); i++)
+			if (gfx->device_id == supported_chips_list[i].device_id)
+				gfxname = supported_chips_list[i].name;
+	}
 
 	printf("Northbridge: %04x:%04x (%s)\n",
 		nb->vendor_id, nb->device_id, nbname);
 
 	printf("Southbridge: %04x:%04x (%s)\n",
 		sb->vendor_id, sb->device_id, sbname);
+
+	if (gfx) {
+		printf("IGD: %04x:%04x (%s)\n",
+		       gfx->vendor_id, gfx->device_id, gfxname);
+	}
 
 	/* Now do the deed */
 
@@ -416,7 +494,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (dump_mchbar) {
-		print_mchbar(nb, pacc);
+		print_mchbar(nb, pacc, dump_spd_file);
 		printf("\n\n");
 	}
 
@@ -443,6 +521,19 @@ int main(int argc, char *argv[])
 	if (dump_ambs) {
 		print_ambs(nb, pacc);
 	}
+
+	if (dump_spi) {
+		print_spi(sb);
+	}
+
+	if (dump_gfx) {
+		print_gfx(gfx);
+	}
+
+	if (dump_ahci) {
+		print_ahci(ahci);
+	}
+
 	/* Clean up */
 	pci_free_dev(nb);
 	// pci_free_dev(sb); // TODO: glibc detected "double free or corruption"

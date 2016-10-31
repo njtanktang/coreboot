@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -32,19 +28,7 @@
 #include <stdlib.h>
 #include "w83627ehg.h"
 
-static void pnp_write_index(u16 port, u8 reg, u8 value)
-{
-	outb(reg, port);
-	outb(value, port + 1);
-}
-
-static u8 pnp_read_index(u16 port, u8 reg)
-{
-	outb(reg, port);
-	return inb(port + 1);
-}
-
-static void enable_hwm_smbus(device_t dev)
+static void enable_hwm_smbus(struct device *dev)
 {
 	u8 reg8;
 
@@ -54,9 +38,9 @@ static void enable_hwm_smbus(device_t dev)
 	pnp_write_config(dev, 0x2a, reg8);
 }
 
-static void init_acpi(device_t dev)
+static void init_acpi(struct device *dev)
 {
-	u8 value = 0x20; /* TODO: 0x20 value here never used? */
+	u8 value;
 	int power_on = 1;
 
 	get_option(&power_on, "power_on_after_fail");
@@ -92,7 +76,7 @@ static void init_hwm(u16 base)
 	}
 }
 
-static void w83627ehg_init(device_t dev)
+static void w83627ehg_init(struct device *dev)
 {
 	struct resource *res0;
 
@@ -101,7 +85,7 @@ static void w83627ehg_init(device_t dev)
 
 	switch(dev->path.pnp.device) {
 	case W83627EHG_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	case W83627EHG_HWM:
 		res0 = find_resource(dev, PNP_IDX_IO0);
@@ -114,7 +98,7 @@ static void w83627ehg_init(device_t dev)
 	}
 }
 
-static void w83627ehg_pnp_enable_resources(device_t dev)
+static void w83627ehg_pnp_enable_resources(struct device *dev)
 {
 	pnp_enable_resources(dev);
 

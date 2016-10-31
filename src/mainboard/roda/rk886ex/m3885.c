@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -240,17 +235,17 @@ void m3885_configure_multikey(void)
 	u8 reg8;
 	u8 kstate5_flags, offs, maxvars;
 
-	/* ram bank 0 */
+	/* RAM bank 0 */
 	kstate5_flags = m3885_get_variable(0x0c);
 	m3885_set_variable(0x0c, kstate5_flags & ~(7 << 4));
 
 	/* Write Matrix to bank 0 */
-	for (i=0; i < ARRAY_SIZE(matrix); i++) {
+	for (i = 0; i < ARRAY_SIZE(matrix); i++) {
 		m3885_set_proc_ram(i + 0x80, matrix[i]);
 	}
 
 
-	/* ram bank 2 */
+	/* RAM bank 2 */
 	m3885_set_variable(0x0c, (kstate5_flags & (~(7 << 4))) | (2 << 4));
 
 	/* Get the number of variables */
@@ -259,10 +254,10 @@ void m3885_configure_multikey(void)
 	if (maxvars >= 35) {
 		offs = m3885_get_variable(0x23);
 		if ((offs > 0xc0) || (offs < 0x80)) {
-			printk(BIOS_DEBUG, "M388x does not have a valid ram offset (0x%x)\n", offs);
+			printk(BIOS_DEBUG, "M388x does not have a valid RAM offset (0x%x)\n", offs);
 		} else {
 			printk(BIOS_DEBUG, "Writing Fn-Table to M388x RAM offset 0x%x\n", offs);
-			for (i=0; i < ARRAY_SIZE(function_ram); i++) {
+			for (i = 0; i < ARRAY_SIZE(function_ram); i++) {
 				m3885_set_proc_ram(i + offs, function_ram[i]);
 			}
 		}
@@ -274,7 +269,7 @@ void m3885_configure_multikey(void)
 	m3885_set_variable(0x0c, kstate5_flags);
 	maxvars = m3885_get_variable(0x00);
 	printk(BIOS_DEBUG, "M388x has %d variables in original bank.\n", maxvars);
-	for (i=0; i<ARRAY_SIZE(variables); i+=3) {
+	for (i = 0; i < ARRAY_SIZE(variables); i+=3) {
 		if(variables[i + 0] > maxvars)
 			continue;
 		reg8 = m3885_get_variable(variables[i + 0]);
@@ -413,4 +408,3 @@ u8 m3885_gpio(u8 value)
 	return 0;
 #endif
 }
-

@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -39,7 +35,7 @@ static void ide_init(struct device *dev)
 	if (!conf || conf->ide0_enable)
 		reg16 |= IDE_DECODE_ENABLE;
 	printk(BIOS_DEBUG, "IDE: %s IDE interface: %s\n", "Primary",
-	       conf->ide0_enable ? "on" : "off");
+	       (reg16 & IDE_DECODE_ENABLE) ? "on" : "off");
 	pci_write_config16(dev, IDE_TIM_PRI, reg16);
 
 	reg16 = pci_read_config16(dev, IDE_TIM_SEC);
@@ -47,7 +43,7 @@ static void ide_init(struct device *dev)
 	if (!conf || conf->ide1_enable)
 		reg16 |= IDE_DECODE_ENABLE;
 	printk(BIOS_DEBUG, "IDE: %s IDE interface: %s\n", "Secondary",
-	       conf->ide0_enable ? "on" : "off");
+	       (reg16 & IDE_DECODE_ENABLE) ? "on" : "off");
 	pci_write_config16(dev, IDE_TIM_SEC, reg16);
 }
 

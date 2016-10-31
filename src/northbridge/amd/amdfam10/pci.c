@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -23,7 +19,7 @@
 /* bit [10,8] are dev func, bit[1,0] are dev index */
 
 
-static u32 pci_read_config32_index(device_t dev, u32 index_reg, u32 index)
+static u32 pci_read_config32_index(pci_devfn_t dev, u32 index_reg, u32 index)
 {
 	u32 dword;
 
@@ -33,7 +29,8 @@ static u32 pci_read_config32_index(device_t dev, u32 index_reg, u32 index)
 }
 
 #ifdef UNUSED_CODE
-static void pci_write_config32_index(device_t dev, u32 index_reg, u32 index, u32 data)
+static void pci_write_config32_index(pci_devfn_t dev, u32 index_reg, u32 index,
+		u32 data)
 {
 
 	pci_write_config32(dev, index_reg, index);
@@ -43,7 +40,8 @@ static void pci_write_config32_index(device_t dev, u32 index_reg, u32 index, u32
 }
 #endif
 
-static u32 pci_read_config32_index_wait(device_t dev, u32 index_reg, u32 index)
+static u32 pci_read_config32_index_wait(pci_devfn_t dev, u32 index_reg,
+		u32 index)
 {
 
 	u32 dword;
@@ -58,7 +56,8 @@ static u32 pci_read_config32_index_wait(device_t dev, u32 index_reg, u32 index)
 }
 
 #ifdef UNUSED_CODE
-static void pci_write_config32_index_wait(device_t dev, u32 index_reg, u32 index, u32 data)
+static void pci_write_config32_index_wait(pci_devfn_t dev, u32 index_reg,
+		u32 index, u32 data)
 {
 
 	u32 dword;
@@ -73,5 +72,3 @@ static void pci_write_config32_index_wait(device_t dev, u32 index_reg, u32 index
 }
 #endif
 #endif
-
-

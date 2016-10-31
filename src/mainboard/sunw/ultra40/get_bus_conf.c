@@ -3,9 +3,7 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 #include <stdlib.h>
 #include <cpu/amd/amdk8_sysconf.h>
 
@@ -190,7 +188,7 @@ void get_bus_conf(void)
 
 	/* CK804b */
 
-	if (pci1234[2] & 0xf) {	//if the second cpu is installed
+	if (pci1234[2] & 0xf) {	//if the second CPU is installed
 		bus_ck804b_0 = (pci1234[2] >> 16) & 0xff;
 #if 0
 		dev = dev_find_slot(bus_ck804b_0, PCI_DEVFN(sbdnb + 0x09, 0));
@@ -266,11 +264,10 @@ void get_bus_conf(void)
 	}
 
 /*I/O APICs:	APIC ID	Version	State		Address*/
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(4);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(4);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	apicid_ck804 = apicid_base + 0;
 	apicid_8131_1 = apicid_base + 1;
 	apicid_8131_2 = apicid_base + 2;

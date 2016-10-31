@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_LYNXPOINT_CHIP_H
@@ -81,6 +77,13 @@ struct southbridge_intel_lynxpoint_config {
 	 */
 	uint8_t sata_devslp_mux;
 
+	/*
+	 * DEVSLP Disable
+	 * 0: DEVSLP is enabled
+	 * 1: DEVSLP is disabled
+	 */
+	uint8_t sata_devslp_disable;
+
 	uint32_t gen1_dec;
 	uint32_t gen2_dec;
 	uint32_t gen3_dec;
@@ -104,6 +107,9 @@ struct southbridge_intel_lynxpoint_config {
 	 *    [24] = CLKOUT_ITPXDP
 	 */
 	uint32_t icc_clock_disable;
+
+	/* Route USB ports to XHCI per default */
+	uint8_t xhci_default;
 };
 
 extern struct chip_operations southbridge_intel_lynxpoint_ops;

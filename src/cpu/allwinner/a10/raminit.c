@@ -1,8 +1,5 @@
 /*
- * Allwinner A10 DRAM controller initialization
- *
- * Based on sun4i Linux kernel sources mach-sunxi/pm/standby/dram*.c
- * and earlier U-Boot Allwiner A10 SPL work
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2012 Henrik Nordstrom <henrik@henriknordstrom.net>
  * Copyright (C) 2013 Luke Kenneth Casson Leighton <lkcl@lkcl.net>
@@ -10,7 +7,21 @@
  *	Berg Xing <bergxing@allwinnertech.com>
  *	Tom Cubie <tangliang@allwinnertech.com>
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License  or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Allwinner A10 DRAM controller initialization
+ *
+ * Based on sun4i Linux kernel sources mach-sunxi/pm/standby/dram*.c
+ * and earlier U-Boot Allwiner A10 SPL work
  */
 
 #include "clock.h"
@@ -118,7 +129,7 @@ static void mctl_configure_hostport(void)
 	u32 i;
 
 	for (i = 0; i < 32; i++)
-		write32(hpcr_value[i], &dram->hpcr[i]);
+		write32(&dram->hpcr[i], hpcr_value[i]);
 }
 
 static void mctl_setup_dram_clock(u32 clk)
@@ -194,7 +205,7 @@ static int dramc_scan_readpipe(void)
 	setbits_le32(&dram->ccr, DRAM_CCR_DATA_TRAINING);
 
 	/* check whether data training process has completed */
-	while (read32(&dram->ccr) & DRAM_CCR_DATA_TRAINING) ;
+	while (read32(&dram->ccr) & DRAM_CCR_DATA_TRAINING);
 
 	/* check data training result */
 	reg32 = read32(&dram->csr);
@@ -225,7 +236,7 @@ static int dramc_scan_dll_para(void)
 			for (cr_i = 1; cr_i < 5; cr_i++) {
 				clrsetbits_le32(&dram->dllcr[cr_i],
 						0x4f << 14,
-						(dqs_dly[clk_i] & 0x4f) << 14);
+						(dqs_dly[dqs_i] & 0x4f) << 14);
 			}
 			udelay(2);
 			if (dramc_scan_readpipe() == 0)
@@ -306,7 +317,7 @@ static int dramc_scan_dll_para(void)
 		return dramc_scan_readpipe();
 	}
 
- fail:
+fail:
 	clrbits_le32(&dram->dllcr[0], 0x3f << 6);
 	for (cr_i = 1; cr_i < 5; cr_i++)
 		clrbits_le32(&dram->dllcr[cr_i], 0x4f << 14);
@@ -333,9 +344,9 @@ static void dramc_set_autorefresh_cycle(u32 clk)
 		tmp_val = tmp_val * 9 - 200;
 		reg32 |= tmp_val << 8;
 		reg32 |= 0x8 << 24;
-		write32(reg32, &dram->drr);
+		write32(&dram->drr, reg32);
 	} else {
-		write32(0x0, &dram->drr);
+		write32(&dram->drr, 0x0);
 	}
 }
 
@@ -360,7 +371,7 @@ unsigned long dramc_init(struct dram_para *para)
 	a1x_gate_dram_clock_output();
 
 	/* select dram controller 1 */
-	write32(DRAM_CSEL_MAGIC, &dram->csel);
+	write32(&dram->csel, DRAM_CSEL_MAGIC);
 
 	mctl_itm_disable();
 	mctl_enable_dll0(para->tpr3);
@@ -390,14 +401,14 @@ unsigned long dramc_init(struct dram_para *para)
 	reg32 |= DRAM_DCR_RANK_SEL(para->rank_num - 1);
 	reg32 |= DRAM_DCR_CMD_RANK_ALL;
 	reg32 |= DRAM_DCR_MODE(DRAM_DCR_MODE_INTERLEAVE);
-	write32(reg32, &dram->dcr);
+	write32(&dram->dcr, reg32);
 
 	/* dram clock on */
 	a1x_ungate_dram_clock_output();
 
 	udelay(1);
 
-	while (read32(&dram->ccr) & DRAM_CCR_INIT) ;
+	while (read32(&dram->ccr) & DRAM_CCR_INIT);
 
 	mctl_enable_dllx(para->tpr3);
 
@@ -405,21 +416,21 @@ unsigned long dramc_init(struct dram_para *para)
 	reg32 = ((para->zq) >> 8) & 0xfffff;
 	reg32 |= ((para->zq) & 0xff) << 20;
 	reg32 |= (para->zq) & 0xf0000000;
-	write32(reg32, &dram->zqcr0);
+	write32(&dram->zqcr0, reg32);
 
 	/* set I/O configure register */
 	reg32 = 0x00cc0000;
 	reg32 |= (para->odt_en) & 0x3;
 	reg32 |= ((para->odt_en) & 0x3) << 30;
-	write32(reg32, &dram->iocr);
+	write32(&dram->iocr, reg32);
 
 	/* set refresh period */
 	dramc_set_autorefresh_cycle(para->clock);
 
 	/* set timing parameters */
-	write32(para->tpr0, &dram->tpr0);
-	write32(para->tpr1, &dram->tpr1);
-	write32(para->tpr2, &dram->tpr2);
+	write32(&dram->tpr0, para->tpr0);
+	write32(&dram->tpr1, para->tpr1);
+	write32(&dram->tpr2, para->tpr2);
 
 	if (para->type == DRAM_MEMORY_TYPE_DDR3) {
 		reg32 = DRAM_MR_BURST_LENGTH(0x0);
@@ -430,18 +441,18 @@ unsigned long dramc_init(struct dram_para *para)
 		reg32 |= DRAM_MR_CAS_LAT(para->cas);
 		reg32 |= DRAM_MR_WRITE_RECOVERY(0x5);
 	}
-	write32(reg32, &dram->mr);
+	write32(&dram->mr, reg32);
 
-	write32(para->emr1, &dram->emr);
-	write32(para->emr2, &dram->emr2);
-	write32(para->emr3, &dram->emr3);
+	write32(&dram->emr, para->emr1);
+	write32(&dram->emr2, para->emr2);
+	write32(&dram->emr3, para->emr3);
 
 	/* set DQS window mode */
 	clrsetbits_le32(&dram->ccr, DRAM_CCR_DQS_DRIFT_COMP, DRAM_CCR_DQS_GATE);
 
 	/* reset external DRAM */
 	setbits_le32(&dram->ccr, DRAM_CCR_INIT);
-	while (read32(&dram->ccr) & DRAM_CCR_INIT) ;
+	while (read32(&dram->ccr) & DRAM_CCR_INIT);
 
 	/* scan read pipe value */
 	mctl_itm_enable();

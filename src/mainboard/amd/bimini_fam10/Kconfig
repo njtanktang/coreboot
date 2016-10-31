@@ -5,9 +5,6 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select CPU_AMD_SOCKET_ASB2
 	select DIMM_DDR3
 	select DIMM_REGISTERED
-	# TODO: Enable QRANK_DIMM_SUPPORT? Was commented in the Kconfig file,
-	# but enabled in the romstage.c file.
-	select QRANK_DIMM_SUPPORT
 	select NORTHBRIDGE_AMD_AMDFAM10
 	select SOUTHBRIDGE_AMD_RS780
 	select SOUTHBRIDGE_AMD_SB800
@@ -18,7 +15,6 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select HAVE_ACPI_TABLES
 	select SB_HT_CHAIN_UNITID_OFFSET_ONLY
 	select LIFT_BSP_APIC_ID
-	select AMDMCT
 	select BOARD_ROMSIZE_KB_2048
 	select ENABLE_APIC_EXT_ID
 	select GFXUMA
@@ -53,10 +49,6 @@ config HW_MEM_HOLE_SIZE_AUTO_INC
 	bool
 	default n
 
-config SB_HT_CHAIN_ON_BUS0
-	int
-	default 1
-
 config HT_CHAIN_END_UNITID_BASE
 	hex
 	default 0x1
@@ -68,21 +60,5 @@ config HT_CHAIN_UNITID_BASE
 config IRQ_SLOT_COUNT
 	int
 	default 11
-
-config AMD_UCODE_PATCH_FILE
-	string
-	default "mc_patch_010000b6.h"
-
-config RAMTOP
-	hex
-	default 0x2000000
-
-config HEAP_SIZE
-	hex
-	default 0xc0000
-
-config RAMBASE
-	hex
-	default 0x200000
 
 endif #BOARD_AMD_BIMINI_FAM10

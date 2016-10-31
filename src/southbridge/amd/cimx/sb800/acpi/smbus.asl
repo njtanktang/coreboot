@@ -11,17 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* SMBUS Support */
 Mutex (SBX0, 0x00)
 OperationRegion (SMB0, SystemIO, 0xB00, 0x0C)
 	Field (SMB0, ByteAcc, NoLock, Preserve) {
-		HSTS,   8, /* SMBUS status */
+		HSTS,   8,  /* SMBUS status */
 		SSTS,   8,  /* SMBUS slave status */
 		HCNT,   8,  /* SMBUS control */
 		HCMD,   8,  /* SMBUS host cmd */
@@ -32,7 +28,7 @@ OperationRegion (SMB0, SystemIO, 0xB00, 0x0C)
 		SCNT,   8,  /* SMBUS slave control */
 		SCMD,   8,  /* SMBUS shadow cmd */
 		SEVT,   8,  /* SMBUS slave event */
-		SDAT,   8  /* SMBUS slave data */
+		SDAT,   8   /* SMBUS slave data */
 }
 
 Method (WCLR, 0, NotSerialized) { /* clear SMBUS status register */
@@ -111,4 +107,3 @@ Method (SMBR, 3, NotSerialized) {
 
 	Return (Local0)
 }
-

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Use simple device model for this file even in ramstage
@@ -23,10 +19,11 @@
 #include <arch/io.h>
 #include <cbmem.h>
 #include "i945.h"
+#include <console/console.h>
 
-unsigned long get_top_of_ram(void)
+static uintptr_t smm_region_start(void)
 {
-	u32 tom;
+	uintptr_t tom;
 
 	if (pci_read_config8(PCI_DEV(0, 0x0, 0), DEVEN) & (DEVEN_D2F0 | DEVEN_D2F1)) {
 		/* IGD enabled, get top of Memory from BSM register */
@@ -53,5 +50,22 @@ unsigned long get_top_of_ram(void)
 		/* TSEG either disabled or invalid */
 		break;
 	}
-	return (unsigned long) tom;
+	return tom;
+}
+
+void *cbmem_top(void)
+{
+	return (void *) smm_region_start();
+}
+
+/** Decodes used Graphics Mode Select (GMS) to kilobytes. */
+u32 decode_igd_memory_size(const u32 gms)
+{
+	static const u16 ggc2uma[] = { 0, 1, 4, 8, 16, 32,
+			48, 64 };
+
+	if (gms > ARRAY_SIZE(ggc2uma))
+		die("Bad Graphics Mode Select (GMS) setting.\n");
+
+	return ggc2uma[gms] << 10;
 }

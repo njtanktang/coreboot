@@ -1,0 +1,21 @@
+config ARCH_RISCV
+	bool
+	default n
+
+config ARCH_BOOTBLOCK_RISCV
+	bool
+	default n
+	select ARCH_RISCV
+	select C_ENVIRONMENT_BOOTBLOCK
+
+config ARCH_VERSTAGE_RISCV
+	bool
+	default n
+
+config ARCH_ROMSTAGE_RISCV
+	bool
+	default n
+
+config ARCH_RAMSTAGE_RISCV
+	bool
+	default n

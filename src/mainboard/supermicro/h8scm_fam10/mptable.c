@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -56,13 +52,13 @@ static void *smp_write_config_table(void *v)
 	/* I/O APICs:   APIC ID Version State   Address */
 	{
 		device_t dev;
-		u32 dword;
+		u32 *dword;
 		u8 byte;
 
 		dev = dev_find_slot(0, //bus_sp5100[0], TODO: why bus_sp5100[0] use same value of bus_sr5650[0] assigned by get_pci1234(), instead of 0.
 				  PCI_DEVFN(sbdn_sp5100 + 0x14, 0));
 		if (dev) {
-			dword = pci_read_config32(dev, 0x74) & 0xfffffff0;
+			dword = (u32 *)(pci_read_config32(dev, 0x74) & 0xfffffff0);
 			smp_write_ioapic(mc, apicid_sp5100, 0x11, dword);
 
 			/* Initialize interrupt mapping */
@@ -73,11 +69,11 @@ static void *smp_write_config_table(void *v)
 			pci_write_config8(dev, 0x63, byte);
 
 			/* SATA */
-			dword = pci_read_config32(dev, 0xac);
-			dword &= ~(7 << 26);
-			dword |= 6 << 26;	/* 0: INTA, ...., 7: INTH */
-			/* dword |= 1<<22; PIC and APIC co exists */
-			pci_write_config32(dev, 0xac, dword);
+			dword = (u32 *)((pci_read_config32(dev, 0xac) &
+					 ~(7 << 26)) | (6 << 26));
+
+			/* dword |= 1 << 22; PIC and APIC co exists */
+			pci_write_config32(dev, 0xac, (u32)dword);
 
 			/*
 			 * 00:12.0: PROG SATA : INT F
@@ -96,7 +92,7 @@ static void *smp_write_config_table(void *v)
 		dev = dev_find_slot(0, PCI_DEVFN(0, 0));
 		if (dev) {
 			pci_write_config32(dev, 0xF8, 0x1);
-			dword = pci_read_config32(dev, 0xFC) & 0xfffffff0;
+			dword = (u32 *)(pci_read_config32(dev, 0xFC) & 0xfffffff0);
 			smp_write_ioapic(mc, apicid_sp5100+1, 0x11, dword);
 		}
 	}
@@ -106,28 +102,6 @@ static void *smp_write_config_table(void *v)
 	smp_write_lintsrc(mc, (type), MP_IRQ_TRIGGER_EDGE | MP_IRQ_POLARITY_HIGH, bus_isa, (intr), (apicid), (pin));
 
 	mptable_add_isa_interrupts(mc, bus_isa, apicid_sp5100, 0);
-
-	/* PCI interrupts are level triggered, and are
-	 * associated with a specific bus/device/function tuple.
-	 */
-#if !CONFIG_GENERATE_ACPI_TABLES
-#define PCI_INT(bus, dev, fn, pin) \
-        smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, (bus), (((dev)<<2)|(fn)), apicid_sp5100, (pin))
-#else
-#define PCI_INT(bus, dev, fn, pin)
-#endif
-	/* usb */
-	PCI_INT(0x0, 0x12, 0x0, 0x10); /* USB */
-	PCI_INT(0x0, 0x12, 0x1, 0x11);
-	PCI_INT(0x0, 0x13, 0x0, 0x12);
-	PCI_INT(0x0, 0x13, 0x1, 0x13);
-	//PCI_INT(0x0, 0x14, 0x0, 0x10);
-
-	/* sata */
-	PCI_INT(0x0, 0x11, 0x0, 0x16);
-
-	/* HD Audio: b0:d20:f1:reg63 should be 0. */
-	PCI_INT(0x0, 0x14, 0x2, 0x10);
 
 	/* on board NIC & Slot PCIE.  */
 	/* configuration B doesnt need dev 5,6,7 */
@@ -148,25 +122,6 @@ static void *smp_write_config_table(void *v)
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, bus_sr5650[11], (((0)<<2)|(1)), apicid_sp5100+1, 9); /* card behind dev11 */
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, bus_sr5650[12], (((0)<<2)|(0)), apicid_sp5100+1, 12);
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, bus_sr5650[12], (((0)<<2)|(1)), apicid_sp5100+1, 13); /* card behind dev12 */
-
-	/* PCI slots */
-	/* PCI_SLOT 0. */
-	PCI_INT(bus_sp5100[1], 0x5, 0x0, 0x14);
-	PCI_INT(bus_sp5100[1], 0x5, 0x1, 0x15);
-	PCI_INT(bus_sp5100[1], 0x5, 0x2, 0x16);
-	PCI_INT(bus_sp5100[1], 0x5, 0x3, 0x17);
-
-	/* PCI_SLOT 1. */
-	PCI_INT(bus_sp5100[1], 0x6, 0x0, 0x15);
-	PCI_INT(bus_sp5100[1], 0x6, 0x1, 0x16);
-	PCI_INT(bus_sp5100[1], 0x6, 0x2, 0x17);
-	PCI_INT(bus_sp5100[1], 0x6, 0x3, 0x14);
-
-	/* PCI_SLOT 2. */
-	PCI_INT(bus_sp5100[1], 0x7, 0x0, 0x16);
-	PCI_INT(bus_sp5100[1], 0x7, 0x1, 0x17);
-	PCI_INT(bus_sp5100[1], 0x7, 0x2, 0x14);
-	PCI_INT(bus_sp5100[1], 0x7, 0x3, 0x15);
 
 	/*Local Ints:   Type    Polarity    Trigger     Bus ID   IRQ    APIC ID PIN# */
 	IO_LOCAL_INT(mp_ExtINT, 0x0, MP_APIC_ALL, 0x0);

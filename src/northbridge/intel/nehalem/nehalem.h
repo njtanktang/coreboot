@@ -13,14 +13,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __NORTHBRIDGE_INTEL_NEHALEM_NEHALEM_H__
-#define __NORTHBRIDGE_INTEL_NEHALEM_NEHALEM_H__ 1
+#define __NORTHBRIDGE_INTEL_NEHALEM_NEHALEM_H__
 
 #ifndef __ASSEMBLER__
 
@@ -186,7 +182,7 @@ enum {
 					(could be reduced to 10 bytes) */
 
 
-#define DEFAULT_HECIBAR		0xfed17000
+#define DEFAULT_HECIBAR		((u8 *)0xfed17000)
 
 				/* 4 KB per PCIe device */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS
@@ -454,10 +450,15 @@ void init_iommu(void);
 
 /* Northbridge BARs */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS	/* 4 KB per PCIe device */
+#ifndef __ACPI__
+#define DEFAULT_MCHBAR		((u8 *)0xfed10000)	/* 16 KB */
+#define DEFAULT_DMIBAR		((u8 *)0xfed18000)	/* 4 KB */
+#else
 #define DEFAULT_MCHBAR		0xfed10000	/* 16 KB */
 #define DEFAULT_DMIBAR		0xfed18000	/* 4 KB */
+#endif
 #define DEFAULT_EPBAR		0xfed19000	/* 4 KB */
-#define DEFAULT_RCBABASE	0xfed1c000
+#define DEFAULT_RCBABASE	((u8 *)0xfed1c000)
 
 #define QUICKPATH_BUS 0xff
 
@@ -476,11 +477,6 @@ void init_iommu(void);
 
 #define LAC		0x87	/* Legacy Access Control */
 #define QPD0F1_SMRAM		0x4d	/* System Management RAM Control */
-#define  D_OPEN		(1 << 6)
-#define  D_CLS		(1 << 5)
-#define  D_LCK		(1 << 4)
-#define  G_SMRAME	(1 << 3)
-#define  C_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0))
 
 #define SKPAD		0xdc	/* Scratchpad Data */
 
@@ -578,17 +574,11 @@ void init_iommu(void);
 #ifndef __ASSEMBLER__
 static inline void barrier(void) { asm("" ::: "memory"); }
 
-struct ied_header {
-	char signature[10];
-	u32 size;
-	u8 reserved[34];
-} __attribute__ ((packed));
-
 #define PCI_DEVICE_ID_SB 0x0104
 #define PCI_DEVICE_ID_IB 0x0154
 
 #ifdef __SMM__
-void intel_sandybridge_finalize_smm(void);
+void intel_nehalem_finalize_smm(void);
 #else /* !__SMM__ */
 int bridge_silicon_revision(void);
 void nehalem_early_initialization(int chipset_type);
@@ -603,19 +593,6 @@ void dump_mem(unsigned start, unsigned end);
 void report_platform_info(void);
 #endif /* !__SMM__ */
 
-
-#define MRC_DATA_ALIGN           0x1000
-#define MRC_DATA_SIGNATURE       (('M'<<0)|('R'<<8)|('C'<<16)|('D'<<24))
-
-struct mrc_data_container {
-	u32	mrc_signature;	// "MRCD"
-	u32	mrc_data_size;	// Actual total size of this structure
-	u32	mrc_checksum;	// IP style checksum
-	u32	reserved;	// For header alignment
-	u8	mrc_data[0];	// Variable size, platform/run time dependent.
-} __attribute__ ((packed));
-
-struct mrc_data_container *find_current_mrc_cache(void);
 #if !defined(__PRE_RAM__)
 #include "gma.h"
 int init_igd_opregion(igd_opregion_t *igd_opregion);
@@ -623,4 +600,4 @@ int init_igd_opregion(igd_opregion_t *igd_opregion);
 
 #endif
 #endif
-#endif
+#endif /* __NORTHBRIDGE_INTEL_NEHALEM_NEHALEM_H__ */

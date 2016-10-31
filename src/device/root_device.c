@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -28,30 +24,6 @@
 #include <reset.h>
 
 const char mainboard_name[] = CONFIG_MAINBOARD_VENDOR " " CONFIG_MAINBOARD_PART_NUMBER;
-
-/**
- * Read the resources for the root device, that encompass the resources for
- * the entire system.
- *
- * @param root Pointer to the device structure for the system root device.
- */
-static void root_dev_read_resources(device_t root)
-{
-	printk(BIOS_ERR, "%s should never be called.\n", __func__);
-}
-
-/**
- * Write the resources for every device.
- *
- * Write the resources for the root device, and every device under it which
- * are all of the devices.
- *
- * @param root Pointer to the device structure for the system root device.
- */
-static void root_dev_set_resources(device_t root)
-{
-	printk(BIOS_ERR, "%s should never be called.\n", __func__);
-}
 
 /**
  * Scan devices on static buses.
@@ -68,61 +40,67 @@ static void root_dev_set_resources(device_t root)
  * debug device. Those virtual devices have to be listed in the config
  * file under some static bus in order to be enumerated at run time.
  *
- * This function is the default scan_bus() method for the root device and
- * LPC bridges.
- *
  * @param bus Pointer to the device to which the static buses are attached to.
- * @param max Maximum bus number currently used before scanning.
- * @return The largest bus number used.
  */
-static int smbus_max = 0;
-unsigned int scan_static_bus(device_t bus, unsigned int max)
+
+void scan_static_bus(device_t bus)
 {
 	device_t child;
 	struct bus *link;
 
-	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));
-
 	for (link = bus->link_list; link; link = link->next) {
-		/* For SMBus bus enumerate. */
-		child = link->children;
-
-		if (child && child->path.type == DEVICE_PATH_I2C)
-			link->secondary = ++smbus_max;
-
 		for (child = link->children; child; child = child->sibling) {
+
 			if (child->chip_ops && child->chip_ops->enable_dev)
 				child->chip_ops->enable_dev(child);
 
 			if (child->ops && child->ops->enable)
 				child->ops->enable(child);
 
-			if (child->path.type == DEVICE_PATH_I2C) {
-				printk(BIOS_DEBUG, "smbus: %s[%d]->",
-				       dev_path(child->bus->dev),
-				       child->bus->link_num);
-			}
+			printk(BIOS_DEBUG, "%s %s\n", dev_path(child),
+			       child->enabled ? "enabled" : "disabled");
+		}
+	}
+}
+
+void scan_lpc_bus(device_t bus)
+{
+	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));
+
+	scan_static_bus(bus);
+
+	printk(BIOS_SPEW, "%s for %s done\n", __func__, dev_path(bus));
+}
+
+void scan_smbus(device_t bus)
+{
+	device_t child;
+	struct bus *link;
+	static int smbus_max = 0;
+
+	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));
+
+	for (link = bus->link_list; link; link = link->next) {
+
+		link->secondary = ++smbus_max;
+
+		for (child = link->children; child; child = child->sibling) {
+
+			if (child->chip_ops && child->chip_ops->enable_dev)
+				child->chip_ops->enable_dev(child);
+
+			if (child->ops && child->ops->enable)
+				child->ops->enable(child);
+
+			printk(BIOS_DEBUG, "smbus: %s[%d]->", dev_path(child->bus->dev),
+			       child->bus->link_num);
+
 			printk(BIOS_DEBUG, "%s %s\n", dev_path(child),
 			       child->enabled ? "enabled" : "disabled");
 		}
 	}
 
-	for (link = bus->link_list; link; link = link->next) {
-		for (child = link->children; child; child = child->sibling) {
-			if (!child->ops || !child->ops->scan_bus)
-				continue;
-			printk(BIOS_SPEW, "%s scanning...\n", dev_path(child));
-			max = scan_bus(child, max);
-		}
-	}
-
 	printk(BIOS_SPEW, "%s for %s done\n", __func__, dev_path(bus));
-
-	return max;
-}
-
-static void root_dev_enable_resources(device_t dev)
-{
 }
 
 /**
@@ -131,16 +109,19 @@ static void root_dev_enable_resources(device_t dev)
  * This function is the default scan_bus() method of the root device.
  *
  * @param root The root device structure.
- * @param max The current bus number scanned so far, usually 0x00.
- * @return The largest bus number used.
  */
-static unsigned int root_dev_scan_bus(device_t root, unsigned int max)
+static void root_dev_scan_bus(device_t bus)
 {
-	return scan_static_bus(root, max);
-}
+	struct bus *link;
 
-static void root_dev_init(device_t root)
-{
+	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));
+
+	scan_static_bus(bus);
+
+	for (link = bus->link_list; link; link = link->next)
+		scan_bridges(link);
+
+	printk(BIOS_SPEW, "%s for %s done\n", __func__, dev_path(bus));
 }
 
 static void root_dev_reset(struct bus *bus)
@@ -148,6 +129,13 @@ static void root_dev_reset(struct bus *bus)
 	printk(BIOS_INFO, "Resetting board...\n");
 	hard_reset();
 }
+
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+static const char *root_dev_acpi_name(struct device *dev)
+{
+	return "\\_SB";
+}
+#endif
 
 /**
  * Default device operation for root device.
@@ -157,10 +145,13 @@ static void root_dev_reset(struct bus *bus)
  * of a motherboard can override this if you want non-default behavior.
  */
 struct device_operations default_dev_ops_root = {
-	.read_resources   = root_dev_read_resources,
-	.set_resources    = root_dev_set_resources,
-	.enable_resources = root_dev_enable_resources,
-	.init             = root_dev_init,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
+	.init             = DEVICE_NOOP,
 	.scan_bus         = root_dev_scan_bus,
 	.reset_bus        = root_dev_reset,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.acpi_name        = root_dev_acpi_name,
+#endif
 };

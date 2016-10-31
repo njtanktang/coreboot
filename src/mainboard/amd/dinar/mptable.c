@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -28,13 +24,6 @@
 #include <cpu/x86/lapic.h>
 #include <cpu/amd/amdfam15.h>
 
-extern u8 bus_rd890[14];
-extern u8 bus_sb700[2];
-extern u32 bus_type[256];
-extern u32 sbdn_rd890;
-extern u32 sbdn_sb700;
-
-
 static void *smp_write_config_table(void *v)
 {
 	struct mp_config_table *mc;
@@ -42,13 +31,12 @@ static void *smp_write_config_table(void *v)
 	u32 apicid_sb700;
 	u32 apicid_rd890;
 	device_t dev;
-	u32 dword;
+	u8 *dword;
 
 	mc = (void *)(((char *)v) + SMP_FLOATING_TABLE_LEN);
 	mptable_init(mc, LOCAL_APIC_ADDR);
 
 	smp_write_processors(mc);
-	get_bus_conf();
 	mptable_write_buses(mc, NULL, &bus_isa);
 
 	/*
@@ -64,11 +52,10 @@ static void *smp_write_config_table(void *v)
 		apicid_sb700 = CONFIG_MAX_CPUS + 1;
 	apicid_rd890 = apicid_sb700 + 1;
 
-	//bus_sb700[0], TODO: why bus_sb700[0] use same value of bus_rd890[0] assigned by get_pci1234(), instead of 0.
-	dev = dev_find_slot(0, PCI_DEVFN(sbdn_sb700 + 0x14, 0));
+	dev = dev_find_slot(0, PCI_DEVFN(0x14, 0));
 	if (dev) {
 		/* Set sb700 IOAPIC ID */
-		dword = pci_read_config32(dev, 0x74) & 0xfffffff0;
+		dword = (u8 *)(uintptr_t)(pci_read_config32(dev, 0x74) & 0xfffffff0);
 		smp_write_ioapic(mc, apicid_sb700, 0x20, dword);
 
 		/*
@@ -89,7 +76,7 @@ static void *smp_write_config_table(void *v)
 		dev = dev_find_slot(0, PCI_DEVFN(0, 0));
 		if (dev) {
 			pci_write_config32(dev, 0xF8, 0x1);
-			dword = pci_read_config32(dev, 0xFC) & 0xfffffff0;
+			dword = (u8 *)(uintptr_t)(pci_read_config32(dev, 0xFC) & 0xfffffff0);
 			smp_write_ioapic(mc, apicid_rd890, 0x20, dword);
 		}
 
@@ -132,36 +119,29 @@ static void *smp_write_config_table(void *v)
 	/* SATA */
 	PCI_INT(0x0, 0x11, 0x0, 0x16); //6, INTG
 
-	/* on board NIC & Slot PCIE.  */
-	/* configuration B doesnt need dev 5,6,7 */
-	/*
-	 * PCI_INT(bus_rd890[0x5], 0x0, 0x0, 0x11);
-	 * PCI_INT(bus_rd890[0x6], 0x0, 0x0, 0x12);
-	 * PCI_INT(bus_rd890[0x7], 0x0, 0x0, 0x13);
-	 */
-
-	//smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, 0, (((13)<<2)|(0)), apicid_rd890, 28); /* dev d */
-	//smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, bus_rd890[13], (((0)<<2)|(1)), apicid_rd890, 0); /* card behind dev13 */
-
 	/* PCI slots */
-	/* PCI_SLOT 0. */
-	PCI_INT(bus_sb700[1], 0x5, 0x0, 0x14);
-	PCI_INT(bus_sb700[1], 0x5, 0x1, 0x15);
-	PCI_INT(bus_sb700[1], 0x5, 0x2, 0x16);
-	PCI_INT(bus_sb700[1], 0x5, 0x3, 0x17);
+	dev = dev_find_slot(0, PCI_DEVFN(0x14, 4));
+	if (dev && dev->enabled) {
+		u8 bus_pci = dev->link_list->secondary;
 
-	/* PCI_SLOT 1. */
-	PCI_INT(bus_sb700[1], 0x6, 0x0, 0x15);
-	PCI_INT(bus_sb700[1], 0x6, 0x1, 0x16);
-	PCI_INT(bus_sb700[1], 0x6, 0x2, 0x17);
-	PCI_INT(bus_sb700[1], 0x6, 0x3, 0x14);
+		/* PCI_SLOT 0. */
+		PCI_INT(bus_pci, 0x5, 0x0, 0x14);
+		PCI_INT(bus_pci, 0x5, 0x1, 0x15);
+		PCI_INT(bus_pci, 0x5, 0x2, 0x16);
+		PCI_INT(bus_pci, 0x5, 0x3, 0x17);
 
-	/* PCI_SLOT 2. */
-	PCI_INT(bus_sb700[1], 0x7, 0x0, 0x16);
-	PCI_INT(bus_sb700[1], 0x7, 0x1, 0x17);
-	PCI_INT(bus_sb700[1], 0x7, 0x2, 0x14);
-	PCI_INT(bus_sb700[1], 0x7, 0x3, 0x15);
+		/* PCI_SLOT 1. */
+		PCI_INT(bus_pci, 0x6, 0x0, 0x15);
+		PCI_INT(bus_pci, 0x6, 0x1, 0x16);
+		PCI_INT(bus_pci, 0x6, 0x2, 0x17);
+		PCI_INT(bus_pci, 0x6, 0x3, 0x14);
 
+		/* PCI_SLOT 2. */
+		PCI_INT(bus_pci, 0x7, 0x0, 0x16);
+		PCI_INT(bus_pci, 0x7, 0x1, 0x17);
+		PCI_INT(bus_pci, 0x7, 0x2, 0x14);
+		PCI_INT(bus_pci, 0x7, 0x3, 0x15);
+	}
 
 	/*Local Ints:   Type    Polarity    Trigger     Bus ID   IRQ    APIC ID PIN# */
 	IO_LOCAL_INT(mp_ExtINT, 0, MP_APIC_ALL, 0x0);

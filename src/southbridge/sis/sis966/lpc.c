@@ -19,10 +19,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -59,13 +55,13 @@
 static void lpc_common_init(device_t dev)
 {
 	uint8_t byte;
-	uint32_t ioapic_base;
+	void *ioapic_base;
 
 	/* IO APIC initialization */
 	byte = pci_read_config8(dev, 0x74);
 	byte |= (1<<0); // enable APIC
 	pci_write_config8(dev, 0x74, byte);
-	ioapic_base = pci_read_config32(dev, PCI_BASE_ADDRESS_1); // 0x14
+	ioapic_base = (void *)pci_read_config32(dev, PCI_BASE_ADDRESS_1); // 0x14
 
 	setup_ioapic(ioapic_base, 0); // Don't rename IO APIC ID
 }
@@ -79,12 +75,12 @@ static void lpc_slave_init(device_t dev)
 
 static void lpc_usb_legacy_init(device_t dev)
 {
-    uint16_t acpi_base;
+	uint16_t acpi_base;
 
-    acpi_base = (pci_read_config8(dev,0x75) << 8);
+	acpi_base = (pci_read_config8(dev,0x75) << 8);
 
-    outb(inb(acpi_base + 0xbb) |0x80, acpi_base + 0xbb);
-    outb(inb(acpi_base + 0xba) |0x80, acpi_base + 0xba);
+	outb(inb(acpi_base + 0xbb) |0x80, acpi_base + 0xbb);
+	outb(inb(acpi_base + 0xba) |0x80, acpi_base + 0xba);
 }
 
 static void lpc_init(device_t dev)
@@ -95,7 +91,7 @@ static void lpc_init(device_t dev)
 	int nmi_option;
 
 	printk(BIOS_DEBUG, "LPC_INIT -------->\n");
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
 	lpc_usb_legacy_init(dev);
 	lpc_common_init(dev);
@@ -116,44 +112,44 @@ static void lpc_init(device_t dev)
 	/* Throttle the CPU speed down for testing */
 	on = SLOW_CPU_OFF;
 	get_option(&on, "slow_cpu");
-	if(on) {
+	if (on) {
 		uint16_t pm10_bar;
 		uint32_t dword;
 		pm10_bar = (pci_read_config16(dev, 0x60)&0xff00);
-		outl(((on<<1)+0x10)  ,(pm10_bar + 0x10));
+		outl(((on<<1)+0x10) ,(pm10_bar + 0x10));
 		dword = inl(pm10_bar + 0x10);
 		on = 8-on;
 		printk(BIOS_DEBUG, "Throttling CPU %2d.%1.1d percent.\n",
 				(on*12)+(on>>1),(on&1)*5);
 	}
 
-        /* Enable Error reporting */
-        /* Set up sync flood detected */
-        byte = pci_read_config8(dev, 0x47);
-        byte |= (1 << 1);
-        pci_write_config8(dev, 0x47, byte);
+	/* Enable Error reporting */
+	/* Set up sync flood detected */
+	byte = pci_read_config8(dev, 0x47);
+	byte |= (1 << 1);
+	pci_write_config8(dev, 0x47, byte);
 
-        /* Set up NMI on errors */
-        byte = inb(0x70); // RTC70
-        byte_old = byte;
-        nmi_option = NMI_OFF;
-        get_option(&nmi_option, "nmi");
-        if (nmi_option) {
-                byte &= ~(1 << 7); /* set NMI */
-        } else {
-                byte |= ( 1 << 7); // Can not mask NMI from PCI-E and NMI_NOW
-        }
-        if( byte != byte_old) {
-                outb(byte, 0x70);
-        }
+	/* Set up NMI on errors */
+	byte = inb(0x70); // RTC70
+	byte_old = byte;
+	nmi_option = NMI_OFF;
+	get_option(&nmi_option, "nmi");
+	if (nmi_option) {
+		byte &= ~(1 << 7); /* set NMI */
+	} else {
+		byte |= ( 1 << 7); // Can not mask NMI from PCI-E and NMI_NOW
+	}
+	if ( byte != byte_old) {
+		outb(byte, 0x70);
+	}
 
-        /* Initialize the real time clock */
-        rtc_init(0);
+	/* Initialize the real time clock */
+	cmos_init(0);
 
-        /* Initialize isa dma */
-        isa_dma_init();
+	/* Initialize isa dma */
+	isa_dma_init();
 
-        printk(BIOS_DEBUG, "LPC_INIT <--------\n");
+	printk(BIOS_DEBUG, "LPC_INIT <--------\n");
 }
 
 static void sis966_lpc_read_resources(device_t dev)
@@ -185,7 +181,7 @@ static void sis966_lpc_read_resources(device_t dev)
 /**
  * Enable resources for children devices.
  *
- * @param dev The device whos children's resources are to be enabled.
+ * @param dev The device whose children's resources are to be enabled.
  */
 static void sis966_lpc_enable_childrens_resources(device_t dev)
 {
@@ -199,11 +195,11 @@ static void sis966_lpc_enable_childrens_resources(device_t dev)
 	for (link = dev->link_list; link; link = link->next) {
 		device_t child;
 		for (child = link->children; child; child = child->sibling) {
-			if(child->enabled && (child->path.type == DEVICE_PATH_PNP)) {
+			if (child->enabled && (child->path.type == DEVICE_PATH_PNP)) {
 				struct resource *res;
-				for(res = child->resource_list; res; res = res->next) {
+				for (res = child->resource_list; res; res = res->next) {
 					unsigned long base, end; // don't need long long
-					if(!(res->flags & IORESOURCE_IO)) continue;
+					if (!(res->flags & IORESOURCE_IO)) continue;
 					base = res->base;
 					end = resource_end(res);
 					printk(BIOS_DEBUG, "sis966 lpc decode:%s, base=0x%08lx, end=0x%08lx\n",dev_path(child),base, end);
@@ -211,18 +207,18 @@ static void sis966_lpc_enable_childrens_resources(device_t dev)
 					case 0x3f8: // COM1
 						reg |= (1<<0);	break;
 					case 0x2f8: // COM2
-						reg |= (1<<1);  break;
-					case 0x378: // Parallal 1
-						reg |= (1<<24); break;
+						reg |= (1<<1);	break;
+					case 0x378: // Parallel 1
+						reg |= (1<<24);	break;
 					case 0x3f0: // FD0
-						reg |= (1<<20); break;
-					case 0x220:  // Aduio 0
+						reg |= (1<<20);	break;
+					case 0x220: // Audio 0
 						reg |= (1<<8);	break;
-					case 0x300:  // Midi 0
+					case 0x300: // Midi 0
 						reg |= (1<<12);	break;
 					}
-					if( (base == 0x290) || (base >= 0x400)) {
-						if(var_num>=4) continue; // only 4 var ; compact them ?
+					if ( (base == 0x290) || (base >= 0x400)) {
+						if (var_num>=4) continue; // only 4 var ; compact them ?
 						reg |= (1<<(28+var_num));
 						reg_var[var_num++] = (base & 0xffff)|((end & 0xffff)<<16);
 					}
@@ -231,7 +227,7 @@ static void sis966_lpc_enable_childrens_resources(device_t dev)
 		}
 	}
 	pci_write_config32(dev, 0xa0, reg);
-	for(i=0;i<var_num;i++) {
+	for (i=0;i<var_num;i++) {
 		pci_write_config32(dev, 0xa8 + i*4, reg_var[i]);
 	}
 
@@ -254,12 +250,12 @@ static struct pci_operations lops_pci = {
 	.set_subsystem	= lpci_set_subsystem,
 };
 
-static struct device_operations lpc_ops  = {
+static struct device_operations lpc_ops = {
 	.read_resources	= sis966_lpc_read_resources,
 	.set_resources	= pci_dev_set_resources,
 	.enable_resources	= sis966_lpc_enable_resources,
 	.init		= lpc_init,
-	.scan_bus	= scan_static_bus,
+	.scan_bus	= scan_lpc_bus,
 //	.enable		= sis966_enable,
 	.ops_pci	= &lops_pci,
 };
@@ -271,7 +267,7 @@ static const struct pci_driver lpc_driver __pci_driver = {
 };
 
 #ifdef SLAVE_INIT // No device?
-static struct device_operations lpc_slave_ops  = {
+static struct device_operations lpc_slave_ops = {
 	.read_resources	= sis966_lpc_read_resources,
 	.set_resources	= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,

@@ -12,17 +12,13 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
-#
 
 PROGRAM = ifdtool
 
 CC      = gcc
 INSTALL = /usr/bin/install
 PREFIX  = /usr/local
-CFLAGS  = -O2 -g -Wall -W
+CFLAGS  = -O2 -g -Wall -W -Werror
 LDFLAGS =
 
 OBJS = ifdtool.o
@@ -34,20 +30,16 @@ $(PROGRAM): $(OBJS)
 
 clean:
 	rm -f $(PROGRAM) *.o *~
-
 distclean: clean
-	rm -f .dependencies
 
 dep:
 	@$(CC) $(CFLAGS) -MM *.c > .dependencies
 
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 install: $(PROGRAM)
 	mkdir -p $(DESTDIR)$(PREFIX)/bin
 	$(INSTALL) $(PROGRAM) $(DESTDIR)$(PREFIX)/bin
-	mkdir -p $(DESTDIR)$(PREFIX)/share/man/man8
-	$(INSTALL) $(PROGRAM).8 $(DESTDIR)$(PREFIX)/share/man/man8
 
 .PHONY: all clean distclean dep
-
--include .dependencies
-

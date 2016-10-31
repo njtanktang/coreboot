@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_WINBOND_W83627DHG_H
@@ -52,9 +48,9 @@
 
 /* Note: There is no GPIO1 on the W83627DHG as per datasheet. */
 
-void pnp_enter_ext_func_mode(device_t dev);
-void pnp_exit_ext_func_mode(device_t dev);
-void w83627dhg_enable_i2c(device_t dev);
-void w83627dhg_set_clksel_48(device_t dev);
+void pnp_enter_ext_func_mode(pnp_devfn_t dev);
+void pnp_exit_ext_func_mode(pnp_devfn_t dev);
+void w83627dhg_enable_i2c(pnp_devfn_t dev);
+void w83627dhg_set_clksel_48(pnp_devfn_t dev);
 
 #endif /* SUPERIO_WINBOND_W83627DHG_H */

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -87,7 +83,7 @@ void i82801ix_dmi_setup(void)
 	RCBA8(RCBA_ULD + 3) = 1;
 	RCBA8(RCBA_ULD + 2) = 1;
 	/* Set target rcrb base address, i.e. DMIBAR. */
-	RCBA32(RCBA_ULBA) = DEFAULT_DMIBAR;
+	RCBA32(RCBA_ULBA) = (uintptr_t)DEFAULT_DMIBAR;
 
 	/* Enable ASPM. */
 	if (LPC_IS_MOBILE(PCI_DEV(0, 0x1f, 0))) {
@@ -143,4 +139,3 @@ void i82801ix_dmi_poll_vc1(void)
 	else
 		printk(BIOS_DEBUG, "done.\n");
 }
-

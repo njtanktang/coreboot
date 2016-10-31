@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /******************************************************************************
@@ -64,9 +60,64 @@ cache_as_ram_setup:
   cvtsi2sd  %ebx, %xmm1
 
   post_code(0xa1)
-  AMD_ENABLE_STACK
 
-  post_code(0xa1)
+#ifdef __x86_64__
+  /* switch to 64 bit long mode */
+  mov     %esi, %ecx
+  add     $0, %ecx # core number
+  xor     %eax, %eax
+  lea     (0x1000+0x23)(%ecx), %edi
+  mov     %edi, (%ecx)
+  mov     %eax, 4(%ecx)
+
+  lea     0x1000(%ecx), %edi
+  movl    $0x000000e3, 0x00(%edi)
+  movl    %eax, 0x04(%edi)
+  movl    $0x400000e3, 0x08(%edi)
+  movl    %eax, 0x0c(%edi)
+  movl    $0x800000e3, 0x10(%edi)
+  movl    %eax, 0x14(%edi)
+  movl    $0xc00000e3, 0x18(%edi)
+  movl    %eax, 0x1c(%edi)
+
+  # load ROM based identity mapped page tables
+  mov     %ecx, %eax
+  mov     %eax, %cr3
+
+  # enable PAE
+  mov     %cr4, %eax
+  bts     $5, %eax
+  mov     %eax, %cr4
+
+  # enable long mode
+  mov     $0xC0000080, %ecx
+  rdmsr
+  bts     $8, %eax
+  wrmsr
+
+  # enable paging
+  mov     %cr0, %eax
+  bts     $31, %eax
+  mov     %eax, %cr0
+
+  # use call far to switch to 64-bit code segment
+  ljmp $0x18, $1f
+1:
+  /* Pass the BIST result */
+  cvtsd2si        %xmm1, %esi
+
+  /* Pass the cpu_init_detected */
+  cvtsd2si        %xmm0, %edi
+
+  /* align the stack */
+  and     $0xFFFFFFF0, %esp
+
+  .code64
+  call    cache_as_ram_main
+  .code32
+
+#else
+  AMD_ENABLE_STACK
 
   /* Restore the BIST result */
   cvtsd2si  %xmm0, %edx
@@ -77,6 +128,7 @@ cache_as_ram_setup:
   pushl %ebx  /* init detected */
   pushl %edx  /* bist */
   call  cache_as_ram_main
+#endif
 
   /* Should never see this postcode */
   post_code(0xaf)
@@ -108,3 +160,6 @@ disable_cache_as_ram:
   ret
 
 cache_as_ram_setup_out:
+#ifdef __x86_64__
+.code64
+#endif

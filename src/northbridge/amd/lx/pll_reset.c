@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "northbridge.h"
@@ -69,21 +65,6 @@ static void pll_reset(void)
 	return;
 }
 
-#if 0 // Unused
-static unsigned int CPUSpeed(void)
-{
-	unsigned int speed;
-	msr_t msr;
-
-	msr = rdmsr(GLCP_SYS_RSTPLL);
-	speed = ((((msr.hi >> RSTPLL_UPPER_CPUMULT_SHIFT) & 0x1F) + 1) * 333) / 10;
-	if ((((((msr.hi >> RSTPLL_UPPER_CPUMULT_SHIFT) & 0x1F) + 1) * 333) % 10) > 5) {
-		++speed;
-	}
-	return (speed);
-}
-#endif
-
 unsigned int GeodeLinkSpeed(void)
 {
 	unsigned int speed;
@@ -96,17 +77,3 @@ unsigned int GeodeLinkSpeed(void)
 	}
 	return (speed);
 }
-
-#if 0 // Unused
-static unsigned int PCISpeed(void)
-{
-	msr_t msr;
-
-	msr = rdmsr(GLCP_SYS_RSTPLL);
-	if (msr.hi & (1 << RSTPPL_LOWER_PCISPEED_SHIFT)) {
-		return (66);
-	} else {
-		return (33);
-	}
-}
-#endif

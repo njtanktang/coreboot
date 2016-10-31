@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -32,7 +28,7 @@
  * See Analog Devices ADT7463 datasheet, Rev C (2004):
  * http://www.analog.com/en/prod/0,,766_825_ADT7463,00.html
  */
-static void adt7463_init(device_t adt7463)
+static void adt7463_init(struct device *adt7463)
 {
 	int result;
 
@@ -85,14 +81,10 @@ static void adt7463_init(device_t adt7463)
 	printk(BIOS_DEBUG, "ADT7463 properly initialized\n");
 }
 
-static void adt7463_noop(device_t dummy)
-{
-}
-
 static struct device_operations adt7463_operations = {
-	.read_resources = adt7463_noop,
-	.set_resources = adt7463_noop,
-	.enable_resources = adt7463_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = adt7463_init,
 };
 

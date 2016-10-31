@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef RS690_CHIP_H
@@ -30,7 +26,7 @@ struct southbridge_amd_rs690_config
 	u8 gfx_lane_reversal;	/* Single/Dual slot lan reversal */
 	u8 gfx_tmds;		/* whether support TMDS? */
 	u8 gfx_compliance;	/* whether support compliance? */
-	u8 gfx_reconfiguration;	/* Dynamic Lind Width Control */
+	u8 gfx_reconfiguration;	/* Dynamic Link Width Control */
 	u8 gfx_link_width;	/* Desired width of lane 2 */
 };
 

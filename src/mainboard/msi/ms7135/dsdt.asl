@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -102,11 +98,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "CORE  ", "CB-DSDT ", 1)
 				Package (0x04) { 0x0007FFFF, 0x00, \_SB.PCI0.LSA0, 0x00 },
 				Package (0x04) { 0x0008FFFF, 0x00, \_SB.PCI0.LSA1, 0x00 },
 
-				Package (0x04) { 0x0009FFFF, 0x00, \_SB.PCI0.LNKA, 0x00 },
-				Package (0x04) { 0x0009FFFF, 0x01, \_SB.PCI0.LNKB, 0x00 },
-				Package (0x04) { 0x0009FFFF, 0x02, \_SB.PCI0.LNKC, 0x00 },
-				Package (0x04) { 0x0009FFFF, 0x03, \_SB.PCI0.LNKD, 0x00 },
-
 				Package (0x04) { 0x000AFFFF, 0x00, \_SB.PCI0.LEMA, 0x00 },
 
 				Package (0x04) { 0x000BFFFF, 0x00, \_SB.PCI0.LNKA, 0x00 },
@@ -135,11 +126,30 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "CORE  ", "CB-DSDT ", 1)
 				Name (_ADR, 0x00090000)
 				Name (_UID, 0x00)
 				Name (_PRT, Package () {
-					/* AGR slot */
-					Package (0x04) { 0x0000FFFF, 0x00, 0x00, 0x10 },
-					Package (0x04) { 0x0000FFFF, 0x01, 0x00, 0x10 },
-					Package (0x04) { 0x0000FFFF, 0x02, 0x00, 0x10 },
-					Package (0x04) { 0x0000FFFF, 0x03, 0x00, 0x10 },
+					/* AGR slot "AGP1" */
+					Package (0x04) { 0x0000FFFF, 0x00, \_SB.PCI0.LNKA, 0x00 },
+					Package (0x04) { 0x0000FFFF, 0x01, \_SB.PCI0.LNKA, 0x00 },
+					Package (0x04) { 0x0000FFFF, 0x02, \_SB.PCI0.LNKA, 0x00 },
+					Package (0x04) { 0x0000FFFF, 0x03, \_SB.PCI0.LNKA, 0x00 },
+
+					/* PCI slot "PCI1" */
+					Package (0x04) { 0x0007FFFF, 0x00, \_SB.PCI0.LNKB, 0x00 },
+					Package (0x04) { 0x0007FFFF, 0x01, \_SB.PCI0.LNKC, 0x00 },
+					Package (0x04) { 0x0007FFFF, 0x02, \_SB.PCI0.LNKD, 0x00 },
+					/* Not sure INTD is right, but this is what the OEM BIOS does. */
+					Package (0x04) { 0x0007FFFF, 0x03, \_SB.PCI0.LNKE, 0x00 },
+
+					/* PCI slot "PCI2" */
+					Package (0x04) { 0x0008FFFF, 0x00, \_SB.PCI0.LNKC, 0x00 },
+					Package (0x04) { 0x0008FFFF, 0x01, \_SB.PCI0.LNKD, 0x00 },
+					Package (0x04) { 0x0008FFFF, 0x02, \_SB.PCI0.LNKA, 0x00 },
+					Package (0x04) { 0x0008FFFF, 0x03, \_SB.PCI0.LNKB, 0x00 },
+
+					/* PCI slot "PCI3" */
+					Package (0x04) { 0x0009FFFF, 0x00, \_SB.PCI0.LNKD, 0x00 },
+					Package (0x04) { 0x0009FFFF, 0x01, \_SB.PCI0.LNKA, 0x00 },
+					Package (0x04) { 0x0009FFFF, 0x02, \_SB.PCI0.LNKB, 0x00 },
+					Package (0x04) { 0x0009FFFF, 0x03, \_SB.PCI0.LNKC, 0x00 },
 				})
 			}
 

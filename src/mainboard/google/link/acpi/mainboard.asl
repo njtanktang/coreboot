@@ -12,12 +12,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
+
+#include <mainboard/google/link/onboard.h>
 
 Scope (\_SB) {
 	Device (LID0)
@@ -48,15 +45,18 @@ Scope (\_SB) {
 		Name(_HID, EisaId("PNP0C0E"))
 
 		// Trackpad Wake is GPIO12
-		Name(_PRW, Package(){0x1c, 0x03})
+		Name(_PRW, Package() { BOARD_TRACKPAD_WAKE_GPIO, 0x03 } )
 
 		Name(_CRS, ResourceTemplate()
 		{
 			// PIRQE -> GSI20
-			Interrupt (ResourceConsumer, Edge, ActiveLow) {20}
+			Interrupt (ResourceConsumer, Edge, ActiveLow)
+			{
+				BOARD_TRACKPAD_IRQ
+			}
 
 			// SMBUS Address 0x4b
-			VendorShort (ADDR) {0x4b}
+			VendorShort (ADDR) { BOARD_TRACKPAD_I2C_ADDR }
 		})
 	}
 
@@ -80,24 +80,5 @@ Scope (\_SB) {
 			// SMBUS Address 0x4a
 			VendorShort (ADDR) {0x4a}
 		})
-	}
-
-	// Keyboard Backlight interface via EC
-	Device (KBLT) {
-		Name (_HID, EisaId("GGL0002"))
-		Name (_UID, 1)
-		Name (_ADR, 0)
-
-		// Read current backlight value
-		Method (KBQC, 0)
-		{
-			Return (\_SB.PCI0.LPCB.EC0.KBLV)
-		}
-
-		// Write new backlight value
-		Method (KBCM, 1)
-		{
-			Store (Arg0, \_SB.PCI0.LPCB.EC0.KBLV)
-		}
 	}
 }

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I82371EB_I82371EB_H
@@ -26,6 +22,7 @@
 #include <arch/io.h>
 #include <device/device.h>
 #include "chip.h"
+
 void i82371eb_enable(device_t dev);
 void i82371eb_hard_reset(void);
 #else

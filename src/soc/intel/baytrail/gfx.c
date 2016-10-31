@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -24,11 +20,12 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <reg_script.h>
+#include <stdlib.h>
 
-#include <baytrail/gfx.h>
-#include <baytrail/iosf.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/gfx.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
 
 #include "chip.h"
 
@@ -49,7 +46,7 @@ static void gfx_lock_pcbase(device_t dev)
 
 	gms = pci_read_config32(dev, GGC) & GGC_GSM_SIZE_MASK;
 	gms >>= 3;
-	if (gms > sizeof(gms_size_map))
+	if (gms > ARRAY_SIZE(gms_size_map))
 		return;
 	gmsize = gms_size_map[gms];
 
@@ -58,7 +55,7 @@ static void gfx_lock_pcbase(device_t dev)
 	pcbase += (gmsize-1) * wopcmsz - pcsize;
 	pcbase |= 1; /* Lock */
 
-	write32(res->base + 0x182120, pcbase);
+	write32((u32 *)(uintptr_t)(res->base + 0x182120), pcbase);
 }
 
 static const struct reg_script gfx_init_script[] = {
@@ -142,7 +139,7 @@ static const struct reg_script gfx_init_script[] = {
 
 	/* Program PUNIT_GPU_EC_VIRUS based on DPTF SDP */
 	/* SDP Profile 4 == 0x11940, others 0xcf08 */
-	REG_IOSF_WRITE(IOSF_PORT_PMC, PUNIT_GPU_EC_VIRUS, 0x11940),
+	REG_IOSF_WRITE(IOSF_PORT_PMC, PUNIT_GPU_EC_VIRUS, 0xcf08),
 
 	/* GfxPause */
 	REG_RES_WRITE32(PCI_BASE_ADDRESS_0, 0xa000, 0x00071388),
@@ -289,6 +286,27 @@ static void gfx_post_vbios_init(device_t dev)
 	gfx_run_script(dev, gfx_post_vbios_script);
 }
 
+static void set_backlight_pwm(device_t dev, uint32_t bklt_reg, int req_hz)
+{
+	int divider;
+	struct resource *res;
+
+	res = find_resource(dev, PCI_BASE_ADDRESS_0);
+
+	if (res == NULL)
+		return;
+
+	/* Default to 200 Hz if nothing is set. */
+	if (req_hz == 0)
+		req_hz = 200;
+
+	/* Base clock is 25MHz */
+	divider = 25 * 1000 * 1000 / (16 * req_hz);
+
+	/* Do not set duty cycle (lower 16 bits). Just set the divider. */
+	write32((u32 *)(uintptr_t)(res->base + bklt_reg), divider << 16);
+}
+
 static void gfx_panel_setup(device_t dev)
 {
 	struct soc_intel_baytrail_config *config = dev->chip_info;
@@ -296,9 +314,6 @@ static void gfx_panel_setup(device_t dev)
 		/* CONTROL */
 		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEA_REG(PP_CONTROL),
 				PP_CONTROL_UNLOCK | PP_CONTROL_EDP_FORCE_VDD),
-		/* HOTPLUG */
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEA_REG(HOTPLUG_CTRL),
-				0x1 | (config->gpu_pipea_hotplug << 2)),
 		/* POWER ON */
 		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEA_REG(PP_ON_DELAYS),
 				(config->gpu_pipea_port_select << 30 |
@@ -311,21 +326,12 @@ static void gfx_panel_setup(device_t dev)
 		/* DIVISOR */
 		REG_RES_RMW32(PCI_BASE_ADDRESS_0, PIPEA_REG(PP_DIVISOR),
 			      ~0x1f, config->gpu_pipea_power_cycle_delay),
-		/* BACKLIGHT */
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEA_REG(BACKLIGHT_CTL),
-				(config->gpu_pipea_backlight_pwm << 16) |
-				(config->gpu_pipea_backlight_pwm >> 1)),
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEA_REG(BACKLIGHT_CTL2),
-				BACKLIGHT_ENABLE),
 		REG_SCRIPT_END
 	};
 	struct reg_script gfx_pipeb_init[] = {
 		/* CONTROL */
 		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEB_REG(PP_CONTROL),
 				PP_CONTROL_UNLOCK | PP_CONTROL_EDP_FORCE_VDD),
-		/* HOTPLUG */
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEB_REG(HOTPLUG_CTRL),
-				0x1 | (config->gpu_pipeb_hotplug << 2)),
 		/* POWER ON */
 		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEB_REG(PP_ON_DELAYS),
 				(config->gpu_pipeb_port_select << 30 |
@@ -338,23 +344,21 @@ static void gfx_panel_setup(device_t dev)
 		/* DIVISOR */
 		REG_RES_RMW32(PCI_BASE_ADDRESS_0, PIPEB_REG(PP_DIVISOR),
 			      ~0x1f, config->gpu_pipeb_power_cycle_delay),
-		/* BACKLIGHT */
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEB_REG(BACKLIGHT_CTL),
-				(config->gpu_pipeb_backlight_pwm << 16) |
-				(config->gpu_pipeb_backlight_pwm >> 1)),
-		REG_RES_WRITE32(PCI_BASE_ADDRESS_0, PIPEB_REG(BACKLIGHT_CTL2),
-				BACKLIGHT_ENABLE),
 		REG_SCRIPT_END
 	};
 
 	if (config->gpu_pipea_port_select) {
 		printk(BIOS_INFO, "GFX: Initialize PIPEA\n");
 		reg_script_run_on_dev(dev, gfx_pipea_init);
+		set_backlight_pwm(dev, PIPEA_REG(BACKLIGHT_CTL),
+		                  config->gpu_pipea_pwm_freq_hz);
 	}
 
 	if (config->gpu_pipeb_port_select) {
 		printk(BIOS_INFO, "GFX: Initialize PIPEB\n");
 		reg_script_run_on_dev(dev, gfx_pipeb_init);
+		set_backlight_pwm(dev, PIPEB_REG(BACKLIGHT_CTL),
+		                  config->gpu_pipeb_pwm_freq_hz);
 	}
 }
 

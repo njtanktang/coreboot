@@ -1,3 +1,5 @@
+ifeq ($(CONFIG_SOUTHBRIDGE_SIS_SIS966),y)
+
 ramstage-y += sis761.c
 ramstage-y += sis966.c
 ramstage-y += lpc.c
@@ -13,5 +15,7 @@ ramstage-y += reset.c
 romstage-$(CONFIG_USBDEBUG_IN_ROMSTAGE) += enable_usbdebug.c
 ramstage-$(CONFIG_USBDEBUG) += enable_usbdebug.c
 
-chipset_bootblock_inc += $(src)/southbridge/sis/sis966/romstrap.inc
-chipset_bootblock_lds += $(src)/southbridge/sis/sis966/romstrap.lds
+bootblock-y += romstrap.ld
+bootblock-y += romstrap.S
+
+endif

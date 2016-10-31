@@ -2,6 +2,7 @@
 
 #include <arch/rom_segs.h>
 #include <cpu/x86/post_code.h>
+#include <rules.h>
 
 	.code32
 
@@ -27,6 +28,10 @@ gdtptr:
 	.word	0xffff, 0x0000
 	.byte	0x00, 0x93, 0xcf, 0x00
 
+	/* selgdt 0x18, flat code segment (64-bit) */
+	.word   0xffff, 0x0000
+	.byte   0x00, 0x9b, 0xaf, 0x00
+
 gdt_end:
 
 
@@ -40,10 +45,17 @@ gdt_end:
  *
  *	NOTE aligned to 4 so that we are sure that the prefetch
  *	cache will be reloaded.
+ *
+ *	In the bootblock there is already a ljmp to __protected_start and
+ *	the reset vector jumps to symbol _start16bit in entry16.inc from
+ *	the reset vectors's symbol which is _start. Therefore, don't
+ *	expose the _start symbol for bootblock.
  */
 	.align	4
-.globl protected_start
-protected_start:
+#if !ENV_BOOTBLOCK
+.globl _start
+_start:
+#endif
 
 	lgdt	%cs:gdtptr
 	ljmp	$ROM_CODE_SEG, $__protected_start
@@ -52,7 +64,9 @@ __protected_start:
 	/* Save the BIST value */
 	movl	%eax, %ebp
 
+#if !IS_ENABLED(CONFIG_NO_EARLY_BOOTBLOCK_POSTCODES)
 	post_code(POST_ENTER_PROTECTED_MODE)
+#endif
 
 	movw	$ROM_DATA_SEG, %ax
 	movw	%ax, %ds
@@ -63,4 +77,3 @@ __protected_start:
 
 	/* Restore the BIST value to %eax */
 	movl	%ebp, %eax
-

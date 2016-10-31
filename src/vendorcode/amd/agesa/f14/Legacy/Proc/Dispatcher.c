@@ -17,7 +17,7 @@
  *
  * Copyright (c) 2011, Advanced Micro Devices, Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -25,10 +25,10 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Advanced Micro Devices, Inc. nor the names of 
- *       its contributors may be used to endorse or promote products derived 
+ *     * Neither the name of Advanced Micro Devices, Inc. nor the names of
+ *       its contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -39,7 +39,7 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  * ***************************************************************************
  *
  */
@@ -82,19 +82,11 @@ AmdAgesaDispatcher (
   )
 {
   AGESA_STATUS Status;
-  IMAGE_ENTRY ImageEntry;
   MODULE_ENTRY  ModuleEntry;
   DISPATCH_TABLE *Entry;
-  UINT32 ImageStart;
-  UINT32 ImageEnd;
-  AMD_IMAGE_HEADER* AltImagePtr;
 
   Status = AGESA_UNSUPPORTED;
-  ImageEntry = NULL;
   ModuleEntry = NULL;
-  ImageStart = 0xFFF00000;
-  ImageEnd = 0xFFFFFFFF;
-  AltImagePtr = NULL;
 
   Entry = (DISPATCH_TABLE *) DispatchTable;
   while (Entry->FunctionId != 0) {
@@ -110,21 +102,6 @@ AmdAgesaDispatcher (
     ModuleEntry = (MODULE_ENTRY) mCpuModuleID.NextBlock->ModuleDispatcher;
     if (ModuleEntry != NULL) {
       Status = (*ModuleEntry) (ConfigPtr);
-    }
-  }
-
-  // 3. If not this image specific function, see if we can find alternative image instead
-  if (Status == AGESA_UNSUPPORTED) {
-    if ((((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr != 0xFFFFFFFF  ) || (((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr != 0)) {
-      ImageStart = ((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr;
-      ImageEnd = ImageStart + 4;
-      // Locate/test image base that matches this component
-      AltImagePtr = LibAmdLocateImage ((VOID *)ImageStart, (VOID *)ImageEnd, 4096, (CHAR8 *)AGESA_ID);
-      if (AltImagePtr != NULL) {
-        //Invoke alternative Image
-        ImageEntry = (IMAGE_ENTRY) (AltImagePtr + AltImagePtr->EntryPointAddress);
-        Status = (*ImageEntry) (ConfigPtr);
-      }
     }
   }
 

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <types.h>
@@ -73,8 +69,8 @@ static inline void write_smrr(struct smm_relocation_params *relo_params)
 {
 	printk(BIOS_DEBUG, "Writing SMRR. base = 0x%08x, mask=0x%08x\n",
 	       relo_params->smrr_base.lo, relo_params->smrr_mask.lo);
-	wrmsr(SMRRphysBase_MSR, relo_params->smrr_base);
-	wrmsr(SMRRphysMask_MSR, relo_params->smrr_mask);
+	wrmsr(SMRR_PHYS_BASE, relo_params->smrr_base);
+	wrmsr(SMRR_PHYS_MASK, relo_params->smrr_mask);
 }
 
 static inline void write_emrr(struct smm_relocation_params *relo_params)
@@ -95,9 +91,9 @@ static inline void write_uncore_emrr(struct smm_relocation_params *relo_params)
 	wrmsr(UNCORE_EMRRphysMask_MSR, relo_params->uncore_emrr_mask);
 }
 
-static void update_save_state(int cpu,
-                              struct smm_relocation_params *relo_params,
-                              const struct smm_runtime *runtime)
+static void update_save_state(int cpu, uintptr_t curr_smbase,
+				uintptr_t staggered_smbase,
+				struct smm_relocation_params *relo_params)
 {
 	u32 smbase;
 	u32 iedbase;
@@ -105,7 +101,7 @@ static void update_save_state(int cpu,
 	/* The relocated handler runs with all CPUs concurrently. Therefore
 	 * stagger the entry points adjusting SMBASE downwards by save state
 	 * size * CPU num. */
-	smbase = relo_params->smram_base - cpu * runtime->save_state_size;
+	smbase = staggered_smbase;
 	iedbase = relo_params->ied_base;
 
 	printk(BIOS_DEBUG, "New SMBASE=0x%08x IEDBASE=0x%08x\n",
@@ -136,8 +132,8 @@ static void update_save_state(int cpu,
 	} else {
 		em64t101_smm_state_save_area_t *save_state;
 
-		save_state = (void *)(runtime->smbase + SMM_DEFAULT_SIZE -
-				      runtime->save_state_size);
+		save_state = (void *)(curr_smbase + SMM_DEFAULT_SIZE -
+				      sizeof(*save_state));
 
 		save_state->smbase = smbase;
 		save_state->iedbase = iedbase;
@@ -165,24 +161,11 @@ static int bsp_setup_msr_save_state(struct smm_relocation_params *relo_params)
 /* The relocation work is actually performed in SMM context, but the code
  * resides in the ramstage module. This occurs by trampolining from the default
  * SMRAM entry point to here. */
-static void asmlinkage cpu_smm_do_relocation(void *arg)
+void smm_relocation_handler(int cpu, uintptr_t curr_smbase,
+				uintptr_t staggered_smbase)
 {
 	msr_t mtrr_cap;
-	struct smm_relocation_params *relo_params;
-	const struct smm_module_params *p;
-	const struct smm_runtime *runtime;
-	int cpu;
-
-	p = arg;
-	runtime = p->runtime;
-	relo_params = p->arg;
-	cpu = p->cpu;
-
-	if (cpu >= CONFIG_MAX_CPUS) {
-		printk(BIOS_CRIT,
-		       "Invalid CPU number assigned in SMM stub: %d\n", cpu);
-		return;
-	}
+	struct smm_relocation_params *relo_params = &smm_reloc_params;
 
 	printk(BIOS_DEBUG, "In relocation handler: cpu %d\n", cpu);
 
@@ -211,10 +194,10 @@ static void asmlinkage cpu_smm_do_relocation(void *arg)
 	}
 
 	/* Make appropriate changes to the save state map. */
-	update_save_state(cpu, relo_params, runtime);
+	update_save_state(cpu, curr_smbase, staggered_smbase, relo_params);
 
 	/* Write EMRR and SMRR MSRs based on indicated support. */
-	mtrr_cap = rdmsr(MTRRcap_MSR);
+	mtrr_cap = rdmsr(MTRR_CAP_MSR);
 	if (mtrr_cap.lo & SMRR_SUPPORTED)
 		write_smrr(relo_params);
 
@@ -227,7 +210,7 @@ static void asmlinkage cpu_smm_do_relocation(void *arg)
 	}
 }
 
-static u32 northbridge_get_base_reg(device_t dev, int reg)
+static u32 northbridge_get_base_reg(struct device *dev, int reg)
 {
 	u32 value;
 
@@ -237,7 +220,7 @@ static u32 northbridge_get_base_reg(device_t dev, int reg)
 	return value;
 }
 
-static void fill_in_relocation_params(device_t dev,
+static void fill_in_relocation_params(struct device *dev,
                                       struct smm_relocation_params *params)
 {
 	u32 tseg_size;
@@ -272,7 +255,7 @@ static void fill_in_relocation_params(device_t dev,
 	/* SMRR has 32-bits of valid address aligned to 4KiB. */
 	params->smrr_base.lo = (params->smram_base & rmask) | MTRR_TYPE_WRBACK;
 	params->smrr_base.hi = 0;
-	params->smrr_mask.lo = (~(tseg_size - 1) & rmask) | MTRRphysMaskValid;
+	params->smrr_mask.lo = (~(tseg_size - 1) & rmask) | MTRR_PHYS_MASK_VALID;
 	params->smrr_mask.hi = 0;
 
 	/* The EMRR and UNCORE_EMRR are at IEDBASE + 2MiB */
@@ -283,58 +266,15 @@ static void fill_in_relocation_params(device_t dev,
 	 * on the number of physical address bits supported. */
 	params->emrr_base.lo = emrr_base | MTRR_TYPE_WRBACK;
 	params->emrr_base.hi = 0;
-	params->emrr_mask.lo = (~(emrr_size - 1) & rmask) | MTRRphysMaskValid;
+	params->emrr_mask.lo = (~(emrr_size - 1) & rmask) | MTRR_PHYS_MASK_VALID;
 	params->emrr_mask.hi = (1 << (phys_bits - 32)) - 1;
 
 	/* UNCORE_EMRR has 39 bits of valid address aligned to 4KiB. */
 	params->uncore_emrr_base.lo = emrr_base;
 	params->uncore_emrr_base.hi = 0;
 	params->uncore_emrr_mask.lo = (~(emrr_size - 1) & rmask) |
-	                              MTRRphysMaskValid;
+	                              MTRR_PHYS_MASK_VALID;
 	params->uncore_emrr_mask.hi = (1 << (39 - 32)) - 1;
-}
-
-static void adjust_apic_id_map(struct smm_loader_params *smm_params)
-{
-	struct smm_runtime *runtime;
-	int i;
-
-	/* Adjust the APIC id map if HT is disabled. */
-	if (!ht_disabled)
-		return;
-
-	runtime = smm_params->runtime;
-
-	/* The APIC ids increment by 2 when HT is disabled. */
-	for (i = 0; i < CONFIG_MAX_CPUS; i++)
-		runtime->apic_id_to_cpu[i] = runtime->apic_id_to_cpu[i] * 2;
-}
-
-static int install_relocation_handler(int num_cpus,
-                                      struct smm_relocation_params *relo_params)
-{
-	/* The default SMM entry can happen in parallel or serially. If the
-	 * default SMM entry is done in parallel the BSP has already setup
-	 * the saving state to each CPU's MSRs. At least one save state size
-	 * is required for the initial SMM entry for the BSP to determine if
-	 * parallel SMM relocation is even feasible.  Set the stack size to
-	 * the save state size, and call into the do_relocation handler. */
-	int save_state_size = sizeof(em64t101_smm_state_save_area_t);
-	struct smm_loader_params smm_params = {
-		.per_cpu_stack_size = save_state_size,
-		.num_concurrent_stacks = num_cpus,
-		.per_cpu_save_state_size = save_state_size,
-		.num_concurrent_save_states = 1,
-		.handler = (smm_handler_t)&cpu_smm_do_relocation,
-		.handler_arg = (void *)relo_params,
-	};
-
-	if (smm_setup_relocation_handler(&smm_params))
-		return -1;
-
-	adjust_apic_id_map(&smm_params);
-
-	return 0;
 }
 
 static void setup_ied_area(struct smm_relocation_params *params)
@@ -361,88 +301,43 @@ static void setup_ied_area(struct smm_relocation_params *params)
 	//memset(ied_base + (2 << 20), 0, (2 << 20));
 }
 
-static int install_permanent_handler(int num_cpus,
-                                     struct smm_relocation_params *relo_params)
+void smm_info(uintptr_t *perm_smbase, size_t *perm_smsize,
+				size_t *smm_save_state_size)
 {
-	/* There are num_cpus concurrent stacks and num_cpus concurrent save
-	 * state areas. Lastly, set the stack size to the save state size. */
-	int save_state_size = sizeof(em64t101_smm_state_save_area_t);
-	struct smm_loader_params smm_params = {
-		.per_cpu_stack_size = save_state_size,
-		.num_concurrent_stacks = num_cpus,
-		.per_cpu_save_state_size = save_state_size,
-		.num_concurrent_save_states = num_cpus,
-	};
-
-	printk(BIOS_DEBUG, "Installing SMM handler to 0x%08x\n",
-	       relo_params->smram_base);
-	if (smm_load_module((void *)relo_params->smram_base,
-	                     relo_params->smram_size, &smm_params))
-		return -1;
-
-	adjust_apic_id_map(&smm_params);
-
-	return 0;
-}
-
-static int cpu_smm_setup(void)
-{
-	device_t dev;
-	int num_cpus;
-	msr_t msr;
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0, 0));
 
 	printk(BIOS_DEBUG, "Setting up SMI for CPU\n");
-
-	dev = dev_find_slot(0, PCI_DEVFN(0, 0));
 
 	fill_in_relocation_params(dev, &smm_reloc_params);
 
 	setup_ied_area(&smm_reloc_params);
 
-	msr = rdmsr(CORE_THREAD_COUNT_MSR);
-	num_cpus = msr.lo & 0xffff;
-	if (num_cpus > CONFIG_MAX_CPUS) {
-		printk(BIOS_CRIT,
-		       "Error: Hardware CPUs (%d) > MAX_CPUS (%d)\n",
-		       num_cpus, CONFIG_MAX_CPUS);
-	}
-
-	if (install_relocation_handler(num_cpus, &smm_reloc_params)) {
-		printk(BIOS_CRIT, "SMM Relocation handler install failed.\n");
-		return -1;
-	}
-
-	if (install_permanent_handler(num_cpus, &smm_reloc_params)) {
-		printk(BIOS_CRIT, "SMM Permanent handler install failed.\n");
-		return -1;
-	}
-
-	/* Ensure the SMM handlers hit DRAM before performing first SMI. */
-	/* TODO(adurbin): Is this really needed? */
-	wbinvd();
-
-	return 0;
+	*perm_smbase = smm_reloc_params.smram_base;
+	*perm_smsize = smm_reloc_params.smram_size;
+	*smm_save_state_size = sizeof(em64t101_smm_state_save_area_t);
 }
 
-int smm_initialize(void)
+void smm_initialize(void)
 {
-	/* Return early if CPU SMM setup failed. */
-	if (cpu_smm_setup())
-		return -1;
-
 	/* Clear the SMM state in the southbridge. */
 	southbridge_smm_clear_state();
 
-	/* Run the relocation handler. */
+	/*
+	 * Run the relocation handler for on the BSP to check and set up
+	 * parallel SMM relocation.
+	 */
 	smm_initiate_relocation();
 
 	if (smm_reloc_params.smm_save_state_in_msrs) {
 		printk(BIOS_DEBUG, "Doing parallel SMM relocation.\n");
 	}
-
-	return 0;
 }
 
+/* The default SMM entry can happen in parallel or serially. If the
+ * default SMM entry is done in parallel the BSP has already setup
+ * the saving state to each CPU's MSRs. At least one save state size
+ * is required for the initial SMM entry for the BSP to determine if
+ * parallel SMM relocation is even feasible. */
 void smm_relocate(void)
 {
 	/*
@@ -457,15 +352,6 @@ void smm_relocate(void)
 		smm_initiate_relocation();
 }
 
-void smm_init(void)
-{
-	/* smm_init() is normally called from initialize_cpus() in
-	 * lapic_cpu_init.c. However, that path is no longer used. Don't reuse
-	 * the function name because that would cause confusion.
-	 * The smm_initialize() function above is used to setup SMM at the
-	 * appropriate time. */
-}
-
 void smm_lock(void)
 {
 	/* LOCK the SMM memory window and enable normal SMM.
@@ -476,4 +362,3 @@ void smm_lock(void)
 	pci_write_config8(dev_find_slot(0, PCI_DEVFN(0, 0)), SMRAM,
 			D_LCK | G_SMRAME | C_BASE_SEG);
 }
-

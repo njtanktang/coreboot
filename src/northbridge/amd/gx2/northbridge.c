@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -231,7 +227,7 @@ static void northbridge_set_resources(struct device *dev)
 
 	struct bus *bus;
 
-	for(bus = dev->link_list; bus; bus = bus->next) {
+	for (bus = dev->link_list; bus; bus = bus->next) {
 		if (bus->children) {
 			printk(BIOS_DEBUG, "my_dev_set_resources: assign_resources %d\n",
 			     bus->secondary);
@@ -325,14 +321,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources = cpu_bus_noop,
-	.set_resources = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = cpu_bus_init,
 	.scan_bus = 0,
 };

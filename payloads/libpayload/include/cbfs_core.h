@@ -17,10 +17,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  * ---------------------------------------------------------------------------
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,6 +49,7 @@
 #include <endian.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 /** These are standard values for the known compression
     alogrithms that coreboot knows about for stages and
@@ -61,6 +58,7 @@
 
 #define CBFS_COMPRESS_NONE  0
 #define CBFS_COMPRESS_LZMA  1
+#define CBFS_COMPRESS_LZ4   2
 
 /** These are standard component types for well known
     components (i.e - those that coreboot needs to consume.
@@ -75,6 +73,7 @@
 #define CBFS_TYPE_VSA        0x51
 #define CBFS_TYPE_MBI        0x52
 #define CBFS_TYPE_MICROCODE  0x53
+#define CBFS_TYPE_STRUCT     0x70
 #define CBFS_COMPONENT_CMOS_DEFAULT 0xaa
 #define CBFS_COMPONENT_CMOS_LAYOUT 0x01aa
 
@@ -85,28 +84,31 @@
 
 #define CBFS_HEADER_INVALID_ADDRESS	((void*)(0xffffffff))
 
-/** this is the master cbfs header - it needs to be located somewhere available
-    to bootblock (to load romstage).  Where it actually lives is up to coreboot.
-    On x86, a pointer to this header will live at 0xFFFFFFFC.
-    For other platforms, you need to define CONFIG_CBFS_HEADER_ROM_OFFSET */
+/* this is the master cbfs header - it must be located somewhere available
+ * to bootblock (to load romstage). The last 4 bytes in the image contain its
+ * relative offset from the end of the image (as a 32-bit signed integer). */
 
 struct cbfs_header {
 	uint32_t magic;
 	uint32_t version;
 	uint32_t romsize;
 	uint32_t bootblocksize;
-	uint32_t align;
+	uint32_t align; /* fixed to 64 bytes */
 	uint32_t offset;
 	uint32_t architecture;
 	uint32_t pad[1];
 } __attribute__((packed));
+
+/* this used to be flexible, but wasn't ever set to something different. */
+#define CBFS_ALIGNMENT 64
 
 /* "Unknown" refers to CBFS headers version 1,
  * before the architecture was defined (i.e., x86 only).
  */
 #define CBFS_ARCHITECTURE_UNKNOWN  0xFFFFFFFF
 #define CBFS_ARCHITECTURE_X86      0x00000001
-#define CBFS_ARCHITECTURE_ARMV7    0x00000010
+#define CBFS_ARCHITECTURE_ARM      0x00000010
+#define CBFS_ARCHITECTURE_ARM64    0x00000011
 
 /** This is a component header - every entry in the CBFS
     will have this header.
@@ -129,9 +131,43 @@ struct cbfs_file {
 	char magic[8];
 	uint32_t len;
 	uint32_t type;
-	uint32_t checksum;
+	uint32_t attributes_offset;
 	uint32_t offset;
+	char filename[];
 } __attribute__((packed));
+
+/* Depending on how the header was initialized, it may be backed with 0x00 or
+ * 0xff. Support both. */
+#define CBFS_FILE_ATTR_TAG_UNUSED 0
+#define CBFS_FILE_ATTR_TAG_UNUSED2 0xffffffff
+#define CBFS_FILE_ATTR_TAG_COMPRESSION 0x42435a4c
+#define CBFS_FILE_ATTR_TAG_HASH 0x68736148
+
+/* The common fields of extended cbfs file attributes.
+   Attributes are expected to start with tag/len, then append their
+   specific fields. */
+struct cbfs_file_attribute {
+	uint32_t tag;
+	/* len covers the whole structure, incl. tag and len */
+	uint32_t len;
+	uint8_t data[0];
+} __attribute__((packed));
+
+struct cbfs_file_attr_compression {
+	uint32_t tag;
+	uint32_t len;
+	/* whole file compression format. 0 if no compression. */
+	uint32_t compression;
+	uint32_t decompressed_size;
+} __attribute__((packed));
+
+struct cbfs_file_attr_hash {
+	uint32_t tag;
+	uint32_t len;
+	uint32_t hash_type;
+	/* hash_data is len - sizeof(struct) bytes */
+	uint8_t  hash_data[];
+} __PACKED;
 
 /*** Component sub-headers ***/
 
@@ -176,9 +212,6 @@ struct cbfs_optionrom {
 	uint32_t len;
 } __attribute__((packed));
 
-#define CBFS_NAME(_c) (((char *) (_c)) + sizeof(struct cbfs_file))
-#define CBFS_SUBHEADER(_p) ( (void *) ((((uint8_t *) (_p)) + ntohl((_p)->offset))) )
-
 #define CBFS_MEDIA_INVALID_MAP_ADDRESS	((void*)(0xffffffff))
 #define CBFS_DEFAULT_MEDIA		((void*)(0x0))
 
@@ -210,10 +243,11 @@ struct cbfs_media {
 	int (*close)(struct cbfs_media *media);
 };
 
-/* returns pointer to a file entry inside CBFS or NULL */
-struct cbfs_file *cbfs_get_file(struct cbfs_media *media, const char *name);
-
-/* returns pointer to file content inside CBFS after if type is correct */
+/*
+ * Returns pointer to a copy of the file content or NULL on error.
+ * If the file is compressed, data will be decompressed.
+ * The caller owns the returned memory.
+ */
 void *cbfs_get_file_content(struct cbfs_media *media, const char *name,
 			    int type, size_t *sz);
 
@@ -223,5 +257,28 @@ int cbfs_decompress(int algo, void *src, void *dst, int len);
 /* returns a pointer to CBFS master header, or CBFS_HEADER_INVALID_ADDRESS
  *  on failure */
 const struct cbfs_header *cbfs_get_header(struct cbfs_media *media);
+
+/* Persistent handle to a CBFS file that has not yet been fully mapped. */
+struct cbfs_handle {
+	struct cbfs_media media;	/* copy of original media object */
+	u32 type;			/* CBFS file type */
+	u32 media_offset;		/* offset from beginning of media */
+	u32 attribute_offset;		/* relative offset of attributes */
+	u32 content_offset;		/* relative offset of contents */
+	u32 content_size;		/* length of file contents in bytes */
+};
+
+/* Returns handle to CBFS file, or NULL on error. Does not yet map contents.
+ * Caller is responsible to free() returned handle after use. */
+struct cbfs_handle *cbfs_get_handle(struct cbfs_media *media, const char *name);
+
+/* Given a cbfs_handle and an attribute tag, return a mapping for the first
+ * instance of the attribute or NULL if none found. */
+void *cbfs_get_attr(struct cbfs_handle *handle, uint32_t tag);
+
+/* Given a cbfs_handle, returns the (decompressed) file contents in a buffer,
+ * or NULL on error. If |size| is passed, will store amount of bytes read there.
+ * If |limit| is not 0, will only return up to that many bytes. */
+void *cbfs_get_contents(struct cbfs_handle *handle, size_t *size, size_t limit);
 
 #endif

@@ -12,21 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 static void print_debug_pci_dev(unsigned dev)
 {
-	print_debug("PCI: ");
-	print_debug_hex8((dev >> 16) & 0xff);
-	print_debug_char(':');
-	print_debug_hex8((dev >> 11) & 0x1f);
-	print_debug_char('.');
-	print_debug_hex8((dev >> 8) & 7);
+	printk(BIOS_DEBUG, "PCI: %02x:%02x.%x",
+		(dev >> 16) & 0xff, (dev >> 11) & 0x1f, (dev >> 8) & 7);
 }
 
 static inline void print_pci_devices(void)
@@ -42,7 +33,7 @@ static inline void print_pci_devices(void)
 			continue;
 		}
 		print_debug_pci_dev(dev);
-		print_debug("\n");
+		printk(BIOS_DEBUG, "\n");
 	}
 }
 
@@ -50,20 +41,16 @@ static void dump_pci_device(unsigned dev)
 {
 	int i;
 	print_debug_pci_dev(dev);
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 
 	for (i = 0; i <= 255; i++) {
 		unsigned char val;
-		if ((i & 0x0f) == 0) {
-			print_debug_hex8(i);
-			print_debug_char(':');
-		}
+		if ((i & 0x0f) == 0)
+			printk(BIOS_DEBUG, "%02x:", i);
 		val = pci_read_config8(dev, i);
-		print_debug_char(' ');
-		print_debug_hex8(val);
-		if ((i & 0x0f) == 0x0f) {
-			print_debug("\n");
-		}
+		printk(BIOS_DEBUG, " %02x", val);
+		if ((i & 0x0f) == 0x0f)
+			printk(BIOS_DEBUG, "\n");
 	}
 }
 
@@ -86,22 +73,16 @@ static inline void dump_pci_devices(void)
 
 static inline void dump_io_resources(unsigned port)
 {
-
 	int i;
-	print_debug_hex16(port);
-	print_debug(":\n");
+	printk(BIOS_DEBUG, "%04x:\n", port);
 	for (i = 0; i < 256; i++) {
 		u8 val;
-		if ((i & 0x0f) == 0) {
-			print_debug_hex8(i);
-			print_debug_char(':');
-		}
+		if ((i & 0x0f) == 0)
+			printk(BIOS_DEBUG, "%02x:", i);
 		val = inb(port);
-		print_debug_char(' ');
-		print_debug_hex8(val);
-		if ((i & 0x0f) == 0x0f) {
-			print_debug("\n");
-		}
+		printk(BIOS_DEBUG, " %02x", val);
+		if ((i & 0x0f) == 0x0f)
+			printk(BIOS_DEBUG, "\n");
 		port++;
 	}
 }

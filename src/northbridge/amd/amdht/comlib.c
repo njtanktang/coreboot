@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #undef FILECODE
@@ -124,7 +120,7 @@ void CALLCONV Amdmemcpy(void *pDst, const void *pSrc, u32 length)
 	ASSERT(pDst != NULL);
 	ASSERT(pSrc != NULL);
 
-	while (length--){
+	while (length--) {
 	//	*(((u8*)pDst)++) = *(((u8*)pSrc)++);
 		*((u8*)pDst) = *((u8*)pSrc);
 		pDst++;
@@ -138,7 +134,7 @@ void CALLCONV Amdmemset(void *pBuf, u8 val, u32 length)
 	ASSERT(length <= 32768);
 	ASSERT(pBuf != NULL);
 
-	while (length--){
+	while (length--) {
 		//*(((u8*)pBuf)++) = val;
 		*(((u8*)pBuf)) = val;
 		pBuf++;
@@ -253,38 +249,38 @@ void ErrorStop(u32 value)
 ;
 ; For use with SimNow the unrotated error code is also written to port 84h
 ErrorStop   PROC FAR PASCAL PUBLIC Value:DWORD
-        pushad
-        mov     eax, Value
-        mov     bx, 0DEADh
-        out     84h, eax
+	pushad
+	mov     eax, Value
+	mov     bx, 0DEADh
+	out     84h, eax
 
 ErrorStopTop:
-        out     80h, eax
+	out     80h, eax
 
-        mov     cx, 4           ; Rotate the display by one nibble
+	mov     cx, 4           ; Rotate the display by one nibble
 @@:
-        bt      bx, 15
-        rcl     eax, 1
-        rcl     bx, 1
-        loop    @B
+	bt      bx, 15
+	rcl     eax, 1
+	rcl     bx, 1
+	loop    @B
 
 
-        push    eax             ; Delay a few hundred milliseconds
-        push    ebx
-        mov     ecx, 10h        ; TSC
-        db      00Fh, 032h      ; RDMSR
-        mov     ebx, eax
+	push    eax             ; Delay a few hundred milliseconds
+	push    ebx
+	mov     ecx, 10h        ; TSC
+	db      00Fh, 032h      ; RDMSR
+	mov     ebx, eax
 @@:
-        db      00Fh, 032h      ; RDMSR
-        sub     eax, ebx
-        cmp     eax, 500000000
-        jb      @B
-        pop     ebx
-        pop     eax
+	db      00Fh, 032h      ; RDMSR
+	sub     eax, ebx
+	cmp     eax, 500000000
+	jb      @B
+	pop     ebx
+	pop     eax
 
-        jmp     ErrorStopTop
+	jmp     ErrorStopTop
 
-        popad
-        ret
+	popad
+	ret
 ErrorStop   ENDP
 */

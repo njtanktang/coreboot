@@ -12,86 +12,14 @@
  * won't be a consistent mapping between the flat blob and the loaded program.
  */
 
-BASE_ADDRESS = 0x00000;
+#include <memlayout.h>
+#include <arch/header.ld>
 
 SECTIONS
 {
-	. = BASE_ADDRESS;
+	SET_COUNTER(rmodule, 0x00000000)
 
-	.payload :  {
-		/* C code of the module. */
-		_ram_seg = .;
-		*(.textfirst);
-		*(.text);
-		*(.text.*);
-		/* C read-only data. */
-		. = ALIGN(16);
-
-		__CTOR_LIST__ = .;
-		*(.ctors);
-		LONG(0);
-		__CTOR_END__ = .;
-
-		/* The driver sections are to allow linking coreboot's
-		 * ramstage with the rmodule linker. Any changes made in
-		 * ramstage.ld should be made here as well. */
-		pci_drivers = . ;
-		*(.rodata.pci_driver)
-		epci_drivers = . ;
-		cpu_drivers = . ;
-		*(.rodata.cpu_driver)
-		ecpu_drivers = . ;
-		_bs_init_begin = .;
-		*(.bs_init)
-		_bs_init_end = .;
-
-		. = ALIGN(4);
-
-		*(.rodata);
-		*(.rodata.*);
-		. = ALIGN(4);
-
-		/* The parameters section can be used to pass parameters
-		 * to a module, however there has to be an prior agreement
-		 * on how to interpret the parameters. */
-		_module_params_begin = .;
-		*(.module_parameters);
-		_module_params_end = .;
-		. = ALIGN(8);
-
-		/* Data section. */
-		_sdata = .;
-		*(.data);
-		*(.data.*);
-		. = ALIGN(4);
-		_edata = .;
-
-		. = ALIGN(8);
-	}
-
-	.bss (NOLOAD) : {
-		/* C uninitialized data of the module. */
-		_bss = .;
-		*(.bss);
-		*(.bss.*)
-		*(.sbss)
-		*(.sbss.*)
-		*(COMMON);
-		. = ALIGN(8);
-		_ebss = .;
-
-		/*
-		 * Place the heap after BSS. The heap size is passed in by
-		 * by way of ld --defsym=__heap_size=<>
-		 */
-		_heap = .;
-		. = . + __heap_size;
-		_eheap = .;
-		_eram_seg = .;
-	}
-
-	/DISCARD/ : {
-		/* Drop unnecessary sections. */
-		*(.eh_frame);
-	}
+	/* program.ld is directly included because there's no one particular
+	 * class that rmodule is used on. */
+	#include <lib/program.ld>
 }

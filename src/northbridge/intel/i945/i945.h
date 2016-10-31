@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef NORTHBRIDGE_INTEL_I945_H
@@ -23,11 +19,16 @@
 /* Northbridge BARs */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS	/* 4 KB per PCIe device */
 #define DEFAULT_X60BAR		0xfed13000
+#ifndef __ACPI__
+#define DEFAULT_MCHBAR		((u8 *)0xfed14000)	/* 16 KB */
+#define DEFAULT_DMIBAR		((u8 *)0xfed18000)	/* 4 KB */
+#else
 #define DEFAULT_MCHBAR		0xfed14000	/* 16 KB */
 #define DEFAULT_DMIBAR		0xfed18000	/* 4 KB */
+#endif
 #define DEFAULT_EPBAR		0xfed19000	/* 4 KB */
 
-#include "../../../southbridge/intel/i82801gx/i82801gx.h"
+#include <southbridge/intel/i82801gx/i82801gx.h>
 
 /* Everything below this line is ignored in the DSDT */
 #ifndef __ACPI__
@@ -83,6 +84,7 @@
 /* Device 0:1.0 PCI configuration space (PCI Express) */
 
 #define BCTRL1		0x3e	/* 16bit */
+#define PEGSTS		0x214	/* 32bit */
 
 
 /* Device 0:2.0 PCI configuration space (Graphics Device) */
@@ -350,7 +352,7 @@ static inline void barrier(void) { asm("" ::: "memory"); }
 
 int i945_silicon_revision(void);
 void i945_early_initialization(void);
-void i945_late_initialization(void);
+void i945_late_initialization(int s3resume);
 
 /* provided by mainboard code */
 void setup_ich7_gpios(void);
@@ -361,6 +363,8 @@ void dump_pci_device(unsigned dev);
 void dump_pci_devices(void);
 void dump_spd_registers(void);
 void dump_mem(unsigned start, unsigned end);
+
+u32 decode_igd_memory_size(u32 gms);
 
 #endif /* __ACPI__ */
 

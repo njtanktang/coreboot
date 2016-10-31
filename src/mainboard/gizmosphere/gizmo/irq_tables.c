@@ -12,12 +12,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
-
 
 #include <console/console.h>
 #include <device/pci.h>
@@ -25,7 +20,6 @@
 #include <stdint.h>
 #include <arch/pirq_routing.h>
 #include <cpu/amd/amdfam14.h>
-
 
 static void write_pirq_info(struct irq_info *pirq_info, u8 bus, u8 devfn,
 			    u8 link0, u16 bitmap0, u8 link1, u16 bitmap1,
@@ -45,9 +39,6 @@ static void write_pirq_info(struct irq_info *pirq_info, u8 bus, u8 devfn,
 	pirq_info->slot = slot;
 	pirq_info->rfu = rfu;
 }
-extern u8 bus_isa;
-extern u8 bus_sb800[6];
-extern unsigned long sbdn_sb800;
 
 unsigned long write_pirq_routing_table(unsigned long addr)
 {
@@ -59,10 +50,6 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 
 	u8 sum = 0;
 	int i;
-
-
-	get_bus_conf();		/* it will find out all bus num and apic that share with mptable.c and mptable.c and acpi_tables.c */
-
 
 	/* Align the table to be 16 byte aligned. */
 	addr += 15;
@@ -77,8 +64,8 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 	pirq->signature = PIRQ_SIGNATURE;
 	pirq->version = PIRQ_VERSION;
 
-	pirq->rtr_bus = bus_sb800[0];
-	pirq->rtr_devfn = ((sbdn_sb800 + 0x14) << 3) | 4;
+	pirq->rtr_bus = 0;
+	pirq->rtr_devfn = PCI_DEVFN(0x14, 4);
 
 	pirq->exclusive_irqs = 0;
 
@@ -92,18 +79,13 @@ unsigned long write_pirq_routing_table(unsigned long addr)
 	pirq_info = (void *)(&pirq->checksum + 1);
 	slot_num = 0;
 
-
 	/* pci bridge */
-	write_pirq_info(pirq_info, bus_sb800[0], ((sbdn_sb800 + 0x14) << 3) | 4,
+	write_pirq_info(pirq_info, 0, PCI_DEVFN(0x14, 4),
 			0x1, 0xdef8, 0x2, 0xdef8, 0x3, 0xdef8, 0x4, 0xdef8, 0,
 			0);
 	pirq_info++;
 
-
-
 	slot_num++;
-
-
 
 	pirq->size = 32 + 16 * slot_num;
 

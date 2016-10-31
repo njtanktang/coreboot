@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -38,7 +34,7 @@ static void store_initial_timestamp(void)
 static void enable_spi_prefetch(void)
 {
 	u8 reg8;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = PCI_DEV(0, 0x1f, 0);
 
@@ -51,9 +47,9 @@ static void enable_spi_prefetch(void)
 
 static void map_rcba(void)
 {
-	device_t dev = PCI_DEV(0, 0x1f, 0);
+	pci_devfn_t dev = PCI_DEV(0, 0x1f, 0);
 
-	pci_write_config32(dev, RCBA, DEFAULT_RCBA | 1);
+	pci_write_config32(dev, RCBA, (uintptr_t)DEFAULT_RCBA | 1);
 }
 
 static void enable_port80_on_lpc(void)
@@ -87,9 +83,8 @@ static void set_spi_speed(void)
 
 static void bootblock_southbridge_init(void)
 {
-#if CONFIG_COLLECT_TIMESTAMPS
 	store_initial_timestamp();
-#endif
+
 	map_rcba();
 	enable_spi_prefetch();
 	enable_port80_on_lpc();

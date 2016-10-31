@@ -12,10 +12,8 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
+
+ifeq ($(CONFIG_SOUTHBRIDGE_INTEL_I82801GX),y)
 
 ramstage-y += i82801gx.c
 ramstage-y += ac97.c
@@ -30,10 +28,15 @@ ramstage-y += smbus.c
 ramstage-y += usb.c
 ramstage-y += usb_ehci.c
 
+ramstage-srcs += src/mainboard/$(MAINBOARDDIR)/hda_verb.c
+
 ramstage-y += reset.c
 ramstage-y += watchdog.c
 
 ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi.c
+ramstage-$(CONFIG_HAVE_SMI_HANDLER) += ../../../cpu/x86/smm/smmrelocate.S
 smm-$(CONFIG_HAVE_SMI_HANDLER) += smihandler.c
 
 romstage-y += early_smbus.c early_lpc.c
+
+endif

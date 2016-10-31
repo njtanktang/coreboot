@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -49,7 +45,7 @@
 OperationRegion(K8TR, PCI_Config, 0xE4, 0x4)
 Field(K8TR, DWordAcc, NoLock, Preserve) {
 	,     1,
-	THTP, 1, /* Temperature sensor trip occured */
+	THTP, 1, /* Temperature sensor trip occurred */
 	CORE, 1, /* Select Core */
 	TTS0, 1, /* Temperature sensor trip on CPU1 (or single core CPU0) */
 	TTS1, 1, /* Temperature sensor trip on CPU0 */
@@ -139,7 +135,7 @@ ThermalZone (K8T1) {
 	Name(_UID, "k8-1")
 	Name(_STR, Unicode("K8 compatible CPU Core 1 Thermal Sensor 2"))
 
-	Name(_TZD, Package () {\_PR.CPU0})
+	Name(_TZD, Package () {\_PR.CP00})
 
 	Method(_STA) {
 		Store(CORE, Local0)
@@ -190,7 +186,7 @@ ThermalZone (K8T2) {
 	Name(_UID, "k8-2")
 	Name(_STR, Unicode("K8 compatible CPU Core 2 Thermal Sensor 1"))
 
-	Name(_TZD, Package () {\_PR.CPU0})
+	Name(_TZD, Package () {\_PR.CP00})
 
 	Method(_STA) {
 		Store(CORE, Local0)
@@ -241,7 +237,7 @@ ThermalZone (K8T3) {
 	Name(_UID, "k8-3")
 	Name(_STR, Unicode("K8 compatible CPU Core 2 Thermal Sensor 2"))
 
-	Name(_TZD, Package () {\_PR.CPU0})
+	Name(_TZD, Package () {\_PR.CP00})
 
 	Method(_STA) {
 		Store(CORE, Local0)

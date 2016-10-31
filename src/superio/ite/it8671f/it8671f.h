@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_ITE_IT8671F_H
@@ -34,6 +30,6 @@
 #define IT8671F_KBCM 0x06 /* PS/2 mouse */
 
 void it8671f_48mhz_clkin(void);
-void it8671f_enable_serial(device_t dev, u16 iobase);
+void it8671f_enable_serial(pnp_devfn_t dev, u16 iobase);
 
-#endif /* SUPERIO_ITE_IT8671F__H */
+#endif /* SUPERIO_ITE_IT8671F_H */

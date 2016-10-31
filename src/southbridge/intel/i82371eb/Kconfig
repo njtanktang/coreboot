@@ -5,4 +5,3 @@ config BOOTBLOCK_SOUTHBRIDGE_INIT
 	string
 	default "southbridge/intel/i82371eb/bootblock.c"
 	depends on SOUTHBRIDGE_INTEL_I82371EB
-

@@ -11,17 +11,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
+#include "SB800.h"
+#include <southbridge/amd/cimx/sb800/gpio_oem.h>
 #include "heapManager.h"
-#include <northbridge/amd/agesa/family14/dimmSpd.h>
 #include <stdlib.h>
 
 /* Should AGESA_GNB_PCIE_SLOT_RESET use agesa_NoopSuccess?
@@ -29,15 +26,12 @@
  * Dedicated reset is not needed for the on-board Intel I210 GbE controller.
  */
 
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr);
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,			agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,		agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,			agesa_LocateBuffer },
 	{AGESA_DO_RESET,			agesa_Reset },
-	{AGESA_READ_SPD,			BiosReadSpd },
+	{AGESA_READ_SPD,			agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,		agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,			agesa_RunFuncOnAp },
 	{AGESA_GNB_PCIE_SLOT_RESET,		agesa_NoopUnsupported },
@@ -49,7 +43,7 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
 
 /*	Call the host environment interface to provide a user hook opportunity. */
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	MEM_DATA_STRUCT *MemData = ConfigPtr;
 

@@ -4,6 +4,8 @@
  * Copyright (C) 2004 SUSE LINUX AG
  * Copyright (C) 2004 Nick Barker
  * Copyright (C) 2008-2009 coresystems GmbH
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
+ * Copyright (C) 2016 Siemens AG
  * (Written by Stefan Reinauer <stepan@coresystems.de>)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -27,14 +25,47 @@
 #ifndef __ASM_ACPI_H
 #define __ASM_ACPI_H
 
-#if CONFIG_GENERATE_ACPI_TABLES
+#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME) && \
+	! IS_ENABLED(CONFIG_RELOCATABLE_RAMSTAGE)
+#define HIGH_MEMORY_SAVE	(CONFIG_RAMTOP - CONFIG_RAMBASE)
+#else
+#define HIGH_MEMORY_SAVE	0
+#endif
 
+#if IS_ENABLED(CONFIG_ACPI_INTEL_HARDWARE_SLEEP_VALUES)
+/*
+ * The type and enable fields are common in ACPI, but the
+ * values themselves are hardware implementation idefiend.
+ */
+#define SLP_EN		(1 << 13)
+#define SLP_TYP_SHIFT	10
+#define SLP_TYP		(7 << SLP_TYP_SHIFT)
+#define  SLP_TYP_S0	0
+#define  SLP_TYP_S1	1
+#define  SLP_TYP_S3	5
+#define  SLP_TYP_S4	6
+#define  SLP_TYP_S5	7
+#endif
+
+#if !defined(__ASSEMBLER__) && !defined(__ACPI__) && !defined(__ROMCC__)
 #include <stdint.h>
+#include <rules.h>
+#include <commonlib/helpers.h>
+#include <device/device.h>
 
 #define RSDP_SIG		"RSD PTR "  /* RSDT pointer signature */
 #define ACPI_TABLE_CREATOR	"COREBOOT"  /* Must be exactly 8 bytes long! */
 #define OEM_ID			"CORE  "    /* Must be exactly 6 bytes long! */
 #define ASLC			"CORE"      /* Must be exactly 4 bytes long! */
+
+/* Use GOOGCBxx range until coreboot ID is official */
+#define COREBOOT_ACPI_ID	"GOOG"      /* ACPI ID for coreboot HIDs */
+
+/* List of ACPI HID that use the coreboot ACPI ID */
+enum coreboot_acpi_ids {
+	COREBOOT_ACPI_ID_CBTABLE	= 0xCB00, /* GOOGCB00 */
+	COREBOOT_ACPI_ID_MAX		= 0xCBFF, /* GOOGCBFF */
+};
 
 /* RSDP (Root System Description Pointer) */
 typedef struct acpi_rsdp {
@@ -130,6 +161,13 @@ typedef struct acpi_mcfg {
 	u8 reserved[8];
 } __attribute__ ((packed)) acpi_mcfg_t;
 
+typedef struct acpi_tcpa {
+	struct acpi_table_header header;
+	u16 platform_class;
+	u32 laml;
+	u64 lasa;
+} __attribute__ ((packed)) acpi_tcpa_t;
+
 typedef struct acpi_mcfg_mmconfig {
 	u32 base_address;
 	u32 base_reserved;
@@ -187,6 +225,32 @@ typedef struct acpi_madt {
 	u32 flags;			/* Multiple APIC flags */
 } __attribute__ ((packed)) acpi_madt_t;
 
+typedef struct acpi_ivrs_info {
+} __attribute__ ((packed)) acpi_ivrs_info_t;
+
+/* IVRS IVHD (I/O Virtualization Hardware Definition Block) Type 10h */
+typedef struct acpi_ivrs_ivhd {
+	uint8_t type;
+	uint8_t flags;
+	uint16_t length;
+	uint16_t device_id;
+	uint16_t capability_offset;
+	uint32_t iommu_base_low;
+	uint32_t iommu_base_high;
+	uint16_t pci_segment_group;
+	uint16_t iommu_info;
+	uint32_t iommu_feature_info;
+	uint8_t entry[0];
+} __attribute__ ((packed)) acpi_ivrs_ivhd_t;
+
+/* IVRS (I/O Virtualization Reporting Structure) Type 10h */
+typedef struct acpi_ivrs {
+	struct acpi_table_header header;
+	uint32_t iv_info;
+	uint32_t reserved[2];
+	struct acpi_ivrs_ivhd ivhd;
+} __attribute__ ((packed)) acpi_ivrs_t;
+
 enum dev_scope_type {
 	SCOPE_PCI_ENDPOINT = 1,
 	SCOPE_PCI_SUB = 2,
@@ -217,6 +281,11 @@ enum {
 	DRHD_INCLUDE_PCI_ALL = 1
 };
 
+enum dmar_flags {
+	DMAR_INTR_REMAP		= 1,
+	DMAR_X2APIC_OPT_OUT	= 2,
+};
+
 typedef struct dmar_entry {
 	u16 type;
 	u16 length;
@@ -225,6 +294,14 @@ typedef struct dmar_entry {
 	u16 segment;
 	u64 bar;
 } __attribute__ ((packed)) dmar_entry_t;
+
+typedef struct dmar_atsr_entry {
+	u16 type;
+	u16 length;
+	u8 flags;
+	u8 reserved;
+	u16 segment;
+} __attribute__ ((packed)) dmar_atsr_entry_t;
 
 /* DMAR (DMA Remapping Reporting Structure) */
 typedef struct acpi_dmar {
@@ -484,16 +561,18 @@ typedef struct acpi_tstate {
 	u32 status;
 } __attribute__ ((packed)) acpi_tstate_t;
 
+unsigned long fw_cfg_acpi_tables(unsigned long start);
+
 /* These are implemented by the target port or north/southbridge. */
 unsigned long write_acpi_tables(unsigned long addr);
 unsigned long acpi_fill_madt(unsigned long current);
 unsigned long acpi_fill_mcfg(unsigned long current);
-unsigned long acpi_fill_srat(unsigned long current);
-unsigned long acpi_fill_slit(unsigned long current);
-unsigned long acpi_fill_ssdt_generator(unsigned long current,
-				       const char *oem_table_id);
+unsigned long acpi_fill_ivrs_ioapic(acpi_ivrs_t* ivrs, unsigned long current);
 void acpi_create_ssdt_generator(acpi_header_t *ssdt, const char *oem_table_id);
 void acpi_create_fadt(acpi_fadt_t *fadt,acpi_facs_t *facs, void *dsdt);
+#if IS_ENABLED(CONFIG_COMMON_FADT)
+void acpi_fill_fadt(acpi_fadt_t * fadt);
+#endif
 
 void update_ssdt(void *ssdt);
 void update_ssdtx(void *ssdtx, int i);
@@ -521,79 +600,122 @@ int acpi_create_srat_mem(acpi_srat_mem_t *mem, u8 node, u32 basek,u32 sizek,
 int acpi_create_mcfg_mmconfig(acpi_mcfg_mmconfig_t *mmconfig, u32 base,
 			      u16 seg_nr, u8 start, u8 end);
 unsigned long acpi_create_srat_lapics(unsigned long current);
-void acpi_create_srat(acpi_srat_t *srat);
+void acpi_create_srat(acpi_srat_t *srat,
+		      unsigned long (*acpi_fill_srat)(unsigned long current));
 
-void acpi_create_slit(acpi_slit_t *slit);
+void acpi_create_slit(acpi_slit_t *slit,
+		      unsigned long (*acpi_fill_slit)(unsigned long current));
 
+void acpi_create_ivrs(acpi_ivrs_t *ivrs,
+		      unsigned long (*acpi_fill_ivrs)(acpi_ivrs_t* ivrs_struct, unsigned long current));
+
+#if ENV_RAMSTAGE && !defined(__SIMPLE_DEVICE__)
 void acpi_create_hpet(acpi_hpet_t *hpet);
+unsigned long acpi_write_hpet(device_t device, unsigned long start, acpi_rsdp_t *rsdp);
+
+/* cpu/intel/speedstep/acpi.c */
+void generate_cpu_entries(device_t device);
+#endif
 
 void acpi_create_mcfg(acpi_mcfg_t *mcfg);
 
 void acpi_create_facs(acpi_facs_t *facs);
 
-void acpi_create_dmar(acpi_dmar_t *dmar);
+void acpi_create_dmar(acpi_dmar_t *dmar, enum dmar_flags flags,
+		      unsigned long (*acpi_fill_dmar) (unsigned long));
 unsigned long acpi_create_dmar_drhd(unsigned long current, u8 flags,
 				    u16 segment, u32 bar);
+unsigned long acpi_create_dmar_atsr(unsigned long current, u8 flags,
+				    u16 segment);
 void acpi_dmar_drhd_fixup(unsigned long base, unsigned long current);
-unsigned long acpi_create_dmar_drhd_ds_pci(unsigned long current, u8 segment,
-					   u8 dev, u8 fn);
+void acpi_dmar_atsr_fixup(unsigned long base, unsigned long current);
+unsigned long acpi_create_dmar_drhd_ds_pci_br(unsigned long current,
+					   u8 bus, u8 dev, u8 fn);
+unsigned long acpi_create_dmar_drhd_ds_pci(unsigned long current,
+					   u8 bus, u8 dev, u8 fn);
+unsigned long acpi_create_dmar_drhd_ds_ioapic(unsigned long current,
+					      u8 enumeration_id,
+					      u8 bus, u8 dev, u8 fn);
+unsigned long acpi_create_dmar_drhd_ds_msi_hpet(unsigned long current,
+						u8 enumeration_id,
+						u8 bus, u8 dev, u8 fn);
+void acpi_write_hest(acpi_hest_t *hest,
+		     unsigned long (*acpi_fill_hest)(acpi_hest_t *hest));
 
-unsigned long acpi_fill_dmar(unsigned long);
-
-#if CONFIG_HAVE_ACPI_SLIC
-unsigned long acpi_create_slic(unsigned long current);
-#endif
-
-void acpi_write_rsdt(acpi_rsdt_t *rsdt);
-void acpi_write_xsdt(acpi_xsdt_t *xsdt);
-void acpi_write_rsdp(acpi_rsdp_t *rsdp, acpi_rsdt_t *rsdt, acpi_xsdt_t *xsdt);
-
-void acpi_write_hest(acpi_hest_t *hest);
 unsigned long acpi_create_hest_error_source(acpi_hest_t *hest, acpi_hest_esd_t *esd, u16 type, void *data, u16 len);
-unsigned long acpi_fill_hest(acpi_hest_t *hest);
 
 void acpi_save_gnvs(u32 gnvs_address);
 
-#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)
-/* 0 = S0, 1 = S1 ...*/
-extern u8 acpi_slp_type;
-
-int acpi_is_wakeup(void);
-int acpi_is_wakeup_s3(void);
-int acpi_is_wakeup_early(void);
-
+/* For ACPI S3 support. */
 void acpi_fail_wakeup(void);
 void acpi_resume(void *wake_vec);
-void __attribute__((weak)) mainboard_suspend_resume(void);
+void acpi_prepare_resume_backup(void);
+void mainboard_suspend_resume(void);
 void *acpi_find_wakeup_vector(void);
-void *acpi_get_wakeup_rsdp(void);
-void acpi_jump_to_wakeup(void *wakeup_addr);
 
+enum {
+	ACPI_S0,
+	ACPI_S1,
+	ACPI_S2,
+	ACPI_S3,
+	ACPI_S4,
+	ACPI_S5,
+};
+
+#if IS_ENABLED(CONFIG_ACPI_INTEL_HARDWARE_SLEEP_VALUES)
+/* Given the provided PM1 control register return the ACPI sleep type. */
+static inline int acpi_sleep_from_pm1(uint32_t pm1_cnt)
+{
+	switch (((pm1_cnt) & SLP_TYP) >> SLP_TYP_SHIFT) {
+	case SLP_TYP_S0: return ACPI_S0;
+	case SLP_TYP_S1: return ACPI_S1;
+	case SLP_TYP_S3: return ACPI_S3;
+	case SLP_TYP_S4: return ACPI_S4;
+	case SLP_TYP_S5: return ACPI_S5;
+	}
+	return -1;
+}
+#endif
+
+/* Returns ACPI_Sx values. */
 int acpi_get_sleep_type(void);
-#endif	/* IS_ENABLED(CONFIG_HAVE_ACPI_RESUME) */
 
-/* northbridge/amd/amdfam10/amdfam10_acpi.c */
-unsigned long acpi_add_ssdt_pstates(acpi_rsdp_t *rsdp, unsigned long current);
-
-/* cpu/intel/speedstep/acpi.c */
-void generate_cpu_entries(void);
-
-#else // CONFIG_GENERATE_ACPI_TABLES
-
-#define write_acpi_tables(start) (start)
-
-#endif	/* CONFIG_GENERATE_ACPI_TABLES */
+/* Read and clear GPE status */
+int acpi_get_gpe(int gpe);
 
 static inline int acpi_s3_resume_allowed(void)
 {
 	return IS_ENABLED(CONFIG_HAVE_ACPI_RESUME);
 }
 
-#if !IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)
-#define acpi_slp_type 0
+#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)
+extern int acpi_slp_type;
+
+#ifdef __PRE_RAM__
+static inline int acpi_is_wakeup_s3(void)
+{
+	return (acpi_get_sleep_type() == ACPI_S3);
+}
+#else
+int acpi_is_wakeup(void);
+int acpi_is_wakeup_s3(void);
+int acpi_is_wakeup_s4(void);
+#endif
+void acpi_prepare_for_resume(void);
+
+#else
+#define acpi_slp_type ACPI_S0
 static inline int acpi_is_wakeup(void) { return 0; }
 static inline int acpi_is_wakeup_s3(void) { return 0; }
-static inline int acpi_is_wakeup_early(void) { return 0; }
+static inline int acpi_is_wakeup_s4(void) { return 0; }
+static inline void acpi_prepare_for_resume(void) { }
 #endif
+
+static inline uintptr_t acpi_align_current(uintptr_t current)
+{
+	return ALIGN(current, 16);
+}
+
+#endif  // !defined(__ASSEMBLER__) && !defined(__ACPI__) && !defined(__ROMC__)
 
 #endif  /* __ASM_ACPI_H */

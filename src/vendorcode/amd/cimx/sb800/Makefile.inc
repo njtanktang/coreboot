@@ -12,15 +12,16 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 CPPFLAGS_x86_32 += -I$(src)/mainboard/$(MAINBOARDDIR)
 CPPFLAGS_x86_32 += -I$(src)/southbridge/amd/cimx/sb800
 CPPFLAGS_x86_32 += -I$(src)/include/cpu/amd/common
 CPPFLAGS_x86_32 += -I$(src)/vendorcode/amd/cimx/sb800
+
+CPPFLAGS_x86_64 += -I$(src)/mainboard/$(MAINBOARDDIR)
+CPPFLAGS_x86_64 += -I$(src)/southbridge/amd/cimx/sb800
+CPPFLAGS_x86_64 += -I$(src)/include/cpu/amd/common
+CPPFLAGS_x86_64 += -I$(src)/vendorcode/amd/cimx/sb800
 
 romstage-y += ACPILIB.c
 romstage-y += AZALIA.c
@@ -33,7 +34,7 @@ romstage-y += PMIO2LIB.c
 romstage-y += SATA.c
 romstage-y += SBCMN.c
 romstage-y += SBMAIN.c
-romstage-y += SBPOR.c
+romstage-y += SBPort.c
 romstage-y += MEMLIB.c
 romstage-y += PCILIB.c
 romstage-y += IOLIB.c
@@ -57,7 +58,7 @@ ramstage-y += PMIO2LIB.c
 ramstage-y += SATA.c
 ramstage-y += SBCMN.c
 ramstage-y += SBMAIN.c
-ramstage-y += SBPOR.c
+ramstage-y += SBPort.c
 ramstage-y += MEMLIB.c
 ramstage-y += PCILIB.c
 ramstage-y += IOLIB.c

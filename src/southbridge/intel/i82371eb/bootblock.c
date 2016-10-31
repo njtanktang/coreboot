@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -26,7 +22,7 @@
 static void i82371eb_enable_rom(void)
 {
 	u16 reg16;
-	device_t dev;
+	pci_devfn_t dev;
 
 	/*
 	 * Note: The Intel 82371AB/EB/MB ISA device can be on different

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 
@@ -22,9 +18,11 @@
  * C Bootstrap code for the coreboot
  */
 
+#include <arch/exception.h>
 #include <bootstate.h>
 #include <console/console.h>
 #include <console/post_codes.h>
+#include <cbmem.h>
 #include <version.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -32,7 +30,7 @@
 #include <stdlib.h>
 #include <reset.h>
 #include <boot/tables.h>
-#include <payload_loader.h>
+#include <program_loading.h>
 #include <lib.h>
 #if CONFIG_HAVE_ACPI_RESUME
 #include <arch/acpi.h>
@@ -40,12 +38,6 @@
 #include <timer.h>
 #include <timestamp.h>
 #include <thread.h>
-
-#if BOOT_STATE_DEBUG
-#define BS_DEBUG_LVL BIOS_DEBUG
-#else
-#define BS_DEBUG_LVL BIOS_NEVER
-#endif
 
 static boot_state_t bs_pre_device(void *arg);
 static boot_state_t bs_dev_init_chips(void *arg);
@@ -180,8 +172,6 @@ static boot_state_t bs_post_device(void *arg)
 	dev_finalize();
 	timestamp_add_now(TS_DEVICE_DONE);
 
-	timestamp_reinit();
-
 	return BS_OS_RESUME_CHECK;
 }
 
@@ -196,6 +186,8 @@ static boot_state_t bs_os_resume_check(void *arg)
 		boot_states[BS_OS_RESUME].arg = wake_vector;
 		return BS_OS_RESUME;
 	}
+
+	acpi_prepare_resume_backup();
 #endif
 	timestamp_add_now(TS_CBMEM_POST);
 
@@ -226,28 +218,16 @@ static boot_state_t bs_write_tables(void *arg)
 
 static boot_state_t bs_payload_load(void *arg)
 {
-	struct payload *payload;
-
-	timestamp_add_now(TS_LOAD_PAYLOAD);
-
-	payload = payload_load();
-
-	if (! payload)
-		die("Could not load payload\n");
-
-	/* Pass the payload to the next state. */
-	boot_states[BS_PAYLOAD_BOOT].arg = payload;
+	payload_load();
 
 	return BS_PAYLOAD_BOOT;
 }
 
 static boot_state_t bs_payload_boot(void *arg)
 {
-	struct payload *payload = arg;
+	payload_run();
 
-	payload_run(payload);
-
-	printk(BIOS_EMERG, "Boot failed");
+	printk(BIOS_EMERG, "Boot failed\n");
 	/* Returning from this state will fail because the following signals
 	 * return to a completed state. */
 	return BS_PAYLOAD_BOOT;
@@ -265,21 +245,17 @@ static void bs_sample_time(struct boot_state *state)
 
 static void bs_report_time(struct boot_state *state)
 {
-	struct rela_time entry_time;
-	struct rela_time run_time;
-	struct rela_time exit_time;
-	struct boot_state_times *times;
+	long entry_time;
+	long run_time;
+	long exit_time;
+	struct mono_time *samples = &state->times.samples[0];
 
-	times = &state->times;
-	entry_time = mono_time_diff(&times->samples[0], &times->samples[1]);
-	run_time = mono_time_diff(&times->samples[1], &times->samples[2]);
-	exit_time = mono_time_diff(&times->samples[2], &times->samples[3]);
+	entry_time = mono_time_diff_microseconds(&samples[0], &samples[1]);
+	run_time = mono_time_diff_microseconds(&samples[1], &samples[2]);
+	exit_time = mono_time_diff_microseconds(&samples[2], &samples[3]);
 
 	printk(BIOS_DEBUG, "BS: %s times (us): entry %ld run %ld exit %ld\n",
-	       state->name,
-	       rela_time_in_microseconds(&entry_time),
-	       rela_time_in_microseconds(&run_time),
-	       rela_time_in_microseconds(&exit_time));
+	       state->name, entry_time, run_time, exit_time);
 }
 #else
 static inline void bs_sample_time(struct boot_state *state) {}
@@ -314,12 +290,11 @@ static void bs_call_callbacks(struct boot_state *state,
 			phase->callbacks = bscb->next;
 			bscb->next = NULL;
 
-#if BOOT_STATE_DEBUG
-			printk(BS_DEBUG_LVL, "BS: callback (%p) @ %s.\n",
-			       bscb, bscb->location);
+#if IS_ENABLED(CONFIG_DEBUG_BOOT_STATE)
+			printk(BIOS_DEBUG, "BS: callback (%p) @ %s.\n",
+				bscb, bscb->location);
 #endif
 			bscb->callback(bscb->arg);
-
 			continue;
 		}
 
@@ -359,7 +334,9 @@ static void bs_walk_state_machine(void)
 			break;
 		}
 
-		printk(BS_DEBUG_LVL, "BS: Entering %s state.\n", state->name);
+		if (IS_ENABLED(CONFIG_DEBUG_BOOT_STATE))
+			printk(BIOS_DEBUG, "BS: Entering %s state.\n",
+				state->name);
 
 		bs_run_timers(0);
 
@@ -377,11 +354,17 @@ static void bs_walk_state_machine(void)
 
 		next_id = state->run_state(state->arg);
 
-		printk(BS_DEBUG_LVL, "BS: Exiting %s state.\n", state->name);
+		if (IS_ENABLED(CONFIG_DEBUG_BOOT_STATE))
+			printk(BIOS_DEBUG, "BS: Exiting %s state.\n",
+			state->name);
 
 		bs_sample_time(state);
 
 		bs_call_callbacks(state, current_phase.seq);
+
+		if (IS_ENABLED(CONFIG_DEBUG_BOOT_STATE))
+			printk(BIOS_DEBUG,
+				"----------------------------------------\n");
 
 		/* Update the current phase with new state id and sequence. */
 		current_phase.state_id = next_id;
@@ -431,46 +414,56 @@ int boot_state_sched_on_exit(struct boot_state_callback *bscb,
 
 static void boot_state_schedule_static_entries(void)
 {
-	extern struct boot_state_init_entry _bs_init_begin;
-	extern struct boot_state_init_entry _bs_init_end;
-	struct boot_state_init_entry *cur;
+	extern struct boot_state_init_entry *_bs_init_begin[];
+	struct boot_state_init_entry **slot;
 
-	cur = &_bs_init_begin;
+	for (slot = &_bs_init_begin[0]; *slot != NULL; slot++) {
+		struct boot_state_init_entry *cur = *slot;
 
-	while (cur != &_bs_init_end) {
 		if (cur->when == BS_ON_ENTRY)
 			boot_state_sched_on_entry(&cur->bscb, cur->state);
 		else
 			boot_state_sched_on_exit(&cur->bscb, cur->state);
-		cur++;
 	}
 }
 
 void main(void)
 {
-	/* Record current time, try to locate timestamps in CBMEM. */
-	timestamp_init(rdtsc());
+	/* TODO: Understand why this is here and move to arch/platform code. */
+	/* For MMIO UART this needs to be called before any other printk. */
+	if (IS_ENABLED(CONFIG_ARCH_X86))
+		init_timer();
 
-	timestamp_add_now(TS_START_RAMSTAGE);
-	post_code(POST_ENTRY_RAMSTAGE);
-
-	/* console_init() MUST PRECEDE ALL printk()! */
+	/* console_init() MUST PRECEDE ALL printk()! Additionally, ensure
+	 * it is the very first thing done in ramstage.*/
 	console_init();
 
 	post_code(POST_CONSOLE_READY);
 
-	printk(BIOS_NOTICE, "coreboot-%s%s %s booting...\n",
-		      coreboot_version, coreboot_extra_version, coreboot_build);
+	/*
+	 * CBMEM needs to be recovered in the EARLY_CBMEM_INIT case because
+	 * timestamps, APCI, etc rely on the cbmem infrastructure being
+	 * around. Explicitly recover it.
+	 */
+	if (IS_ENABLED(CONFIG_EARLY_CBMEM_INIT))
+		cbmem_initialize();
 
-	post_code(POST_CONSOLE_BOOT_MSG);
+	/* Record current time, try to locate timestamps in CBMEM. */
+	timestamp_init(timestamp_get());
 
+	timestamp_add_now(TS_START_RAMSTAGE);
+	post_code(POST_ENTRY_RAMSTAGE);
+
+	/* Handoff sleep type from romstage. */
+#if CONFIG_HAVE_ACPI_RESUME
+	acpi_is_wakeup();
+#endif
+
+	exception_init();
 	threads_initialize();
 
 	/* Schedule the static boot state entries. */
 	boot_state_schedule_static_entries();
-
-	/* FIXME: Is there a better way to handle this? */
-	init_timer();
 
 	bs_walk_state_machine();
 

@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -60,8 +56,9 @@ static void usb_ehci_init(struct device *dev)
 	res = find_resource(dev, PCI_BASE_ADDRESS_0);
 	if (res) {
 		/* Number of ports and companion controllers.  */
-		reg32 = read32(res->base + 4);
-		write32(res->base + 4, (reg32 & 0xfff00000) | 2);
+		reg32 = read32((u32 *)(uintptr_t)(res->base + 4));
+		write32((u32 *)(uintptr_t)(res->base + 4),
+			(reg32 & 0xfff00000) | 2);
 	}
 
 	/* Restore protection. */

@@ -12,18 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
-#include <arch/hlt.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/pci_ids.h>
+#include <halt.h>
 #include <string.h>
 #include "me.h"
 #include "pch.h"
@@ -199,9 +194,7 @@ int intel_early_me_init_done(u8 status)
 	/* Perform the requested reset */
 	if (reset) {
 		outb(reset, 0xcf9);
-		while (1) {
-			hlt();
-		}
+		halt();
 	}
 	return -1;
 }

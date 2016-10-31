@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,7 +20,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
-#include "ck804.h"
+#include "chip.h"
 
 static void pci_init(struct device *dev)
 {
@@ -37,18 +33,9 @@ static void pci_init(struct device *dev)
 	dword |= (1 << 30);	/* Clear possible errors */
 	pci_write_config32(dev, 0x04, dword);
 
-#if 0
-	word = pci_read_config16(dev, 0x48);
-	word |= (1 << 0);	/* MRL2MRM */
-	word |= (1 << 2);	/* MR2MRM */
-	pci_write_config16(dev, 0x48, word);
-#endif
-
-#if 1
 	dword = pci_read_config32(dev, 0x4c);
 	dword |= 0x00440000;	/* TABORT_SER_ENABLE Park Last Enable. */
 	pci_write_config32(dev, 0x4c, dword);
-#endif
 
 	pci_domain_dev = dev->bus->dev;
 	while (pci_domain_dev) {
@@ -84,7 +71,6 @@ static struct device_operations pci_ops = {
 	.enable_resources = pci_bus_enable_resources,
 	.init             = pci_init,
 	.scan_bus         = pci_scan_bridge,
-	// .enable        = ck804_enable,
 };
 
 static const struct pci_driver pci_driver __pci_driver = {

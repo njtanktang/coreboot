@@ -22,10 +22,6 @@
  *  WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the terms and
  *  conditions of the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 \*****************************************************************************/
 
 #include <fcntl.h>
@@ -163,8 +159,8 @@ int main(int argc, char *argv[])
 		}
 
 		if (fd_stat.st_size < CMOS_SIZE) {
-			lseek(fd, CMOS_SIZE - 1, SEEK_SET);
-			if (write(fd, "\0", 1) != 1) {
+			if ((lseek(fd, CMOS_SIZE - 1, SEEK_SET) == -1) ||
+			    (write(fd, "\0", 1) != 1)) {
 				fprintf(stderr, "Unable to extended '%s' to its full size.\n",
 						nvramtool_op_modifiers[NVRAMTOOL_MOD_USE_CMOS_FILE].param);
 				exit(1);
@@ -615,7 +611,7 @@ static void set_one_param(const char name[], const char value[])
 	unsigned long long n;
 
 	if (is_checksum_name(name) || (e = find_cmos_entry(name)) == NULL) {
-		fprintf(stderr, "%s: CMOS parameter %s not found.", prog_name,
+		fprintf(stderr, "%s: CMOS parameter %s not found.\n", prog_name,
 			name);
 		exit(1);
 	}
@@ -765,7 +761,10 @@ static int list_cmos_entry(const cmos_entry_t * e, int show_name)
 		break;
 
 	case CMOS_OP_RESERVED:
-		BUG();
+		fprintf(stderr,
+			"%s: Cannot access reserved CMOS area (for %s).\n",
+			prog_name, e->name);
+		return 1;
 
 	case CMOS_AREA_OUT_OF_RANGE:
 		fprintf(stderr,

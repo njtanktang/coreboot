@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,10 +21,17 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <drivers/intel/gma/i915_reg.h>
+#include <drivers/intel/gma/i915.h>
 #include <cpu/intel/haswell/haswell.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "chip.h"
 #include "haswell.h"
+
+#if CONFIG_CHROMEOS
+#include <vendorcode/google/chromeos/chromeos.h>
+#endif
 
 struct gt_reg {
 	u32 reg;
@@ -95,7 +98,7 @@ static const struct gt_reg haswell_gt_lock[] = {
 
 u32 map_oprom_vendev(u32 vendev)
 {
-	u32 new_vendev=vendev;
+	u32 new_vendev = vendev;
 
 	switch (vendev) {
 	case 0x80860402:		/* GT1 Desktop */
@@ -113,23 +116,65 @@ u32 map_oprom_vendev(u32 vendev)
 	case 0x8086042a:		/* GT3 Server */
 	case 0x80860a26:		/* GT3 ULT */
 
-		new_vendev=0x80860406;	/* GT1 Mobile */
+		new_vendev = 0x80860406;	/* GT1 Mobile */
 		break;
 	}
 
 	return new_vendev;
 }
 
-static struct resource *gtt_res = NULL;
+/* GTT is the Global Translation Table for the graphics pipeline.
+ * It is used to translate graphics addresses to physical
+ * memory addresses. As in the CPU, GTTs map 4K pages.
+ * The setgtt function adds a further bit of flexibility:
+ * it allows you to set a range (the first two parameters) to point
+ * to a physical address (third parameter);the physical address is
+ * incremented by a count (fourth parameter) for each GTT in the
+ * range.
+ * Why do it this way? For ultrafast startup,
+ * we can point all the GTT entries to point to one page,
+ * and set that page to 0s:
+ * memset(physbase, 0, 4096);
+ * setgtt(0, 4250, physbase, 0);
+ * this takes about 2 ms, and is a win because zeroing
+ * the page takes a up to 200 ms.
+ * This call sets the GTT to point to a linear range of pages
+ * starting at physbase.
+ */
 
-static inline u32 gtt_read(u32 reg)
+#define GTT_PTE_BASE (2 << 20)
+
+void
+set_translation_table(int start, int end, u64 base, int inc)
 {
-	return read32(gtt_res->base + reg);
+	int i;
+
+	for (i = start; i < end; i++){
+		u64 physical_address = base + i*inc;
+		/* swizzle the 32:39 bits to 4:11 */
+		u32 word = physical_address | ((physical_address >> 28) & 0xff0) | 1;
+		/* note: we've confirmed by checking
+		 * the values that mrc does no
+		 * useful setup before we run this.
+		 */
+		gtt_write(GTT_PTE_BASE + i * 4, word);
+		gtt_read(GTT_PTE_BASE + i * 4);
+	}
 }
 
-static inline void gtt_write(u32 reg, u32 data)
+static struct resource *gtt_res = NULL;
+
+u32 gtt_read(u32 reg)
 {
-	write32(gtt_res->base + reg, data);
+	u32 val;
+	val = read32(res2mmio(gtt_res, reg, 0));
+	return val;
+
+}
+
+void gtt_write(u32 reg, u32 data)
+{
+	write32(res2mmio(gtt_res, reg, 0), data);
 }
 
 static inline void gtt_rmw(u32 reg, u32 andmask, u32 ormask)
@@ -151,7 +196,7 @@ static inline void gtt_write_regs(const struct gt_reg *gt)
 }
 
 #define GTT_RETRY 1000
-static int gtt_poll(u32 reg, u32 mask, u32 value)
+int gtt_poll(u32 reg, u32 mask, u32 value)
 {
 	unsigned try = GTT_RETRY;
 	u32 data;
@@ -171,6 +216,13 @@ static void power_well_enable(void)
 {
 	gtt_write(HSW_PWR_WELL_CTL1, HSW_PWR_WELL_ENABLE);
 	gtt_poll(HSW_PWR_WELL_CTL1, HSW_PWR_WELL_STATE, HSW_PWR_WELL_STATE);
+#if CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT
+	/* In the native graphics case, we've got about 20 ms.
+	 * after we power up the the AUX channel until we can talk to it.
+	 * So get that going right now. We can't turn on the panel, yet, just VDD.
+	 */
+	gtt_write(PCH_PP_CONTROL, PCH_PP_UNLOCK| EDP_FORCE_VDD | PANEL_POWER_RESET);
+#endif
 }
 
 static void gma_pm_init_pre_vbios(struct device *dev)
@@ -190,7 +242,7 @@ static void gma_pm_init_pre_vbios(struct device *dev)
 	/* Enable Force Wake */
 	gtt_write(0x0a180, 1 << 5);
 	gtt_write(0x0a188, 0x00010001);
-	gtt_poll(0x130044, 1 << 0, 1 << 0);
+	gtt_poll(FORCEWAKE_ACK_HSW, 1 << 0, 1 << 0);
 
 	/* GT Settings */
 	gtt_write_regs(haswell_gt_setup);
@@ -205,13 +257,36 @@ static void gma_pm_init_pre_vbios(struct device *dev)
 	gtt_poll(0x138124, (1 << 31), (0 << 31));
 
 	/* Enable PM Interrupts */
-	gtt_write(0x4402c, 0x03000076);
+	gtt_write(GEN6_PMIER, GEN6_PM_MBOX_EVENT | GEN6_PM_THERMAL_EVENT |
+		  GEN6_PM_RP_DOWN_TIMEOUT | GEN6_PM_RP_UP_THRESHOLD |
+		  GEN6_PM_RP_DOWN_THRESHOLD | GEN6_PM_RP_UP_EI_EXPIRED |
+		  GEN6_PM_RP_DOWN_EI_EXPIRED);
 
 	/* Enable RC6 in idle */
 	gtt_write(0x0a094, 0x00040000);
 
 	/* PM Lock Settings */
 	gtt_write_regs(haswell_gt_lock);
+}
+
+static void init_display_planes(void)
+{
+	int pipe, plane;
+
+	/* Disable cursor mode */
+	for (pipe = PIPE_A; pipe <= PIPE_C; pipe++) {
+		gtt_write(CURCNTR_IVB(pipe), CURSOR_MODE_DISABLE);
+		gtt_write(CURBASE_IVB(pipe), 0x00000000);
+	}
+
+	/* Disable primary plane and set surface base address*/
+	for (plane = PLANE_A; plane <= PLANE_C; plane++) {
+		gtt_write(DSPCNTR(plane), DISPLAY_PLANE_DISABLE);
+		gtt_write(DSPSURF(plane), 0x00000000);
+	}
+
+	/* Disable VGA display */
+	gtt_write(CPU_VGACNTRL, CPU_VGA_DISABLE);
 }
 
 static void gma_setup_panel(struct device *dev)
@@ -222,122 +297,90 @@ static void gma_setup_panel(struct device *dev)
 	printk(BIOS_DEBUG, "GT Power Management Init (post VBIOS)\n");
 
 	/* Setup Digital Port Hotplug */
-	reg32 = gtt_read(0xc4030);
+	reg32 = gtt_read(PCH_PORT_HOTPLUG);
 	if (!reg32) {
 		reg32 = (conf->gpu_dp_b_hotplug & 0x7) << 2;
 		reg32 |= (conf->gpu_dp_c_hotplug & 0x7) << 10;
 		reg32 |= (conf->gpu_dp_d_hotplug & 0x7) << 18;
-		gtt_write(0xc4030, reg32);
+		gtt_write(PCH_PORT_HOTPLUG, reg32);
 	}
 
 	/* Setup Panel Power On Delays */
-	reg32 = gtt_read(0xc7208);
+	reg32 = gtt_read(PCH_PP_ON_DELAYS);
 	if (!reg32) {
 		reg32 = (conf->gpu_panel_port_select & 0x3) << 30;
 		reg32 |= (conf->gpu_panel_power_up_delay & 0x1fff) << 16;
 		reg32 |= (conf->gpu_panel_power_backlight_on_delay & 0x1fff);
-		gtt_write(0xc7208, reg32);
+		gtt_write(PCH_PP_ON_DELAYS, reg32);
 	}
 
 	/* Setup Panel Power Off Delays */
-	reg32 = gtt_read(0xc720c);
+	reg32 = gtt_read(PCH_PP_OFF_DELAYS);
 	if (!reg32) {
 		reg32 = (conf->gpu_panel_power_down_delay & 0x1fff) << 16;
 		reg32 |= (conf->gpu_panel_power_backlight_off_delay & 0x1fff);
-		gtt_write(0xc720c, reg32);
+		gtt_write(PCH_PP_OFF_DELAYS, reg32);
 	}
 
 	/* Setup Panel Power Cycle Delay */
 	if (conf->gpu_panel_power_cycle_delay) {
-		reg32 = gtt_read(0xc7210);
+		reg32 = gtt_read(PCH_PP_DIVISOR);
 		reg32 &= ~0xff;
 		reg32 |= conf->gpu_panel_power_cycle_delay & 0xff;
-		gtt_write(0xc7210, reg32);
+		gtt_write(PCH_PP_DIVISOR, reg32);
 	}
 
 	/* Enable Backlight if needed */
 	if (conf->gpu_cpu_backlight) {
-		gtt_write(0x48250, (1 << 31));
-		gtt_write(0x48254, conf->gpu_cpu_backlight);
+		gtt_write(BLC_PWM_CPU_CTL2, BLC_PWM2_ENABLE);
+		gtt_write(BLC_PWM_CPU_CTL, conf->gpu_cpu_backlight);
 	}
 	if (conf->gpu_pch_backlight) {
-		gtt_write(0xc8250, (1 << 31));
-		gtt_write(0xc8254, conf->gpu_pch_backlight);
+		gtt_write(BLC_PWM_PCH_CTL1, BLM_PCH_PWM_ENABLE);
+		gtt_write(BLC_PWM_PCH_CTL2, conf->gpu_pch_backlight);
 	}
 
 	/* Get display,pipeline,and DDI registers into a basic sane state */
-	/* not all these have documented names. */
-	gtt_write(0x45400, 0x80000000);
-	gtt_poll( 0x00045400, 0xc0000000, 0xc0000000);
-	gtt_write(_CURACNTR, 0x00000000);
-	gtt_write(_DSPACNTR, (/* DISPPLANE_SEL_PIPE(0=A,1=B) */0x0<<24)|0x00000000);
-	gtt_write(_DSPBCNTR, 0x00000000);
-	gtt_write(CPU_VGACNTRL, 0x8000298e);
-	gtt_write(_DSPASIZE+0xc, 0x00000000);
-	gtt_write(_DSPBSURF, 0x00000000);
-	gtt_write(0x4f008, 0x00000000);
-	gtt_write(0x4f008, 0x00000000);
-	gtt_write(0x4f008, 0x00000000);
-	gtt_write(0x4f040, 0x01000001);
-	gtt_write(0x4f044, 0x00000000);
-	gtt_write(0x4f048, 0x00000000);
-	gtt_write(0x4f04c, 0x03030000);
-	gtt_write(0x4f050, 0x00000000);
-	gtt_write(0x4f054, 0x00000001);
-	gtt_write(0x4f058, 0x00000000);
-	gtt_write(0x4f04c, 0x03450000);
-	gtt_write(0x4f04c, 0x45450000);
-	gtt_write(0x4f000, 0x03000400);
-	gtt_write(DP_A, 0x00000091); /* DDI-A enable */
+	power_well_enable();
+
+	init_display_planes();
+
+	/* DDI-A params set:
+	   bit 0: Display detected (RO)
+	   bit 4: DDI A supports 4 lanes and DDI E is not used
+	   bit 7: DDI buffer is idle
+	*/
+	gtt_write(DDI_BUF_CTL_A, DDI_BUF_IS_IDLE | DDI_A_4_LANES | DDI_INIT_DISPLAY_DETECTED);
+
+	/* Set FDI registers - is this required? */
 	gtt_write(_FDI_RXA_MISC, 0x00200090);
 	gtt_write(_FDI_RXA_MISC, 0x0a000000);
-	gtt_write(0x46408, 0x00000070);
+
+	/* Enable the handshake with PCH display when processing reset */
+	gtt_write(NDE_RSTWRN_OPT, RST_PCH_HNDSHK_EN);
+
+	/* undocumented */
 	gtt_write(0x42090, 0x04000000);
-	gtt_write(0x4f050, 0xc0000000);
 	gtt_write(0x9840, 0x00000000);
 	gtt_write(0x42090, 0xa4000000);
-	gtt_write(SOUTH_DSPCLK_GATE_D, 0x00001000);
+
+	gtt_write(SOUTH_DSPCLK_GATE_D, PCH_LP_PARTITION_LEVEL_DISABLE);
+
+	/* undocumented */
 	gtt_write(0x42080, 0x00004000);
-	gtt_write(0x64f80, 0x00ffffff);
-	gtt_write(0x64f84, 0x0007000e);
-	gtt_write(0x64f88, 0x00d75fff);
-	gtt_write(0x64f8c, 0x000f000a);
-	gtt_write(0x64f90, 0x00c30fff);
-	gtt_write(0x64f94, 0x00060006);
-	gtt_write(0x64f98, 0x00aaafff);
-	gtt_write(0x64f9c, 0x001e0000);
-	gtt_write(0x64fa0, 0x00ffffff);
-	gtt_write(0x64fa4, 0x000f000a);
-	gtt_write(0x64fa8, 0x00d75fff);
-	gtt_write(0x64fac, 0x00160004);
-	gtt_write(0x64fb0, 0x00c30fff);
-	gtt_write(0x64fb4, 0x001e0000);
-	gtt_write(0x64fb8, 0x00ffffff);
-	gtt_write(0x64fbc, 0x00060006);
-	gtt_write(0x64fc0, 0x00d75fff);
-	gtt_write(0x64fc4, 0x001e0000);
-	gtt_write(DDI_BUF_TRANS_A, 0x00ffffff);
-	gtt_write(DDI_BUF_TRANS_A+0x4, 0x0006000e);
-	gtt_write(DDI_BUF_TRANS_A+0x8, 0x00d75fff);
-	gtt_write(DDI_BUF_TRANS_A+0xc, 0x0005000a);
-	gtt_write(DDI_BUF_TRANS_A+0x10, 0x00c30fff);
-	gtt_write(DDI_BUF_TRANS_A+0x14, 0x00040006);
-	gtt_write(DDI_BUF_TRANS_A+0x18, 0x80aaafff);
-	gtt_write(DDI_BUF_TRANS_A+0x1c, 0x000b0000);
-	gtt_write(DDI_BUF_TRANS_A+0x20, 0x00ffffff);
-	gtt_write(DDI_BUF_TRANS_A+0x24, 0x0005000a);
-	gtt_write(DDI_BUF_TRANS_A+0x28, 0x00d75fff);
-	gtt_write(DDI_BUF_TRANS_A+0x2c, 0x000c0004);
-	gtt_write(DDI_BUF_TRANS_A+0x30, 0x80c30fff);
-	gtt_write(DDI_BUF_TRANS_A+0x34, 0x000b0000);
-	gtt_write(DDI_BUF_TRANS_A+0x38, 0x00ffffff);
-	gtt_write(DDI_BUF_TRANS_A+0x3c, 0x00040006);
-	gtt_write(DDI_BUF_TRANS_A+0x40, 0x80d75fff);
-	gtt_write(DDI_BUF_TRANS_A+0x44, 0x000b0000);
-	gtt_write(DIGITAL_PORT_HOTPLUG_CNTRL,
-		DIGITAL_PORTA_HOTPLUG_ENABLE |0x00000010);
-	gtt_write(SDEISR+0x30,
-		PORTD_HOTPLUG_ENABLE | PORTB_HOTPLUG_ENABLE |0x10100010);
+
+	/* Prepare DDI buffers for DP and FDI */
+	intel_prepare_ddi();
+
+	/* Hot plug detect buffer enabled for port A */
+	gtt_write(DIGITAL_PORT_HOTPLUG_CNTRL, DIGITAL_PORTA_HOTPLUG_ENABLE);
+
+	/* Enable HPD buffer for digital port D and B */
+	gtt_write(PCH_PORT_HOTPLUG, PORTD_HOTPLUG_ENABLE | PORTB_HOTPLUG_ENABLE);
+
+	/* Bits 4:0 - Power cycle delay (default 0x6 --> 500ms)
+	   Bits 31:8 - Reference divider (0x0004af ----> 24MHz)
+	*/
 	gtt_write(PCH_PP_DIVISOR, 0x0004af06);
 }
 
@@ -373,26 +416,23 @@ static void gma_pm_init_post_vbios(struct device *dev)
 
 	/* Disable Force Wake */
 	gtt_write(0x0a188, 0x00010000);
-	gtt_poll(0x130044, 1 << 0, 0 << 0);
+	gtt_poll(FORCEWAKE_ACK_HSW, 1 << 0, 0 << 0);
 	gtt_write(0x0a188, 0x00000001);
 }
 
 static void gma_func0_init(struct device *dev)
 {
+#if CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT
+	struct northbridge_intel_haswell_config *conf = dev->chip_info;
+	struct intel_dp dp;
+#endif
+
 	int lightup_ok = 0;
 	u32 reg32;
-	u32 graphics_base; //, graphics_size;
 	/* IGD needs to be Bus Master */
 	reg32 = pci_read_config32(dev, PCI_COMMAND);
 	reg32 |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY | PCI_COMMAND_IO;
 	pci_write_config32(dev, PCI_COMMAND, reg32);
-
-
-	/* the BAR for graphics space is a well known number for
-	 * sandy and ivy. And the resource code renumbers it.
-	 * So it's almost like having two hardcodes.
-	 */
-	graphics_base = dev->resource_list[1].base;
 
 	/* Init graphics power management */
 	gma_pm_init_pre_vbios(dev);
@@ -402,18 +442,29 @@ static void gma_func0_init(struct device *dev)
 
 #if CONFIG_MAINBOARD_DO_NATIVE_VGA_INIT
 	printk(BIOS_SPEW, "NATIVE graphics, run native enable\n");
-	u32 iobase, mmiobase, physbase;
-	iobase = dev->resource_list[2].base;
-	mmiobase = dev->resource_list[0].base;
-	physbase = pci_read_config32(dev, 0x5c) & ~0xf;
+	/* Default set to 1 since it might be required for
+	   stuff like seabios */
+	unsigned int init_fb = 1;
 
-	int i915lightup(u32 physbase, u32 iobase, u32 mmiobase, u32 gfx);
-	lightup_ok = i915lightup(physbase, iobase, mmiobase, graphics_base);
-	if (lightup_ok)
+	/* the BAR for graphics space is a well known number for
+	 * sandy and ivy. And the resource code renumbers it.
+	 * So it's almost like having two hardcodes.
+	 */
+	dp.graphics = (void *)((uintptr_t)dev->resource_list[1].base);
+	dp.physbase = pci_read_config32(dev, 0x5c) & ~0xf;
+	dp.panel_power_down_delay = conf->gpu_panel_power_down_delay;
+	dp.panel_power_up_delay = conf->gpu_panel_power_up_delay;
+	dp.panel_power_cycle_delay = conf->gpu_panel_power_cycle_delay;
+
+#if IS_ENABLED(CONFIG_CHROMEOS)
+	init_fb = display_init_required();
+#endif
+	lightup_ok = panel_lightup(&dp, init_fb);
 		gfx_set_init_done(1);
 #endif
 	if (! lightup_ok) {
 		printk(BIOS_SPEW, "FUI did not run; using VBIOS\n");
+		mdelay(CONFIG_PRE_GRAPHICS_DELAY);
 		pci_dev_init(dev);
 	}
 
@@ -432,6 +483,27 @@ static void gma_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+const struct i915_gpu_controller_info *
+intel_gma_get_controller_info(void)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x2,0));
+	if (!dev) {
+		return NULL;
+	}
+	struct northbridge_intel_haswell_config *chip = dev->chip_info;
+	return &chip->gfx;
+}
+
+static void gma_ssdt(device_t device)
+{
+	const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+	if (!gfx) {
+		return;
+	}
+
+	drivers_intel_gma_displays_ssdt_generate(gfx);
+}
+
 static struct pci_operations gma_pci_ops = {
 	.set_subsystem    = gma_set_subsystem,
 };
@@ -441,6 +513,7 @@ static struct device_operations gma_func0_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= gma_func0_init,
+	.acpi_fill_ssdt_generator = gma_ssdt,
 	.scan_bus		= 0,
 	.enable			= 0,
 	.ops_pci		= &gma_pci_ops,

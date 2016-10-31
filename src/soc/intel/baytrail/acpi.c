@@ -12,16 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/acpi.h>
 #include <arch/acpigen.h>
 #include <arch/io.h>
 #include <arch/smp/mpspec.h>
+#include <cbmem.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <console/console.h>
@@ -32,12 +29,15 @@
 #include <cpu/x86/tsc.h>
 #include <cpu/intel/turbo.h>
 
-#include <baytrail/acpi.h>
-#include <baytrail/iomap.h>
-#include <baytrail/irq.h>
-#include <baytrail/msr.h>
-#include <baytrail/pattrs.h>
-#include <baytrail/pmc.h>
+#include <soc/acpi.h>
+#include <soc/iomap.h>
+#include <soc/irq.h>
+#include <soc/msr.h>
+#include <soc/pattrs.h>
+#include <soc/pmc.h>
+
+#include <ec/google/chromeec/ec.h>
+#include <vendorcode/google/chromeos/gnvs.h>
 
 #define MWAIT_RES(state, sub_state)                         \
 	{                                                   \
@@ -69,14 +69,40 @@ static acpi_cstate_t cstate_map[] = {
 		/* C6FS with full L2 shrink */
 		.ctype = 3, /* ACPI C3 */
 		.latency = 1500, /* 1.5ms worst case */
-		.power = 10,
+		.power = 1,
 		.resource = MWAIT_RES(5, 2),
 	}
 };
 
+void acpi_init_gnvs(global_nvs_t *gnvs)
+{
+	/* Set unknown wake source */
+	gnvs->pm1i = -1;
+
+	/* CPU core count */
+	gnvs->pcnt = dev_count_cpu();
+
+	/* Top of Low Memory (start of resource allocation) */
+	gnvs->tolm = nc_read_top_of_low_memory();
+
+#if CONFIG_CONSOLE_CBMEM
+	/* Update the mem console pointer. */
+	gnvs->cbmc = (u32)cbmem_find(CBMEM_ID_CONSOLE);
+#endif
+
+#if CONFIG_CHROMEOS
+	/* Initialize Verified Boot data */
+	chromeos_init_vboot(&(gnvs->chromeos));
+#if CONFIG_EC_GOOGLE_CHROMEEC
+	gnvs->chromeos.vbt2 = google_ec_running_ro() ?
+		ACTIVE_ECFW_RO : ACTIVE_ECFW_RW;
+#endif
+#endif
+}
+
 static int acpi_sci_irq(void)
 {
-	const unsigned long actl = ILB_BASE_ADDRESS + ACTL;
+	u32 *actl = (u32 *)(ILB_BASE_ADDRESS + ACTL);
 	int scis;
 	static int sci_irq;
 
@@ -265,24 +291,20 @@ static acpi_tstate_t baytrail_tss_table[] = {
 	{ 13, 125, 0, 0x12, 0 },
 };
 
-static int generate_T_state_entries(int core, int cores_per_package)
+static void generate_T_state_entries(int core, int cores_per_package)
 {
-	int len;
-
 	/* Indicate SW_ALL coordination for T-states */
-	len = acpigen_write_TSD_package(core, cores_per_package, SW_ALL);
+	acpigen_write_TSD_package(core, cores_per_package, SW_ALL);
 
 	/* Indicate FFixedHW so OS will use MSR */
-	len += acpigen_write_empty_PTC();
+	acpigen_write_empty_PTC();
 
 	/* Set NVS controlled T-state limit */
-	len += acpigen_write_TPC("\\TLVL");
+	acpigen_write_TPC("\\TLVL");
 
 	/* Write TSS table for MSR access */
-	len += acpigen_write_TSS_package(
+	acpigen_write_TSS_package(
 		ARRAY_SIZE(baytrail_tss_table), baytrail_tss_table);
-
-	return len;
 }
 
 static int calculate_power(int tdp, int p1_ratio, int ratio)
@@ -306,9 +328,8 @@ static int calculate_power(int tdp, int p1_ratio, int ratio)
 	return (int)power;
 }
 
-static int generate_P_state_entries(int core, int cores_per_package)
+static void generate_P_state_entries(int core, int cores_per_package)
 {
-	int len, len_pss;
 	int ratio_min, ratio_max, ratio_turbo, ratio_step, ratio_range_2;
 	int coord_type, power_max, power_unit, num_entries;
 	int ratio, power, clock, clock_max;
@@ -323,8 +344,8 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	vid_max = pattrs->iacore_vids[IACORE_MAX];
 	vid_min = pattrs->iacore_vids[IACORE_LFM];
 
-	/* Hardware coordination of P-states */
-	coord_type = HW_ALL;
+	/* Set P-states coordination type based on MSR disable bit */
+	coord_type = (pattrs->num_cpus > 2) ? SW_ALL : HW_ALL;
 
 	/* Max Non-Turbo Frequency */
 	clock_max = (ratio_max * pattrs->bclk_khz) / 1000;
@@ -336,16 +357,16 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	power_max = ((msr.lo & 0x7fff) / power_unit) * 1000;
 
 	/* Write _PCT indicating use of FFixedHW */
-	len = acpigen_write_empty_PCT();
+	acpigen_write_empty_PCT();
 
 	/* Write _PPC with NVS specified limit on supported P-state */
-	len += acpigen_write_PPC_NVS();
+	acpigen_write_PPC_NVS();
 
 	/* Write PSD indicating configured coordination type */
-	len += acpigen_write_PSD_package(core, 1, coord_type);
+	acpigen_write_PSD_package(core, 1, coord_type);
 
 	/* Add P-state entries in _PSS table */
-	len += acpigen_write_name("_PSS");
+	acpigen_write_name("_PSS");
 
 	/* Determine ratio points */
 	ratio_step = 1;
@@ -358,14 +379,14 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	/* P[T] is Turbo state if enabled */
 	if (get_turbo_state() == TURBO_ENABLED) {
 		/* _PSS package count including Turbo */
-		len_pss = acpigen_write_package(num_entries + 2);
+		acpigen_write_package(num_entries + 2);
 
 		ratio_turbo = pattrs->iacore_ratios[IACORE_TURBO];
 		vid_turbo = pattrs->iacore_vids[IACORE_TURBO];
 		control_status = (ratio_turbo << 8) | vid_turbo;
 
 		/* Add entry for Turbo ratio */
-		len_pss += acpigen_write_PSS_package(
+		acpigen_write_PSS_package(
 			clock_max + 1,		/*MHz*/
 			power_max,		/*mW*/
 			10,			/*lat1*/
@@ -374,14 +395,14 @@ static int generate_P_state_entries(int core, int cores_per_package)
 			control_status);	/*status*/
 	} else {
 		/* _PSS package count without Turbo */
-		len_pss = acpigen_write_package(num_entries + 1);
+		acpigen_write_package(num_entries + 1);
 		ratio_turbo = ratio_max;
 		vid_turbo = vid_max;
 	}
 
 	/* First regular entry is max non-turbo ratio */
 	control_status = (ratio_max << 8) | vid_max;
-	len_pss += acpigen_write_PSS_package(
+	acpigen_write_PSS_package(
 		clock_max,		/*MHz*/
 		power_max,		/*mW*/
 		10,			/*lat1*/
@@ -409,7 +430,7 @@ static int generate_P_state_entries(int core, int cores_per_package)
 		clock = (ratio * pattrs->bclk_khz) / 1000;
 		control_status = (ratio << 8) | (vid & 0xff);
 
-		len_pss += acpigen_write_PSS_package(
+		acpigen_write_PSS_package(
 			clock,			/*MHz*/
 			power,			/*mW*/
 			10,			/*lat1*/
@@ -419,15 +440,12 @@ static int generate_P_state_entries(int core, int cores_per_package)
 	}
 
 	/* Fix package length */
-	len_pss--;
-	acpigen_patch_len(len_pss);
-
-	return len + len_pss;
+	acpigen_pop_len();
 }
 
-void generate_cpu_entries(void)
+void generate_cpu_entries(device_t device)
 {
-	int len_pr, core;
+	int core;
 	int pcontrol_blk = get_pmbase(), plen = 6;
 	const struct pattrs *pattrs = pattrs_get();
 
@@ -438,23 +456,22 @@ void generate_cpu_entries(void)
 		}
 
 		/* Generate processor \_PR.CPUx */
-		len_pr = acpigen_write_processor(
+		acpigen_write_processor(
 			core, pcontrol_blk, plen);
 
 		/* Generate  P-state tables */
-		len_pr += generate_P_state_entries(
+		generate_P_state_entries(
 			core, pattrs->num_cpus);
 
 		/* Generate C-state tables */
-		len_pr += acpigen_write_CST_package(
+		acpigen_write_CST_package(
 			cstate_map, ARRAY_SIZE(cstate_map));
 
 		/* Generate T-state tables */
-		len_pr += generate_T_state_entries(
+		generate_T_state_entries(
 			core, pattrs->num_cpus);
 
-		len_pr--;
-		acpigen_patch_len(len_pr);
+		acpigen_pop_len();
 	}
 }
 

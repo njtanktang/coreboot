@@ -12,19 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Make sure no stage 2 code is included:
 #define __PRE_RAM__
-
-/* On AMD's platforms we can set SMBASE by writing an MSR */
-#if !CONFIG_NORTHBRIDGE_AMD_AMDK8 && !CONFIG_NORTHBRIDGE_AMD_AMDFAM10 \
-	&& !CONFIG_CPU_AMD_AGESA_FAMILY15_TN
 
 // FIXME: Is this piece of code southbridge specific, or
 // can it be cleaned up so this include is not required?
@@ -34,12 +25,8 @@
 #include "../../../southbridge/intel/i82801gx/i82801gx.h"
 #elif CONFIG_SOUTHBRIDGE_INTEL_I82801DX
 #include "../../../southbridge/intel/i82801dx/i82801dx.h"
-#elif CONFIG_SOUTHBRIDGE_INTEL_SCH
-#include "../../../southbridge/intel/sch/sch.h"
-#elif CONFIG_SOUTHBRIDGE_INTEL_BD82X6X || CONFIG_SOUTHBRIDGE_INTEL_C216 || CONFIG_SOUTHBRIDGE_INTEL_IBEXPEAK
-#include "../../../southbridge/intel/bd82x6x/pch.h"
-#elif CONFIG_SOUTHBRIDGE_INTEL_FSP_BD82X6X
-#include "../../../southbridge/intel/fsp_bd82x6x/pch.h"
+#elif CONFIG_SOC_INTEL_SCH
+#include "../../../soc/intel/sch/sch.h"
 #elif CONFIG_SOUTHBRIDGE_INTEL_I82801IX
 #include "../../../southbridge/intel/i82801ix/i82801ix.h"
 #else
@@ -47,23 +34,7 @@
 #endif
 
 #if CONFIG_SMM_TSEG
-
-#if CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE || CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE
-#include <northbridge/intel/sandybridge/sandybridge.h>
-#define TSEG_BAR (DEFAULT_PCIEXBAR | TSEG)
-#elif CONFIG_NORTHBRIDGE_INTEL_NEHALEM
-#include <northbridge/intel/nehalem/nehalem.h>
-#define TSEG_BAR (DEFAULT_PCIEXBAR | TSEG)
-#else
-#if CONFIG_NORTHBRIDGE_INTEL_FSP_SANDYBRIDGE || CONFIG_NORTHBRIDGE_INTEL_FSP_IVYBRIDGE
-#include <northbridge/intel/fsp_sandybridge/northbridge.h>
-#define TSEG_BAR (DEFAULT_PCIEXBAR | TSEG)
-#else
-#error "Northbridge must define TSEG_BAR."
-#endif
-#endif
-
-#include <cpu/x86/mtrr.h>
+#error "Don't use this file with TSEG."
 
 #endif /* CONFIG_SMM_TSEG */
 
@@ -118,7 +89,7 @@
  * 0xa0000-0xa0400 and the stub plus stack would need to go
  * at 0xa8000-0xa8100 (example for core 0). That is not enough.
  *
- * This means we're basically limited to 16 cpu cores before
+ * This means we're basically limited to 16 CPU cores before
  * we need to move the SMM handler to TSEG.
  *
  * Note: Some versions of Pentium M need their SMBASE aligned to 32k.
@@ -154,58 +125,15 @@ smm_relocate:
 	shr  $24, %ecx
 
 	/* calculate offset by multiplying the
-	 * apic ID by 1024 (0x400)
+	 * APIC ID by 1024 (0x400)
 	 */
 	movl %ecx, %edx
 	shl $10, %edx
 
-#if CONFIG_SMM_TSEG
-	movl	$(TSEG_BAR), %ecx	/* Get TSEG base from PCIE */
-	addr32	movl (%ecx), %eax	/* Save TSEG_BAR in %eax */
-	andl	$~1, %eax		/* Remove lock bit */
-#else
 	movl $0xa0000, %eax
-#endif
 	subl %edx, %eax	/* subtract offset, see above */
 
 	addr32 movl %eax, (%ebx)
-
-#if CONFIG_SMM_TSEG
-	/* Check for SMRR capability in MTRRCAP[11] */
-	movl	$MTRRcap_MSR, %ecx
-	rdmsr
-	bt	$11, %eax
-	jnc	skip_smrr
-
-	/* TSEG base */
-	movl	$(TSEG_BAR), %ecx	/* Get TSEG base from PCIE */
-	addr32	movl (%ecx), %eax	/* Save TSEG_BAR in %eax */
-	andl	$~1, %eax		/* Remove lock bit */
-	movl	%eax, %ebx
-
-	/* Set SMRR base address. */
-	movl	$SMRRphysBase_MSR, %ecx
-	orl	$MTRR_TYPE_WRBACK, %eax
-	xorl	%edx, %edx
-	wrmsr
-
-	/* Set SMRR mask. */
-	movl	$SMRRphysMask_MSR, %ecx
-	movl	$(~(CONFIG_SMM_TSEG_SIZE - 1) | MTRRphysMaskValid), %eax
-	xorl	%edx, %edx
-	wrmsr
-
-#if CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE || CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE
-	/*
-	 * IED base is top 4M of TSEG
-	 */
-	addl	$(CONFIG_SMM_TSEG_SIZE - IED_SIZE), %ebx
-	movl	$(0x30000 + 0x8000 + 0x7eec), %eax
-	addr32	movl %ebx, (%eax)
-#endif
-
-skip_smrr:
-#endif
 
 	/* The next section of code is potentially southbridge specific */
 
@@ -239,7 +167,7 @@ skip_smrr:
 	outb %al, %dx
 	movb $'-', %al
 	outb %al, %dx
-	/* calculate ascii of cpu number. More than 9 cores? -> FIXME */
+	/* calculate ascii of CPU number. More than 9 cores? -> FIXME */
 	movb %cl, %al
 	addb $'0', %al
 	outb %al, %dx
@@ -254,4 +182,3 @@ skip_smrr:
 	/* That's it. return */
 	rsm
 smm_relocation_end:
-#endif

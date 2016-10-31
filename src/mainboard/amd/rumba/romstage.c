@@ -1,13 +1,26 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <stdint.h>
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/gx2def.h>
 #include <spd.h>
 #include "southbridge/amd/cs5536/early_smbus.c"
@@ -23,7 +36,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/gx2/raminit.h"
+#include <northbridge/amd/gx2/raminit.h>
 #include "northbridge/amd/gx2/pll_reset.c"
 #include "northbridge/amd/gx2/raminit.c"
 #include "lib/generic_sdram.c"
@@ -50,7 +63,7 @@ void main(unsigned long bist)
 	pll_reset();
 
 	cpuRegInit();
-	print_err("done cpuRegInit\n");
+	printk(BIOS_ERR, "done cpuRegInit\n");
 
 	sdram_initialize(1, memctrl);
 

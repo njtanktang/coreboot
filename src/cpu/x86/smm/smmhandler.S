@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* NOTE: This handler assumes the SMM window goes from 0xa0000
@@ -25,6 +20,10 @@
  * So there is a lot of potential for growth in here. Let's stick
  * to 64k if we can though.
  */
+
+#include <kconfig.h>
+#include <config.h>
+#define LAPIC_BASE_MSR 0x1b
 
 /*
  * +--------------------------------+ 0xaffff
@@ -75,7 +74,43 @@
  *
  * All the bad magic is not all that bad after all.
  */
+#define SMM_START 0xa0000
+#define SMM_END   0xb0000
+#if SMM_END <= SMM_START
+#error invalid SMM configuration
+#endif
+.global smm_handler_start
 smm_handler_start:
+#if IS_ENABLED(CONFIG_SMM_LAPIC_REMAP_MITIGATION)
+	/* Check if the LAPIC register block overlaps with SMM.
+	 * This block needs to work without data accesses because they
+	 * may be routed into the LAPIC register block.
+	 * Code accesses, on the other hand, are never routed to LAPIC,
+	 * which is what makes this work in the first place.
+	 */
+	mov	$LAPIC_BASE_MSR, %ecx
+	rdmsr
+	and	$(~0xfff), %eax
+	sub	$(SMM_START), %eax
+	cmp	$(SMM_END - SMM_START), %eax
+	ja	untampered_lapic
+1:
+	/* emit "Crash" on serial */
+	mov	$(CONFIG_TTYS0_BASE), %dx
+	mov	$'C', %al
+	out	%al, (%dx)
+	mov	$'r', %al
+	out	%al, (%dx)
+	mov	$'a', %al
+	out	%al, (%dx)
+	mov	$'s', %al
+	out	%al, (%dx)
+	mov	$'h', %al
+	out	%al, (%dx)
+	/* now crash for real */
+	ud2
+untampered_lapic:
+#endif
 	movw    $(smm_gdtptr16 - smm_handler_start + SMM_HANDLER_OFFSET), %bx
 	data32  lgdt %cs:(%bx)
 
@@ -108,7 +143,7 @@ smm_handler_start:
 	/* This is an ugly hack, and we should find a way to read the CPU index
 	 * without relying on the LAPIC ID.
 	 */
-#if IS_ENABLED(CONFIG_CPU_AMD_AGESA_FAMILY15_TN)
+#if IS_ENABLED(CONFIG_CPU_AMD_AGESA_FAMILY15_TN) || IS_ENABLED(CONFIG_CPU_AMD_AGESA_FAMILY15_RL)
 	/* LAPIC IDs start from 0x10; map that to the proper core index */
 	subl $0x10, %ecx
 #endif
@@ -207,4 +242,3 @@ jumptable:
 	/* core 0 */
 	ljmp $0xa000, $SMM_HANDLER_OFFSET
 .align 1024, 0x00
-

@@ -9,10 +9,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 /*
@@ -26,22 +22,18 @@
  */
 
 #include <stdint.h>
+#include "linux_trampoline.h"
 
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-#define LINUX_PARAM_LOC 0x90000
-#define COMMAND_LINE_LOC 0x91000
-#define GDT_LOC 0x92000
-#define STACK_LOC 0x93000
-
 #define E820MAX	32		/* number of entries in E820MAP */
 struct e820entry {
-	unsigned long long addr;	/* start of memory segment */
-	unsigned long long size;	/* size of memory segment */
-	unsigned long type;	/* type of memory segment */
+	u64 addr;		/* start of memory segment */
+	u64 size;		/* size of memory segment */
+	u32 type;		/* type of memory segment */
 #define E820_RAM	1
 #define E820_RESERVED	2
 #define E820_ACPI	3	/* usable as RAM once ACPI tables have been read */
@@ -147,7 +139,13 @@ struct linux_params {
 	u32 alt_mem_k;		/* 0x1e0 */
 	u8 reserved5[4];	/* 0x1e4 */
 	u8 e820_map_nr;		/* 0x1e8 */
-	u8 reserved6[9];	/* 0x1e9 */
+	u8 reserved6[8];	/* 0x1e9 */
+				/* This next variable is to show where
+				 * in this struct the Linux setup_hdr
+				 * is located. It does not get filled in.
+				 * We may someday find it useful to use
+				 * its address. */
+	u8 setup_hdr;           /* 0x1f1  */
 	u16 mount_root_rdonly;	/* 0x1f2 */
 	u8 reserved7[4];	/* 0x1f4 */
 	u16 ramdisk_flags;	/* 0x1f8 */
@@ -178,7 +176,9 @@ struct linux_params {
 	u32 initrd_addr_max;	/* 0x22c */
 	u32 kernel_alignment;	/* 0x230 */
 	u8 relocatable_kernel;	/* 0x234 */
-	u8 reserved13[155];		/* 0x22c */
+	u8 reserved13[0x2b];		/* 0x235 */
+	u32 init_size;          /* 0x260 */
+	u8 reserved14[0x6c];		/* 0x264 */
 	struct e820entry e820_map[E820MAX];	/* 0x2d0 */
 	u8 reserved16[688];	/* 0x550 */
 #define COMMAND_LINE_SIZE 256
@@ -188,4 +188,3 @@ struct linux_params {
 	u8 command_line[COMMAND_LINE_SIZE];	/* 0x800 */
 	u8 reserved17[1792];	/* 0x900 - 0x1000 */
 };
-

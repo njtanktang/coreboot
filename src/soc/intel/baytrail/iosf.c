@@ -8,28 +8,24 @@
  * the Free Software Foundation; version 2 of the License.
  *
  * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied wacbmem_entryanty of
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
-#include <baytrail/iosf.h>
+#include <soc/iosf.h>
 
 #if !defined(__PRE_RAM__)
 #define IOSF_PCI_BASE (CONFIG_MMCONF_BASE_ADDRESS + (IOSF_PCI_DEV << 12))
 
 static inline void write_iosf_reg(int reg, uint32_t value)
 {
-	write32(IOSF_PCI_BASE + reg, value);
+	write32((u32 *)(IOSF_PCI_BASE + reg), value);
 }
 static inline uint32_t read_iosf_reg(int reg)
 {
-	return read32(IOSF_PCI_BASE + reg);
+	return read32((u32 *)(IOSF_PCI_BASE + reg));
 }
 #else
 static inline void write_iosf_reg(int reg, uint32_t value)

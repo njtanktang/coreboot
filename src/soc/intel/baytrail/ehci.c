@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/acpi.h>
@@ -25,12 +21,12 @@
 #include <stdint.h>
 #include <reg_script.h>
 
-#include <baytrail/iomap.h>
-#include <baytrail/iosf.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
-#include <baytrail/ramstage.h>
-#include <baytrail/ehci.h>
+#include <soc/iomap.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/ramstage.h>
+#include <soc/ehci.h>
 
 #include "chip.h"
 
@@ -94,9 +90,12 @@ static const struct reg_script ehci_hc_reset[] = {
 static void usb2_phy_init(device_t dev)
 {
 	struct soc_intel_baytrail_config *config = dev->chip_info;
+	u32 usb2_comp_bg = (config->usb2_comp_bg == 0 ?
+			    0x4700 : config->usb2_comp_bg);
 	struct reg_script usb2_phy_script[] = {
 		/* USB3PHYInit() */
-		REG_IOSF_WRITE(IOSF_PORT_USBPHY, USBPHY_COMPBG, 0x4700),
+		REG_IOSF_WRITE(IOSF_PORT_USBPHY, USBPHY_COMPBG,
+			       usb2_comp_bg),
 		/* Per port phy settings, set in devicetree.cb */
 		REG_IOSF_WRITE(IOSF_PORT_USBPHY, USBPHY_PER_PORT_LANE0,
 			       config->usb2_per_port_lane0),

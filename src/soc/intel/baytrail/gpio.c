@@ -11,17 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/pci.h>
 #include <console/console.h>
-#include <baytrail/gpio.h>
-#include <baytrail/pmc.h>
-#include <baytrail/smm.h>
+#include <soc/gpio.h>
+#include <soc/pmc.h>
+#include <soc/smm.h>
 
 /* GPIO-to-Pad LUTs */
 static const u8 gpncore_gpio_to_pad[GPNCORE_COUNT] =
@@ -142,9 +138,9 @@ static void setup_gpios(const struct soc_gpio_map *gpios,
 		       reg, pad_conf0, config->pad_conf1, config->pad_val);
 #endif
 
-		write32(reg + PAD_CONF0_REG, pad_conf0);
-		write32(reg + PAD_CONF1_REG, config->pad_conf1);
-		write32(reg + PAD_VAL_REG, config->pad_val);
+		write32((u32 *)(reg + PAD_CONF0_REG), pad_conf0);
+		write32((u32 *)(reg + PAD_CONF1_REG), config->pad_conf1);
+		write32((u32 *)(reg + PAD_VAL_REG), config->pad_val);
 	}
 
 	if (bank->legacy_base != GP_LEGACY_BASE_NONE)
@@ -182,23 +178,23 @@ static void setup_gpio_route(const struct soc_gpio_map *sus,
 		/* SMI takes precedence and wake_en implies SCI. */
 		if (sus[i].smi) {
 			route_reg |= ROUTE_SMI << (2 * i);
-		} else if (sus[i].wake_en) {
+		} else if (sus[i].sci) {
 			route_reg |= ROUTE_SCI << (2 * i);
 		}
 
 		if (core[i].smi) {
 			route_reg |= ROUTE_SMI << (2 * (i + 8));
-		} else if (core[i].wake_en) {
+		} else if (core[i].sci) {
 			route_reg |= ROUTE_SCI << (2 * (i + 8));
 		}
 	}
-	southcluster_smm_save_gpio_route(route_reg);
+	southcluster_smm_save_param(SMM_SAVE_PARAM_GPIO_ROUTE, route_reg);
 }
 
 static void setup_dirqs(const u8 dirq[GPIO_MAX_DIRQS],
 			const struct gpio_bank *bank)
 {
-	u32 reg = bank->pad_base + PAD_BASE_DIRQ_OFFSET;
+	u32 *reg = (u32 *)(bank->pad_base + PAD_BASE_DIRQ_OFFSET);
 	u32 val;
 	int i;
 
@@ -206,15 +202,15 @@ static void setup_dirqs(const u8 dirq[GPIO_MAX_DIRQS],
 	for (i=0; i<4; ++i) {
 		val = dirq[i * 4 + 3] << 24 | dirq[i * 4 + 2] << 16 |
 		      dirq[i * 4 + 1] << 8  | dirq[i * 4];
-		write32(reg + i * 4, val);
+		write32(reg + i, val);
 #ifdef GPIO_DEBUG
 		printk(BIOS_DEBUG, "Write DIRQ reg(%x) - %x\n",
-			reg + i * 4, val);
+			reg + i, val);
 #endif
 	}
 }
 
-void setup_soc_gpios(struct soc_gpio_config *config)
+void setup_soc_gpios(struct soc_gpio_config *config, u8 enable_xdp_tap)
 {
 	if (config) {
 		setup_gpios(config->ncore, &gpncore_bank);
@@ -228,6 +224,14 @@ void setup_soc_gpios(struct soc_gpio_config *config)
 			setup_dirqs(*config->sus_dirq, &gpssus_bank);
 	}
 
+	/* Set on die termination feature with pull up value and
+	 * drive the pad high for TAP_TDO and TAP_TMS
+	 */
+	if (!enable_xdp_tap) {
+		printk(BIOS_DEBUG, "Tri-state TDO and TMS\n");
+		write32((u32 *)(GPSSUS_PAD_BASE + 0x2fc), 0xc);
+		write32((u32 *)(GPSSUS_PAD_BASE + 0x2cc), 0xc);
+	}
 }
 
 struct soc_gpio_config* __attribute__((weak)) mainboard_get_gpios(void)

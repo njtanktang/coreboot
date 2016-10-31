@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -64,7 +60,7 @@ static void pcie_common_init(struct device *dev)
 
 	/* Wait up to 100ms for link to come up */
 	up = 0;
-	for (i=0; i<1000; i++) {
+	for (i = 0; i < 1000; i++) {
 		if (pci_read_config16(dev, 0x52) & (1<<13)) {
 			up = 1;
 			break;

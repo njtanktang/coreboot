@@ -13,10 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 PROGRAM = superiotool
 
@@ -32,8 +28,8 @@ CFLAGS += -O2 -Wall -Wstrict-prototypes -Wundef -Wstrict-aliasing \
          -Werror-implicit-function-declaration -ansi -pedantic $(VERSION)
 LDFLAGS += -lz
 
-OBJS = superiotool.o serverengines.o ali.o fintek.o ite.o nsc.o nuvoton.o \
-       smsc.o winbond.o infineon.o
+OBJS = superiotool.o serverengines.o ali.o exar.o fintek.o ite.o nsc.o \
+       nuvoton.o smsc.o winbond.o infineon.o
 
 OS_ARCH = $(shell uname)
 ifeq ($(OS_ARCH), Darwin)
@@ -47,7 +43,9 @@ LDFLAGS += -L/usr/local/lib
 LIBS = -lz
 endif
 ifeq ($(OS_ARCH), NetBSD)
-LDFLAGS = -l$(shell uname -p)
+CFLAGS += -I/usr/pkg/include
+LDFLAGS += -L/usr/pkg/lib -Wl,-rpath-link,/usr/pkg/lib
+LIBS = -lz -l$(shell uname -p)
 endif
 
 # Support for PCI-attached "Super I/Os" (e.g. in VIA VT82686A/B).
@@ -55,8 +53,11 @@ CONFIG_PCI = yes
 
 ifeq ($(CONFIG_PCI), yes)
 CFLAGS += -DPCI_SUPPORT
-LIBS += -lpci
 OBJS += pci.o via.o amd.o
+LIBS += -lpci
+ifeq ($(OS_ARCH),NetBSD)
+LIBS += -lpciutils
+endif
 endif
 
 all: $(PROGRAM)
@@ -73,7 +74,8 @@ install: $(PROGRAM)
 	$(INSTALL) -p -m644 $(PROGRAM).8 $(DESTDIR)$(PREFIX)/share/man/man8
 
 clean:
-	rm -f $(PROGRAM) *.o
+	rm -f $(PROGRAM) *.o junit.xml
 
-.PHONY: all install clean
+distclean: clean
 
+.PHONY: all install clean distclean

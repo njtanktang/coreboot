@@ -12,24 +12,22 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Pre-RAM driver for SMSC LPC47B272 Super I/O chip. */
 
 #include <arch/io.h>
+#include <device/pnp.h>
+#include <stdint.h>
 #include "lpc47b272.h"
 
-static void pnp_enter_conf_state(device_t dev)
+static void pnp_enter_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(0x55, port);
 }
 
-static void pnp_exit_conf_state(device_t dev)
+static void pnp_exit_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(0xaa, port);
@@ -42,7 +40,7 @@ static void pnp_exit_conf_state(device_t dev)
  * @param dev High 8 bits = Super I/O port, low 8 bits = logical device number.
  * @param iobase Processor I/O port address to assign to this serial device.
  */
-static void lpc47b272_enable_serial(device_t dev, u16 iobase)
+void lpc47b272_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	pnp_enter_conf_state(dev);
 	pnp_set_logical_device(dev);

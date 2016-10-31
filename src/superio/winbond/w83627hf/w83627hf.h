@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_WINBOND_W83627HF_H
@@ -115,7 +111,7 @@
 
 #include <arch/io.h>
 
-void w83627hf_set_clksel_48(device_t dev);
-void w83627hf_enable_serial(device_t dev, u16 iobase);
+void w83627hf_set_clksel_48(pnp_devfn_t dev);
+void w83627hf_enable_serial(pnp_devfn_t dev, u16 iobase);
 
 #endif /* SUPERIO_WINBOND_W83627HF_H */

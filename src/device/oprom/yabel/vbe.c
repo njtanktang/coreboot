@@ -1,11 +1,32 @@
 /******************************************************************************
  * Copyright (c) 2004, 2008 IBM Corporation
  * Copyright (c) 2009 Pattrick Hueper <phueper@hueper.net>
+ *
  * All rights reserved.
- * This program and the accompanying materials
- * are made available under the terms of the BSD License
- * which accompanies this distribution, and is available at
- * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer
+ *   in the documentation and/or other materials provided with the
+ *   distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
  *     IBM Corporation - initial implementation
@@ -17,7 +38,7 @@
 #include <boot/coreboot_tables.h>
 #endif
 
-#include <arch/byteorder.h>
+#include <endian.h>
 
 #include "debug.h"
 
@@ -484,7 +505,7 @@ vbe_get_info(void)
 	DEBUG_PRINTF_VBE("DDC: edid_tranfer_time: %d\n",
 			 ddc_info.edid_transfer_time);
 	DEBUG_PRINTF_VBE("DDC: ddc_level: %x\n", ddc_info.ddc_level);
-	DEBUG_PRINTF_VBE("DDC: EDID: \n");
+	DEBUG_PRINTF_VBE("DDC: EDID:\n");
 	CHECK_DBG(DEBUG_VBE) {
 		dump(ddc_info.edid_block_zero,
 		     sizeof(ddc_info.edid_block_zero));
@@ -719,16 +740,14 @@ void vbe_set_graphics(void)
 	DEBUG_PRINTF_VBE("FRAMEBUFFER: 0x%p\n", framebuffer);
 
 	struct jpeg_decdata *decdata;
-	decdata = malloc(sizeof(*decdata));
 
 	/* Switching Intel IGD to 1MB video memory will break this. Who
 	 * cares. */
 	// int imagesize = 1024*768*2;
 
-	unsigned char *jpeg = cbfs_get_file_content(CBFS_DEFAULT_MEDIA,
-						    "bootsplash.jpg",
-						    CBFS_TYPE_BOOTSPLASH,
-						    NULL);
+	unsigned char *jpeg = cbfs_boot_map_with_leak("bootsplash.jpg",
+							CBFS_TYPE_BOOTSPLASH,
+							NULL);
 	if (!jpeg) {
 		DEBUG_PRINTF_VBE("Could not find bootsplash.jpg\n");
 		return;
@@ -736,6 +755,7 @@ void vbe_set_graphics(void)
 	DEBUG_PRINTF_VBE("Splash at %p ...\n", jpeg);
 	dump(jpeg, 64);
 
+	decdata = malloc(sizeof(*decdata));
 	int ret = 0;
 	DEBUG_PRINTF_VBE("Decompressing boot splash screen...\n");
 	ret = jpeg_decode(jpeg, framebuffer, 1024, 768, 16, decdata);

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -27,9 +22,9 @@
 #include <cpu/x86/smm.h>
 #include <string.h>
 
-#include <baytrail/iomap.h>
-#include <baytrail/pmc.h>
-#include <baytrail/smm.h>
+#include <soc/iomap.h>
+#include <soc/pmc.h>
+#include <soc/smm.h>
 
 /* Save the gpio route register. The settings are committed from
  * southcluster_smm_enable_smi(). */
@@ -67,7 +62,7 @@ void southcluster_smm_clear_state(void)
 
 static void southcluster_smm_route_gpios(void)
 {
-	const unsigned long gpio_rout = PMC_BASE_ADDRESS + GPIO_ROUT;
+	u32 *gpio_rout = (u32 *)(PMC_BASE_ADDRESS + GPIO_ROUT);
 	const unsigned short alt_gpio_smi = ACPI_BASE_ADDRESS + ALT_GPIO_SMI;
 	uint32_t alt_gpio_reg = 0;
 	uint32_t route_reg = gpio_route;

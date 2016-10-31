@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef MEMRANGE_H_
 #define MEMRANGE_H_
@@ -25,6 +21,9 @@
  * is exposed so that a memranges can be used on the stack if needed. */
 struct memranges {
 	struct range_entry *entries;
+	/* Coreboot doesn't have a free() function. Therefore, keep a cache of
+	 * free'd entries.  */
+	struct range_entry *free_list;
 };
 
 /* Each region within a memranges structure is represented by a
@@ -37,6 +36,18 @@ struct range_entry {
 	unsigned long tag;
 	struct range_entry *next;
 };
+
+/* Initialize a range_entry with inclusive beginning address and exclusive
+ * end address along with the appropriate tag. */
+static inline void range_entry_init(struct range_entry *re,
+				resource_t incl_begin, resource_t excl_end,
+				unsigned long tag)
+{
+	re->begin = incl_begin;
+	re->end = excl_end - 1;
+	re->tag = tag;
+	re->next = NULL;
+}
 
 /* Return inclusive base address of memory range. */
 static inline resource_t range_entry_base(const struct range_entry *r)
@@ -74,6 +85,11 @@ static inline void range_entry_update_tag(struct range_entry *r,
  * ranges - memranges pointer */
 #define memranges_each_entry(r, ranges) \
 	for (r = (ranges)->entries; r != NULL; r = r->next)
+
+/* Initialize memranges structure providing an optional array of range_entry
+ * to use as the free list. */
+void memranges_init_empty(struct memranges *ranges, struct range_entry *free,
+                          size_t num_free);
 
 /* Initialize and fill a memranges structure according to the
  * mask and match type for all memory resources. Tag each entry with the

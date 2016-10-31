@@ -7,13 +7,12 @@
  * @xrefitem bom "File Content Label" "Release Content"
  * @e project:      AGESA
  * @e sub-project:  CPU/Family/0x15
- * @e \$Revision: 56273 $   @e \$Date: 2011-07-11 12:53:52 -0600 (Mon, 11 Jul 2011) $
  *
  */
 /*
  ******************************************************************************
  *
- * Copyright (C) 2012 Advanced Micro Devices, Inc.
+ * Copyright (c) 2008 - 2012, Advanced Micro Devices, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,7 +36,6 @@
  * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
  ******************************************************************************
  */
 
@@ -63,7 +61,9 @@
  */
 /// Power Check Error Data
 typedef struct {
+  UINT8 SocketNumber;                 ///< Socket Number
   UINT8 HwPstateNumber;               ///< Number of hardware P-states
+  UINT8 AllowablePstateNumber;        ///< Number of allowable P-states
   UINT8 NumberOfBoostStates;          ///< Number of boosted P-states
   UINT8 NumberOfSwPstatesDisabled;    ///< Number of software P-states disabled
 } PWRCHK_ERROR_DATA;

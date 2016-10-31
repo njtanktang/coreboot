@@ -44,7 +44,7 @@
 #ifndef _OPTION_DMI_INSTALL_H_
 #define _OPTION_DMI_INSTALL_H_
 
-#include "cpuLateInit.h"
+#include <Proc/CPU/cpuLateInit.h>
 
 /*  This option is designed to be included into the platform solution install
  *  file. The platform solution install file will define the options status.
@@ -63,8 +63,6 @@
     // This additional check keeps AP launch routines from being unnecessarily included
     // in single socket systems.
     #if OPTION_MULTISOCKET == TRUE
-      #undef AGESA_ENTRY_LATE_RUN_AP_TASK
-      #define AGESA_ENTRY_LATE_RUN_AP_TASK TRUE
       #define CPU_DMI_AP_GET_TYPE4_TYPE7 {AP_LATE_TASK_GET_TYPE4_TYPE7, (IMAGE_ENTRY) GetType4Type7Info},
     #else
       #define CPU_DMI_AP_GET_TYPE4_TYPE7

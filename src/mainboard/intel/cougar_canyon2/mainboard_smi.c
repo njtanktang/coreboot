@@ -12,12 +12,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <arch/acpi.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
@@ -26,27 +23,6 @@
 #include <southbridge/intel/fsp_bd82x6x/me.h>
 #include <northbridge/intel/fsp_sandybridge/sandybridge.h>
 #include <cpu/intel/fsp_model_206ax/model_206ax.h>
-
-int mainboard_io_trap_handler(int smif)
-{
-	switch (smif) {
-	case 0x99:
-		printk(BIOS_DEBUG, "Sample\n");
-		smm_get_gnvs()->smif = 0;
-		break;
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 0
-	 * On failure, the IO Trap Handler returns a value != 0
-	 *
-	 * For now, we force the return value to 0 and log all traps to
-	 * see what's going on.
-	 */
-	//gnvs->smif = 0;
-	return 1;
-}
 
 /*
  * Change LED_POWER# (SIO GPIO 45) state based on sleep type.
@@ -59,11 +35,11 @@ void mainboard_smi_sleep(u8 slp_typ)
 	u8 reg8;
 
 	switch (slp_typ) {
-	case SLP_TYP_S3:
-	case SLP_TYP_S4:
+	case ACPI_S3:
+	case ACPI_S4:
 		break;
 
-	case SLP_TYP_S5:
+	case ACPI_S5:
 		/* Turn off LED */
 		reg8 = inb(SIO_GPIO_BASE_SET4);
 		reg8 |= (1 << 5);
@@ -72,14 +48,13 @@ void mainboard_smi_sleep(u8 slp_typ)
 	}
 }
 
-#define APMC_FINALIZE 0xcb
 
 static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 apmc)
 {
 	switch (apmc) {
-	case APMC_FINALIZE:
+	case APM_CNT_FINALIZE:
 		if (mainboard_finalized) {
 			printk(BIOS_DEBUG, "SMI#: Already finalized\n");
 			return 0;

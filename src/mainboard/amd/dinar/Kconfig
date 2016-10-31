@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 if BOARD_AMD_DINAR
 
@@ -26,13 +22,13 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select NORTHBRIDGE_AMD_AGESA_FAMILY15
 	select NORTHBRIDGE_AMD_CIMX_RD890
 	select SOUTHBRIDGE_AMD_CIMX_SB700
+	select SUPERIO_SMSC_SIO1036
 	select SUPERIO_SMSC_SCH4037
 	select BOARD_ROMSIZE_KB_2048
 	select HAVE_OPTION_TABLE
 	select HAVE_PIRQ_TABLE
 	select HAVE_MP_TABLE
 	select HAVE_ACPI_TABLES
-	#TODO select HAVE_ACPI_RESUME
 	select ENABLE_APIC_EXT_ID
 	select GFXUMA
 
@@ -59,22 +55,6 @@ config HW_MEM_HOLE_SIZE_AUTO_INC
 config IRQ_SLOT_COUNT
 	int
 	default 11
-
-config RAMTOP
-	hex
-	default 0x1000000
-
-config HEAP_SIZE
-	hex
-	default 0xc0000
-
-config RAMBASE
-	hex
-	default 0x200000
-
-config DRIVERS_PS2_KEYBOARD
-	bool
-	default y
 
 config ONBOARD_VGA_IS_PRIMARY
 	bool
@@ -116,11 +96,6 @@ config XHC_BIOS_ID
 	depends on XHC_BIOS
 	default "1022,7812"
 
-config CONSOLE_POST
-	bool
-	depends on !NO_POST
-	default n
-
 config SATA_CONTROLLER_MODE
 	hex
 	default 0x0
@@ -150,10 +125,6 @@ config ONBOARD_TRAVIS
 	default y
 
 config ONBOARD_LIGHTSENSOR
-	bool
-	default n
-
-config UDELAY_IO
 	bool
 	default n
 

@@ -10,9 +10,6 @@
  * Copyright (C) 2004-2007 Freescale Semiconductor, Inc.
  * TsiChung Liew (Tsi-Chung.Liew@freescale.com)
  *
- * See file CREDITS for list of people who contributed to this
- * project.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -22,15 +19,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdlib.h>
 #include <spi_flash.h>
+
 #include "spi_flash_internal.h"
 
 /* MX25xx-specific commands */
@@ -92,7 +85,15 @@ static const struct macronix_spi_flash_params macronix_spi_flash_table[] = {
 		.pages_per_sector = 16,
 		.sectors_per_block = 16,
 		.nr_blocks = 64,
-		.name = "MX25L3235D", /* MX25L3225D/MX25L3235D/MX25L3237D */
+		.name = "MX25L3235D", /* MX25L3225D/MX25L3235D/MX25L3236D/MX25L3237D */
+	},
+	{
+		.idcode = 0x2536,
+		.page_size = 256,
+		.pages_per_sector = 16,
+		.sectors_per_block = 16,
+		.nr_blocks = 64,
+		.name = "MX25L3239E",
 	},
 	{
 		.idcode = 0x2017,
@@ -118,6 +119,30 @@ static const struct macronix_spi_flash_params macronix_spi_flash_table[] = {
 		.nr_blocks = 256,
 		.name = "MX25L12855E",
 	},
+	{
+		.idcode = 0x2537,
+		.page_size = 256,
+		.pages_per_sector = 16,
+		.sectors_per_block = 16,
+		.nr_blocks = 128,
+		.name = "MX25U6435F",
+	},
+	{
+		.idcode = 0x2538,
+		.page_size = 256,
+		.pages_per_sector = 16,
+		.sectors_per_block = 16,
+		.nr_blocks = 256,
+		.name = "MX25U12835F",
+	},
+	{
+		.idcode = 0x9517,
+		.page_size = 256,
+		.pages_per_sector = 16,
+		.sectors_per_block = 16,
+		.nr_blocks = 128,
+		.name = "MX25L6495F",
+	},
 };
 
 static int macronix_write(struct spi_flash *flash,
@@ -128,28 +153,22 @@ static int macronix_write(struct spi_flash *flash,
 	unsigned long page_size;
 	size_t chunk_len;
 	size_t actual;
-	int ret;
+	int ret = 0;
 	u8 cmd[4];
 
-	page_size = min(mcx->params->page_size, CONTROLLER_PAGE_LIMIT);
+	page_size = mcx->params->page_size;
 	byte_addr = offset % page_size;
 
 	flash->spi->rw = SPI_WRITE_FLAG;
-	ret = spi_claim_bus(flash->spi);
-	if (ret) {
-		printk(BIOS_WARNING, "SF: Unable to claim SPI bus\n");
-		return ret;
-	}
 
-	ret = 0;
 	for (actual = 0; actual < len; actual += chunk_len) {
 		chunk_len = min(len - actual, page_size - byte_addr);
+		chunk_len = spi_crop_chunk(sizeof(cmd), chunk_len);
 
 		cmd[0] = CMD_MX25XX_PP;
 		cmd[1] = (offset >> 16) & 0xff;
 		cmd[2] = (offset >> 8) & 0xff;
 		cmd[3] = offset & 0xff;
-
 #if CONFIG_DEBUG_SPI_FLASH
 		printk(BIOS_SPEW, "PP: 0x%p => cmd = { 0x%02x 0x%02x%02x%02x }"
 		     " chunk_len = %zu\n",
@@ -162,7 +181,7 @@ static int macronix_write(struct spi_flash *flash,
 			break;
 		}
 
-		ret = spi_flash_cmd_write(flash->spi, cmd, 4,
+		ret = spi_flash_cmd_write(flash->spi, cmd, sizeof(cmd),
 					  buf + actual, chunk_len);
 		if (ret < 0) {
 			printk(BIOS_WARNING, "SF: Macronix Page Program failed\n");
@@ -182,19 +201,14 @@ static int macronix_write(struct spi_flash *flash,
 	      " 0x%lx\n", len, (unsigned long)(offset - len));
 #endif
 
-	spi_release_bus(flash->spi);
 	return ret;
 }
 
-static int macronix_erase(struct spi_flash *flash, u32 offset, size_t len)
-{
-	return spi_flash_cmd_erase(flash, CMD_MX25XX_SE, offset, len);
-}
+static struct macronix_spi_flash mcx;
 
 struct spi_flash *spi_flash_probe_macronix(struct spi_slave *spi, u8 *idcode)
 {
 	const struct macronix_spi_flash_params *params;
-	struct macronix_spi_flash *mcx;
 	unsigned int i;
 	u16 id = idcode[2] | idcode[1] << 8;
 
@@ -209,26 +223,23 @@ struct spi_flash *spi_flash_probe_macronix(struct spi_slave *spi, u8 *idcode)
 		return NULL;
 	}
 
-	mcx = malloc(sizeof(*mcx));
-	if (!mcx) {
-		printk(BIOS_WARNING, "SF: Failed to allocate memory\n");
-		return NULL;
-	}
+	mcx.params = params;
+	mcx.flash.spi = spi;
+	mcx.flash.name = params->name;
 
-	mcx->params = params;
-	mcx->flash.spi = spi;
-	mcx->flash.name = params->name;
-
-	mcx->flash.write = macronix_write;
-	mcx->flash.erase = macronix_erase;
+	mcx.flash.write = macronix_write;
+	mcx.flash.erase = spi_flash_cmd_erase;
+	mcx.flash.status = spi_flash_cmd_status;
 #if CONFIG_SPI_FLASH_NO_FAST_READ
-	mcx->flash.read = spi_flash_cmd_read_slow;
+	mcx.flash.read = spi_flash_cmd_read_slow;
 #else
-	mcx->flash.read = spi_flash_cmd_read_fast;
+	mcx.flash.read = spi_flash_cmd_read_fast;
 #endif
-	mcx->flash.sector_size = params->page_size * params->pages_per_sector;
-	mcx->flash.size = mcx->flash.sector_size * params->sectors_per_block *
+	mcx.flash.sector_size = params->page_size * params->pages_per_sector;
+	mcx.flash.size = mcx.flash.sector_size * params->sectors_per_block *
 		params->nr_blocks;
+	mcx.flash.erase_cmd = CMD_MX25XX_SE;
+	mcx.flash.status_cmd = CMD_MX25XX_RDSR;
 
-	return &mcx->flash;
+	return &mcx.flash;
 }

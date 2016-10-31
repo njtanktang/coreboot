@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* RAM driver for the SMSC LPC47M15X Super I/O chip */
@@ -31,8 +27,8 @@
 #include "lpc47m15x.h"
 
 /* Forward declarations */
-static void enable_dev(device_t dev);
-static void lpc47m15x_init(device_t dev);
+static void enable_dev(struct device *dev);
+static void lpc47m15x_init(struct device *dev);
 
 struct chip_operations superio_smsc_lpc47m15x_ops = {
 	CHIP_NAME("SMSC LPC47M15x/192/997 Super I/O")
@@ -56,13 +52,13 @@ static struct pnp_info pnp_dev_info[] = {
 	{ &ops, LPC47M15X_KBC, PNP_IO0 | PNP_IO1 | PNP_IRQ0 | PNP_IRQ1, {0x07ff, 0}, {0x07ff, 4}, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops,
 			   ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }
 
-static void lpc47m15x_init(device_t dev)
+static void lpc47m15x_init(struct device *dev)
 {
 
 	if (!dev->enabled)
@@ -70,7 +66,7 @@ static void lpc47m15x_init(device_t dev)
 
 	switch(dev->path.pnp.device) {
 	case LPC47M15X_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }

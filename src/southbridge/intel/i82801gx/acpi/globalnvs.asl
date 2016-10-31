@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* Global Variables */
@@ -30,8 +25,8 @@ Name(\DSEN, 1)		// Display Output Switching Enable
  * we have to fix it up in coreboot's ACPI creation phase.
  */
 
-
-OperationRegion (GNVS, SystemMemory, 0xC0DEBABE, 0x100)
+External(NVSA)
+OperationRegion (GNVS, SystemMemory, NVSA, 0x100)
 Field (GNVS, ByteAcc, NoLock, Preserve)
 {
 	/* Miscellaneous */

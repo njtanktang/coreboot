@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -87,7 +83,7 @@ static inline u32 get_timer_fsb(void)
 
 void init_timer(void)
 {
-	/* Set the apic timer to no interrupts and periodic mode */
+	/* Set the APIC timer to no interrupts and periodic mode */
 	lapic_write(LAPIC_LVTT, (LAPIC_LVT_TIMER_PERIODIC | LAPIC_LVT_MASKED));
 
 	/* Set the divider to 1, no divider */
@@ -120,7 +116,7 @@ void udelay(u32 usecs)
 	start = lapic_read(LAPIC_TMCCT);
 	do {
 		value = lapic_read(LAPIC_TMCCT);
-	} while((start - value) < ticks);
+	} while ((start - value) < ticks);
 }
 
 #if CONFIG_LAPIC_MONOTONIC_TIMER && !defined(__PRE_RAM__)

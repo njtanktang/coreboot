@@ -3,7 +3,7 @@
  * sconfig, coreboot device tree compiler
  *
  * Copyright (C) 2010 coresystems GmbH
- *                 written by Patrick Georgi <patrick.georgi@coresystems.de>
+ *   written by Patrick Georgi <patrick@georgi-clan.de>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include "sconfig.tab.h"
@@ -39,7 +35,9 @@ pnp		{yylval.number=PNP; return(BUS);}
 i2c		{yylval.number=I2C; return(BUS);}
 lapic		{yylval.number=APIC; return(BUS);}
 cpu_cluster	{yylval.number=CPU_CLUSTER; return(BUS);}
+cpu		{yylval.number=CPU; return(BUS);}
 domain		{yylval.number=DOMAIN; return(BUS);}
+generic		{yylval.number=GENERIC; return(BUS);}
 irq		{yylval.number=IRQ; return(RESOURCE);}
 drq		{yylval.number=DRQ; return(RESOURCE);}
 io		{yylval.number=IO; return(RESOURCE);}
@@ -52,6 +50,7 @@ end		{return(END);}
 [0-9.]+		{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(NUMBER);}
 [0-9a-fA-F.]+	{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(NUMBER);}
 INT[A-D]        {yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(PCIINT);}
+\"\"[^\"]+\"\"	{yylval.string = malloc(yyleng-1); strncpy(yylval.string, yytext+1, yyleng-2); yylval.string[yyleng-2]='\0'; return(STRING);}
 \"[^\"]+\"	{yylval.string = malloc(yyleng-1); strncpy(yylval.string, yytext+1, yyleng-2); yylval.string[yyleng-2]='\0'; return(STRING);}
 [^ \n\t]+	{yylval.string = malloc(yyleng+1); strncpy(yylval.string, yytext, yyleng); yylval.string[yyleng]='\0'; return(STRING);}
 %%

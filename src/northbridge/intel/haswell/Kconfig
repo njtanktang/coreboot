@@ -12,18 +12,16 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_HASWELL
 	bool
-	select CACHE_MRC_BIN
 	select CPU_INTEL_HASWELL
-	select REQUIRES_BLOB
 	select MMCONF_SUPPORT
 	select MMCONF_SUPPORT_DEFAULT
+	select NORTHBRIDGE_INTEL_COMMON_MRC_CACHE
+	select INTEL_DDI
+	select INTEL_DP
+	select INTEL_GMA_ACPI
 
 if NORTHBRIDGE_INTEL_HASWELL
 
@@ -38,16 +36,6 @@ config VGA_BIOS_ID
 config CACHE_MRC_SIZE_KB
 	int
 	default 512
-
-# FIXME: build from rom size
-config MRC_CACHE_BASE
-	hex
-	default 0xff800000
-
-config MRC_CACHE_LOCATION
-	hex
-	depends on !CHROMEOS
-	default 0x370000
 
 config MRC_CACHE_SIZE
 	hex
@@ -77,7 +65,7 @@ config DCACHE_RAM_ROMSTAGE_STACK_SIZE
 	default 0x2000
 	help
 	  The amount of anticipated stack usage from the data cache
-	  during pre-ram rom stage execution.
+	  during pre-ram ROM stage execution.
 
 config HAVE_MRC
 	bool "Add a System Agent binary"
@@ -95,16 +83,13 @@ config MRC_FILE
 	  The path and filename of the file to use as System Agent
 	  binary.
 
-config CBFS_SIZE
-	hex "Size of CBFS filesystem in ROM"
-	default 0x100000
+config PRE_GRAPHICS_DELAY
+	int "Graphics initialization delay in ms"
+	default 0
 	help
-	  On Haswell systems the firmware image has to store a lot more
-	  than just coreboot, including:
-	   - a firmware descriptor
-	   - Intel Management Engine firmware
-	   - MRC cache information
-	  This option allows to limit the size of the CBFS portion in the
-	  firmware image.
+	  On some systems, coreboot boots so fast that connected monitors
+	  (mostly TVs) won't be able to wake up fast enough to talk to the
+	  VBIOS. On those systems we need to wait for a bit before executing
+	  the VBIOS.
 
 endif

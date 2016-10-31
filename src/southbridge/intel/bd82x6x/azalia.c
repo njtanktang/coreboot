@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -26,6 +22,7 @@
 #include <device/pci_ops.h>
 #include <arch/io.h>
 #include <delay.h>
+#include <device/azalia_device.h>
 #include "pch.h"
 
 #define HDA_ICII_REG 0x68
@@ -34,7 +31,7 @@
 
 typedef struct southbridge_intel_bd82x6x_config config_t;
 
-static int set_bits(u32 port, u32 mask, u32 val)
+static int set_bits(void *port, u32 mask, u32 val)
 {
 	u32 reg32;
 	int count;
@@ -63,7 +60,7 @@ static int set_bits(u32 port, u32 mask, u32 val)
 	return 0;
 }
 
-static int codec_detect(u32 base)
+static int codec_detect(u8 *base)
 {
 	u8 reg8;
 
@@ -72,7 +69,8 @@ static int codec_detect(u32 base)
 		goto no_codec;
 
 	/* Write back the value once reset bit is set. */
-	write16(base + 0x0, read16(base + 0x0));
+	write16(base + 0x0,
+		read16(base + 0x0));
 
 	/* Read in Codec location (BAR + 0xe)[2..0]*/
 	reg8 = read8(base + 0xe);
@@ -89,11 +87,6 @@ no_codec:
 	printk(BIOS_DEBUG, "Azalia: No codec!\n");
 	return 0;
 }
-
-const u32 * cim_verb_data = NULL;
-u32 cim_verb_data_size = 0;
-const u32 * pc_beep_verbs = NULL;
-u32 pc_beep_verbs_size = 0;
 
 static u32 find_verb(struct device *dev, u32 viddid, const u32 ** verb)
 {
@@ -118,14 +111,14 @@ static u32 find_verb(struct device *dev, u32 viddid, const u32 ** verb)
  *  no response would imply that the codec is non-operative
  */
 
-static int wait_for_ready(u32 base)
+static int wait_for_ready(u8 *base)
 {
 	/* Use a 1msec timeout */
 
 	int timeout = 1000;
 
-	while(timeout--) {
-		u32 reg32 = read32(base +  HDA_ICII_REG);
+	while (timeout--) {
+		u32 reg32 = read32(base + HDA_ICII_REG);
 		if (!(reg32 & HDA_ICII_BUSY))
 			return 0;
 		udelay(1);
@@ -140,7 +133,7 @@ static int wait_for_ready(u32 base)
  *  is non-operative
  */
 
-static int wait_for_valid(u32 base)
+static int wait_for_valid(u8 *base)
 {
 	u32 reg32;
 
@@ -152,7 +145,7 @@ static int wait_for_valid(u32 base)
 	/* Use a 1msec timeout */
 
 	int timeout = 1000;
-	while(timeout--) {
+	while (timeout--) {
 		reg32 = read32(base + HDA_ICII_REG);
 		if ((reg32 & (HDA_ICII_VALID | HDA_ICII_BUSY)) ==
 			HDA_ICII_VALID)
@@ -163,7 +156,7 @@ static int wait_for_valid(u32 base)
 	return -1;
 }
 
-static void codec_init(struct device *dev, u32 base, int addr)
+static void codec_init(struct device *dev, u8 *base, int addr)
 {
 	u32 reg32;
 	const u32 *verb;
@@ -211,7 +204,7 @@ static void codec_init(struct device *dev, u32 base, int addr)
 	printk(BIOS_DEBUG, "Azalia: verb loaded.\n");
 }
 
-static void codecs_init(struct device *dev, u32 base, u32 codec_mask)
+static void codecs_init(struct device *dev, u8 *base, u32 codec_mask)
 {
 	int i;
 	for (i = 3; i >= 0; i--) {
@@ -232,7 +225,7 @@ static void codecs_init(struct device *dev, u32 base, u32 codec_mask)
 
 static void azalia_init(struct device *dev)
 {
-	u32 base;
+	u8 *base;
 	struct resource *res;
 	u32 codec_mask;
 	u8 reg8;
@@ -246,7 +239,7 @@ static void azalia_init(struct device *dev)
 
 	// NOTE this will break as soon as the Azalia get's a bar above
 	// 4G. Is there anything we can do about it?
-	base = (u32)res->base;
+	base = res2mmio(res, 0, 0);
 	printk(BIOS_DEBUG, "Azalia: base = %08x\n", (u32)base);
 
 	if (RCBA32(0x2030) & (1 << 31)) {
@@ -369,4 +362,3 @@ static const struct pci_driver pch_azalia __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-

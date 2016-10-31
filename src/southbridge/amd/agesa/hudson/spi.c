@@ -11,15 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arch/io.h>
+#include <console/console.h>
 #include <spi-generic.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -42,17 +39,22 @@ static int bus_claimed = 0;
 #define SPI_REG_CNTRL11		0xd
  #define CNTRL11_FIFOPTR_MASK	0x07
 
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_YANGTZE)
+#define AMD_SB_SPI_TX_LEN	64
+#else
+#define AMD_SB_SPI_TX_LEN	8
+#endif
 
-static u32 spibar;
+static uintptr_t spibar;
 
 static inline uint8_t spi_read(uint8_t reg)
 {
-	return read8(spibar + reg);
+	return read8((void *)(spibar + reg));
 }
 
 static inline void spi_write(uint8_t reg, uint8_t val)
 {
-	write8(spibar + reg, val);
+	write8((void *)(spibar + reg), val);
 }
 
 static void reset_internal_fifo_pointer(void)
@@ -86,21 +88,33 @@ void spi_init(void)
 	spibar = pci_read_config32(dev, 0xA0) & ~0x1F;
 }
 
+unsigned int spi_crop_chunk(unsigned int cmd_len, unsigned int buf_len)
+{
+	return min(AMD_SB_SPI_TX_LEN - cmd_len, buf_len);
+}
+
 int spi_xfer(struct spi_slave *slave, const void *dout,
-		unsigned int bitsout, void *din, unsigned int bitsin)
+		unsigned int bytesout, void *din, unsigned int bytesin)
 {
 	/* First byte is cmd which can not being sent through FIFO. */
-	uint8_t cmd = *(uint8_t *)dout++;
-	uint8_t readoffby1;
-#if !CONFIG_SOUTHBRIDGE_AMD_AGESA_YANGTZE
-	uint8_t readwrite;
-#endif
-	uint8_t bytesout, bytesin;
-	uint8_t count;
+	u8 cmd = *(u8 *)dout++;
+	u8 readoffby1;
+	u8 count;
 
-	bitsout -= 8;
-	bytesout = bitsout / 8;
-	bytesin  = bitsin / 8;
+	bytesout--;
+
+	/*
+	 * Check if this is a write command attempting to transfer more bytes
+	 * than the controller can handle. Iterations for writes are not
+	 * supported here because each SPI write command needs to be preceded
+	 * and followed by other SPI commands, and this sequence is controlled
+	 * by the SPI chip driver.
+	 */
+	if (bytesout > AMD_SB_SPI_TX_LEN) {
+		printk(BIOS_DEBUG, "FCH SPI: Too much to write. Does your SPI chip driver use"
+		     " spi_crop_chunk()?\n");
+		return -1;
+	}
 
 	readoffby1 = bytesout ? 0 : 1;
 
@@ -110,7 +124,7 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 	spi_write(0x1E, 6);
 	spi_write(0x1F, bytesin);  /* SpiExtRegIndx [6] - RxByteCount */
 #else
-	readwrite = (bytesin + readoffby1) << 4 | bytesout;
+	u8 readwrite = (bytesin + readoffby1) << 4 | bytesout;
 	spi_write(SPI_REG_CNTRL01, readwrite);
 #endif
 	spi_write(SPI_REG_OPCODE, cmd);
@@ -129,7 +143,6 @@ int spi_xfer(struct spi_slave *slave, const void *dout,
 		cmd = spi_read(SPI_REG_FIFO);
 	}
 
-	reset_internal_fifo_pointer();
 	for (count = 0; count < bytesin; count++, din++) {
 		*(uint8_t *)din = spi_read(SPI_REG_FIFO);
 	}
@@ -164,16 +177,7 @@ void spi_release_bus(struct spi_slave *slave)
 #endif
 }
 
-void spi_cs_activate(struct spi_slave *slave)
-{
-}
-
-void spi_cs_deactivate(struct spi_slave *slave)
-{
-}
-
-struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs,
-		unsigned int max_hz, unsigned int mode)
+struct spi_slave *spi_setup_slave(unsigned int bus, unsigned int cs)
 {
 	struct spi_slave *slave = malloc(sizeof(*slave));
 

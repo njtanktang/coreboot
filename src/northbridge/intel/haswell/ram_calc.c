@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Use simple device model for this file even in ramstage
@@ -24,12 +20,17 @@
 #include <cbmem.h>
 #include "haswell.h"
 
-unsigned long get_top_of_ram(void)
+static uintptr_t smm_region_start(void)
 {
 	/*
 	 * Base of TSEG is top of usable DRAM below 4GiB. The register has
 	 * 1 MiB alignement.
 	 */
-	u32 tom = pci_read_config32(PCI_DEV(0,0,0), TSEG);
-	return (unsigned long) tom & ~((1 << 20) - 1);
+	uintptr_t tom = pci_read_config32(PCI_DEV(0,0,0), TSEG);
+	return tom & ~((1 << 20) - 1);
+}
+
+void *cbmem_top(void)
+{
+	return (void *)smm_region_start();
 }

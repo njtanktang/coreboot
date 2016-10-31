@@ -1,8 +1,8 @@
 #!/bin/sh
 export COREBOOT_DIR="../coreboot"
 export GIT_DIR="$COREBOOT_DIR/.git"
-CODE_GITWEB="http://review.coreboot.org/gitweb?p=coreboot.git;a=commitdiff;h="
-STATUS_GITWEB="http://review.coreboot.org/gitweb?p=board-status.git;a=blob;hb=HEAD;f="
+CODE_GITWEB="https://review.coreboot.org/gitweb/cgit/coreboot.git/commit/?id="
+STATUS_GITWEB="https://review.coreboot.org/gitweb/cgit/board-status.git/tree/"
 if [ -f `dirname $0`/foreword.wiki ]; then
 	cat `dirname $0`/foreword.wiki
 fi
@@ -17,9 +17,10 @@ while read line; do
 	for i in $rest; do
 		vendor_board=`echo $i | cut -d/ -f1-2`
 		commit=`echo $i | cut -d/ -f3`
-		datetime=`echo $i | cut -d/ -f4`
+		datetime_path=`echo $i | cut -d/ -f4`
+		datetime=`echo $datetime_path | tr _ :`
 		datetime_human=`LC_ALL=C TZ=UTC date --date="$datetime"`
-		upstream=`grep "^Upstream revision:" $vendor_board/$commit/$datetime/revision.txt |cut -d: -f2-`
+		upstream=`grep "^Upstream revision:" $vendor_board/$commit/$datetime_path/revision.txt |cut -d: -f2-`
 		upstream=`git log -1 --format=%H $upstream`
 		if ! echo "$have"| grep  "^$vendor_board:" > /dev/null; then
 			detailed="$detailed<span id=\"$vendor_board\"></span>$nl"
@@ -28,8 +29,8 @@ while read line; do
 
 		detailed="$detailed[[Board:$vendor_board|$vendor_board]] at $datetime_human$nl"
 		detailed="$detailed[$CODE_GITWEB$upstream upstream tree] ($nl"
-		for file in "$vendor_board/$commit/$datetime/"*; do
-			if [ "$file" = "$vendor_board/$commit/$datetime/revision.txt" ]; then
+		for file in "$vendor_board/$commit/$datetime_path/"*; do
+			if [ "$file" = "$vendor_board/$commit/$datetime_path/revision.txt" ]; then
 				continue
 			fi
 			detailed="$detailed[$STATUS_GITWEB$file `basename $file`] $nl"
@@ -58,7 +59,7 @@ cat <<EOF
 ! align="left" | <span title="Vendor Cooperation Score">VCS<sup>5</sup></span>
 EOF
 
-for category in desktop server laptop half mini settop "eval" sbc emulation misc unclass; do
+for category in laptop server desktop half mini settop "eval" sbc emulation misc unclass; do
 	last_vendor=
 	color=eeeeee
 	case "$category" in
@@ -144,7 +145,7 @@ EOF
 	for vendor_board_dir in "$COREBOOT_DIR"/src/mainboard/*/* ; do
 		board="$(basename "$vendor_board_dir")"
 		vendor="$(basename "$(dirname "$vendor_board_dir")")"
-		if [ "$board" = Kconfig ]; then
+		if [ "$board" = Kconfig ] || [ "$board" = Kconfig.name ]; then
 			continue
 		fi
 
@@ -197,7 +198,7 @@ EOF
 			fi
 		fi
 
-		vendor_nice="$(grep -A1 -i "config VENDOR_$vendor" "$COREBOOT_DIR"/src/mainboard/Kconfig|tail -n1|sed -n 's,^[[:space:]]*bool[[:space:]]*"\(.*\)"[[:space:]]*$,\1,p')"
+		vendor_nice="$(grep -A1 -i "config VENDOR_$vendor" "$COREBOOT_DIR"/src/mainboard/$vendor/Kconfig.name|tail -n1|sed -n 's,^[[:space:]]*bool[[:space:]]*"\(.*\)"[[:space:]]*$,\1,p')"
 
 		if [ -z "$vendor_nice" ]; then
 			vendor_nice="$(echo "$vendor" |sed -e "s/\(.\)/\u\1/g")";
@@ -209,20 +210,23 @@ EOF
 			board_nice="$(echo "$board" |sed -e "s,_, ,g;s/\(.\)/\u\1/g")";
 		fi
 
-		lastgood="$(echo "$have"| sed -n "/^$vendor\/$board:/ s,^[^:]*:,,gp")"
-
-		if ! [ -z "$clone_of" ]; then
-		    vendor_board_dir="$COREBOOT_DIR"/src/mainboard/"$clone_of";
+		venboard="$vendor/$board"
+		if [ -n "$clone_of" ]; then
+		    venboard="$clone_of"
 		fi
 
-		northbridge="$(sed -n "/^[[:space:]]*select NORTHBRIDGE_/ s,^[[:space:]]*select NORTHBRIDGE_,,p" "$vendor_board_dir/Kconfig")"
-		northbridge_nice="$(echo "$northbridge"|sed 's,AMD_AGESA_FAMILY\([0-9a-fA-F]*\)\(.*\),AMD Family \1h\2 (AGESA),g;s,AMD_FAMILY\([0-9a-fA-F]*\),AMD Family \1h,g;s,AMD_AMDFAM\([0-9a-fA-F]*\),AMD Family \1h,g;s,_, ,g;s,INTEL,Intel®,g;')"
+		lastgood="$(echo "$have"| sed -n "/^$(echo "$venboard"|sed 's,/,\\/,g'):/ s,^[^:]*:,,gp")"
 
-		southbridge="$(sed -n "/[[:space:]]*select SOUTHBRIDGE_/ s,[[:space:]]*select SOUTHBRIDGE_\([^ ]*\).*$,\1,p" "$vendor_board_dir/Kconfig"|grep -v SKIP_ISA_DMA_INIT)"
+		vendor_board_dir="$COREBOOT_DIR"/src/mainboard/"$venboard";
+
+		northbridge="$(sed -n "/^[[:space:]]*select NORTHBRIDGE_/ s,^[[:space:]]*select NORTHBRIDGE_,,p" "$vendor_board_dir/Kconfig")"
+		northbridge_nice="$(echo "$northbridge"|sed 's,AMD_AGESA_FAMILY\([0-9a-fA-F]*\)\(.*\),AMD Family \1h\2 (AGESA),g;s,AMD_PI_\(.*\),AMD \1 (PI),g;s,INTEL_FSP_\(.*\),Intel® \1 (FSP),g;s,AMD_FAMILY\([0-9a-fA-F]*\),AMD Family \1h,g;s,AMD_AMDFAM\([0-9a-fA-F]*\),AMD Family \1h,g;s,_, ,g;s,INTEL,Intel®,g;')"
+
+		southbridge="$(sed -n "/[[:space:]]*select SOUTHBRIDGE_/ s,[[:space:]]*select SOUTHBRIDGE_\([^ ]*\).*$,\1,p" "$vendor_board_dir/Kconfig"|grep -v SKIP_|grep -v DISABLE_)"
 		southbridge_nice="$(echo "$southbridge"|sed 's,_, ,g;s,INTEL,Intel®,g')"
 		superio="$(sed -n "/[[:space:]]*select SUPERIO_/ s,[[:space:]]*select SUPERIO_,,p" "$vendor_board_dir/Kconfig"|grep -v OVERRIDE_FANCTL)"
-		superio_nice="$(echo "$superio"|sed 's,_, ,g;s,WINBOND,Winbond™,g;s,ITE,ITE™,g;s,SMSC,SMSC®,g')"
-		cpu="$(sed -n "/	select CPU_/ s,	select CPU_,,p" "$vendor_board_dir/Kconfig"|grep -v "AMD_AGESA_FAMILY")"
+		superio_nice="$(echo "$superio"|sed 's,_, ,g;s,WINBOND,Winbond™,g;s,ITE,ITE™,g;s,SMSC,SMSC®,g;s,NUVOTON,Nuvoton ,g')"
+		cpu="$(sed -n "/	select CPU_/ s,	select CPU_,,p" "$vendor_board_dir/Kconfig"|grep -v "AMD_AGESA_FAMILY"|grep -v CPU_MICROCODE_CBFS_NONE)"
 		case "$cpu" in
 			ALLWINNER_A10)
 				cpu_nice="Allwinner A10"
@@ -239,7 +243,7 @@ EOF
 			AMD_SOCKET_S1G1)
 				cpu_nice="AMD Turion™ / X2  Sempron™";
 				socket_nice="Socket S1G1";;
-			AMD_SOCKET_G34)
+			AMD_SOCKET_G34|AMD_SOCKET_G34_NON_AGESA)
 				cpu_nice="AMD Opteron™ Magny-Cours/Interlagos";
 				socket_nice="Socket G34";;
 			AMD_SOCKET_C32|AMD_SOCKET_C32_NON_AGESA)
@@ -310,28 +314,40 @@ EOF
 				cpu_nice="Intel® Mobile Celeron"
 				socket_nice="Socket 479"
 				;;
-			INTEL_SOCKET_RPGA989)
+			INTEL_HASWELL)
+			        cpu_nice="Intel® 4th Gen (Haswell) Core i3/i5/i7"
+			        socket_nice="?"
+				;;
+			INTEL_FSP_RANGELEY)
+			        cpu_nice="Intel® Atom Rangeley (FSP)"
+			        socket_nice="?"
+				;;
+			INTEL_SOCKET_RPGA989|INTEL_SOCKET_LGA1155|INTEL_SOCKET_RPGA988B)
+			        socket_nice="`echo $socket | sed 's,INTEL_SOCKET_,Socket ,g'`"
 				case $northbridge in
 					INTEL_HASWELL)
-						cpu_nice="Intel® 4th Gen (Haswell) Core i3/i5/i7"
-						socket_nice="Socket RPGA989";;
+						cpu_nice="Intel® 4th Gen (Haswell) Core i3/i5/i7";;
 					INTEL_IVYBRIDGE|INTEL_FSP_IVYBRIDGE)
-						cpu_nice="Intel® 3rd Gen (Ivybridge) Core i3/i5/i7"
-						socket_nice="Socket RPGA989";;
+						cpu_nice="Intel® 3rd Gen (Ivybridge) Core i3/i5/i7";;
 					INTEL_SANDYBRIDGE)
-						cpu_nice="Intel® 2nd Gen (Sandybridge) Core i3/i5/i7"
-						socket_nice="Socket RPGA989";;
+						cpu_nice="Intel® 2nd Gen (Sandybridge) Core i3/i5/i7";;
 					*)
-						cpu_nice="$northbridge"
-						socket_nice="$northbridge";;
+						cpu_nice="$northbridge";;
 				esac
 				;;
 			INTEL_SOCKET_441)
 				cpu_nice="Intel® Atom™ 230";
 				socket_nice="Socket 441";;
 			INTEL_SOCKET_BGA956)
-				cpu_nice="Intel® Pentium® M";
-				socket_nice="BGA956";;
+				case $northbridge in
+				    INTEL_GM45)
+					cpu_nice="Intel® Core 2 Duo (Penryn)"
+					socket_nice="Socket P";;
+				    *)
+					cpu_nice="Intel® Pentium® M";
+					socket_nice="BGA956";;
+				esac
+				;;
 			INTEL_SOCKET_FC_PGA370)
 				cpu_nice="Intel® Pentium® III / Celeron®";
 				socket_nice="Socket 370"
@@ -367,8 +383,8 @@ EOF
 					RDC_R8610)
 						cpu_nice="RDC 8610"
 						socket_nice="—";;
-					AMD_AGESA_FAMILY14|AMD_AGESA_FAMILY15_TN|AMD_AGESA_FAMILY15_KB|AMD_AGESA_FAMILY16_KB|AMD_AGESA_FAMILY12)
-						cpu_nice="?"
+					AMD_AGESA_*|AMD_PI_*)
+						cpu_nice="$northbridge_nice"
 						socket_nice="?";;
 					*)
 						cpu_nice="$northbridge"
@@ -396,7 +412,26 @@ EOF
 		if [ -z "$lastgood" ]; then
 			echo "| style=\"background:red\" | Unknown"
 		else
-			echo "| style=\"background:lime\" | [[#$vendor/$board|$lastgood]]"
+			lastgood_diff=0
+			lastgood_ts=$(date -d "$lastgood" "+%s")
+			if [ "$lastgood_ts" != "" ]; then
+				current_ts=$(date "+%s")
+				if [ "$lastgood_ts" -lt "$current_ts" ]; then
+					lastgood_diff=$(( current_ts - lastgood_ts ))
+					# Convert seconds to days
+					lastgood_diff=$(( lastgood_diff / 86400 ))
+					# Set maximum age at 255 days for convenience of code
+					if [ $lastgood_diff -gt 255 ]; then
+						lastgood_diff=255
+					fi
+				fi
+			fi
+			lastgood_diff_hex=$(echo "obase=16; $lastgood_diff" | bc)
+			if [ "$lastgood_diff" -lt 16 ]; then
+				lastgood_diff_hex="0${lastgood_diff_hex}"
+			fi
+			cell_bgcolor="#${lastgood_diff_hex}ff00"
+			echo "| style=\"background:${cell_bgcolor}\" | [[#$vendor/$board|$lastgood]]"
 		fi
 
 		echo "| $northbridge_nice"

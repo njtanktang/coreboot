@@ -11,18 +11,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef BOOTSTATE_H
 #define BOOTSTATE_H
 
+#include <rules.h>
 #include <string.h>
-
-/* Control debugging of the boot state machine. */
-#define BOOT_STATE_DEBUG 0
+#include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
+/* Only declare main() when in ramstage. */
+#if ENV_RAMSTAGE
+#include <main_decl.h>
+#endif
 
 /*
  * The boot state machine provides a mechanism for calls to be made through-
@@ -115,12 +116,12 @@ struct boot_state_callback {
 	void (*callback)(void *arg);
 	/* For use internal to the boot state machine. */
 	struct boot_state_callback *next;
-#if BOOT_STATE_DEBUG
+#if IS_ENABLED(CONFIG_DEBUG_BOOT_STATE)
 	const char *location;
 #endif
 };
 
-#if BOOT_STATE_DEBUG
+#if IS_ENABLED(CONFIG_DEBUG_BOOT_STATE)
 #define BOOT_STATE_CALLBACK_LOC __FILE__ ":" STRINGIFY(__LINE__)
 #define BOOT_STATE_CALLBACK_INIT_DEBUG .location = BOOT_STATE_CALLBACK_LOC,
 #define INIT_BOOT_STATE_CALLBACK_DEBUG(bscb_) \
@@ -155,6 +156,10 @@ int boot_state_sched_on_entry(struct boot_state_callback *bscb,
                               boot_state_t state);
 int boot_state_sched_on_exit(struct boot_state_callback *bscb,
                              boot_state_t state);
+/* Schedule an array of entries of size num. */
+struct boot_state_init_entry;
+void boot_state_sched_entries(struct boot_state_init_entry *entries,
+				size_t num);
 
 /* Block/Unblock the (state, seq) pair from transitioning. Returns 0 on
  * success < 0  when the phase of the (state,seq) has already ran. */
@@ -163,9 +168,6 @@ int boot_state_unblock(boot_state_t state, boot_state_sequence_t seq);
 /* Block/Unblock current state phase from transitioning. */
 void boot_state_current_block(void);
 void boot_state_current_unblock(void);
-
-/* Entry into the boot state machine. */
-void main(void);
 
 /* In order to schedule boot state callbacks at compile-time specify the
  * entries in an array using the BOOT_STATE_INIT_ENTRIES and
@@ -176,16 +178,21 @@ struct boot_state_init_entry {
 	struct boot_state_callback bscb;
 };
 
+#if ENV_RAMSTAGE
 #define BOOT_STATE_INIT_ATTR  __attribute__ ((used,section (".bs_init")))
+#else
+#define BOOT_STATE_INIT_ATTR  __attribute__ ((unused))
+#endif
 
-#define BOOT_STATE_INIT_ENTRIES(name_) \
-	static struct boot_state_init_entry name_[] BOOT_STATE_INIT_ATTR
-
-#define BOOT_STATE_INIT_ENTRY(state_, when_, func_, arg_)	\
-	{							\
-		.state = state_,				\
-		.when = when_,					\
-		.bscb = BOOT_STATE_CALLBACK_INIT(func_, arg_),	\
-	}
+#define BOOT_STATE_INIT_ENTRY(state_, when_, func_, arg_)		\
+	static struct boot_state_init_entry func_ ##_## state_ ##_## when_ = \
+	{								\
+		.state = state_,					\
+		.when = when_,						\
+		.bscb = BOOT_STATE_CALLBACK_INIT(func_, arg_),		\
+	};								\
+	static struct boot_state_init_entry *				\
+		bsie_ ## func_ ##_## state_ ##_## when_ BOOT_STATE_INIT_ATTR = \
+		& func_ ##_## state_ ##_## when_;
 
 #endif /* BOOTSTATE_H */

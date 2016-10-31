@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Device (SDM1)
@@ -89,6 +84,12 @@ Device (I2C1)
 	Name (_UID, 1)
 	Name (_DDN, "I2C Controller #1")
 
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
+
 	Name (RBUF, ResourceTemplate()
 	{
 		Memory32Fixed (ReadWrite, 0, 0x1000, BAR0)
@@ -141,6 +142,12 @@ Device (I2C2)
 	Name (_HID, "80860F41")
 	Name (_UID, 2)
 	Name (_DDN, "I2C Controller #2")
+
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
 
 	Name (RBUF, ResourceTemplate()
 	{
@@ -195,6 +202,12 @@ Device (I2C3)
 	Name (_UID, 3)
 	Name (_DDN, "I2C Controller #3")
 
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
+
 	Name (RBUF, ResourceTemplate()
 	{
 		Memory32Fixed (ReadWrite, 0, 0x1000, BAR0)
@@ -247,6 +260,12 @@ Device (I2C4)
 	Name (_HID, "80860F41")
 	Name (_UID, 4)
 	Name (_DDN, "I2C Controller #4")
+
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
 
 	Name (RBUF, ResourceTemplate()
 	{
@@ -301,6 +320,12 @@ Device (I2C5)
 	Name (_UID, 5)
 	Name (_DDN, "I2C Controller #5")
 
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
+
 	Name (RBUF, ResourceTemplate()
 	{
 		Memory32Fixed (ReadWrite, 0, 0x1000, BAR0)
@@ -354,6 +379,12 @@ Device (I2C6)
 	Name (_UID, 6)
 	Name (_DDN, "I2C Controller #6")
 
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
+
 	Name (RBUF, ResourceTemplate()
 	{
 		Memory32Fixed (ReadWrite, 0, 0x1000, BAR0)
@@ -406,6 +437,12 @@ Device (I2C7)
 	Name (_HID, "80860F41")
 	Name (_UID, 7)
 	Name (_DDN, "I2C Controller #7")
+
+	/* Standard Mode: HCNT, LCNT, SDA Hold Time */
+	Name (SSCN, Package () { 0x200, 0x200, 0x6 })
+
+	/* Fast Mode: HCNT, LCNT, SDA Hold Time */
+	Name (FMCN, Package () { 0x55, 0x99, 0x6 })
 
 	Name (RBUF, ResourceTemplate()
 	{

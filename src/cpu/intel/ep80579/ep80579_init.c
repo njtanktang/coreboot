@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -28,7 +24,7 @@
 #include <cpu/x86/cache.h>
 #include <cpu/x86/mtrr.h>
 
-static void ep80579_init(device_t dev)
+static void ep80579_init(struct device *dev)
 {
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
@@ -38,7 +34,7 @@ static void ep80579_init(device_t dev)
 	/* Update the microcode */
 	intel_update_microcode_from_cbfs();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 };
 

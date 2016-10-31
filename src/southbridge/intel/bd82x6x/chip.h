@@ -11,29 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H
 #define SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H
 
 struct southbridge_intel_bd82x6x_config {
-	/**
-	 * Interrupt Routing configuration
-	 * If bit7 is 1, the interrupt is disabled.
-	 */
-	uint8_t pirqa_routing;
-	uint8_t pirqb_routing;
-	uint8_t pirqc_routing;
-	uint8_t pirqd_routing;
-	uint8_t pirqe_routing;
-	uint8_t pirqf_routing;
-	uint8_t pirqg_routing;
-	uint8_t pirqh_routing;
-
 	/**
 	 * GPI Routing configuration
 	 *
@@ -96,6 +79,22 @@ struct southbridge_intel_bd82x6x_config {
 	uint8_t pcie_aspm_f5;
 	uint8_t pcie_aspm_f6;
 	uint8_t pcie_aspm_f7;
+
+	int p_cnt_throttling_supported;
+	int c2_latency;
+	int docking_supported;
+
+	uint8_t pcie_hotplug_map[8];
+
+	/* Ports which can be routed to either EHCI or xHCI.  */
+	uint32_t xhci_switchable_ports;
+	/* Ports which support SuperSpeed (USB 3.0 additional lanes).  */
+	uint32_t superspeed_capable_ports;
+	/* Overcurrent Mapping for USB 3.0 Ports */
+	uint32_t xhci_overcurrent_mapping;
+
+	uint32_t spi_uvscc;
+	uint32_t spi_lvscc;
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H */

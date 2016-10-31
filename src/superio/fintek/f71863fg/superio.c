@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -27,7 +23,7 @@
 #include <pc80/keyboard.h>
 #include "f71863fg.h"
 
-static void f71863fg_init(device_t dev)
+static void f71863fg_init(struct device *dev)
 {
 	struct resource *res0;
 
@@ -38,7 +34,7 @@ static void f71863fg_init(device_t dev)
 	/* TODO: Might potentially need code for HWM or FDC etc. */
 	case F71863FG_KBC:
 		res0 = find_resource(dev, PNP_IDX_IO0);
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }
@@ -66,7 +62,7 @@ static struct pnp_info pnp_dev_info[] = {
 	{ &ops, F71863FG_PME, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }

@@ -120,6 +120,22 @@ struct cb_serial {
 	u32 type;
 	u32 baseaddr;
 	u32 baud;
+	u32 regwidth;
+
+	/* Crystal or input frequency to the chip containing the UART.
+	 * Provide the board specific details to allow the payload to
+	 * initialize the chip containing the UART and make independent
+	 * decisions as to which dividers to select and their values
+	 * to eventually arrive at the desired console baud-rate. */
+	u32 input_hertz;
+
+	/* UART PCI address: bus, device, function
+	 * 1 << 31 - Valid bit, PCI UART in use
+	 * Bus << 20
+	 * Device << 15
+	 * Function << 12
+	 */
+	u32 uart_pci_addr;
 };
 
 #define CB_TAG_CONSOLE       0x00010
@@ -184,38 +200,36 @@ struct cb_gpios {
 	struct cb_gpio gpios[0];
 };
 
-#define CB_TAG_VDAT	0x0015
-struct cb_vdat {
+#define CB_TAG_VDAT		0x0015
+#define CB_TAG_VBNV		0x0019
+#define CB_TAG_VBOOT_HANDOFF	0x0020
+#define CB_TAG_DMA		0x0022
+#define CB_TAG_RAM_OOPS		0x0023
+#define CB_TAG_MTC		0x002b
+struct lb_range {
 	uint32_t tag;
-	uint32_t size;	/* size of the entire entry */
-	uint64_t vdat_addr;
-	uint32_t vdat_size;
+	uint32_t size;
+	uint64_t range_start;
+	uint32_t range_size;
 };
 
 #define CB_TAG_TIMESTAMPS	0x0016
 #define CB_TAG_CBMEM_CONSOLE	0x0017
 #define CB_TAG_MRC_CACHE	0x0018
 #define CB_TAG_ACPI_GNVS	0x0024
+#define CB_TAG_WIFI_CALIBRATION	0x0027
 struct cb_cbmem_tab {
 	uint32_t tag;
 	uint32_t size;
 	uint64_t cbmem_tab;
 };
 
-#define CB_TAG_VBNV		0x0019
-struct cb_vbnv {
+#define CB_TAG_BOARD_ID		0x0025
+struct cb_board_id {
 	uint32_t tag;
 	uint32_t size;
-	uint32_t vbnv_start;
-	uint32_t vbnv_size;
-};
-
-#define CB_TAG_VBOOT_HANDOFF	0x0020
-struct cb_vboot_handoff {
-	uint32_t tag;
-	uint32_t size;
-	uint64_t vboot_handoff_addr;
-	uint32_t vboot_handoff_size;
+	/* Board ID as retrieved from the board revision GPIOs. */
+	uint32_t board_id;
 };
 
 #define CB_TAG_X86_ROM_MTRR	0x0021
@@ -229,6 +243,56 @@ struct cb_x86_rom_mtrr {
 	uint32_t index;
 };
 
+#define CB_TAG_MAC_ADDRS       0x0026
+struct mac_address {
+	uint8_t mac_addr[6];
+	uint8_t pad[2];         /* Pad it to 8 bytes to keep it simple. */
+};
+
+struct cb_macs {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t count;
+	struct mac_address mac_addrs[0];
+};
+
+#define CB_TAG_RAM_CODE		0x0028
+struct cb_ram_code {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t ram_code;
+};
+
+#define CB_TAG_SPI_FLASH	0x0029
+struct cb_spi_flash {
+	uint32_t tag;
+	uint32_t size;
+	uint32_t flash_size;
+	uint32_t sector_size;
+	uint32_t erase_cmd;
+};
+
+#define CB_TAG_BOOT_MEDIA_PARAMS 0x0030
+struct cb_boot_media_params {
+	uint32_t tag;
+	uint32_t size;
+	/* offsets are relative to start of boot media */
+	uint64_t fmap_offset;
+	uint64_t cbfs_offset;
+	uint64_t cbfs_size;
+	uint64_t boot_media_size;
+};
+
+#define CB_TAG_TSC_INFO 0x0032
+struct cb_tsc_info {
+	uint32_t tag;
+	uint32_t size;
+
+	uint32_t freq_khz;
+};
+
+#define CB_TAG_SERIALNO		0x002a
+#define CB_MAX_SERIALNO_LENGTH	32
 
 #define CB_TAG_CMOS_OPTION_TABLE 0x00c8
 struct cb_cmos_option_table {

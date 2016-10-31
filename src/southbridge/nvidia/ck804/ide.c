@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -23,7 +19,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
-#include "ck804.h"
+#include "chip.h"
 
 static void ide_init(struct device *dev)
 {
@@ -40,7 +36,7 @@ static void ide_init(struct device *dev)
 	if (conf->ide1_enable) {
 		/* Enable secondary IDE interface. */
 		word |= (1 << 0);
-		printk(BIOS_DEBUG, "IDE1 \t");
+		printk(BIOS_DEBUG, "IDE1\t");
 	}
 	if (conf->ide0_enable) {
 		/* Enable primary IDE interface. */
@@ -67,7 +63,6 @@ static struct device_operations ide_ops = {
 	.enable_resources = pci_dev_enable_resources,
 	.init             = ide_init,
 	.scan_bus         = 0,
-	// .enable        = ck804_enable,
 	.ops_pci          = &ck804_pci_ops,
 };
 

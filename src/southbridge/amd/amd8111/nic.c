@@ -45,11 +45,11 @@ static void nic_init(struct device *dev)
 {
 	struct southbridge_amd_amd8111_config *conf;
 	struct resource *resource;
-	unsigned long mmio;
+	u8 *mmio;
 
 	conf = dev->chip_info;
 	resource = find_resource(dev, PCI_BASE_ADDRESS_0);
-	mmio = resource->base;
+	mmio = res2mmio(resource, 0, 0);
 
 	/* Hard Reset PHY */
 	printk(BIOS_DEBUG, "Resetting PHY... ");

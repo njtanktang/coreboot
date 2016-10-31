@@ -11,11 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef NORTHBRIDGE_INTEL_NEHALEM_CHIP_H
+#define NORTHBRIDGE_INTEL_NEHALEM_CHIP_H
+
+#include <drivers/intel/gma/i915.h>
 
 /*
  * Digital Port Hotplug Enable:
@@ -39,9 +40,12 @@ struct northbridge_intel_nehalem_config {
 	u32 gpu_cpu_backlight;	/* CPU Backlight PWM value */
 	u32 gpu_pch_backlight;	/* PCH Backlight PWM value */
 
-	int gpu_use_spread_spectrum_clock;
-	int gpu_lvds_dual_channel;
-	int gpu_link_frequency_270_mhz;
-	int gpu_lvds_num_lanes;
+	struct i915_gpu_controller_info gfx;
+
+	/*
+	 * Maximum PCI mmio size in MiB.
+	 */
+	u16 pci_mmio_size;
 };
 
+#endif /* NORTHBRIDGE_INTEL_NEHALEM_CHIP_H */

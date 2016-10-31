@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2011 Advanced Micro Devices, Inc.
+ * Copyright (C) 2013 Sage Electronic Engineering, LLC
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,45 +12,49 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include <cbfs.h>
+#include <spd_cache.h>
 
 #include "AGESA.h"
 #include "amdlib.h"
 #include "Ids.h"
-#include "agesawrapper.h"
-#include <cbfs.h>
-#include "def_callouts.h"
+#include <northbridge/amd/agesa/agesawrapper.h>
+#include "BiosCallOuts.h"
+#include "dimmSpd.h"
 
-
-AGESA_STATUS GetBiosCallout (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS GetBiosCallout (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
+	AGESA_STATUS status;
 	UINTN i;
+
+	/* One HeapManager serves them all. */
+	status = HeapManagerCallout(Func, Data, ConfigPtr);
+	if (status != AGESA_UNSUPPORTED)
+		return status;
 
 	for (i = 0; i < BiosCalloutsLen; i++) {
 		if (BiosCallouts[i].CalloutName == Func)
 			break;
 	}
-	if(i >= BiosCalloutsLen)
+	if (i >= BiosCalloutsLen)
 		return AGESA_UNSUPPORTED;
 
 	return BiosCallouts[i].CalloutPtr (Func, Data, ConfigPtr);
 }
 
-AGESA_STATUS agesa_NoopUnsupported (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS agesa_NoopUnsupported (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	return AGESA_UNSUPPORTED;
 }
 
-AGESA_STATUS agesa_NoopSuccess (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS agesa_NoopSuccess (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	return AGESA_SUCCESS;
 }
 
-AGESA_STATUS agesa_EmptyIdsInitData (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS agesa_EmptyIdsInitData (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	IDS_NV_ITEM *IdsPtr = ((IDS_CALLOUT_STRUCT *) ConfigPtr)->IdsNvPtr;
 	if (Data == IDS_CALLOUT_INIT)
@@ -57,7 +62,7 @@ AGESA_STATUS agesa_EmptyIdsInitData (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
 	return AGESA_SUCCESS;
 }
 
-AGESA_STATUS agesa_Reset (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS agesa_Reset (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	AGESA_STATUS        Status;
 	UINT8                 Value;
@@ -93,7 +98,7 @@ AGESA_STATUS agesa_Reset (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
 	return Status;
 }
 
-AGESA_STATUS agesa_RunFuncOnAp (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+AGESA_STATUS agesa_RunFuncOnAp (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
 	AGESA_STATUS        Status;
 
@@ -101,15 +106,47 @@ AGESA_STATUS agesa_RunFuncOnAp (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
 	return Status;
 }
 
-#if CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY15_TN || CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY16_KB
+#if IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY15_TN) || \
+  IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY15_RL) || \
+  IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY16_KB)
 /* FIXME: we would like GFX disable for fam14 too for headless systems. */
-AGESA_STATUS agesa_GfxGetVbiosImage(UINT32 Func, UINT32 FchData, VOID *ConfigPrt)
+AGESA_STATUS agesa_GfxGetVbiosImage(UINT32 Func, UINTN FchData, VOID *ConfigPrt)
 {
 	GFX_VBIOS_IMAGE_INFO  *pVbiosImageInfo = (GFX_VBIOS_IMAGE_INFO *)ConfigPrt;
-	pVbiosImageInfo->ImagePtr = cbfs_get_file_content(
-			CBFS_DEFAULT_MEDIA, "pci"CONFIG_VGA_BIOS_ID".rom",
+	pVbiosImageInfo->ImagePtr = cbfs_boot_map_with_leak(
+			"pci"CONFIG_VGA_BIOS_ID".rom",
 			CBFS_TYPE_OPTIONROM, NULL);
 	/* printk(BIOS_DEBUG, "IMGptr=%x\n", pVbiosImageInfo->ImagePtr); */
 	return pVbiosImageInfo->ImagePtr == NULL ? AGESA_WARNING : AGESA_SUCCESS;
 }
 #endif
+
+AGESA_STATUS agesa_ReadSpd (UINT32 Func, UINTN Data, VOID *ConfigPtr)
+{
+	AGESA_STATUS Status = AGESA_UNSUPPORTED;
+#ifdef __PRE_RAM__
+	Status = AmdMemoryReadSPD (Func, Data, ConfigPtr);
+#endif
+	return Status;
+}
+
+AGESA_STATUS agesa_ReadSpd_from_cbfs(UINT32 Func, UINTN Data, VOID *ConfigPtr)
+{
+	AGESA_STATUS Status = AGESA_UNSUPPORTED;
+#ifdef __PRE_RAM__
+	AGESA_READ_SPD_PARAMS *info = ConfigPtr;
+	if (info->MemChannelId > 0)
+		return AGESA_UNSUPPORTED;
+	if (info->SocketId != 0)
+		return AGESA_UNSUPPORTED;
+	if (info->DimmId != 0)
+		return AGESA_UNSUPPORTED;
+
+	/* Read index 0, first SPD_SIZE bytes of spd.bin file. */
+	if (read_spd_from_cbfs((u8*)info->Buffer, 0) < 0)
+		die("No SPD data\n");
+
+	Status = AGESA_SUCCESS;
+#endif
+	return Status;
+}

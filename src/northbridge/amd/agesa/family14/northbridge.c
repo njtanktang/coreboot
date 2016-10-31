@@ -11,15 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <arch/io.h>
 #include <arch/acpi.h>
+#include <arch/acpigen.h>
 #include <stdint.h>
 #include <device/device.h>
 #include <device/pci.h>
@@ -34,13 +31,11 @@
 #include <cpu/x86/lapic.h>
 #include <cpu/amd/mtrr.h>
 
-#include "agesawrapper.h"
-#include "northbridge.h"
+#include <northbridge/amd/agesa/agesawrapper.h>
 #if CONFIG_AMD_SB_CIMX
 #include <sb_cimx.h>
 #endif
 
-//#define FX_DEVS NODE_NUMS
 #define FX_DEVS 1
 
 static device_t __f0_dev[FX_DEVS];
@@ -49,7 +44,7 @@ static device_t __f2_dev[FX_DEVS];
 static device_t __f4_dev[FX_DEVS];
 static unsigned fx_devs = 0;
 
-device_t get_node_pci(u32 nodeid, u32 fn)
+static device_t get_node_pci(u32 nodeid, u32 fn)
 {
 	if ((CONFIG_CDB + nodeid) < 32) {
 		return dev_find_slot(CONFIG_CBB, PCI_DEVFN(CONFIG_CDB + nodeid, fn));
@@ -215,12 +210,7 @@ static void amdfam14_link_read_bases(device_t dev, u32 nodeid, u32 link)
 	resource = amdfam14_find_iopair(dev, nodeid, link);
 	if (resource) {
 		u32 align;
-#if CONFIG_EXT_CONF_SUPPORT
-		if ((resource->index & 0x1fff) == 0x1110) {	// ext
-			align = 8;
-		} else
-#endif
-			align = log2(HT_IO_HOST_ALIGN);
+		align = log2(HT_IO_HOST_ALIGN);
 		resource->base = 0;
 		resource->size = 0;
 		resource->align = align;
@@ -239,13 +229,6 @@ static void amdfam14_link_read_bases(device_t dev, u32 nodeid, u32 link)
 		resource->limit = 0xffffffffffULL;
 		resource->flags = IORESOURCE_MEM | IORESOURCE_PREFETCH;
 		resource->flags |= IORESOURCE_BRIDGE;
-
-#if CONFIG_EXT_CONF_SUPPORT
-		if ((resource->index & 0x1fff) == 0x1110) {	// ext
-			normalize_resource(resource);
-		}
-#endif
-
 	}
 
 	/* Initialize the memory constraints on the current bus */
@@ -257,11 +240,6 @@ static void amdfam14_link_read_bases(device_t dev, u32 nodeid, u32 link)
 		resource->gran = log2(HT_MEM_HOST_ALIGN);
 		resource->limit = 0xffffffffffULL;
 		resource->flags = IORESOURCE_MEM | IORESOURCE_BRIDGE;
-#if CONFIG_EXT_CONF_SUPPORT
-		if ((resource->index & 0x1fff) == 0x1110) {	// ext
-			normalize_resource(resource);
-		}
-#endif
 	}
 }
 
@@ -301,32 +279,6 @@ static struct hw_mem_hole_info get_hw_mem_hole_info(void)
 			mem_hole.node_id = 0;	// record the node No with hole
 		}
 	}
-#if 0
-	/* We need to double check if there is special set on base reg and limit reg
-	 * are not continuous instead of hole, it will find out its hole_startk.
-	 */
-	if (mem_hole.node_id == -1) {
-		resource_t limitk_pri = 0;
-		struct dram_base_mask_t d;
-		resource_t base_k, limit_k;
-		d = get_dram_base_mask(0);
-		if (d.base & 1) {
-			base_k = ((resource_t) (d.base & 0x1fffff00)) << 9;
-			if (base_k <= 4 * 1024 * 1024) {
-				if (limitk_pri != base_k) {	// we find the hole
-					mem_hole.hole_startk = (unsigned)limitk_pri;	// must be below 4G
-					mem_hole.node_id = 0;
-				}
-			}
-
-			limit_k =
-			    ((resource_t) ((d.mask + 0x00000100) & 0x1fffff00))
-			    << 9;
-			limitk_pri = limit_k;
-		}
-	}
-#endif
-
 	return mem_hole;
 }
 #endif
@@ -403,7 +355,7 @@ static void set_resource(device_t dev, struct resource *resource, u32 nodeid)
 				rbase >> 8, rend >> 8, 1);	// [39:8]
 	}
 	resource->flags |= IORESOURCE_STORED;
-	snprintf(buf, sizeof (buf), " <node %x link %x>", nodeid, link_num);
+	snprintf(buf, sizeof(buf), " <node %x link %x>", nodeid, link_num);
 	report_resource_stored(dev, resource, buf);
 }
 
@@ -515,29 +467,7 @@ static void domain_read_resources(device_t dev)
 	/* FIXME: do we need to check extend conf space?
 	   I don't believe that much preset value */
 
-#if !CONFIG_PCI_64BIT_PREF_MEM
 	pci_domain_read_resources(dev);
-#else
-	struct bus *link;
-	struct resource *resource;
-	for (link = dev->link_list; link; link = link->next) {
-		/* Initialize the system wide io space constraints */
-		resource = new_resource(dev, 0 | (link->link_num << 2));
-		resource->base = 0x400;
-		resource->limit = 0xffffUL;
-		resource->flags = IORESOURCE_IO;
-
-		/* Initialize the system wide prefetchable memory resources constraints */
-		resource = new_resource(dev, 1 | (link->link_num << 2));
-		resource->limit = 0xfcffffffffULL;
-		resource->flags = IORESOURCE_MEM | IORESOURCE_PREFETCH;
-
-		/* Initialize the system wide memory resources constraints */
-		resource = new_resource(dev, 2 | (link->link_num << 2));
-		resource->limit = 0xfcffffffffULL;
-		resource->flags = IORESOURCE_MEM;
-	}
-#endif
 }
 
 static void setup_uma_memory(void)
@@ -568,12 +498,8 @@ static void setup_uma_memory(void)
 static void domain_set_resources(device_t dev)
 {
 	printk(BIOS_DEBUG, "\nFam14h - %s\n", __func__);
-	printk(BIOS_DEBUG, "  amsr - incoming dev = %08x\n", (u32) dev);
+	printk(BIOS_DEBUG, "  amsr - incoming dev = %p\n", dev);
 
-#if CONFIG_PCI_64BIT_PREF_MEM
-	struct resource *io, *mem1, *mem2;
-	struct resource *res;
-#endif
 	unsigned long mmio_basek;
 	u32 pci_tolm;
 	u64 ramtop = 0;
@@ -582,62 +508,6 @@ static void domain_set_resources(device_t dev)
 #if CONFIG_HW_MEM_HOLE_SIZEK != 0
 	struct hw_mem_hole_info mem_hole;
 	u32 reset_memhole = 1;
-#endif
-
-#if CONFIG_PCI_64BIT_PREF_MEM
-
-	printk(BIOS_DEBUG, "adsr - CONFIG_PCI_64BIT_PREF_MEM is true.\n");
-	for (link = dev->link_list; link; link = link->next) {
-		/* Now reallocate the pci resources memory with the
-		 * highest addresses I can manage.
-		 */
-		mem1 = find_resource(dev, 1 | (link->link_num << 2));
-		mem2 = find_resource(dev, 2 | (link->link_num << 2));
-
-		printk(BIOS_DEBUG,
-			"base1: 0x%08Lx limit1: 0x%08Lx size: 0x%08Lx align: %d\n",
-			 (u32) (mem1->base), (u32) (mem1->limit),
-			 (u32) (mem1->size), u32) (mem1->align));
-		printk(BIOS_DEBUG,
-			"base2: 0x%08Lx limit2: 0x%08Lx size: 0x%08Lx align: %d\n",
-			 (u32) (mem2->base), (u32) (mem2->limit),
-			 (u32) (mem2->size), (u32) (mem2->align));
-
-		/* See if both resources have roughly the same limits */
-		if (((mem1->limit <= 0xffffffff) && (mem2->limit <= 0xffffffff))
-		    || ((mem1->limit > 0xffffffff)
-			&& (mem2->limit > 0xffffffff))) {
-			/* If so place the one with the most stringent alignment first
-			 */
-			if (mem2->align > mem1->align) {
-				struct resource *tmp;
-				tmp = mem1;
-				mem1 = mem2;
-				mem2 = tmp;
-			}
-			/* Now place the memory as high up as it will go */
-			mem2->base = resource_max(mem2);
-			mem1->limit = mem2->base - 1;
-			mem1->base = resource_max(mem1);
-		} else {
-			/* Place the resources as high up as they will go */
-			mem2->base = resource_max(mem2);
-			mem1->base = resource_max(mem1);
-		}
-
-		printk(BIOS_DEBUG,
-			"base1: 0x%08Lx limit1: 0x%08Lx size: 0x%08Lx align: %d\n",
-			 mem1->base, mem1->limit, mem1->size, mem1->align);
-		printk(BIOS_DEBUG,
-			"base2: 0x%08Lx limit2: 0x%08Lx size: 0x%08Lx align: %d\n",
-			 mem2->base, mem2->limit, mem2->size, mem2->align);
-	}
-
-	for (res = &dev->resource_list; res; res = res->next) {
-		res->flags |= IORESOURCE_ASSIGNED;
-		res->flags |= IORESOURCE_STORED;
-		report_resource_stored(dev, res, "");
-	}
 #endif
 
 	pci_tolm = 0xffffffffUL;
@@ -758,8 +628,6 @@ static void domain_set_resources(device_t dev)
 
 static void domain_enable_resources(device_t dev)
 {
-	u32 val;
-
 #if CONFIG_AMD_SB_CIMX
 	if (!acpi_is_wakeup_s3()) {
 		sb_After_Pci_Init();
@@ -773,12 +641,10 @@ static void domain_enable_resources(device_t dev)
 	printk(BIOS_DEBUG, "\nFam14h - %s\n", __func__);
 
 	if (!acpi_is_wakeup_s3()) {
-		printk(BIOS_DEBUG, "agesawrapper_amdinitmid ");
-		val = agesawrapper_amdinitmid ();
-		if (val)
-			printk(BIOS_DEBUG, "error level: %x \n", val);
-		else
-			printk(BIOS_DEBUG, "passed.\n");
+		/* Enable MMIO on AMD CPU Address Map Controller */
+		amd_initcpuio();
+
+		agesawrapper_amdinitmid();
 	}
 
 	printk(BIOS_DEBUG, "  ader - leaving domain_enable_resources.\n");
@@ -786,15 +652,7 @@ static void domain_enable_resources(device_t dev)
 
 /* Bus related code */
 
-static void cpu_bus_read_resources(device_t dev)
-{
-}
-
-static void cpu_bus_set_resources(device_t dev)
-{
-}
-
-static u32 cpu_bus_scan(device_t dev, u32 max)
+static void cpu_bus_scan(struct device *dev)
 {
 	struct bus *cpu_bus = dev->link_list;
 	device_t cpu;
@@ -813,7 +671,6 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 		if (cpu)
 			amd_cpu_topology(cpu, 0, apic_id);
 	}
-	return max;
 }
 
 static void cpu_bus_init(device_t dev)
@@ -823,10 +680,128 @@ static void cpu_bus_init(device_t dev)
 
 /* North Bridge Structures */
 
+static void northbridge_fill_ssdt_generator(device_t device)
+{
+	msr_t msr;
+	char pscope[] = "\\_SB.PCI0";
+
+	acpigen_write_scope(pscope);
+	msr = rdmsr(TOP_MEM);
+	acpigen_write_name_dword("TOM1", msr.lo);
+	msr = rdmsr(TOP_MEM2);
+	/*
+	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
+	 * here.
+	 * See http://www.acpi.info/presentations/S01USMOBS169_OS%2520new.ppt
+	 * slide 22ff.
+	 * Shift value right by 20 bit to make it fit into 32bit,
+	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
+	 */
+	acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
+	acpigen_pop_len();
+}
+
+static unsigned long acpi_fill_hest(acpi_hest_t *hest)
+{
+	void *addr, *current;
+
+	/* Skip the HEST header. */
+	current = (void *)(hest + 1);
+
+	addr = agesawrapper_getlateinitptr(PICK_WHEA_MCE);
+	if (addr != NULL)
+		current += acpi_create_hest_error_source(hest, current, 0,
+				addr + 2, *(UINT16 *)addr - 2);
+
+	addr = agesawrapper_getlateinitptr(PICK_WHEA_CMC);
+	if (addr != NULL)
+		current += acpi_create_hest_error_source(hest, current, 1,
+				addr + 2, *(UINT16 *)addr - 2);
+
+	return (unsigned long)current;
+}
+
+static unsigned long agesa_write_acpi_tables(device_t device,
+					     unsigned long current,
+					     acpi_rsdp_t *rsdp)
+{
+	acpi_srat_t *srat;
+	acpi_slit_t *slit;
+	acpi_header_t *ssdt;
+	acpi_header_t *alib;
+	acpi_hest_t *hest;
+
+	/* HEST */
+	current = ALIGN(current, 8);
+	hest = (acpi_hest_t *)current;
+	acpi_write_hest((void *)current, acpi_fill_hest);
+	acpi_add_table(rsdp, (void *)current);
+	current += ((acpi_header_t *)current)->length;
+
+	/* SRAT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:  * SRAT at %lx\n", current);
+	srat = (acpi_srat_t *) agesawrapper_getlateinitptr (PICK_SRAT);
+	if (srat != NULL) {
+		memcpy((void *)current, srat, srat->header.length);
+		srat = (acpi_srat_t *) current;
+		current += srat->header.length;
+		acpi_add_table(rsdp, srat);
+	}
+	else {
+		printk(BIOS_DEBUG, "  AGESA SRAT table NULL. Skipping.\n");
+	}
+
+	/* SLIT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:  * SLIT at %lx\n", current);
+	slit = (acpi_slit_t *) agesawrapper_getlateinitptr (PICK_SLIT);
+	if (slit != NULL) {
+		memcpy((void *)current, slit, slit->header.length);
+		slit = (acpi_slit_t *) current;
+		current += slit->header.length;
+		acpi_add_table(rsdp, slit);
+	}
+	else {
+		printk(BIOS_DEBUG, "  AGESA SLIT table NULL. Skipping.\n");
+	}
+
+	/* SSDT */
+	current = ALIGN(current, 16);
+	printk(BIOS_DEBUG, "ACPI:  * AGESA ALIB SSDT at %lx\n", current);
+	alib = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_ALIB);
+	if (alib != NULL) {
+		memcpy((void *)current, alib, alib->length);
+		alib = (acpi_header_t *) current;
+		current += alib->length;
+		acpi_add_table(rsdp, (void *)alib);
+	} else {
+		printk(BIOS_DEBUG, "	AGESA ALIB SSDT table NULL. Skipping.\n");
+	}
+
+	/* The DSDT needs additional work for the AGESA SSDT Pstate table */
+	/* Keep the comment for a while. */
+	current = ALIGN(current, 16);
+	printk(BIOS_DEBUG, "ACPI:  * AGESA SSDT Pstate at %lx\n", current);
+	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_PSTATE);
+	if (ssdt != NULL) {
+		memcpy((void *)current, ssdt, ssdt->length);
+		ssdt = (acpi_header_t *) current;
+		current += ssdt->length;
+		acpi_add_table(rsdp,ssdt);
+	} else {
+		printk(BIOS_DEBUG, "  AGESA SSDT Pstate table NULL. Skipping.\n");
+	}
+
+	return current;
+}
+
 static struct device_operations northbridge_operations = {
 	.read_resources = nb_read_resources,
 	.set_resources = nb_set_resources,
 	.enable_resources = pci_dev_enable_resources,
+	.acpi_fill_ssdt_generator = northbridge_fill_ssdt_generator,
+	.write_acpi_tables = agesa_write_acpi_tables,
 	.init = northbridge_init,
 	.enable = 0,.ops_pci = 0,
 };
@@ -848,14 +823,14 @@ static struct device_operations pci_domain_ops = {
 	.read_resources = domain_read_resources,
 	.set_resources = domain_set_resources,
 	.enable_resources = domain_enable_resources,
-	.init = NULL,
+	.init = DEVICE_NOOP,
 	.scan_bus = pci_domain_scan_bus,
 };
 
 static struct device_operations cpu_bus_ops = {
-	.read_resources = cpu_bus_read_resources,
-	.set_resources = cpu_bus_set_resources,
-	.enable_resources = NULL,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = cpu_bus_init,
 	.scan_bus = cpu_bus_scan,
 };

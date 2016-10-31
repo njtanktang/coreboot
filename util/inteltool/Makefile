@@ -14,10 +14,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-#
 
 PROGRAM = inteltool
 
@@ -27,7 +23,7 @@ PREFIX  ?= /usr/local
 CFLAGS  ?= -O2 -g -Wall -W
 LDFLAGS += -lpci -lz
 
-OBJS = inteltool.o cpu.o gpio.o rootcmplx.o powermgt.o memory.o pcie.o amb.o
+OBJS = inteltool.o cpu.o gpio.o rootcmplx.o powermgt.o memory.o pcie.o amb.o ivy_memory.o spi.o gfx.o ahci.o
 
 OS_ARCH	= $(shell uname)
 ifeq ($(OS_ARCH), Darwin)
@@ -38,6 +34,10 @@ CFLAGS += -I/usr/local/include
 LDFLAGS += -L/usr/local/lib
 LIBS = -lz
 endif
+ifeq ($(OS_ARCH), NetBSD)
+CFLAGS += -I/usr/pkg/include
+LDFLAGS += -L/usr/pkg/lib -Wl,-rpath-link,/usr/pkg/lib -lz -lpciutils -lpci -l$(shell uname -p)
+endif
 
 all: pciutils dep $(PROGRAM)
 
@@ -45,7 +45,7 @@ $(PROGRAM): $(OBJS)
 	$(CC) $(CFLAGS) -o $(PROGRAM) $(OBJS) $(LDFLAGS)
 
 clean:
-	rm -f $(PROGRAM) *.o *~
+	rm -f $(PROGRAM) *.o *~ junit.xml
 
 distclean: clean
 	rm -f .dependencies
@@ -56,7 +56,11 @@ dep:
 define LIBPCI_TEST
 /* Avoid a failing test due to libpci header symbol shadowing breakage */
 #define index shadow_workaround_index
+#ifdef __NetBSD__
+#include <pciutils/pci.h>
+#else
 #include <pci/pci.h>
+#endif
 struct pci_access *pacc;
 int main(int argc, char **argv)
 {
@@ -87,4 +91,3 @@ install: $(PROGRAM)
 .PHONY: all clean distclean dep pciutils
 
 -include .dependencies
-

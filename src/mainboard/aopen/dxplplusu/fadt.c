@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -70,7 +66,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 
 	fadt->pm1_evt_len = 4;
 	fadt->pm1_cnt_len = 2;
-	// XXX: pm2_cnt_len is probably wrong. find out right value (hint: it's != 0)
+	/* XXX: pm2_cnt_len is probably wrong. find out right value (hint: it's != 0) */
 	fadt->pm2_cnt_len = 0;
 	fadt->pm_tmr_len = 4;
 	fadt->gpe0_blk_len = 8;

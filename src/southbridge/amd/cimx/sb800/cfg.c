@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -26,69 +22,25 @@
 #include <arch/io.h>
 #include <arch/acpi.h>
 
-#if CONFIG_HAVE_ACPI_RESUME
-int acpi_get_sleep_type(void)
-{
-	u16 tmp = inw(PM1_CNT_BLK_ADDRESS);
-	tmp = ((tmp & (7 << 10)) >> 10);
-	/* printk(BIOS_DEBUG, "SLP_TYP type was %x\n", tmp); */
-	return (int)tmp;
-}
-#endif
-
-#ifndef __PRE_RAM__
-void backup_top_of_ram(uint64_t ramtop)
-{
-	u32 dword = (u32) ramtop;
-	int nvram_pos = 0xf8, i; /* temp */
-	printk(BIOS_DEBUG, "dword=%x\n", dword);
-	for (i = 0; i<4; i++) {
-		printk(BIOS_DEBUG, "nvram_pos=%x, dword>>(8*i)=%x\n", nvram_pos, (dword >>(8 * i)) & 0xff);
-		outb(nvram_pos, BIOSRAM_INDEX);
-		outb((dword >>(8 * i)) & 0xff , BIOSRAM_DATA);
-		nvram_pos++;
-	}
-}
-#endif
-
-#if CONFIG_HAVE_ACPI_RESUME
-unsigned long get_top_of_ram(void)
-{
-	u32 xdata = 0;
-	int xnvram_pos = 0xf8, xi;
-	if (acpi_get_sleep_type() != 3)
-		return 0;
-	for (xi = 0; xi<4; xi++) {
-		outb(xnvram_pos, BIOSRAM_INDEX);
-		xdata &= ~(0xff << (xi * 8));
-		xdata |= inb(BIOSRAM_DATA) << (xi *8);
-		xnvram_pos++;
-	}
-	return (unsigned long) xdata;
-}
-#endif
-
 /**
  * @brief South Bridge CIMx configuration
  *
- * should be called before exeucte CIMx function.
+ * should be called before executing CIMx functions.
  * this function will be called in romstage and ramstage.
  */
 void sb800_cimx_config(AMDSBCFG *sb_config)
 {
+	uint16_t bios_size = BIOS_SIZE;
 	if (!sb_config)
 		return;
 
-#if CONFIG_HAVE_ACPI_RESUME
-	if (acpi_get_sleep_type() == 3)
-		sb_config->S3Resume = 1;
-#endif
+	sb_config->S3Resume = acpi_is_wakeup_s3();
 
 	/* header */
 	sb_config->StdHeader.PcieBasePtr = PCIEX_BASE_ADDRESS;
 
 	/* static Build Parameters */
-	sb_config->BuildParameters.BiosSize = BIOS_SIZE;
+	sb_config->BuildParameters.BiosSize = bios_size;
 	sb_config->BuildParameters.LegacyFree = LEGACY_FREE;
 	sb_config->BuildParameters.WatchDogTimerBase = WATCHDOG_TIMER_BASE_ADDRESS;
 	sb_config->BuildParameters.AcpiGpe0BlkAddr = GPE0_BLK_ADDRESS;
@@ -122,10 +74,13 @@ void sb800_cimx_config(AMDSBCFG *sb_config)
 	sb_config->SpreadSpectrum = SPREAD_SPECTRUM;
 	sb_config->PciClks = PCI_CLOCK_CTRL;
 	sb_config->HpetTimer = HPET_TIMER;
+	sb_config->SbSpiSpeedSupport = 1;
 
 	/* USB */
 	sb_config->USBMODE.UsbModeReg = USB_CONFIG;
 	sb_config->SbUsbPll = 0;
+	/* CG PLL multiplier for USB Rx 1.1 mode (0=disable, 1=enable) */
+	sb_config->UsbRxMode = USB_RX_MODE;
 
 	/* SATA */
 	sb_config->SataClass = SATA_MODE;
@@ -173,11 +128,4 @@ void sb800_cimx_config(AMDSBCFG *sb_config)
 	sb_config->GppPhyPllPowerDown = TRUE; //GPP power saving
 	sb_config->SBGecPwr = 0x03;//11b << 5, rpr BDF: 00:20:06
 	sb_config->GecConfig = GEC_CONFIG;
-
-#ifndef __PRE_RAM__
-	/* ramstage cimx config here */
-	if (!sb_config->StdHeader.CALLBACK.CalloutPtr) {
-		sb_config->StdHeader.CALLBACK.CalloutPtr = sb800_callout_entry;
-	}
-#endif //!__PRE_RAM__
 }

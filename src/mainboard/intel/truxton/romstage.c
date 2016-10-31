@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -25,16 +21,14 @@
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <pc80/mc146818rtc.h>
-#include "drivers/pc80/udelay_io.c"
 #include <console/console.h>
 #include "southbridge/intel/i3100/early_smbus.c"
 #include "southbridge/intel/i3100/early_lpc.c"
-#include "northbridge/intel/i3100/raminit_ep80579.h"
-#include "superio/intel/i3100/i3100.h"
-#include "cpu/x86/lapic/boot_cpu.c"
-#include "cpu/x86/mtrr/earlymtrr.c"
-#include "superio/intel/i3100/early_serial.c"
-#include "cpu/x86/bist.h"
+#include <northbridge/intel/i3100/raminit_ep80579.h>
+#include <superio/intel/i3100/i3100.h>
+#include "lib/debug.c" // XXX
+#include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <spd.h>
 
 #define DEVPRES_CONFIG  (DEVPRES_D1F0 | DEVPRES_D2F0 | DEVPRES_D3F0 | DEVPRES_D4F0)
@@ -46,15 +40,11 @@ static inline int spd_read_byte(u16 device, u8 address)
 
 #include "northbridge/intel/i3100/raminit_ep80579.c"
 #include "lib/generic_sdram.c"
-#include "../../intel/jarrell/debug.c"
-#include "arch/x86/lib/stages.c"
 
 #define SERIAL_DEV PNP_DEV(0x4e, I3100_SP1)
 
-static void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
-	msr_t msr;
-	u16 perf;
 	static const struct mem_controller mch[] = {
 		{
 			.node_id = 0,
@@ -65,9 +55,8 @@ static void main(unsigned long bist)
 
 	if (bist == 0) {
 		/* Skip this if there was a built in self test failure */
-		early_mtrr_init();
 		if (memory_initialized())
-			skip_romstage();
+			return;
 	}
 
 	/* Set up the console */
@@ -87,7 +76,6 @@ static void main(unsigned long bist)
 	print_pci_devices();
 #endif
 	enable_smbus();
-	dump_spd_registers();
 
 	sdram_initialize(ARRAY_SIZE(mch), mch);
 	dump_pci_devices();

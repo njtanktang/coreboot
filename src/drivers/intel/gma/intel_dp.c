@@ -38,7 +38,7 @@
 
 /**
  * is_edp - is the given port attached to an eDP panel (either CPU or PCH)
- * @intel_dp: DP struct
+ * @param intel_dp: DP struct
  *
  * If a CPU or PCH DP output is attached to an eDP panel, this function
  * will return 1, and 0 otherwise.
@@ -50,7 +50,7 @@ static int is_edp(struct intel_dp *intel_dp)
 
 /**
  * is_pch_edp - is the port on the PCH and attached to an eDP panel?
- * @intel_dp: DP struct
+ * @param intel_dp: DP struct
  *
  * Returns 1 if the given DP struct corresponds to a PCH DP port attached
  * to an eDP panel, 0 otherwise.  Helpful for determining whether we
@@ -63,7 +63,7 @@ static int is_pch_edp(struct intel_dp *intel_dp)
 
 /**
  * is_cpu_edp - is the port on the CPU and attached to an eDP panel?
- * @intel_dp: DP struct
+ * @param intel_dp: DP struct
  *
  * Returns 1 if the given DP struct corresponds to a CPU eDP port.
  */
@@ -98,12 +98,12 @@ unpack_aux(uint32_t src, uint8_t *dst, int dst_bytes)
 static int ironlake_edp_have_panel_power(struct intel_dp *intel_dp)
 {
 
-	return (io_i915_read32(PCH_PP_STATUS) & PP_ON) != 0;
+	return (gtt_read(PCH_PP_STATUS) & PP_ON) != 0;
 }
 
 static int ironlake_edp_have_panel_vdd(struct intel_dp *intel_dp)
 {
-	return (io_i915_read32(PCH_PP_CONTROL) & EDP_FORCE_VDD) != 0;
+	return (gtt_read(PCH_PP_CONTROL) & EDP_FORCE_VDD) != 0;
 }
 
 int
@@ -121,7 +121,7 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 
 	/* Try to wait for any previous AUX channel activity */
 	for (try = 0; try < 3; try++) {
-		status = io_i915_read32(ch_ctl);
+		status = gtt_read(ch_ctl);
 		if ((status & DP_AUX_CH_CTL_SEND_BUSY) == 0)
 			break;
 		mdelay(1);
@@ -129,7 +129,7 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 
 	if (try == 3) {
 		if (1) {
-			status = io_i915_read32(ch_ctl);
+			status = gtt_read(ch_ctl);
 			printk(BIOS_ERR,
 			       "dp_aux_ch not started status 0x%08x\n",
 			       status);
@@ -144,30 +144,30 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 			u32 val, addr;
 			val = pack_aux(send + i, send_bytes - i);
 			addr = ch_data + i;
-			io_i915_write32(val, addr);
+			gtt_write(addr,val);
 		}
 
 		/* Send the command and wait for it to complete */
-		io_i915_write32(DP_AUX_CH_CTL_SEND_BUSY |
-				DP_AUX_CH_CTL_TIME_OUT_400us |
-				(send_bytes << DP_AUX_CH_CTL_MESSAGE_SIZE_SHIFT) |
-				(intel_dp->precharge << DP_AUX_CH_CTL_PRECHARGE_2US_SHIFT) |
-				(intel_dp->aux_clock_divider << DP_AUX_CH_CTL_BIT_CLOCK_2X_SHIFT) |
-				DP_AUX_CH_CTL_DONE |
-				DP_AUX_CH_CTL_TIME_OUT_ERROR |
-				DP_AUX_CH_CTL_RECEIVE_ERROR, ch_ctl);
+		gtt_write(ch_ctl, DP_AUX_CH_CTL_SEND_BUSY |
+			  DP_AUX_CH_CTL_TIME_OUT_400us |
+			  (send_bytes << DP_AUX_CH_CTL_MESSAGE_SIZE_SHIFT) |
+			  (intel_dp->precharge << DP_AUX_CH_CTL_PRECHARGE_2US_SHIFT) |
+			  (intel_dp->aux_clock_divider << DP_AUX_CH_CTL_BIT_CLOCK_2X_SHIFT) |
+			  DP_AUX_CH_CTL_DONE |
+			  DP_AUX_CH_CTL_TIME_OUT_ERROR |
+			  DP_AUX_CH_CTL_RECEIVE_ERROR);
 		for (;;) {
-			status = io_i915_read32(ch_ctl);
+			status = gtt_read(ch_ctl);
 			if ((status & DP_AUX_CH_CTL_SEND_BUSY) == 0)
 				break;
 			udelay(100);
 		}
 
 		/* Clear done status and any errors */
-		io_i915_write32(status |
-				DP_AUX_CH_CTL_DONE |
-				DP_AUX_CH_CTL_TIME_OUT_ERROR |
-				DP_AUX_CH_CTL_RECEIVE_ERROR, ch_ctl);
+		gtt_write(ch_ctl, status |
+			  DP_AUX_CH_CTL_DONE |
+			  DP_AUX_CH_CTL_TIME_OUT_ERROR |
+			  DP_AUX_CH_CTL_RECEIVE_ERROR);
 
 		if (status & (DP_AUX_CH_CTL_TIME_OUT_ERROR |
 			      DP_AUX_CH_CTL_RECEIVE_ERROR))
@@ -204,7 +204,7 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 		recv_bytes = recv_size;
 
 	for (i = 0; i < recv_bytes; i += 4)
-		unpack_aux(io_i915_read32(ch_data + i),
+		unpack_aux(gtt_read(ch_data + i),
 			   recv + i, recv_bytes - i);
 
 	return recv_bytes;
@@ -260,7 +260,7 @@ int intel_dp_set_bw(struct intel_dp *intel_dp)
 
 int intel_dp_set_lane_count(struct intel_dp *intel_dp)
 {
-	printk(BIOS_SPEW, "DP_LANE_COUNT_SET");
+	printk(BIOS_SPEW, "DP_LANE_COUNT_SET %d ", intel_dp->lane_count);
 	return intel_dp_aux_native_write_1(intel_dp,
 					   DP_LANE_COUNT_SET,
 					   intel_dp->lane_count);
@@ -471,7 +471,24 @@ unsigned int roundup_power_of_two(unsigned int n)
 static void compute_m_n(unsigned int m, unsigned int n,
 			unsigned int *ret_m, unsigned int *ret_n)
 {
-	*ret_n = MIN(roundup_power_of_two(n), DATA_LINK_N_MAX);
+	/* We noticed in the IO operations that
+	 * the VBIOS was setting N to DATA_LINK_N_MAX.
+	 * This makes sense, actually: the bigger N is, i.e.
+	 * the bigger the denominator is, the bigger
+	 * the numerator can be, and the more
+	 * bits of numerator you get, the better the result.
+	 * So, first pick the max of the two powers of two.
+	 * And, in the (unlikely) event that you end up with
+	 * something bigger than DATA_LINK_N_MAX, catch that
+	 * case with a MIN. Note the second case is unlikely,
+	 * but we are best off being careful.
+	 */
+	/*
+	 * This code is incorrect and will always set ret_n
+	 * to DATA_LINK_N_MAX.
+	 */
+	*ret_n = MAX(roundup_power_of_two(n), DATA_LINK_N_MAX);
+	*ret_n = MIN(*ret_n, DATA_LINK_N_MAX);
 	*ret_m = ( (unsigned long long)m * *ret_n) / n;
 	intel_reduce_m_n_ratio(ret_m, ret_n);
 }
@@ -483,44 +500,12 @@ void intel_dp_compute_m_n(unsigned int bits_per_pixel,
 			  struct intel_dp_m_n *m_n)
 {
 	m_n->tu = 64;
-
 	compute_m_n(bits_per_pixel * pixel_clock,
 		    link_clock * nlanes * 8,
 		    &m_n->gmch_m, &m_n->gmch_n);
 
 	compute_m_n(pixel_clock, link_clock,
 		    &m_n->link_m, &m_n->link_n);
-}
-
-/* not sure. */
-void intel_dp_set_m_n(struct intel_dp *intel_dp);
-
-void
-intel_dp_set_m_n(struct intel_dp *intel_dp)
-{
-	int lane_count;
-	struct intel_dp_m_n m_n;
-	int pipe = intel_dp->pipe;
-
-	lane_count = intel_dp->lane_count;
-
-	/*
-	 * Compute the GMCH and Link ratios. The '3' here is
-	 * the number of bytes_per_pixel post-LUT, which we always
-	 * set up for 8-bits of R/G/B, or 3 bytes total.
-	 */
-	intel_dp_compute_m_n(intel_dp->bpp, lane_count,
-			     intel_dp->clock, intel_dp->clock, &m_n);
-
-	{
-		io_i915_write32((
-					(m_n.tu - 1) <<
-					PIPE_GMCH_DATA_M_TU_SIZE_SHIFT) |
-				m_n.gmch_m, TRANSDATA_M1(pipe));
-		io_i915_write32(m_n.gmch_n, TRANSDATA_N1(pipe));
-		io_i915_write32(m_n.link_m, TRANSDPLINK_M1(pipe));
-		io_i915_write32(m_n.link_n, TRANSDPLINK_N1(pipe));
-	}
 }
 
 static void ironlake_edp_pll_off(void);
@@ -556,7 +541,7 @@ intel_dp_mode_set(struct intel_dp *intel_dp)
 	/* Preserve the BIOS-computed detected bit. This is
 	 * supposed to be read-only.
 	 */
-	intel_dp->DP = io_i915_read32(intel_dp->output_reg) & DP_DETECTED;
+	intel_dp->DP = gtt_read(intel_dp->output_reg) & DP_DETECTED;
 	printk(BIOS_SPEW, "%s: initial value is %08lx\n", __func__,
 	       (unsigned long)intel_dp->DP);
 	/* | 0 essentially */
@@ -654,18 +639,18 @@ static void ironlake_wait_panel_status(struct intel_dp *intel_dp,
 	printk(BIOS_ERR, "[000000.0] [drm:%s], ", __func__);
 	printk(BIOS_ERR, "mask %08lx value %08lx status %08lx control %08lx\n",
 	       (unsigned long) mask, (unsigned long) value,
-	       (unsigned long)io_i915_read32(PCH_PP_STATUS),
-	       (unsigned long)io_i915_read32(PCH_PP_CONTROL));
+	       (unsigned long)gtt_read(PCH_PP_STATUS),
+	       (unsigned long)gtt_read(PCH_PP_CONTROL));
 
-	for(i = 0, status = io_i915_read32(PCH_PP_STATUS); ((status & mask) != value) && (i < 5000);
-	    status = io_i915_read32(PCH_PP_STATUS)){
+	for (i = 0, status = gtt_read(PCH_PP_STATUS); ((status & mask) != value) && (i < 5000);
+	    status = gtt_read(PCH_PP_STATUS)){
 		udelay(10);
 	}
 	if (i > 5000){
 		printk(BIOS_ERR,
 		       "Panel status timeout: status %08lx control %08lx\n",
-		       (unsigned long)io_i915_read32(PCH_PP_STATUS),
-		       (unsigned long)io_i915_read32(PCH_PP_CONTROL));
+		       (unsigned long)gtt_read(PCH_PP_STATUS),
+		       (unsigned long)gtt_read(PCH_PP_CONTROL));
 	}
 }
 
@@ -693,7 +678,7 @@ void intel_dp_wait_reg(unsigned long addr,
 	unsigned long newval;
 	int tries = 0;
 
-	while ((newval = io_i915_read32(addr)) != val) {
+	while ((newval = gtt_read(addr)) != val) {
 		udelay(1);
 		if (tries++ > 1000) {
 			printk(BIOS_ERR, "%s: Waiting on %08lx to be %08lx, got %08lx\n",
@@ -714,7 +699,7 @@ void intel_dp_wait_panel_power_control(unsigned long val)
 
 static  u32 ironlake_get_pp_control(void)
 {
-	u32	control = io_i915_read32(PCH_PP_CONTROL);
+	u32	control = gtt_read(PCH_PP_CONTROL);
 
 	control &= ~PANEL_UNLOCK_MASK;
 	control |= PANEL_UNLOCK_REGS;
@@ -745,11 +730,12 @@ void ironlake_edp_panel_vdd_on(struct intel_dp *intel_dp)
 
 	pp = ironlake_get_pp_control();
 	pp |= EDP_FORCE_VDD;
-	io_i915_write32(pp, PCH_PP_CONTROL);
+	gtt_write(PCH_PP_CONTROL,pp);
 	// remember this if we need it later. Not sure yet.
 	////POSTING_READ(PCH_PP_CONTROL);
 	printk(BIOS_ERR, "PCH_PP_STATUS: 0x%08lx PCH_PP_CONTROL: 0x%08lx\n",
-	       io_i915_read32(PCH_PP_STATUS), io_i915_read32(PCH_PP_CONTROL));
+		(unsigned long) gtt_read(PCH_PP_STATUS),
+		(unsigned long) gtt_read(PCH_PP_CONTROL));
 
 	/*
 	 * If the panel wasn't on, delay before accessing aux channel
@@ -767,12 +753,13 @@ static void ironlake_panel_vdd_off_sync(struct intel_dp *intel_dp)
 	if (!intel_dp->want_panel_vdd && ironlake_edp_have_panel_vdd(intel_dp)) {
 		pp = ironlake_get_pp_control();
 		pp &= ~EDP_FORCE_VDD;
-		io_i915_write32(pp, PCH_PP_CONTROL);
+		gtt_write(PCH_PP_CONTROL,pp);
 		////POSTING_READ(PCH_PP_CONTROL);
 
 		/* Make sure sequencer is idle before allowing subsequent activity */
 		printk(BIOS_ERR, "PCH_PP_STATUS: 0x%08lx PCH_PP_CONTROL: 0x%08lx\n",
-		       io_i915_read32(PCH_PP_STATUS), io_i915_read32(PCH_PP_CONTROL));
+			(unsigned long) gtt_read(PCH_PP_STATUS),
+			(unsigned long) gtt_read(PCH_PP_CONTROL));
 
 		mdelay(intel_dp->panel_power_down_delay);
 	}
@@ -814,7 +801,7 @@ void ironlake_edp_panel_on(struct intel_dp *intel_dp)
 	if (intel_dp->gen == 5) {
 		/* ILK workaround: disable reset around power sequence */
 		pp &= ~PANEL_POWER_RESET;
-		io_i915_write32(pp, PCH_PP_CONTROL);
+		gtt_write(PCH_PP_CONTROL,pp);
 		////POSTING_READ(PCH_PP_CONTROL);
 	}
 
@@ -822,19 +809,19 @@ void ironlake_edp_panel_on(struct intel_dp *intel_dp)
 	if (!(intel_dp->gen == 5))
 		pp |= PANEL_POWER_RESET;
 
-	io_i915_write32(pp, PCH_PP_CONTROL);
+	gtt_write(PCH_PP_CONTROL,pp);
 	////POSTING_READ(PCH_PP_CONTROL);
 
 	ironlake_wait_panel_on(intel_dp);
 
 	if (intel_dp->gen == 5) {
 		pp |= PANEL_POWER_RESET; /* restore panel reset bit */
-		io_i915_write32(pp, PCH_PP_CONTROL);
+		gtt_write(PCH_PP_CONTROL,pp);
 		////POSTING_READ(PCH_PP_CONTROL);
 	}
 }
 
-static void ironlake_edp_panel_off(struct intel_dp *intel_dp)
+void ironlake_edp_panel_off(struct intel_dp *intel_dp)
 {
 	u32 pp;
 
@@ -850,7 +837,7 @@ static void ironlake_edp_panel_off(struct intel_dp *intel_dp)
 	pp = ironlake_get_pp_control();
 	pp &= ~(POWER_TARGET_ON | EDP_FORCE_VDD |
 		PANEL_POWER_RESET | EDP_BLC_ENABLE);
-	io_i915_write32(pp, PCH_PP_CONTROL);
+	gtt_write(PCH_PP_CONTROL,pp);
 	////POSTING_READ(PCH_PP_CONTROL);
 
 	ironlake_wait_panel_off(intel_dp);
@@ -872,11 +859,11 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	mdelay(intel_dp->backlight_on_delay);
 	pp = ironlake_get_pp_control();
 	pp |= EDP_BLC_ENABLE;
-	io_i915_write32(pp, PCH_PP_CONTROL);
+	gtt_write(PCH_PP_CONTROL,pp);
 	////POSTING_READ(PCH_PP_CONTROL);
 }
 
-static void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
+void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 {
 	u32 pp;
 
@@ -885,7 +872,7 @@ static void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 
 	pp = ironlake_get_pp_control();
 	pp &= ~EDP_BLC_ENABLE;
-	io_i915_write32(pp, PCH_PP_CONTROL);
+	gtt_write(PCH_PP_CONTROL,pp);
 	////POSTING_READ(PCH_PP_CONTROL);
 	mdelay(intel_dp->backlight_off_delay);
 }
@@ -894,9 +881,9 @@ void ironlake_edp_pll_on(void)
 {
 	u32 dpa_ctl;
 
-	dpa_ctl = io_i915_read32(DP_A);
+	dpa_ctl = gtt_read(DP_A);
 	dpa_ctl |= DP_PLL_ENABLE;
-	io_i915_write32(dpa_ctl, DP_A);
+	gtt_write(DP_A,dpa_ctl);
 	////POSTING_READ(DP_A);
 	udelay(200);
 }
@@ -905,9 +892,9 @@ static void ironlake_edp_pll_off(void)
 {
 	u32 dpa_ctl;
 
-	dpa_ctl = io_i915_read32(DP_A);
+	dpa_ctl = gtt_read(DP_A);
 	dpa_ctl &= ~DP_PLL_ENABLE;
-	io_i915_write32(dpa_ctl, DP_A);
+	gtt_write(DP_A,dpa_ctl);
 	////POSTING_READ(DP_A);
 	udelay(200);
 }
@@ -942,75 +929,6 @@ void intel_dp_sink_dpms(struct intel_dp *intel_dp, int mode)
 			mdelay(1);
 		}
 	}
-}
-// not sure if needed yet or not.
-void intel_dp_prepare(struct intel_dp *intel_dp);
-void intel_dp_prepare(struct intel_dp *intel_dp)
-{
-
-	ironlake_edp_backlight_off(intel_dp);
-	ironlake_edp_panel_off(intel_dp);
-
-	/* Wake up the sink first */
-	ironlake_edp_panel_vdd_on(intel_dp);
-	intel_dp_sink_dpms(intel_dp, 0);
-	intel_dp_link_down(intel_dp);
-	ironlake_edp_panel_vdd_off(intel_dp, 0);
-
-	/* Make sure the panel is off before trying to
-	 * change the mode
-	 */
-}
-
-// might be useful.
-void intel_dp_commit(struct intel_dp *intel_dp);
-void intel_dp_commit(struct intel_dp *intel_dp)
-{
-
-	ironlake_edp_panel_vdd_on(intel_dp);
-	intel_dp_sink_dpms(intel_dp, 0);
-	intel_dp_start_link_train(intel_dp);
-	ironlake_edp_panel_on(intel_dp);
-	ironlake_edp_panel_vdd_off(intel_dp, 1);
-	intel_dp_complete_link_train(intel_dp);
-	ironlake_edp_backlight_on(intel_dp);
-
-	intel_dp->dpms_mode = 0;
-}
-
-void
-intel_dp_dpms(struct intel_dp *intel_dp, int mode)
-{
-	uint32_t dp_reg = io_i915_read32(intel_dp->output_reg);
-
-	printk(BIOS_SPEW, "%s: power %s\n", __func__, mode ? "off" : "on");
-	if (mode){
-		ironlake_edp_backlight_off(intel_dp);
-		ironlake_edp_panel_off(intel_dp);
-
-		ironlake_edp_panel_vdd_on(intel_dp);
-		intel_dp_sink_dpms(intel_dp, mode);
-		intel_dp_link_down(intel_dp);
-		ironlake_edp_panel_vdd_off(intel_dp, 0);
-
-		if (is_cpu_edp(intel_dp))
-			ironlake_edp_pll_off();
-	} else {
-		if (is_cpu_edp(intel_dp))
-			ironlake_edp_pll_on();
-
-		ironlake_edp_panel_vdd_on(intel_dp);
-		intel_dp_sink_dpms(intel_dp, mode);
-		if (!(dp_reg & DP_PORT_EN)) {
-			intel_dp_start_link_train(intel_dp);
-			ironlake_edp_panel_on(intel_dp);
-			ironlake_edp_panel_vdd_off(intel_dp, 1);
-			intel_dp_complete_link_train(intel_dp);
-		} else
-			ironlake_edp_panel_vdd_off(intel_dp, 0);
-		ironlake_edp_backlight_on(intel_dp);
-	}
-	intel_dp->dpms_mode = mode;
 }
 
 /*
@@ -1054,7 +972,7 @@ intel_dp_get_link_status(struct intel_dp *intel_dp,
 					     DP_LINK_STATUS_SIZE);
 
 	printk(BIOS_SPEW, "%s:", __func__);
-	for(i = 0; i < /* !!sizeof(link_status) == 4*/
+	for (i = 0; i < /* !!sizeof(link_status) == 4*/
 		    DP_LINK_STATUS_SIZE; i++)
 		printk(BIOS_SPEW, " %02x", link_status[i]);
 	printk(BIOS_SPEW, "\n");
@@ -1068,31 +986,6 @@ intel_dp_link_status(uint8_t link_status[DP_LINK_STATUS_SIZE],
 	return link_status[r - DP_LANE0_1_STATUS];
 }
 
-#if 0
-static uint8_t
-intel_get_adjust_request_voltage(uint8_t adjust_request[2],
-				 int lane)
-{
-	int	    s = ((lane & 1) ?
-			 DP_ADJUST_VOLTAGE_SWING_LANE1_SHIFT :
-			 DP_ADJUST_VOLTAGE_SWING_LANE0_SHIFT);
-	uint8_t l = adjust_request[lane>>1];
-
-	return ((l >> s) & 3) << DP_TRAIN_VOLTAGE_SWING_SHIFT;
-}
-
-static uint8_t
-intel_get_adjust_request_pre_emphasis(uint8_t adjust_request[2],
-				      int lane)
-{
-	int	    s = ((lane & 1) ?
-			 DP_ADJUST_PRE_EMPHASIS_LANE1_SHIFT :
-			 DP_ADJUST_PRE_EMPHASIS_LANE0_SHIFT);
-	uint8_t l = adjust_request[lane>>1];
-
-	return ((l >> s) & 3) << DP_TRAIN_PRE_EMPHASIS_SHIFT;
-}
-#endif
 const char	*voltage_names[] = {
 	"0.4V", "0.6V", "0.8V", "1.2V"
 };
@@ -1369,7 +1262,7 @@ intel_clock_recovery_ok(uint8_t link_status[DP_LINK_STATUS_SIZE],
 #define CHANNEL_EQ_BITS (DP_LANE_CR_DONE|		\
 			 DP_LANE_CHANNEL_EQ_DONE|	\
 			 DP_LANE_SYMBOL_LOCKED)
-static int
+int
 intel_channel_eq_ok(struct intel_dp *intel_dp,
 		    uint8_t link_status[DP_LINK_STATUS_SIZE])
 {
@@ -1402,7 +1295,7 @@ intel_dp_set_link_train(struct intel_dp *intel_dp,
 	printk(BIOS_SPEW, "%s: dp_reg_value %08lx dp_train_pat %02x\n",
 	       __func__, (unsigned long) dp_reg_value, dp_train_pat);
 	if (intel_dp->is_haswell){
-		temp = io_i915_read32(DP_TP_CTL(port));
+		temp = gtt_read(DP_TP_CTL(port));
 
 		if (dp_train_pat & DP_LINK_SCRAMBLING_DISABLE)
 			temp |= DP_TP_CTL_SCRAMBLE_DISABLE;
@@ -1413,11 +1306,11 @@ intel_dp_set_link_train(struct intel_dp *intel_dp,
 		switch (dp_train_pat & DP_TRAINING_PATTERN_MASK) {
 		case DP_TRAINING_PATTERN_DISABLE:
 			temp |= DP_TP_CTL_LINK_TRAIN_IDLE;
-			io_i915_write32( temp, DP_TP_CTL(port));
+			gtt_write(DP_TP_CTL(port), temp);
 
-			for(i = 0; i < 10; i++){
+			for (i = 0; i < 10; i++){
 				u32 status;
-				status = io_i915_read32(DP_TP_STATUS(port));
+				status = gtt_read(DP_TP_STATUS(port));
 				if (status & DP_TP_STATUS_IDLE_DONE)
 					break;
 			}
@@ -1440,7 +1333,7 @@ intel_dp_set_link_train(struct intel_dp *intel_dp,
 			temp |= DP_TP_CTL_LINK_TRAIN_PAT3;
 			break;
 		}
-		io_i915_write32( temp, DP_TP_CTL(port));
+		gtt_write(DP_TP_CTL(port), temp);
 
 	} else if (intel_dp->has_pch_cpt &&
 		   (intel_dp->gen != 7 || !is_cpu_edp(intel_dp))) {
@@ -1483,7 +1376,7 @@ intel_dp_set_link_train(struct intel_dp *intel_dp,
 		}
 	}
 
-	io_i915_write32( dp_reg_value, intel_dp->output_reg);
+	gtt_write(intel_dp->output_reg, dp_reg_value);
 	//POSTING_READ(intel_dp->output_reg);
 
 	intel_dp_aux_native_write_1(intel_dp,
@@ -1622,134 +1515,6 @@ intel_dp_start_link_train(struct intel_dp *intel_dp)
 	intel_dp->DP = DP;
 }
 
-void
-intel_dp_complete_link_train(struct intel_dp *intel_dp)
-{
-	int channel_eq = 0;
-	int tries, cr_tries;
-	uint32_t DP = intel_dp->DP;
-
-	/* channel equalization */
-	tries = 0;
-	cr_tries = 0;
-	channel_eq = 0;
-	for (;;) {
-		/* Use intel_dp->train_set[0] to set the voltage and pre emphasis values */
-		uint32_t    signal_levels;
-		uint8_t	    link_status[DP_LINK_STATUS_SIZE];
-
-		if (cr_tries > 5) {
-			printk(BIOS_ERR, "failed to train DP, aborting\n");
-			intel_dp_link_down(intel_dp);
-			break;
-		}
-
-		if (intel_dp->is_haswell) {
-			signal_levels = intel_dp_signal_levels_hsw(intel_dp->train_set[0]);
-			DP = (DP & ~DDI_BUF_EMP_MASK) | signal_levels;
-			printk(BIOS_SPEW, "%s: new DP %08x\n", __func__,
-			       DP);
-		} else if ((intel_dp->gen == 7) && is_cpu_edp(intel_dp)) {
-			signal_levels = intel_gen7_edp_signal_levels(intel_dp->train_set[0]);
-			DP = (DP & ~EDP_LINK_TRAIN_VOL_EMP_MASK_IVB) | signal_levels;
-		} else if ((intel_dp->gen == 6) && is_cpu_edp(intel_dp)) {
-			signal_levels = intel_gen6_edp_signal_levels(intel_dp->train_set[0]);
-			DP = (DP & ~EDP_LINK_TRAIN_VOL_EMP_MASK_SNB) | signal_levels;
-		} else {
-			signal_levels = intel_dp_signal_levels(intel_dp->train_set[0]);
-			DP = (DP & ~(DP_VOLTAGE_MASK|DP_PRE_EMPHASIS_MASK)) | signal_levels;
-		}
-
-		/* channel eq pattern */
-		if (!intel_dp_set_link_train(intel_dp, DP,
-					     DP_TRAINING_PATTERN_2 |
-					     DP_LINK_SCRAMBLING_DISABLE))
-			break;
-
-		udelay(40000); /* was 400 */
-		if (!intel_dp_get_link_status(intel_dp, link_status))
-			break;
-
-		/* Make sure clock is still ok */
-		if (!intel_clock_recovery_ok(link_status, intel_dp->lane_count)) {
-			printk(BIOS_SPEW, "%s: Clock recovery is NOT ok"
-			       ": restarting from the start\n", __func__);
-			intel_dp_start_link_train(intel_dp);
-			cr_tries++;
-			continue;
-		}
-
-		if (intel_channel_eq_ok(intel_dp, link_status)) {
-			printk(BIOS_SPEW, "%s: success\n", __func__);
-			channel_eq = 1;
-			break;
-		}
-
-		/* Try 5 times, then try clock recovery if that fails */
-		if (tries > 5) {
-			printk(BIOS_SPEW, "%s: tries > 5,recovering. \n",
-			       __func__);
-			intel_dp_link_down(intel_dp);
-			intel_dp_start_link_train(intel_dp);
-			tries = 0;
-			cr_tries++;
-			continue;
-		}
-
-		/* Compute new intel_dp->train_set as requested by target */
-		printk(BIOS_SPEW, "%s: adjust the train\n", __func__);
-		intel_get_adjust_train(intel_dp, link_status);
-		++tries;
-	}
-
-	//io_i915_write32(reg, intel_dp->output_reg);
-	////POSTING_READ(intel_dp->output_reg);
-	intel_dp_set_link_train(intel_dp, DP, DP_TRAINING_PATTERN_DISABLE);
-}
-
-void
-intel_dp_link_down(struct intel_dp *intel_dp)
-{
-	uint32_t DP = intel_dp->DP;
-
-	if ((io_i915_read32(intel_dp->output_reg) & DP_PORT_EN) == 0)
-		return;
-
-	if (intel_dp->is_haswell){
-		printk(BIOS_SPEW, "%s: It's a haswell, skip this\n", __func__);
-		return;
-	}
-	if (is_edp(intel_dp)) {
-		DP &= ~DP_PLL_ENABLE;
-		io_i915_write32(DP, intel_dp->output_reg);
-		////POSTING_READ(intel_dp->output_reg);
-		udelay(100);
-	}
-
-	if (intel_dp->has_pch_cpt && ((intel_dp->gen == 7) || !is_cpu_edp(intel_dp))) {
-		DP &= ~DP_LINK_TRAIN_MASK_CPT;
-		io_i915_write32(DP | DP_LINK_TRAIN_PAT_IDLE_CPT, intel_dp->output_reg);
-	} else {
-		DP &= ~DP_LINK_TRAIN_MASK;
-		io_i915_write32(DP | DP_LINK_TRAIN_PAT_IDLE, intel_dp->output_reg);
-	}
-	////POSTING_READ(intel_dp->output_reg);
-
-	mdelay(17);
-
-	if (is_edp(intel_dp)) {
-		if (intel_dp->has_pch_cpt && ((intel_dp->gen == 7) || !is_cpu_edp(intel_dp)))
-			DP |= DP_LINK_TRAIN_OFF_CPT;
-		else
-			DP |= DP_LINK_TRAIN_OFF;
-	}
-
-	DP &= ~DP_AUDIO_OUTPUT_ENABLE;
-	io_i915_write32(DP & ~DP_PORT_EN, intel_dp->output_reg);
-	////POSTING_READ(intel_dp->output_reg);
-	mdelay(600000); //intel_dp->panel_power_down_delay);
-}
-
 int
 intel_dp_get_dpcd(struct intel_dp *intel_dp)
 {
@@ -1768,7 +1533,7 @@ intel_dp_get_dpcd(struct intel_dp *intel_dp)
 		return 0;
 	}
 
-	printk(BIOS_SPEW, "DPCD: %02hx%02hx%02hx%02hx%02hx%02hx%02hx%02hx\n",
+	printk(BIOS_SPEW, "DPCD: %02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx%02hhx\n",
 	       intel_dp->dpcd[0], intel_dp->dpcd[1], intel_dp->dpcd[2],
 	       intel_dp->dpcd[3], intel_dp->dpcd[4], intel_dp->dpcd[5],
 	       intel_dp->dpcd[6], intel_dp->dpcd[7]);
@@ -1791,27 +1556,39 @@ intel_dp_get_max_downspread(struct intel_dp *intel_dp, u8 *max_downspread)
 	return 1;
 }
 
-void intel_dp_set_m_n_regs(struct intel_dp *intel_dp)
+void intel_dp_set_m_n_regs(struct intel_dp *dp)
 {
-        io_i915_write32(0x7e4a0000, PIPE_DATA_M1(intel_dp->transcoder));
-        /* io_i915_write32(0x00800000,0x6f034); */
-        /* Write to 0x6f030 has to be 0x7e4ayyyy -- First four hex digits are important.
-           However, with our formula we always see values 0x7e43yyyy (1366 panel) and
-           0x7e42yyy (1280 panel) */
-        /* io_i915_write32(TU_SIZE(intel_dp->m_n.tu) | intel_dp->m_n.gmch_m,PIPE_DATA_M1(intel_dp->transcoder)); */
-        io_i915_write32(intel_dp->m_n.gmch_n, PIPE_DATA_N1(intel_dp->transcoder));
-        io_i915_write32(intel_dp->m_n.link_m, PIPE_LINK_M1(intel_dp->transcoder));
-        io_i915_write32(intel_dp->m_n.link_n, PIPE_LINK_N1(intel_dp->transcoder));
+        gtt_write(PIPE_DATA_M1(dp->transcoder),
+		  TU_SIZE(dp->m_n.tu) | dp->m_n.gmch_m);
+        gtt_write(PIPE_DATA_N1(dp->transcoder),dp->m_n.gmch_n);
+        gtt_write(PIPE_LINK_M1(dp->transcoder),dp->m_n.link_m);
+        gtt_write(PIPE_LINK_N1(dp->transcoder),dp->m_n.link_n);
+}
+
+int intel_dp_bw_code_to_link_rate(u8 link_bw)
+{
+	switch (link_bw) {
+        default:
+		printk(BIOS_ERR,
+			"ERROR: link_bw(%d) is bogus; must be one of 6, 0xa, or 0x14\n",
+			link_bw);
+        case DP_LINK_BW_1_62:
+		return 162000;
+        case DP_LINK_BW_2_7:
+		return 270000;
+        case DP_LINK_BW_5_4:
+                return 540000;
+	}
 }
 
 void intel_dp_set_resolution(struct intel_dp *intel_dp)
 {
-        io_i915_write32(intel_dp->htotal, HTOTAL(intel_dp->transcoder));
-        io_i915_write32(intel_dp->hblank, HBLANK(intel_dp->transcoder));
-        io_i915_write32(intel_dp->hsync,  HSYNC(intel_dp->transcoder));
-        io_i915_write32(intel_dp->vtotal, VTOTAL(intel_dp->transcoder));
-        io_i915_write32(intel_dp->vblank, VBLANK(intel_dp->transcoder));
-        io_i915_write32(intel_dp->vsync,  VSYNC(intel_dp->transcoder));
+        gtt_write(HTOTAL(intel_dp->transcoder),intel_dp->htotal);
+        gtt_write(HBLANK(intel_dp->transcoder),intel_dp->hblank);
+        gtt_write(HSYNC(intel_dp->transcoder),intel_dp->hsync);
+        gtt_write(VTOTAL(intel_dp->transcoder),intel_dp->vtotal);
+        gtt_write(VBLANK(intel_dp->transcoder),intel_dp->vblank);
+        gtt_write(VSYNC(intel_dp->transcoder),intel_dp->vsync);
 }
 
 int intel_dp_get_training_pattern(struct intel_dp *intel_dp,
@@ -1826,10 +1603,13 @@ int intel_dp_get_training_pattern(struct intel_dp *intel_dp,
 int intel_dp_get_lane_count(struct intel_dp *intel_dp,
 			    u8 *recv)
 {
-	return intel_dp_aux_native_read_retry(intel_dp,
+	int val = intel_dp_aux_native_read_retry(intel_dp,
 					      DP_LANE_COUNT_SET,
 					      recv,
 					      0);
+	*recv &= DP_LANE_COUNT_MASK;
+	printk(BIOS_SPEW, "Lane count %s:%d\n", val < 0 ? "fail" : "ok", *recv);
+	return val;
 }
 
 int intel_dp_get_lane_align_status(struct intel_dp *intel_dp,

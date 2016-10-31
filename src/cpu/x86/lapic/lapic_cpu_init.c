@@ -5,6 +5,7 @@
  * Copyright (C) 2001 Ronald G. Minnich
  * Copyright (C) 2005 Yinghai Lu
  * Copyright (C) 2008 coresystems GmbH
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,19 +15,18 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <cpu/x86/cr.h>
+#include <cpu/x86/gdt.h>
 #include <cpu/x86/lapic.h>
+#include <arch/acpi.h>
 #include <delay.h>
+#include <halt.h>
 #include <lib.h>
 #include <string.h>
+#include <symbols.h>
 #include <console/console.h>
-#include <arch/hlt.h>
 #include <device/device.h>
 #include <device/path.h>
 #include <smp/atomic.h>
@@ -47,32 +47,28 @@
 /* Start-UP IPI vector must be 4kB aligned and below 1MB. */
 #define AP_SIPI_VECTOR 0x1000
 
-#if CONFIG_HAVE_ACPI_RESUME
-char *lowmem_backup;
-char *lowmem_backup_ptr;
-int  lowmem_backup_size;
-#endif
-
-extern char _secondary_start[];
-extern char _secondary_gdt_addr[];
-extern char gdt[];
-extern char gdt_end[];
+static char *lowmem_backup;
+static char *lowmem_backup_ptr;
+static int  lowmem_backup_size;
 
 static inline void setup_secondary_gdt(void)
 {
 	u16 *gdt_limit;
+#ifdef __x86_64__
+	u64 *gdt_base;
+#else
 	u32 *gdt_base;
+#endif
 
 	gdt_limit = (void *)&_secondary_gdt_addr;
 	gdt_base = (void *)&gdt_limit[1];
 
-	*gdt_limit = (u32)&gdt_end - (u32)&gdt - 1;
-	*gdt_base = (u32)&gdt;
+	*gdt_limit = (uintptr_t)&gdt_end - (uintptr_t)&gdt - 1;
+	*gdt_base = (uintptr_t)&gdt;
 }
 
 static void copy_secondary_start_to_lowest_1M(void)
 {
-	extern char _secondary_start_end[];
 	unsigned long code_size;
 
 	/* Fill in secondary_start's local gdt. */
@@ -80,22 +76,29 @@ static void copy_secondary_start_to_lowest_1M(void)
 
 	code_size = (unsigned long)_secondary_start_end - (unsigned long)_secondary_start;
 
-#if CONFIG_HAVE_ACPI_RESUME
-	/* need to save it for RAM resume */
-	lowmem_backup_size = code_size;
-	lowmem_backup = malloc(code_size);
-	lowmem_backup_ptr = (char *)AP_SIPI_VECTOR;
+	if (acpi_is_wakeup_s3()) {
+		/* need to save it for RAM resume */
+		lowmem_backup_size = code_size;
+		lowmem_backup = malloc(code_size);
+		lowmem_backup_ptr = (char *)AP_SIPI_VECTOR;
 
-	if (lowmem_backup == NULL)
-		die("Out of backup memory\n");
+		if (lowmem_backup == NULL)
+			die("Out of backup memory\n");
 
-	memcpy(lowmem_backup, lowmem_backup_ptr, lowmem_backup_size);
-#endif
-	/* copy the _secondary_start to the ram below 1M*/
+		memcpy(lowmem_backup, lowmem_backup_ptr, lowmem_backup_size);
+	}
+
+	/* copy the _secondary_start to the RAM below 1M*/
 	memcpy((unsigned char *)AP_SIPI_VECTOR, (unsigned char *)_secondary_start, code_size);
 
 	printk(BIOS_DEBUG, "start_eip=0x%08lx, code_size=0x%08lx\n",
 		(long unsigned int)AP_SIPI_VECTOR, code_size);
+}
+
+static void recover_lowest_1M(void)
+{
+	if (acpi_is_wakeup_s3())
+		memcpy(lowmem_backup_ptr, lowmem_backup, lowmem_backup_size);
 }
 
 static int lapic_start_cpu(unsigned long apicid)
@@ -162,7 +165,7 @@ static int lapic_start_cpu(unsigned long apicid)
 		send_status = lapic_read(LAPIC_ICR) & LAPIC_ICR_BUSY;
 	} while (send_status && (timeout++ < 1000));
 	if (timeout >= 1000) {
-		printk(BIOS_ERR, "CPU %ld: Second apic write timed out. "
+		printk(BIOS_ERR, "CPU %ld: Second APIC write timed out. "
 			"Disabling\n", apicid);
 		// too bad.
 		return 0;
@@ -239,10 +242,10 @@ static int lapic_start_cpu(unsigned long apicid)
 static atomic_t active_cpus = ATOMIC_INIT(1);
 
 /* start_cpu_lock covers last_cpu_index and secondary_stack.
- * Only starting one cpu at a time let's me remove the logic
+ * Only starting one CPU at a time let's me remove the logic
  * for select the stack from assembly language.
  *
- * In addition communicating by variables to the cpu I
+ * In addition communicating by variables to the CPU I
  * am starting allows me to verify it has started before
  * start_cpu returns.
  */
@@ -253,7 +256,7 @@ static void *stacks[CONFIG_MAX_CPUS];
 volatile unsigned long secondary_stack;
 volatile unsigned int secondary_cpu_index;
 
-int start_cpu(device_t cpu)
+int start_cpu(struct device *cpu)
 {
 	struct cpu_info *info;
 	unsigned long stack_end;
@@ -281,7 +284,7 @@ int start_cpu(device_t cpu)
 	printk(BIOS_SPEW, "CPU%d: stack_base %p, stack_end %p\n", index,
 		(void *)stack_base, (void *)stack_end);
 	/* poison the stack */
-	for(stack = (void *)stack_base, i = 0; i < CONFIG_STACK_SIZE; i++)
+	for (stack = (void *)stack_base, i = 0; i < CONFIG_STACK_SIZE; i++)
 		stack[i/sizeof(*stack)] = 0xDEADBEEF;
 	stacks[index] = stack;
 	/* Record the index and which CPU structure we are using */
@@ -298,19 +301,19 @@ int start_cpu(device_t cpu)
 	cpu->enabled = 0;
 	cpu->initialized = 0;
 
-	/* Start the cpu */
+	/* Start the CPU */
 	result = lapic_start_cpu(apicid);
 
 	if (result) {
 		result = 0;
-		/* Wait 1s or until the new cpu calls in */
-		for(count = 0; count < 100000 ; count++) {
+		/* Wait 1s or until the new CPU calls in */
+		for (count = 0; count < 100000; count++) {
 			if (secondary_stack == 0) {
 				result = 1;
 				break;
 			}
 			udelay(10);
-	}
+		}
 	}
 	secondary_stack = 0;
 	spin_unlock(&start_cpu_lock);
@@ -396,9 +399,7 @@ void stop_this_cpu(void)
 #endif
 	}
 
-	while(1) {
-		hlt();
-	}
+	halt();
 }
 #endif
 
@@ -430,12 +431,12 @@ void asmlinkage secondary_cpu_init(unsigned int index)
 	stop_this_cpu();
 }
 
-static void start_other_cpus(struct bus *cpu_bus, device_t bsp_cpu)
+static void start_other_cpus(struct bus *cpu_bus, struct device *bsp_cpu)
 {
-	device_t cpu;
+	struct device *cpu;
 	/* Loop through the cpus once getting them started */
 
-	for(cpu = cpu_bus->children; cpu ; cpu = cpu->sibling) {
+	for (cpu = cpu_bus->children; cpu; cpu = cpu->sibling) {
 		if (cpu->path.type != DEVICE_PATH_APIC) {
 			continue;
 		}
@@ -463,9 +464,42 @@ static void start_other_cpus(struct bus *cpu_bus, device_t bsp_cpu)
 
 }
 
-static void wait_other_cpus_stop(struct bus *cpu_bus)
+static void smm_other_cpus(struct bus *cpu_bus, device_t bsp_cpu)
 {
 	device_t cpu;
+	int pre_count = atomic_read(&active_cpus);
+
+	/* Loop through the cpus once to let them run through SMM relocator */
+
+	for (cpu = cpu_bus->children; cpu; cpu = cpu->sibling) {
+		if (cpu->path.type != DEVICE_PATH_APIC) {
+			continue;
+		}
+
+		printk(BIOS_ERR, "considering CPU 0x%02x for SMM init\n",
+			cpu->path.apic.apic_id);
+
+		if (cpu == bsp_cpu)
+			continue;
+
+		if (!cpu->enabled) {
+			continue;
+		}
+
+		if (!start_cpu(cpu)) {
+			/* Record the error in cpu? */
+			printk(BIOS_ERR, "CPU 0x%02x would not start!\n",
+				cpu->path.apic.apic_id);
+		}
+
+		/* FIXME: endless loop */
+		while (atomic_read(&active_cpus) != pre_count);
+	}
+}
+
+static void wait_other_cpus_stop(struct bus *cpu_bus)
+{
+	struct device *cpu;
 	int old_active_count, active_count;
 	long loopcount = 0;
 	int i;
@@ -473,7 +507,7 @@ static void wait_other_cpus_stop(struct bus *cpu_bus)
 	/* Now loop until the other cpus have finished initializing */
 	old_active_count = 1;
 	active_count = atomic_read(&active_cpus);
-	while(active_count > 1) {
+	while (active_count > 1) {
 		if (active_count != old_active_count) {
 			printk(BIOS_INFO, "Waiting for %d CPUS to stop\n",
 				active_count - 1);
@@ -483,7 +517,7 @@ static void wait_other_cpus_stop(struct bus *cpu_bus)
 		active_count = atomic_read(&active_cpus);
 		loopcount++;
 	}
-	for(cpu = cpu_bus->children; cpu; cpu = cpu->sibling) {
+	for (cpu = cpu_bus->children; cpu; cpu = cpu->sibling) {
 		if (cpu->path.type != DEVICE_PATH_APIC) {
 			continue;
 		}
@@ -496,7 +530,8 @@ static void wait_other_cpus_stop(struct bus *cpu_bus)
 		}
 	}
 	printk(BIOS_DEBUG, "All AP CPUs stopped (%ld loops)\n", loopcount);
-	for(i = 1; i <= last_cpu_index; i++)
+	checkstack(_estack, 0);
+	for (i = 1; i <= last_cpu_index; i++)
 		checkstack((void *)stacks[i] + CONFIG_STACK_SIZE, i);
 }
 
@@ -507,23 +542,23 @@ void initialize_cpus(struct bus *cpu_bus)
 	struct device_path cpu_path;
 	struct cpu_info *info;
 
-	/* Find the info struct for this cpu */
+	/* Find the info struct for this CPU */
 	info = cpu_info();
 
 #if NEED_LAPIC == 1
-	/* Ensure the local apic is enabled */
+	/* Ensure the local APIC is enabled */
 	enable_lapic();
 
-	/* Get the device path of the boot cpu */
+	/* Get the device path of the boot CPU */
 	cpu_path.type           = DEVICE_PATH_APIC;
 	cpu_path.apic.apic_id = lapicid();
 #else
-	/* Get the device path of the boot cpu */
+	/* Get the device path of the boot CPU */
 	cpu_path.type           = DEVICE_PATH_CPU;
 	cpu_path.cpu.id       = 0;
 #endif
 
-	/* Find the device structure for the boot cpu */
+	/* Find the device structure for the boot CPU */
 	info->cpu = alloc_find_dev(cpu_bus, &cpu_path);
 
 #if CONFIG_SMP && CONFIG_MAX_CPUS > 1
@@ -532,7 +567,8 @@ void initialize_cpus(struct bus *cpu_bus)
 #endif
 
 #if CONFIG_HAVE_SMI_HANDLER
-	smm_init();
+	if (!IS_ENABLED(CONFIG_SERIALIZED_SMM_INITIALIZATION))
+		smm_init();
 #endif
 
 #if CONFIG_SMP && CONFIG_MAX_CPUS > 1
@@ -550,5 +586,20 @@ void initialize_cpus(struct bus *cpu_bus)
 
 	/* Now wait the rest of the cpus stop*/
 	wait_other_cpus_stop(cpu_bus);
+#endif
+
+	if (IS_ENABLED(CONFIG_SERIALIZED_SMM_INITIALIZATION)) {
+		/* At this point, all APs are sleeping:
+		 * smm_init() will queue a pending SMI on all cpus
+		 * and smm_other_cpus() will start them one by one */
+		smm_init();
+#if CONFIG_SMP && CONFIG_MAX_CPUS > 1
+		last_cpu_index = 0;
+		smm_other_cpus(cpu_bus, info->cpu);
+#endif
+	}
+
+#if CONFIG_SMP && CONFIG_MAX_CPUS > 1
+	recover_lowest_1M();
 #endif
 }

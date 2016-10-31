@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -24,15 +20,14 @@
 #include <device/pci_ids.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
 #include <lib.h>
-#include "northbridge/via/cn700/raminit.h"
-#include "cpu/x86/bist.h"
-#include "drivers/pc80/udelay_io.c"
-#include "lib/delay.c"
+#include <northbridge/via/cn700/raminit.h>
+#include <cpu/x86/bist.h>
+#include <cpu/amd/car.h>
+#include <delay.h>
 #include "southbridge/via/vt8237r/early_smbus.c"
-#include "southbridge/via/vt8235/early_serial.c"
+#include "southbridge/via/vt8237r/early_serial.c"
 #include <spd.h>
 
 static inline int spd_read_byte(unsigned device, unsigned address)
@@ -51,7 +46,7 @@ static void enable_mainboard_devices(void)
 	if (dev == PCI_DEV_INVALID)
 		die("Southbridge not found!!!\n");
 
-	/* bit=0 means enable function (per CX700 datasheet)
+	/* bit = 0 means enable function (per CX700 datasheet)
 	 *   5 16.1 USB 2
 	 *   4 16.0 USB 1
 	 *   3 15.0 SATA and PATA
@@ -60,7 +55,7 @@ static void enable_mainboard_devices(void)
 	 */
 	pci_write_config8(dev, 0x50, 0x80);
 
-	/* bit=1 means enable internal function (per CX700 datasheet)
+	/* bit = 1 means enable internal function (per CX700 datasheet)
 	 *   3 Internal RTC
 	 *   2 Internal PS2 Mouse
 	 *   1 Internal KBC Configuration
@@ -84,7 +79,7 @@ void main(unsigned long bist)
 	/* Enable multifunction for northbridge. */
 	pci_write_config8(ctrl.d0f0, 0x4f, 0x01);
 
-	enable_vt8235_serial();
+	enable_vt8237r_serial();
 	console_init();
 	enable_smbus();
 	smbus_fixup(&ctrl);

@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdio.h>
@@ -28,6 +24,10 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include "viatool.h"
+
+#ifdef __NetBSD__
+#include <machine/sysarch.h>
+#endif
 
 /*
  * http://pci-ids.ucw.cz/read/PC/8086
@@ -82,9 +82,7 @@ void print_version(void)
     "This program is distributed in the hope that it will be useful,\n"
     "but WITHOUT ANY WARRANTY; without even the implied warranty of\n"
     "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
-    "GNU General Public License for more details.\n\n"
-    "You should have received a copy of the GNU General Public License\n"
-    "along with this program.  If not, see <http://www.gnu.org/licenses/>.\n\n");
+    "GNU General Public License for more details.\n\n");
 }
 
 void print_usage(const char *name)
@@ -150,6 +148,14 @@ int main(int argc, char *argv[])
 #if defined(__FreeBSD__)
 	if (open("/dev/io", O_RDWR) < 0) {
 		perror("/dev/io");
+#elif defined(__NetBSD__)
+# ifdef __i386__
+	if (i386_iopl(3)) {
+		perror("iopl");
+# else
+	if (x86_64_iopl(3)) {
+		perror("iopl");
+# endif
 #else
 	if (iopl(3)) {
 		perror("iopl");

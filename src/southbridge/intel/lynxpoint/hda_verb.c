@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -28,7 +24,7 @@
 /**
  * Set bits in a register and wait for status
  */
-static int set_bits(u32 port, u32 mask, u32 val)
+static int set_bits(void *port, u32 mask, u32 val)
 {
 	u32 reg32;
 	int count;
@@ -60,7 +56,7 @@ static int set_bits(u32 port, u32 mask, u32 val)
 /**
  * Probe for supported codecs
  */
-int hda_codec_detect(u32 base)
+int hda_codec_detect(u8 *base)
 {
 	u8 reg8;
 
@@ -91,14 +87,14 @@ no_codec:
  * Wait 50usec for the codec to indicate it is ready
  * no response would imply that the codec is non-operative
  */
-static int hda_wait_for_ready(u32 base)
+static int hda_wait_for_ready(u8 *base)
 {
 	/* Use a 50 usec timeout - the Linux kernel uses the
 	 * same duration */
 
 	int timeout = 50;
 
-	while(timeout--) {
+	while (timeout--) {
 		u32 reg32 = read32(base +  HDA_ICII_REG);
 		if (!(reg32 & HDA_ICII_BUSY))
 			return 0;
@@ -113,7 +109,7 @@ static int hda_wait_for_ready(u32 base)
  * the previous command.  No response would imply that the code
  * is non-operative
  */
-static int hda_wait_for_valid(u32 base)
+static int hda_wait_for_valid(u8 *base)
 {
 	u32 reg32;
 
@@ -126,7 +122,7 @@ static int hda_wait_for_valid(u32 base)
 	 * same duration */
 
 	int timeout = 50;
-	while(timeout--) {
+	while (timeout--) {
 		reg32 = read32(base + HDA_ICII_REG);
 		if ((reg32 & (HDA_ICII_VALID | HDA_ICII_BUSY)) ==
 			HDA_ICII_VALID)
@@ -140,10 +136,10 @@ static int hda_wait_for_valid(u32 base)
 /**
  * Find a specific entry within a verb table
  *
- * @verb_table_bytes:	verb table size in bytes
- * @verb_table_data:	verb table data
- * @viddid:		vendor/device to search for
- * @verb_out:		pointer to entry within table
+ * @param verb_table_bytes:	verb table size in bytes
+ * @param verb_table_data:	verb table data
+ * @param viddid:		vendor/device to search for
+ * @param **verb:		pointer to entry within table
  *
  * Returns size of the entry within the verb table,
  * Returns 0 if the entry is not found
@@ -185,7 +181,7 @@ static u32 hda_find_verb(u32 verb_table_bytes,
 /**
  * Write a supplied verb table
  */
-int hda_codec_write(u32 base, u32 size, const u32 *data)
+int hda_codec_write(u8 *base, u32 size, const u32 *data)
 {
 	int i;
 
@@ -205,7 +201,7 @@ int hda_codec_write(u32 base, u32 size, const u32 *data)
 /**
  * Initialize codec, then find the verb table and write it
  */
-int hda_codec_init(u32 base, int addr, int verb_size, const u32 *verb_data)
+int hda_codec_init(u8 *base, int addr, int verb_size, const u32 *verb_data)
 {
 	const u32 *verb;
 	u32 reg32, size;

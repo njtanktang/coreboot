@@ -2,6 +2,7 @@
  * This file is part of the libpayload project.
  *
  * Copyright (C) 2008 Advanced Micro Devices, Inc.
+ * Copyright 2013 Google Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,13 +31,21 @@
 #ifndef _STDLIB_H
 #define _STDLIB_H
 
+#include <die.h>
 #include <stddef.h>
+#include <string.h>
+
+#define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1UL)
+#define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
+#define ALIGN_UP(x,a)           ALIGN((x),(a))
+#define ALIGN_DOWN(x,a)         ((x) & ~((typeof(x))(a)-1UL))
+#define IS_ALIGNED(x,a)         (((x) & ((typeof(x))(a)-1UL)) == 0)
 
 /**
  * @defgroup malloc Memory allocation functions
  * @{
  */
-#if defined(CONFIG_DEBUG_MALLOC) && !defined(IN_MALLOC_C)
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC) && !defined(IN_MALLOC_C)
 #define free(p)	\
 	({ \
 	 extern void print_malloc_map(void); \
@@ -101,7 +110,35 @@
 	 printf("PRE memalign\n"); \
 	 print_malloc_map(); \
 	 ptr = memalign(a,s); \
-	 printf("POST realloc (ptr = %p)\n", ptr); \
+	 printf("POST memalign (ptr = %p)\n", ptr); \
+	 print_malloc_map(); \
+	 ptr; \
+	 })
+#define dma_malloc(s) \
+	({ \
+	 extern void print_malloc_map(void); \
+	 extern void *dma_malloc(size_t); \
+	 void *ptr; \
+	 printf("dma_malloc(%u) called from %s:%s:%d...\n", s, __FILE__, \
+	        __func__, __LINE__);\
+	 printf("PRE dma_malloc\n"); \
+	 print_malloc_map(); \
+	 ptr = dma_malloc(s); \
+	 printf("POST dma_malloc (ptr = %p)\n", ptr); \
+	 print_malloc_map(); \
+	 ptr; \
+	 })
+#define dma_memalign(a,s) \
+	({ \
+	 extern void print_malloc_map(void); \
+	 extern void *dma_memalign(size_t, size_t); \
+	 void *ptr; \
+	 printf("dma_memalign(%u, %u) called from %s:%s:%d...\n", a, s, \
+	        __FILE__, __func__, __LINE__);\
+	 printf("PRE dma_memalign\n"); \
+	 print_malloc_map(); \
+	 ptr = dma_memalign(a,s); \
+	 printf("POST dma_memalign (ptr = %p)\n", ptr); \
 	 print_malloc_map(); \
 	 ptr; \
 	 })
@@ -111,7 +148,47 @@ void *malloc(size_t size);
 void *calloc(size_t nmemb, size_t size);
 void *realloc(void *ptr, size_t size);
 void *memalign(size_t align, size_t size);
+void *dma_malloc(size_t size);
+void *dma_memalign(size_t align, size_t size);
 #endif
+void init_dma_memory(void *start, u32 size);
+int dma_initialized(void);
+int dma_coherent(void *ptr);
+
+static inline void *xmalloc_work(size_t size, const char *file,
+				 const char *func, int line)
+{
+	void *ret = malloc(size);
+	if (!ret && size) {
+		die_work(file, func, line, "Failed to malloc %zu bytes.\n",
+			 size);
+	}
+	return ret;
+}
+#define xmalloc(size) xmalloc_work((size), __FILE__, __FUNCTION__, __LINE__)
+
+static inline void *xzalloc_work(size_t size, const char *file,
+				 const char *func, int line)
+{
+	void *ret = xmalloc_work(size, file, func, line);
+	memset(ret, 0, size);
+	return ret;
+}
+#define xzalloc(size) xzalloc_work((size), __FILE__, __FUNCTION__, __LINE__)
+
+static inline void *xmemalign_work(size_t align, size_t size, const char *file,
+				  const char *func, int line)
+{
+	void *ret = memalign(align, size);
+	if (!ret && size) {
+		die_work(file, func, line,
+			 "Failed to memalign %zu bytes with %zu alignment.\n",
+			 size, align);
+	}
+	return ret;
+}
+#define xmemalign(align, size) \
+	xmemalign_work((align), (size), __FILE__, __func__, __LINE__)
 /** @} */
 
 /**
@@ -140,9 +217,18 @@ void srand(unsigned int seed);
 void halt(void) __attribute__ ((noreturn));
 void exit(int status) __attribute__ ((noreturn));
 #define abort() halt()    /**< Alias for the halt() function */
+#if IS_ENABLED(CONFIG_LP_REMOTEGDB)
+/* Override abort()/halt() to trap into GDB if it is enabled. */
+#define halt() do { gdb_enter(); halt(); } while (0)
+#endif
 
 /** @} */
 
 void qsort(void *aa, size_t n, size_t es, int (*cmp)(const void *, const void *));
 char *getenv(const char*);
+uint64_t __umoddi3(uint64_t num, uint64_t den);
+uint64_t  __udivdi3(uint64_t num, uint64_t den);
+uint64_t __ashldi3(uint64_t num, unsigned shift);
+uint64_t __lshrdi3(uint64_t num, unsigned shift);
+
 #endif

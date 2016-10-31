@@ -14,11 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -34,12 +29,9 @@
 #include <ec/acpi/ec.h>
 
 #include <pc80/mc146818rtc.h>
-#include "hda_verb.h"
 #include <arch/x86/include/arch/acpigen.h>
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-#include <x86emu/regs.h>
+#include <drivers/intel/gma/int15.h>
 #include <arch/interrupt.h>
-#endif
 #include <pc80/keyboard.h>
 #include <cpu/x86/lapic.h>
 #include <device/pci.h>
@@ -57,44 +49,7 @@ int get_cst_entries(acpi_cstate_t ** entries)
 	return ARRAY_SIZE(cst_entries);
 }
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
 
-static int int15_handler(void)
-{
-	switch ((X86_EAX & 0xffff)) {
-		/* Get boot display.  */
-	case 0x5f35:
-		X86_EAX = 0x5f;
-		/* The flags are:
-		   1 - VGA
-		   4 - DisplayPort
-		   8 - LCD
-		 */
-		X86_ECX = 0x8;
-
-		return 1;
-	case 0x5f40:
-		X86_EAX = 0x5f;
-		X86_ECX = 0x2;
-		return 1;
-	default:
-		printk(BIOS_WARNING, "Unknown INT15 function %04x!\n",
-		       X86_EAX & 0xffff);
-		return 0;
-	}
-}
-#endif
-
-/* Audio Setup */
-
-extern const u32 *cim_verb_data;
-extern u32 cim_verb_data_size;
-
-static void verb_setup(void)
-{
-	cim_verb_data = mainboard_cim_verb_data;
-	cim_verb_data_size = sizeof(mainboard_cim_verb_data);
-}
 
 static void mainboard_enable(device_t dev)
 {
@@ -127,7 +82,7 @@ static void mainboard_enable(device_t dev)
 	printk(BIOS_SPEW, "SPI configured\n");
 
 	int i;
-        const u8 dmp[256] = {
+	const u8 dmp[256] = {
 		0x00, 0x20, 0x00, 0x00, 0x00, 0x02, 0x89, 0xe4, 0x30, 0x00, 0x40, 0x14, 0x00, 0x00, 0x00, 0x11,
 		0x03, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -144,7 +99,7 @@ static void mainboard_enable(device_t dev)
 		0x55, 0x5a, 0x57, 0x5c, 0x00, 0x00, 0x00, 0x7e, 0x00, 0x00, 0x00, 0x00, 0x45, 0x00, 0x00, 0x00,
 		0x52, 0x10, 0x52, 0x10, 0x64, 0x00, 0x00, 0x00, 0x74, 0x30, 0x00, 0x60, 0x00, 0x00, 0xaf, 0x0b,
 		0x30, 0x45, 0x2e, 0x30, 0x38, 0x41, 0x43, 0x2e, 0x30, 0x31, 0x2e, 0x31, 0x36, 0x20, 0x00, 0x00,
-        };
+	};
 
 	for (i = 0; i < 256; i++)
 		ec_write (i, dmp[i]);
@@ -162,15 +117,11 @@ static void mainboard_enable(device_t dev)
 	pci_write_config8(dev_find_slot(0, PCI_DEVFN(0x1f, 0)), GPIO_CNTL,
 			  0x10);
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-	/* Install custom int15 handler for VGA OPROM */
-	mainboard_interrupt_handlers(0x15, &int15_handler);
-#endif
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_DEFAULT, GMA_INT15_BOOT_DISPLAY_LFP, 2);
 
 	/* This sneaked in here, because EasyNote has no SuperIO chip.
 	 */
-	pc_keyboard_init();
-	verb_setup();
+	pc_keyboard_init(NO_AUX_DEVICE);
 }
 
 struct chip_operations mainboard_ops = {

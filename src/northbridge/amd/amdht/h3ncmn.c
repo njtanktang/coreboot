@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -43,6 +40,7 @@
 #define CPU_HTNB_FUNC_04		4
 #define CPU_ADDR_FUNC_01		1
 #define CPU_NB_FUNC_03			3
+#define CPU_NB_FUNC_05			5
 
 /* Function 0 registers */
 #define REG_ROUTE0_0X40		0x40
@@ -50,8 +48,9 @@
 #define REG_NODE_ID_0X60		0x60
 #define REG_UNIT_ID_0X64		0x64
 #define REG_LINK_TRANS_CONTROL_0X68	0x68
-#define REG_LINK_INIT_CONTROL_0X6C	0x6C
+#define REG_LINK_INIT_CONTROL_0X6C	0x6c
 #define REG_HT_CAP_BASE_0X80		0x80
+#define REG_NORTHBRIDGE_CFG_3X8C	0x8c
 #define REG_HT_LINK_RETRY0_0X130	0x130
 #define REG_HT_TRAFFIC_DIST_0X164	0x164
 #define REG_HT_LINK_EXT_CONTROL0_0X170	0x170
@@ -70,6 +69,7 @@
 #define REG_NB_CPUID_3XFC		0xFC
 #define REG_NB_LINK_XCS_TOKEN0_3X148	0x148
 #define REG_NB_DOWNCORE_3X190		0x190
+#define REG_NB_CAPABILITY_5X84		0x84
 
 /* Function 4 registers */
 
@@ -89,7 +89,44 @@
  ***			FAMILY/NORTHBRIDGE SPECIFIC FUNCTIONS		***
  ***************************************************************************/
 
-/**----------------------------------------------------------------------------------------
+static inline uint8_t is_fam15h(void)
+{
+	uint8_t fam15h = 0;
+	uint32_t family;
+
+	family = cpuid_eax(0x80000001);
+	family = ((family & 0xf00000) >> 16) | ((family & 0xf00) >> 8);
+
+	if (family >= 0x6f)
+		/* Family 15h or later */
+		fam15h = 1;
+
+	return fam15h;
+}
+
+static inline uint8_t is_gt_rev_d(void)
+{
+	uint8_t fam15h = 0;
+	uint8_t rev_gte_d = 0;
+	uint32_t family;
+	uint32_t model;
+
+	family = model = cpuid_eax(0x80000001);
+	model = ((model & 0xf0000) >> 12) | ((model & 0xf0) >> 4);
+	family = ((family & 0xf00000) >> 16) | ((family & 0xf00) >> 8);
+
+	if (family >= 0x6f)
+		/* Family 15h or later */
+		fam15h = 1;
+
+	if ((model >= 0x8) || fam15h)
+		/* Revision D or later */
+		rev_gte_d = 1;
+
+	return rev_gte_d;
+}
+
+/***************************************************************************//**
  *
  * SBDFO
  * makeLinkBase(u8 currentNode, u8 currentLink)
@@ -99,12 +136,10 @@
  *	PCI config address for a link.
  *
  *  Parameters:
- *	@param[in]  u8  node    = the node this link is on
- *	@param[in]  u8  link    = the link
- *	@param[out] SBDFO  result  = the pci config address
+ *	@param[in]  node    = the node this link is on
+ *	@param[in]  link    = the link
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 static SBDFO makeLinkBase(u8 node, u8 link)
 {
 	SBDFO linkBase;
@@ -125,7 +160,7 @@ static SBDFO makeLinkBase(u8 node, u8 link)
 	return linkBase;
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * void
  * setHtControlRegisterBits(SBDFO reg, u8 hiBit, u8 loBit, u32 *pValue)
@@ -137,13 +172,12 @@ static SBDFO makeLinkBase(u8 node, u8 link)
  *	NOTE: This routine is called for IO Devices as well as CPUs!
  *
  *  Parameters:
- *	@param[in]  SBDFO  reg    = the PCI config address the control register
- *	@param[in]  u8  hiBit  = the high bit number
- *	@param[in]  u8  loBit  = the low bit number
- *	@param[in]  u8  pValue = the value to write to that bit range. Bit 0 => loBit.
+ *	@param[in]  reg    = the PCI config address the control register
+ *	@param[in]  hiBit  = the high bit number
+ *	@param[in]  loBit  = the low bit number
+ *	@param[in]  pValue = the value to write to that bit range. Bit 0 => loBit.
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 static void setHtControlRegisterBits(SBDFO reg, u8 hiBit, u8 loBit, u32 *pValue)
 {
 	u32 temp, mask;
@@ -164,7 +198,7 @@ static void setHtControlRegisterBits(SBDFO reg, u8 hiBit, u8 loBit, u32 *pValue)
 	AmdPCIWrite(reg, &temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * writeRoutingTable(u8 node, u8 target, u8 Link, cNorthBridge *nb)
@@ -180,13 +214,12 @@ static void setHtControlRegisterBits(SBDFO reg, u8 hiBit, u8 loBit, u32 *pValue)
  *	 response paths.
  *
  *  Parameters:
- *	@param[in]  u8  node    = the node that will have it's routing tables modified.
- *	@param[in]  u8  target  = For routing to node target
- *	@param[in]  u8  Link    =  Link from node to target
- *	@param[in]  cNorthBridge *nb   = this northbridge
+ *	@param[in]  node    = the node that will have it's routing tables modified.
+ *	@param[in]  target  = For routing to node target
+ *	@param[in]  link    =  Link from node to target
+ *	@param[in]  *nb   = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 
 static void writeRoutingTable(u8 node, u8 target, u8 link, cNorthBridge *nb)
 {
@@ -204,7 +237,7 @@ static void writeRoutingTable(u8 node, u8 target, u8 link, cNorthBridge *nb)
 #endif
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * writeNodeID(u8 node, u8 nodeID, cNorthBridge *nb)
@@ -213,17 +246,26 @@ static void writeRoutingTable(u8 node, u8 target, u8 link, cNorthBridge *nb)
  *	Modifies the NodeID register on the target node
  *
  *  Parameters:
- *	@param[in] u8  node    = the node that will have its NodeID altered.
- *	@param[in] u8  nodeID  = the new value for NodeID
- *	@param[in] cNorthBridge *nb = this northbridge
+ *	@param[in] node    = the node that will have its NodeID altered.
+ *	@param[in] nodeID  = the new value for NodeID
+ *	@param[in] *nb     = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 
 static void writeNodeID(u8 node, u8 nodeID, cNorthBridge *nb)
 {
-	u32 temp = nodeID;
+	u32 temp;
 	ASSERT((node < nb->maxNodes) && (nodeID < nb->maxNodes));
+	if (is_fam15h()) {
+		temp = 1;
+		AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(node),
+					makePCIBusFromNode(node),
+					makePCIDeviceFromNode(node),
+					CPU_NB_FUNC_03,
+					REG_NORTHBRIDGE_CFG_3X8C),
+					22, 22, &temp);
+	}
+	temp = nodeID;
 	AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(node),
 				makePCIBusFromNode(node),
 				makePCIDeviceFromNode(node),
@@ -232,7 +274,7 @@ static void writeNodeID(u8 node, u8 nodeID, cNorthBridge *nb)
 				2, 0, &temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * readDefLnk(u8 node, cNorthBridge *nb)
@@ -242,15 +284,14 @@ static void writeNodeID(u8 node, u8 nodeID, cNorthBridge *nb)
  *	 from node
  *
  *  Parameters:
- *	@param[in] u8    node    = the node that will have its NodeID altered.
- *	@param[in] cNorthBridge *nb = this northbridge
- *	@param[out] u8    result = The HyperTransport link where the request to
+ *	@param[in] node    = the node that will have its NodeID altered.
+ *	@param[in] *nb     = this northbridge
+ *	@return                 The HyperTransport link where the request to
  *				read the default link came from.  Since this
  *				code is running on the BSP, this should be the link
  *				pointing back towards the BSP.
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 
 static u8 readDefLnk(u8 node, cNorthBridge *nb)
 {
@@ -271,7 +312,7 @@ static u8 readDefLnk(u8 node, cNorthBridge *nb)
 	return (u8)deflink;
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * enableRoutingTables(u8 node, cNorthBridge *nb)
@@ -280,11 +321,10 @@ static u8 readDefLnk(u8 node, cNorthBridge *nb)
  *	Turns routing tables on for a given node
  *
  *  Parameters:
- *	@param[in]  u8    node     = the node that will have it's routing tables enabled
- *	@param[in]  cNorthBridge *nb  = this northbridge
+ *	@param[in]  node = the node that will have it's routing tables enabled
+ *	@param[in]  *nb  = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 
 static void enableRoutingTables(u8 node, cNorthBridge *nb)
 {
@@ -299,7 +339,7 @@ static void enableRoutingTables(u8 node, cNorthBridge *nb)
 }
 
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * verifyLinkIsCoherent(u8 node, u8 Link, cNorthBridge *nbk)
@@ -308,19 +348,18 @@ static void enableRoutingTables(u8 node, cNorthBridge *nb)
  *	Verify that the link is coherent, connected, and ready
  *
  *  Parameters:
- *	@param[in]   u8  node      = the node that will be examined
- *	@param[in]   u8  link      = the link on that Node to examine
- *	@param[in]   cNorthBridge *nb = this northbridge
- *	@param[out]  u8  result    = true - The link has the following status
- *				  linkCon=1,	       Link is connected
- *				  InitComplete=1,      Link initialization is complete
- *				  NC=0,		       Link is coherent
- *				  UniP-cLDT=0,	       Link is not Uniprocessor cLDT
- *				  LinkConPend=0	       Link connection is not pending
+ *	@param[in]   node      = the node that will be examined
+ *	@param[in]   link      = the link on that Node to examine
+ *	@param[in]   *nb       = this northbridge
+ *	@return            true - The link has the following status
+ *				  linkCon = 1,		Link is connected
+ *				  InitComplete = 1,	Link initialization is complete
+ *				  NC = 0,		Link is coherent
+ *				  UniP-cLDT = 0,	Link is not Uniprocessor cLDT
+ *				  LinkConPend = 0	Link connection is not pending
  *				  false- The link has some other status
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 
 static BOOL verifyLinkIsCoherent(u8 node, u8 link, cNorthBridge *nb)
 {
@@ -336,14 +375,14 @@ static BOOL verifyLinkIsCoherent(u8 node, u8 link, cNorthBridge *nb)
 	/*  FN0_98/A4/C4 = LDT Type Register */
 	AmdPCIRead(linkBase + HTHOST_LINK_TYPE_REG, &linkType);
 
-	/*  Verify LinkCon=1, InitComplete=1, NC=0, UniP-cLDT=0, LinkConPend=0 */
+	/*  Verify LinkCon = 1, InitComplete = 1, NC = 0, UniP-cLDT = 0, LinkConPend = 0 */
 	return (linkType & HTHOST_TYPE_MASK) ==  HTHOST_TYPE_COHERENT;
 #else
 	return 0;
 #endif /* HT_BUILD_NC_ONLY */
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static bool
  * readTrueLinkFailStatus(u8 node, u8 link, sMainData *pDat, cNorthBridge *nb)
@@ -362,15 +401,15 @@ static BOOL verifyLinkIsCoherent(u8 node, u8 link, cNorthBridge *nb)
  *	  10         1       0          3             No         1
  *
  *  Parameters:
- *	@param[in]    u8  node      = the node that will be examined
- *	@param[in]    u8  link      = the link on that node to examine
- *	@param[in]    u8  sMainData = access to call back routine
- *	@param[in]    cNorthBridge *nb = this northbridge
- *	@param[out]   u8  result    = true - the link is not connected or has hard error
- *					false- if the link is connected
+ *	@param[in]    node      = the node that will be examined
+ *	@param[in]    link      = the link on that node to examine
+ *	@param[in]    *pDat = access to call back routine
+ *	@param[in]    *nb       = this northbridge
+ *	@return                   true - the link is not connected or has hard error
+ *	                          false- if the link is connected
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
+
 static BOOL readTrueLinkFailStatus(u8 node, u8 link, sMainData *pDat, cNorthBridge *nb)
 {
 	u32 before, after, unconnected, crc;
@@ -434,7 +473,7 @@ static BOOL readTrueLinkFailStatus(u8 node, u8 link, sMainData *pDat, cNorthBrid
 }
 
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u8
  * readToken(u8 node, cNorthBridge *nb)
@@ -446,12 +485,11 @@ static BOOL readTrueLinkFailStatus(u8 node, u8 link, sMainData *pDat, cNorthBrid
  *	using it will have no ill-effects during HyperTransport initialization.
  *
  *  Parameters:
- *	@param[in]  u8  node      = the node that will be examined
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  result    = the Token read from the node
+ *	@param[in]  node      = the node that will be examined
+ *	@param[in]  *nb       = this northbridge
+ *	@return                the Token read from the node
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 static u8 readToken(u8 node, cNorthBridge *nb)
 {
 	u32 temp;
@@ -470,7 +508,7 @@ static u8 readToken(u8 node, cNorthBridge *nb)
 }
 
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * writeToken(u8 node, u8 Value, cNorthBridge *nb)
@@ -483,11 +521,11 @@ static u8 readToken(u8 node, cNorthBridge *nb)
  *	Limiting use to 4 bits makes code GH to rev F compatible.
  *
  *  Parameters:
- *	@param[in]  u8  node  = the node that will be examined
- *	@param[in]  cNorthBridge *nb  = this northbridge
+ *	@param[in]  node  = the node that will be examined
+ *	@param      value
+ *	@param[in] *nb  = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ *****************************************************************************/
 static void writeToken(u8 node, u8 value, cNorthBridge *nb)
 {
 	u32 temp = value;
@@ -502,7 +540,7 @@ static void writeToken(u8 node, u8 value, cNorthBridge *nb)
 					19, 16, &temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u8
  * fam0FGetNumCoresOnNode(u8 node, cNorthBridge *nb)
@@ -511,9 +549,9 @@ static void writeToken(u8 node, u8 value, cNorthBridge *nb)
  *	Return the number of cores (1 based count) on node.
  *
  *  Parameters:
- *	@param[in]  u8  node      = the node that will be examined
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  result    = the number of cores
+ *	@param[in]  node      = the node that will be examined
+ *	@param[in] *nb = this northbridge
+ *	@return    = the number of cores
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -534,7 +572,7 @@ static u8 fam0FGetNumCoresOnNode(u8 node, cNorthBridge *nb)
 	return (u8)(temp+1);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u8
  * fam10GetNumCoresOnNode(u8 node, cNorthBridge *nb)
@@ -543,11 +581,11 @@ static u8 fam0FGetNumCoresOnNode(u8 node, cNorthBridge *nb)
  *	Return the number of cores (1 based count) on node.
  *
  *  Parameters:
- *	@param[in]  u8  node      = the node that will be examined
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  result    = the number of cores
+ *	@param[in]  node      = the node that will be examined
+ *	@param[in] *nb = this northbridge
+ *	@return    = the number of cores
  *
- * ---------------------------------------------------------------------------------------
+ *
  */
 static u8 fam10GetNumCoresOnNode(u8 node, cNorthBridge *nb)
 {
@@ -564,16 +602,17 @@ static u8 fam10GetNumCoresOnNode(u8 node, cNorthBridge *nb)
 				15, 12, &temp);
 
 	/* bits[15,13,12] specify the cores */
-	/* Support Downcoring */
 	temp = ((temp & 8) >> 1) + (temp & 3);
 	cores = temp + 1;
+
+	/* Support Downcoring */
 	AmdPCIReadBits (MAKE_SBDFO(makePCISegmentFromNode(node),
 					makePCIBusFromNode(node),
 					makePCIDeviceFromNode(node),
 					CPU_NB_FUNC_03,
 					REG_NB_DOWNCORE_3X190),
 					3, 0, &leveling);
-	for (i=0; i<cores; i++)
+	for (i = 0; i < cores; i++)
 	{
 		if (leveling & ((u32) 1 << i))
 		{
@@ -583,7 +622,57 @@ static u8 fam10GetNumCoresOnNode(u8 node, cNorthBridge *nb)
 	return (u8)(temp+1);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
+ *
+ * static u8
+ * fam15GetNumCoresOnNode(u8 node, cNorthBridge *nb)
+ *
+ *  Description:
+ *	Return the number of cores (1 based count) on node.
+ *
+ *  Parameters:
+ *	@param[in]  node      = the node that will be examined
+ *	@param[in] *nb = this northbridge
+ *	@return    = the number of cores
+ *
+ *
+ */
+static u8 fam15GetNumCoresOnNode(u8 node, cNorthBridge *nb)
+{
+	u32 temp, leveling, cores;
+	u8 i;
+
+	ASSERT((node < nb->maxNodes));
+	/* Read CmpCap [7:0] */
+	AmdPCIReadBits(MAKE_SBDFO(makePCISegmentFromNode(node),
+				makePCIBusFromNode(node),
+				makePCIDeviceFromNode(node),
+				CPU_NB_FUNC_05,
+				REG_NB_CAPABILITY_5X84),
+				7, 0, &temp);
+
+	/* bits[7:0] specify the cores */
+	temp = temp & 0xff;
+	cores = temp + 1;
+
+	/* Support Downcoring */
+	AmdPCIReadBits (MAKE_SBDFO(makePCISegmentFromNode(node),
+					makePCIBusFromNode(node),
+					makePCIDeviceFromNode(node),
+					CPU_NB_FUNC_03,
+					REG_NB_DOWNCORE_3X190),
+					31, 0, &leveling);
+	for (i = 0; i < cores; i++)
+	{
+		if (leveling & ((u32) 1 << i))
+		{
+			temp--;
+		}
+	}
+	return (u8)(temp+1);
+}
+
+/***************************************************************************//**
  *
  * static void
  * setTotalNodesAndCores(u8 node, u8 totalNodes, u8 totalCores, cNorthBridge *nb)
@@ -592,10 +681,10 @@ static u8 fam10GetNumCoresOnNode(u8 node, cNorthBridge *nb)
  *	Write the total number of cores and nodes to the node
  *
  *  Parameters:
- *	@param[in]  u8  node   = the node that will be examined
- *	@param[in]  u8  totalNodes  = the total number of nodes
- *	@param[in]  u8  totalCores  = the total number of cores
- *	@param[in]  cNorthBridge *nb   = this northbridge
+ *	@param[in]  node   = the node that will be examined
+ *	@param[in]  totalNodes  = the total number of nodes
+ *	@param[in]  totalCores  = the total number of cores
+ *	@param[in] *nb   = this northbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -621,7 +710,7 @@ static void setTotalNodesAndCores(u8 node, u8 totalNodes, u8 totalCores, cNorthB
 	AmdPCIWriteBits(nodeIDReg, 6,  4, &temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * limitNodes(u8 node, cNorthBridge *nb)
@@ -630,8 +719,8 @@ static void setTotalNodesAndCores(u8 node, u8 totalNodes, u8 totalCores, cNorthB
  *	Limit coherent config accesses to cpus as indicated by nodecnt.
  *
  *  Parameters:
- *	@param[in]  u8  node  = the node that will be examined
- *	@param[in]  cNorthBridge *nb  = this northbridge
+ *	@param[in]  node  = the node that will be examined
+ *	@param[in] *nb  = this northbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -647,7 +736,7 @@ static void limitNodes(u8 node, cNorthBridge *nb)
 				15, 15, &temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * writeFullRoutingTable(u8 node, u8 target, u8 reqLink, u8 rspLink, u32 BClinks, cNorthBridge *nb)
@@ -657,12 +746,12 @@ static void limitNodes(u8 node, cNorthBridge *nb)
  *	link, and broadcast links provided.
  *
  *  Parameters:
- *	@param[in]  u8  node   = the node that will be examined
- *	@param[in]  u8  target   = the target node for these routes
- *	@param[in]  u8  reqLink  = the link for requests to target
- *	@param[in]  u8  rspLink  = the link for responses to target
- *	@param[in]  u32 bClinks  = the broadcast links
- *	@param[in]  cNorthBridge *nb  = this northbridge
+ *	@param[in]  node   = the node that will be examined
+ *	@param[in]  target   = the target node for these routes
+ *	@param[in]  reqLink  = the link for requests to target
+ *	@param[in]  rspLink  = the link for responses to target
+ *	@param[in]  bClinks  = the broadcast links
+ *	@param[in] *nb  = this northbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -696,7 +785,7 @@ static void writeFullRoutingTable(u8 node, u8 target, u8 reqLink, u8 rspLink, u3
 #endif /* HT_BUILD_NC_ONLY */
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u32
  * makeKey(u8 currentNode)
@@ -708,8 +797,8 @@ static void writeFullRoutingTable(u8 node, u8 target, u8 reqLink, u8 rspLink, u3
  *	same as the BSP's.
  *
  *  Parameters:
- *	@param[in]  u8   node   = the node
- *	@param[out] u32  result = the key value
+ *	@param[in]   node   = the node
+ *	@return = the key value
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -732,7 +821,7 @@ static u32 makeKey(u8 node)
 }
 
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * isCompatible(u8 currentNode, cNorthBridge *nb)
@@ -743,9 +832,9 @@ static u32 makeKey(u8 node)
  *	same as the BSP's.
  *
  *  Parameters:
- *	@param[in]  u8  node   = the node
- *	@param[in]  cNorthBridge *nb  = this northbridge
- *	@param[out] BOOL   result = true: the new is compatible, false: it is not
+ *	@param[in]  node   = the node
+ *	@param[in] *nb  = this northbridge
+ *	@return = true: the new is compatible, false: it is not
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -754,7 +843,7 @@ static BOOL isCompatible(u8 node, cNorthBridge *nb)
 	return (makeKey(node) == nb->compatibleKey);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * fam0fIsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
@@ -764,10 +853,10 @@ static BOOL isCompatible(u8 node, cNorthBridge *nb)
  *	Return whether the current configuration exceeds the capability.
  *
  *  Parameters:
- *	@param[in] u8  node      = the node
- *	@param[in,out]  sMainData *pDat = sysMpCap (updated) and NodesDiscovered
- *	@param[in] cNorthBridge *nb = this northbridge
- *	@param[out] BOOL  result    = true: system is capable of current config.
+ *	@param[in]       node = the node
+ *	@param[in,out]  *pDat = sysMpCap (updated) and NodesDiscovered
+ *	@param[in]        *nb = this northbridge
+ *	@return               true:  system is capable of current config.
  *			      false: system is not capable of current config.
  *
  * ---------------------------------------------------------------------------------------
@@ -808,7 +897,7 @@ static BOOL fam0fIsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
 #endif
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * fam10IsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
@@ -818,10 +907,10 @@ static BOOL fam0fIsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
  *	Return whether the current configuration exceeds the capability.
  *
  *  Parameters:
- *	@param[in] u8  node   = the node
- *	@param[in,out] sMainData *pDat = sysMpCap (updated) and NodesDiscovered
- *	@param[in]  cNorthBridge *nb   = this northbridge
- *	@param[out] BOOL  result = true: system is capable of current config.
+ *	@param[in]  node   = the node
+ *	@param[in,out] *pDat = sysMpCap (updated) and NodesDiscovered
+ *	@param[in] *nb   = this northbridge
+ *	@return             true: system is capable of current config.
  *			   false: system is not capable of current config.
  *
  * ---------------------------------------------------------------------------------------
@@ -861,7 +950,70 @@ static BOOL fam10IsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
 #endif
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
+ *
+ * static BOOL
+ * fam15IsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
+ *
+ *  Description:
+ *	Get node capability and update the minimum supported system capability.
+ *	Return whether the current configuration exceeds the capability.
+ *
+ *  Parameters:
+ *	@param[in]  node   = the node
+ *	@param[in,out] *pDat = sysMpCap (updated) and NodesDiscovered
+ *	@param[in] *nb   = this northbridge
+ *	@return             true: system is capable of current config.
+ *			   false: system is not capable of current config.
+ *
+ * ---------------------------------------------------------------------------------------
+ */
+static BOOL fam15IsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
+{
+#ifndef HT_BUILD_NC_ONLY
+	u32 temp;
+	u8 maxNodes;
+
+	ASSERT(node < nb->maxNodes);
+
+	AmdPCIReadBits(MAKE_SBDFO(makePCISegmentFromNode(node),
+				makePCIBusFromNode(node),
+				makePCIDeviceFromNode(node),
+				CPU_NB_FUNC_03,
+				REG_NB_CAPABILITY_3XE8),
+				18, 16, &temp);
+
+	if (temp != 0)
+	{
+		maxNodes = (1 << (~temp & 0x3));  /* That is, 1, 2, 4, or 8 */
+	}
+	else
+	{
+		/* Check if CPU package is dual node */
+		AmdPCIReadBits(MAKE_SBDFO(makePCISegmentFromNode(node),
+					makePCIBusFromNode(node),
+					makePCIDeviceFromNode(node),
+					CPU_NB_FUNC_03,
+					REG_NB_CAPABILITY_3XE8),
+					29, 29, &temp);
+		if (temp)
+			maxNodes = 4;
+		else
+			maxNodes = 8;
+	}
+
+	if (pDat->sysMpCap > maxNodes)
+	{
+		pDat->sysMpCap = maxNodes;
+	}
+	/* Note since sysMpCap is one based and NodesDiscovered is zero based, equal is false */
+	return (pDat->sysMpCap > pDat->NodesDiscovered);
+#else
+	return 1;
+#endif
+}
+
+/***************************************************************************//**
  *
  * static void
  * fam0fStopLink(u8 currentNode, u8 currentLink, cNorthBridge *nb)
@@ -870,9 +1022,9 @@ static BOOL fam10IsCapable(u8 node, sMainData *pDat, cNorthBridge *nb)
  *	Disable a cHT link on node by setting F0x[E4, C4, A4, 84][TransOff, EndOfChain]=1
  *
  *  Parameters:
- *	@param[in]  u8  node      = the node this link is on
- *	@param[in]  u8  link      = the link to stop
- *	@param[in]  cNorthBridge *nb = this northbridge
+ *	@param[in]  node      = the node this link is on
+ *	@param[in]  link      = the link to stop
+ *	@param[in] *nb = this northbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -892,7 +1044,7 @@ static void fam0fStopLink(u8 node, u8 link, cNorthBridge *nb)
 #endif
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * commonVoid()
@@ -909,7 +1061,7 @@ static void commonVoid(void)
 {
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * commonReturnFalse()
@@ -918,8 +1070,8 @@ static void commonVoid(void)
  *	Return False.
  *
  *  Parameters:
- *	     @param[out]    BOOL     result	   = false
- * ---------------------------------------------------------------------------------------
+ *	     @return	   = false
+ *
  */
 static BOOL commonReturnFalse(void)
 {
@@ -931,7 +1083,7 @@ static BOOL commonReturnFalse(void)
  ***			Northbridge access routines			  ***
  ***************************************************************************/
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u8
  * readSbLink(cNorthBridge *nb)
@@ -940,8 +1092,8 @@ static BOOL commonReturnFalse(void)
  *	 Return the link to the Southbridge
  *
  *  Parameters:
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8    results = the link to the southbridge
+ *	@param[in] *nb = this northbridge
+ *	@return          the link to the southbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -957,7 +1109,7 @@ static u8 readSbLink(cNorthBridge *nb)
 	return (u8)temp;
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static BOOL
  * verifyLinkIsNonCoherent(u8 node, u8 link, cNorthBridge *nb)
@@ -966,15 +1118,15 @@ static u8 readSbLink(cNorthBridge *nb)
  *	 Verify that the link is non-coherent, connected, and ready
  *
  *  Parameters:
- *	@param[in]  u8  node   = the node that will be examined
- *	@param[in]  u8  link   = the Link on that node to examine
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  results   = true - The link has the following status
- *					LinkCon=1,     Link is connected
- *					InitComplete=1,Link initilization is complete
- *					NC=1,          Link is coherent
- *					UniP-cLDT=0,   Link is not Uniprocessor cLDT
- *					LinkConPend=0  Link connection is not pending
+ *	@param[in]  node   = the node that will be examined
+ *	@param[in]  link   = the Link on that node to examine
+ *	@param[in] *nb = this northbridge
+ *	@return   = true - The link has the following status
+ *					LinkCon = 1,     Link is connected
+ *					InitComplete = 1,Link initilization is complete
+ *					NC = 1,          Link is coherent
+ *					UniP-cLDT = 0,   Link is not Uniprocessor cLDT
+ *					LinkConPend = 0  Link connection is not pending
  *					false- The link has some other status
  *
  * ---------------------------------------------------------------------------------------
@@ -991,11 +1143,11 @@ static BOOL verifyLinkIsNonCoherent(u8 node, u8 link, cNorthBridge *nb)
 	/* FN0_98/A4/C4 = LDT Type Register */
 	AmdPCIRead(linkBase + HTHOST_LINK_TYPE_REG, &linkType);
 
-	/* Verify linkCon=1, InitComplete=1, NC=0, UniP-cLDT=0, LinkConPend=0 */
+	/* Verify linkCon = 1, InitComplete = 1, NC = 0, UniP-cLDT = 0, LinkConPend = 0 */
 	return (linkType & HTHOST_TYPE_MASK) ==  HTHOST_TYPE_NONCOHERENT;
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * ht3SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNode, u8 targetLink, sMainData *pDat, cNorthBridge *nb)
@@ -1004,13 +1156,13 @@ static BOOL verifyLinkIsNonCoherent(u8 node, u8 link, cNorthBridge *nb)
  *	 Configure and enable config access to a non-coherent chain for the given bus range.
  *
  *  Parameters:
- *	@param[in] u8 cfgRouteIndex = the map entry to set
- *	@param[in] u8 secBus      = The secondary bus number to use
- *	@param[in] u8 subBus      = The subordinate bus number to use
- *	@param[in] u8 targetNode  = The node  that shall be the recipient of the traffic
- *	@param[in] u8 targetLink  = The link that shall be the recipient of the traffic
- *	@param[in] sMainData* pDat   = our global state
- *	@param[in] cNorthBridge *nb  = this northbridge
+ *	@param[in] cfgMapIndex = the map entry to set
+ *	@param[in] secBus      = The secondary bus number to use
+ *	@param[in] subBus      = The subordinate bus number to use
+ *	@param[in] targetNode  = The node  that shall be the recipient of the traffic
+ *	@param[in] targetLink  = The link that shall be the recipient of the traffic
+ *	@param[in] pDat   = our global state
+ *	@param[in] *nb  = this northbridge
  *
  * ---------------------------------------------------------------------------------------
  */
@@ -1041,7 +1193,7 @@ static void  ht3SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNod
 					&temp);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * ht1SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNode, u8 targetLink, sMainData *pDat, cNorthBridge *nb)
@@ -1050,16 +1202,15 @@ static void  ht3SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNod
  *	 Configure and enable config access to a non-coherent chain for the given bus range.
  *
  *  Parameters:
- *	@param[in] u8  cfgMapIndex = the map entry to set
- *	@param[in] u8  secBus      = The secondary bus number to use
- *	@param[in] u8  subBus      = The subordinate bus number to use
- *	@param[in] u8  targetNode  = The node  that shall be the recipient of the traffic
- *	@param[in] u8  targetLink  = The link that shall be the recipient of the traffic
- *	@param[in] sMainData*  pDat   = our global state
- *	@param[in] cNorthBridge *nb   = this northbridge
+ *	@param[in]  cfgMapIndex = the map entry to set
+ *	@param[in]  secBus      = The secondary bus number to use
+ *	@param[in]  subBus      = The subordinate bus number to use
+ *	@param[in]  targetNode  = The node  that shall be the recipient of the traffic
+ *	@param[in]  targetLink  = The link that shall be the recipient of the traffic
+ *	@param[in] pDat   = our global state
+ *	@param[in] *nb   = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void ht1SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNode, u8 targetLink, sMainData *pDat, cNorthBridge *nb)
 {
 	u8 curNode;
@@ -1094,8 +1245,7 @@ static void ht1SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNode
  ***				 Link Optimization			  ***
  ***************************************************************************/
 
-/**----------------------------------------------------------------------------------------
- *
+/**
  * static u8
  * convertBitsToWidth(u8 value, cNorthBridge *nb)
  *
@@ -1103,12 +1253,11 @@ static void ht1SetCFGAddrMap(u8 cfgMapIndex, u8 secBus, u8 subBus, u8 targetNode
  *	 Given the bits set in the register field, return the width it represents
  *
  *  Parameters:
- *	@param[in]  u8  value   = The bits for the register
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  results = The width
+ *	@param[in]  value   = The bits for the register
+ *	@param[in] *nb = this northbridge
+ *	@return  The width
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static u8 convertBitsToWidth(u8 value, cNorthBridge *nb)
 {
 	switch(value) {
@@ -1121,7 +1270,7 @@ static u8 convertBitsToWidth(u8 value, cNorthBridge *nb)
 	return 0; // shut up GCC.
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u8
  * convertWidthToBits(u8 value, cNorthBridge *nb)
@@ -1130,12 +1279,11 @@ static u8 convertBitsToWidth(u8 value, cNorthBridge *nb)
  *	Translate a desired width setting to the bits to set in the register field
  *
  *  Parameters:
- *	@param[in]  u8  value     = The width
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u8  results   = The bits for the register
+ *	@param[in]  value     = The width
+ *	@param[in] *nb = this northbridge
+ *	@return The bits for the register
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static u8 convertWidthToBits(u8 value, cNorthBridge *nb)
 {
 	switch (value) {
@@ -1148,7 +1296,7 @@ static u8 convertWidthToBits(u8 value, cNorthBridge *nb)
 	return 0; // shut up GCC
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u16
  * ht1NorthBridgeFreqMask(u8 NodeID, cNorthBridge *nb)
@@ -1158,19 +1306,18 @@ static u8 convertWidthToBits(u8 value, cNorthBridge *nb)
  *	northbridge frequency.
  *
  *  Parameters:
- *	@param[in]  u8  node      = Result could (later) be for a specific node
- *	@param[in]  cNorthBridge *nb = this northbridge
- *	@param[out] u16 results   = Frequency mask
+ *	@param[in]  node      = Result could (later) be for a specific node
+ *	@param[in] *nb = this northbridge
+ *	@return  Frequency mask
  *
- * ---------------------------------------------------------------------------------------
- */
-static u16 ht1NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
+ ******************************************************************************/
+static uint32_t ht1NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
 {
 	/* only up to HT1 speeds */
 	return (HT_FREQUENCY_LIMIT_HT1_ONLY);
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static u16
  * fam10NorthBridgeFreqMask(u8 NodeID, cNorthBridge *nb)
@@ -1180,32 +1327,48 @@ static u16 ht1NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
  *	northbridge frequency.
  *
  *  Parameters:
- *	@param[in]  u8    node     = Result could (later) be for a specific node
- *	@param[in]  cNorthBridge *nb  = this northbridge
- *	@param[out] u16   results  = Frequency mask
+ *	@param[in]  node     = Result could (later) be for a specific node
+ *	@param[in]  *nb      = this northbridge
+ *	@return  = Frequency mask
  *
- * ---------------------------------------------------------------------------------------
- */
-static u16 fam10NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
+ ******************************************************************************/
+static uint32_t fam10NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
 {
 	u8 nbCOF;
-	u16 supported;
+	uint32_t supported;
 
 	nbCOF = getMinNbCOF();
 	/*
 	 * nbCOF is minimum northbridge speed in hundreds of MHz.
 	 * HT can not go faster than the minimum speed of the northbridge.
 	 */
-	if ((nbCOF >= 6) && (nbCOF <= 26))
+	if ((nbCOF >= 6) && (nbCOF < 10))
 	{
+		/* Generation 1 HT link frequency */
 		/* Convert frequency to bit and all less significant bits,
 		 * by setting next power of 2 and subtracting 1.
 		 */
-		supported = ((u16)1 << ((nbCOF >> 1) + 2)) - 1;
+		supported = ((uint32_t)1 << ((nbCOF >> 1) + 2)) - 1;
 	}
-	else if (nbCOF > 26)
+	else if ((nbCOF >= 10) && (nbCOF <= 32))
 	{
-		supported = HT_FREQUENCY_LIMIT_2600M;
+		/* Generation 3 HT link frequency
+		 * Assume error retry is enabled on all Gen 3 links
+		 */
+		if (is_gt_rev_d()) {
+			nbCOF *= 2;
+			if (nbCOF > 32)
+				nbCOF = 32;
+		}
+
+		/* Convert frequency to bit and all less significant bits,
+		 * by setting next power of 2 and subtracting 1.
+		 */
+		supported = ((uint32_t)1 << ((nbCOF >> 1) + 2)) - 1;
+	}
+	else if (nbCOF > 32)
+	{
+		supported = HT_FREQUENCY_LIMIT_3200M;
 	}
 	/* unlikely cases, but include as a defensive measure, also avoid trick above */
 	else if (nbCOF == 4)
@@ -1225,7 +1388,76 @@ static u16 fam10NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
 	return (fixEarlySampleFreqCapability(supported));
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
+ *
+ * static u16
+ * fam15NorthBridgeFreqMask(u8 NodeID, cNorthBridge *nb)
+ *
+ *  Description:
+ *	Return a mask that eliminates HT frequencies that cannot be used due to a slow
+ *	northbridge frequency.
+ *
+ *  Parameters:
+ *	@param[in]  node     = Result could (later) be for a specific node
+ *	@param[in]  *nb      = this northbridge
+ *	@return  = Frequency mask
+ *
+ ******************************************************************************/
+static uint32_t fam15NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
+{
+	u8 nbCOF;
+	uint32_t supported;
+
+	nbCOF = getMinNbCOF();
+	/*
+	 * nbCOF is minimum northbridge speed in hundreds of MHz.
+	 * HT can not go faster than the minimum speed of the northbridge.
+	 */
+	if ((nbCOF >= 6) && (nbCOF < 10))
+	{
+		/* Generation 1 HT link frequency */
+		/* Convert frequency to bit and all less significant bits,
+		 * by setting next power of 2 and subtracting 1.
+		 */
+		supported = ((uint32_t)1 << ((nbCOF >> 1) + 2)) - 1;
+	}
+	else if ((nbCOF >= 10) && (nbCOF <= 32))
+	{
+		/* Generation 3 HT link frequency
+		 * Assume error retry is enabled on all Gen 3 links
+		 */
+		nbCOF *= 2;
+		if (nbCOF > 32)
+			nbCOF = 32;
+
+		/* Convert frequency to bit and all less significant bits,
+		 * by setting next power of 2 and subtracting 1.
+		 */
+		supported = ((uint32_t)1 << ((nbCOF >> 1) + 2)) - 1;
+	}
+	else if (nbCOF > 32)
+	{
+		supported = HT_FREQUENCY_LIMIT_3200M;
+	}
+	/* unlikely cases, but include as a defensive measure, also avoid trick above */
+	else if (nbCOF == 4)
+	{
+		supported = HT_FREQUENCY_LIMIT_400M;
+	}
+	else if (nbCOF == 2)
+	{
+		supported = HT_FREQUENCY_LIMIT_200M;
+	}
+	else
+	{
+		STOP_HERE;
+		supported = HT_FREQUENCY_LIMIT_200M;
+	}
+
+	return (fixEarlySampleFreqCapability(supported));
+}
+
+/***************************************************************************//**
  *
  * static void
  * gatherLinkData(sMainData *pDat, cNorthBridge *nb)
@@ -1235,11 +1467,10 @@ static u16 fam10NorthBridgeFreqMask(u8 node, cNorthBridge *nb)
  *	 capabilities.
  *
  *  Parameters:
- *	@param[in,out] sMainData*  pDat = our global state, port list
- *	@param[in]     cNorthBridge *nb = this northbridge
+ *	@param[in,out] pDat = our global state, port list
+ *	@param[in]     *nb = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void gatherLinkData(sMainData *pDat, cNorthBridge *nb)
 {
 	u8 i;
@@ -1261,14 +1492,22 @@ static void gatherLinkData(sMainData *pDat, cNorthBridge *nb)
 			pDat->PortList[i].PrvWidthInCap = convertBitsToWidth((u8)temp, pDat->nb);
 
 			AmdPCIReadBits(linkBase + HTHOST_FREQ_REV_REG, 31, 16, &temp);
-			pDat->PortList[i].PrvFrequencyCap = (u16)temp & 0x7FFF
-				& nb->northBridgeFreqMask(pDat->PortList[i].NodeID, pDat->nb); /*  Mask off bit 15, reserved value */
+			pDat->PortList[i].PrvFrequencyCap = temp & 0x7FFF	/*  Mask off bit 15, reserved value */
+				& nb->northBridgeFreqMask(pDat->PortList[i].NodeID, pDat->nb);
+			if (is_gt_rev_d()) {
+				AmdPCIReadBits(linkBase + HTHOST_FREQ_REV_REG_2, 15, 1, &temp);
+				temp &= 0x7;	/* Mask off reserved values */
+				pDat->PortList[i].PrvFrequencyCap |= (temp << 17);
+			}
+
+			AmdPCIReadBits(linkBase + HTHOST_FEATURE_CAP_REG, 9, 0, &temp);
+			pDat->PortList[i].PrvFeatureCap = (u16)temp;
 		}
 		else
 		{
 			linkBase = pDat->PortList[i].Pointer;
 			if (pDat->PortList[i].Link == 1)
-			 linkBase += HTSLAVE_LINK01_OFFSET;
+				linkBase += HTSLAVE_LINK01_OFFSET;
 
 			AmdPCIReadBits(linkBase + HTSLAVE_LINK_CONTROL_0_REG, 22, 20, &temp);
 			pDat->PortList[i].PrvWidthOutCap = convertBitsToWidth((u8)temp, pDat->nb);
@@ -1278,6 +1517,9 @@ static void gatherLinkData(sMainData *pDat, cNorthBridge *nb)
 
 			AmdPCIReadBits(linkBase + HTSLAVE_FREQ_REV_0_REG, 31, 16, &temp);
 			pDat->PortList[i].PrvFrequencyCap = (u16)temp;
+
+			AmdPCIReadBits(linkBase + HTSLAVE_FEATURE_CAP_REG, 7, 0, &temp);
+			pDat->PortList[i].PrvFeatureCap = (u16)temp;
 
 			if (pDat->HtBlock->AMD_CB_DeviceCapOverride)
 			{
@@ -1295,13 +1537,14 @@ static void gatherLinkData(sMainData *pDat, cNorthBridge *nb)
 					pDat->PortList[i].Link,
 					&(pDat->PortList[i].PrvWidthInCap),
 					&(pDat->PortList[i].PrvWidthOutCap),
-					&(pDat->PortList[i].PrvFrequencyCap));
+					&(pDat->PortList[i].PrvFrequencyCap),
+					&(pDat->PortList[i].PrvFeatureCap));
 			}
 		}
 	}
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * setLinkData(sMainData *pDat, cNorthBridge *nb)
@@ -1311,16 +1554,15 @@ static void gatherLinkData(sMainData *pDat, cNorthBridge *nb)
  *	 port list data structure.
  *
  *  Parameters:
- *	  @param[in]	    sMainData*	  pDat		 = our global state, port list
- *	  @param[in]	    cNorthBridge *nb   = this northbridge
+ *	  @param[in]  pDat = our global state, port list
+ *	  @param[in]  *nb   = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void setLinkData(sMainData *pDat, cNorthBridge *nb)
 {
 	u8 i;
 	SBDFO linkBase;
-	u32 temp, widthin, widthout, bits;
+	u32 temp, temp2, frequency_index, widthin, widthout, bits;
 
 	for (i = 0; i < pDat->TotalLinks*2; i++)
 	{
@@ -1381,10 +1623,33 @@ static void setLinkData(sMainData *pDat, cNorthBridge *nb)
 		temp = pDat->PortList[i].SelFrequency;
 		if (pDat->PortList[i].Type == PORTLIST_TYPE_CPU)
 		{
-			ASSERT((temp >= HT_FREQUENCY_600M && temp <= HT_FREQUENCY_2600M)
+			ASSERT((temp >= HT_FREQUENCY_600M && temp <= HT_FREQUENCY_3200M)
 				|| (temp == HT_FREQUENCY_200M) || (temp == HT_FREQUENCY_400M));
+			frequency_index = temp;
+			if (temp > 0xf) {
+				temp2 = (temp >> 4) & 0x1;
+				temp &= 0xf;
+			} else {
+				temp2 = 0x0;
+			}
+			/* NOTE
+			 * The Family 15h BKDG Rev. 3.14 is wrong
+			 * Freq[4] must be set before Freq[3:0], otherwise the register writes will be ignored!
+			 */
+			if (is_gt_rev_d())
+				AmdPCIWriteBits(linkBase + HTHOST_FREQ_REV_REG_2, 0, 0, &temp2);
 			AmdPCIWriteBits(linkBase + HTHOST_FREQ_REV_REG, 11, 8, &temp);
-			if (temp > HT_FREQUENCY_1000M) /*  Gen1 = 200Mhz -> 1000MHz, Gen3 = 1200MHz -> 2600MHz */
+
+			/* Enable isochronous flow control mode if supported by chipset */
+			if (is_fam15h()) {
+				if (pDat->PortList[i].enable_isochronous_mode)
+					temp = 1;
+				else
+					temp = 0;
+				setHtControlRegisterBits(linkBase + HTHOST_LINK_CONTROL_REG, 12, 12, &temp);
+			}
+
+			if (frequency_index > HT_FREQUENCY_1000M) /*  Gen1 = 200MHz -> 1000MHz, Gen3 = 1200MHz -> 3200MHz */
 			{
 				/* Enable  for Gen3 frequencies */
 				temp = 1;
@@ -1394,33 +1659,34 @@ static void setLinkData(sMainData *pDat, cNorthBridge *nb)
 				/* Disable  for Gen1 frequencies */
 				temp = 0;
 			}
-				/* HT3 retry mode enable / disable */
-				AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(pDat->PortList[i].NodeID),
-							makePCIBusFromNode(pDat->PortList[i].NodeID),
-							makePCIDeviceFromNode(pDat->PortList[i].NodeID),
-							CPU_HTNB_FUNC_00,
-							REG_HT_LINK_RETRY0_0X130 + 4*pDat->PortList[i].Link),
-							0, 0, &temp);
-				/* and Scrambling enable / disable */
-				AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(pDat->PortList[i].NodeID),
+			/* HT3 retry mode enable / disable */
+			AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(pDat->PortList[i].NodeID),
 						makePCIBusFromNode(pDat->PortList[i].NodeID),
 						makePCIDeviceFromNode(pDat->PortList[i].NodeID),
 						CPU_HTNB_FUNC_00,
-						REG_HT_LINK_EXT_CONTROL0_0X170 + 4*pDat->PortList[i].Link),
-						3, 3, &temp);
+						REG_HT_LINK_RETRY0_0X130 + 4*pDat->PortList[i].Link),
+						0, 0, &temp);
+
+			/* and Scrambling enable / disable */
+			AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(pDat->PortList[i].NodeID),
+					makePCIBusFromNode(pDat->PortList[i].NodeID),
+					makePCIDeviceFromNode(pDat->PortList[i].NodeID),
+					CPU_HTNB_FUNC_00,
+					REG_HT_LINK_EXT_CONTROL0_0X170 + 4*pDat->PortList[i].Link),
+					3, 3, &temp);
 		}
 		else
 		{
 			SBDFO currentPtr;
 			BOOL isFound;
 
-			ASSERT(temp <= HT_FREQUENCY_2600M);
+			ASSERT(temp <= HT_FREQUENCY_3200M);
 			/* Write the frequency setting */
 			AmdPCIWriteBits(linkBase + HTSLAVE_FREQ_REV_0_REG, 11, 8, &temp);
 
 			/* Handle additional HT3 frequency requirements, if needed,
 			 * or clear them if switching down to ht1 on a warm reset.
-			 * Gen1 = 200Mhz -> 1000MHz, Gen3 = 1200MHz -> 2600MHz
+			 * Gen1 = 200MHz -> 1000MHz, Gen3 = 1200MHz -> 2600MHz
 			 *
 			 * Even though we assert if debugging, we need to check that the capability was found
 			 * always, since this is an unknown hardware device, also we are taking
@@ -1437,6 +1703,14 @@ static void setLinkData(sMainData *pDat, cNorthBridge *nb)
 			{
 				/* Disabling features if gen 1 */
 				bits = 0;
+			}
+
+			/* Enable isochronous flow control mode if supported by chipset */
+			if (is_fam15h()) {
+				if (pDat->PortList[i].enable_isochronous_mode)
+					temp = 1;
+				else
+					temp = 0;
 			}
 
 			/* Retry Enable */
@@ -1534,7 +1808,7 @@ static void setLinkData(sMainData *pDat, cNorthBridge *nb)
 	}
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * void
  * fam0fWriteHTLinkCmdBufferAlloc(u8 node, u8 link, u8 req, u8 preq, u8 rsp, u8 prb)
@@ -1545,15 +1819,14 @@ static void setLinkData(sMainData *pDat, cNorthBridge *nb)
  *	family 10h and family 0fh northbridges.
  *
  *  Parameters:
- *	@param[in]  u8 node = The node to set allocations on
- *	@param[in]  u8 link = the link to set allocations on
- *	@param[in]  u8 req  = non-posted Request Command Buffers
- *	@param[in]  u8 preq = Posted Request Command Buffers
- *	@param[in]  u8 rsp  = Response Command Buffers
- *	@param[in]  u8 prb  = Probe Command Buffers
+ *	@param[in] node = The node to set allocations on
+ *	@param[in] link = the link to set allocations on
+ *	@param[in] req  = non-posted Request Command Buffers
+ *	@param[in] preq = Posted Request Command Buffers
+ *	@param[in] rsp  = Response Command Buffers
+ *	@param[in] prb  = Probe Command Buffers
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 #ifndef HT_BUILD_NC_ONLY
 
 static void fam0fWriteHTLinkCmdBufferAlloc(u8 node, u8 link, u8 req, u8 preq, u8 rsp, u8 prb)
@@ -1576,10 +1849,13 @@ static void fam0fWriteHTLinkCmdBufferAlloc(u8 node, u8 link, u8 req, u8 preq, u8
 	/* Probe Command Buffers */
 	temp = prb;
 	AmdPCIWriteBits(currentPtr, 15, 12, &temp);
+	/* LockBc */
+	temp = 1;
+	AmdPCIWriteBits(currentPtr, 31, 31, &temp);
 }
 #endif /* HT_BUILD_NC_ONLY */
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * void
  * fam0fWriteHTLinkDatBufferAlloc(u8 node, u8 link, u8 reqD, u8 preqD, u8 rspD)
@@ -1590,14 +1866,13 @@ static void fam0fWriteHTLinkCmdBufferAlloc(u8 node, u8 link, u8 req, u8 preq, u8
  *	 family 10h and family 0fh northbridges.
  *
  *  Parameters:
- *	@param[in] u8 node  = The node to set allocations on
- *	@param[in] u8 link  = the link to set allocations on
- *	@param[in] u8 reqD  = non-posted Request Data Buffers
- *	@param[in] u8 preqD = Posted Request Data Buffers
- *	@param[in] u8 rspD  = Response Data Buffers
+ *	@param[in] node  = The node to set allocations on
+ *	@param[in] link  = the link to set allocations on
+ *	@param[in] reqD  = non-posted Request Data Buffers
+ *	@param[in] preqD = Posted Request Data Buffers
+ *	@param[in] rspD  = Response Data Buffers
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 #ifndef HT_BUILD_NC_ONLY
 
 static void fam0fWriteHTLinkDatBufferAlloc(u8 node, u8 link, u8 reqD, u8 preqD, u8 rspD)
@@ -1620,7 +1895,7 @@ static void fam0fWriteHTLinkDatBufferAlloc(u8 node, u8 link, u8 reqD, u8 preqD, 
 }
 #endif /* HT_BUILD_NC_ONLY */
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *nb)
@@ -1629,12 +1904,11 @@ static void fam0fWriteHTLinkDatBufferAlloc(u8 node, u8 link, u8 reqD, u8 preqD, 
  *	 Set the traffic distribution register for the links provided.
  *
  *  Parameters:
- *	@param[in] u32 links01   = coherent links from node 0 to 1
- *	@param[in] u32 links10   = coherent links from node 1 to 0
- *	@param[in] cNorthBridge* nb = this northbridge
+ *	@param[in]  links01   = coherent links from node 0 to 1
+ *	@param[in]  links10   = coherent links from node 1 to 0
+ *	@param[in]  nb = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *nb)
 {
 #ifndef HT_BUILD_NC_ONLY
@@ -1648,7 +1922,7 @@ static void ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
 			CPU_HTNB_FUNC_00,
 			REG_HT_TRAFFIC_DIST_0X164),
 			23, 16, &links01);
-	/* DstNode = 1, cHTPrbDistEn=1, cHTRspDistEn=1, cHTReqDistEn=1 */
+	/* DstNode = 1, cHTPrbDistEn = 1, cHTRspDistEn = 1, cHTReqDistEn = 1 */
 	temp = 0x0107;
 	AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(0),
 			makePCIBusFromNode(0),
@@ -1665,7 +1939,7 @@ static void ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
 			CPU_HTNB_FUNC_00,
 			REG_HT_TRAFFIC_DIST_0X164),
 			23, 16, &links10);
-	/* DstNode = 0, cHTPrbDistEn=1, cHTRspDistEn=1, cHTReqDistEn=1 */
+	/* DstNode = 0, cHTPrbDistEn = 1, cHTRspDistEn = 1, cHTReqDistEn = 1 */
 	temp = 0x0007;
 	AmdPCIWriteBits(MAKE_SBDFO(makePCISegmentFromNode(1),
 			makePCIBusFromNode(1),
@@ -1676,7 +1950,7 @@ static void ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
 #endif /* HT_BUILD_NC_ONLY */
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * ht1WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *nb)
@@ -1687,12 +1961,11 @@ static void ht3WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
  *	 perform the buffer tunings on the links required for this config.
  *
  *  Parameters:
- *	@param[in]  u32  links01  = coherent links from node 0 to 1
- *	@param[in]  u32  links01  = coherent links from node 1 to 0
- *	@param[in]  cNorthBridge* nb = this northbridge
+ *	@param[in]  links01  = coherent links from node 0 to 1
+ *	@param[in]  links10  = coherent links from node 1 to 0
+ *	@param[in]  nb = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void ht1WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *nb)
 {
 #ifndef HT_BUILD_NC_ONLY
@@ -1785,7 +2058,7 @@ static void ht1WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
 #endif /* HT_BUILD_NC_ONLY */
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
@@ -1795,12 +2068,11 @@ static void ht1WriteTrafficDistribution(u32 links01, u32 links10, cNorthBridge *
  *	 which require adjustments and apply any standard workarounds to this node.
  *
  *  Parameters:
- *	@param[in]  u8  node      = the node to
- *	@param[in]  sMainData *pDat  = coherent links from node 0 to 1
- *	@param[in]  cNorthBridge* nb = this northbridge
+ *	@param[in]  node      = the node to
+ *	@param[in] *pDat  = coherent links from node 0 to 1
+ *	@param[in]  nb = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 {
 #ifndef HT_BUILD_NC_ONLY
@@ -1816,13 +2088,13 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 				makePCIDeviceFromNode(node),
 				CPU_NB_FUNC_03,
 				REG_NB_FIFOPTR_3XDC);
-	for (i=0; i < nb->maxLinks; i++)
+	for (i = 0; i < nb->maxLinks; i++)
 	{
 		temp = 0;
 		if (nb->verifyLinkIsCoherent(node, i, nb))
 		{
 			temp = 0x26;
-			ASSERT(i<3);
+			ASSERT(i < 3);
 			AmdPCIWriteBits(currentPtr, 8*i + 5, 8*i, &temp);
 		}
 		else
@@ -1830,7 +2102,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 			if (nb->verifyLinkIsNonCoherent(node, i, nb))
 			{
 				temp = 0x25;
-				ASSERT(i<3);
+				ASSERT(i < 3);
 				AmdPCIWriteBits(currentPtr, 8*i + 5, 8*i, &temp);
 			}
 		}
@@ -1870,7 +2142,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 			 * Errata 153 applies to JH-1, JH-2 and older.  It is fixed in JH-3
 			 * (and, one assumes, from there on).
 			 */
-			for (i=0; i < (pDat->NodesDiscovered +1); i++)
+			for (i = 0; i < (pDat->NodesDiscovered +1); i++)
 			{
 				AmdPCIReadBits(MAKE_SBDFO(makePCISegmentFromNode(i),
 						makePCIBusFromNode(i),
@@ -1886,7 +2158,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 			}
 		}
 
-		for (i=0; i < CPU_ADDR_NUM_CONFIG_MAPS; i++)
+		for (i = 0; i < CPU_ADDR_NUM_CONFIG_MAPS; i++)
 		{
 			isOuter = FALSE;
 			/* Check for outer node by scanning the config maps on node 0 for one
@@ -1907,7 +2179,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 				if (node == (u8)temp)
 				{
 					/* This is an outer node.	Tune it appropriately. */
-					for (j=0; j < nb->maxLinks; j++)
+					for (j = 0; j < nb->maxLinks; j++)
 					{
 						if (isErrata153)
 						{
@@ -1946,7 +2218,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 			if (isErrata153)
 			{
 				/* Tuning for inner node coherent links */
-				for (j=0; j < nb->maxLinks; j++)
+				for (j = 0; j < nb->maxLinks; j++)
 				{
 					if (nb->verifyLinkIsCoherent(node, j, nb))
 					{
@@ -1982,7 +2254,7 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 #endif /* HT_BUILD_NC_ONLY */
 }
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * static void
  * fam10BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
@@ -1992,12 +2264,11 @@ static void fam0fBufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
  *	 which require adjustments and apply any standard workarounds to this node.
  *
  *  Parameters:
- *	@param[in] u8 node       = the node to tune
- *	@param[in] sMainData *pDat  = global state
- *	@param[in] cNorthBridge* nb = this northbridge
+ *	@param[in] node       = the node to tune
+ *	@param[in] *pDat  = global state
+ *	@param[in] nb = this northbridge
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 static void fam10BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 {
 	u32 temp;
@@ -2065,12 +2336,32 @@ static void fam10BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
 	}
 }
 
+/***************************************************************************//**
+ *
+ * static void
+ * fam15BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
+ *
+ *  Description:
+ *	 Buffer tunings are inherently northbridge specific. Check for specific configs
+ *	 which require adjustments and apply any standard workarounds to this node.
+ *
+ *  Parameters:
+ *	@param[in] node       = the node to tune
+ *	@param[in] *pDat  = global state
+ *	@param[in] nb = this northbridge
+ *
+ ******************************************************************************/
+static void fam15BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
+{
+	/* Buffer count setup on Family 15h is currently handled in cpuSetAMDPCI */
+}
+
 /*
  * North Bridge 'constructor'.
  *
  */
 
-/**----------------------------------------------------------------------------------------
+/***************************************************************************//**
  *
  * void
  * newNorthBridge(u8 node, cNorthBridge *nb)
@@ -2082,15 +2373,57 @@ static void fam10BufferOptimizations(u8 node, sMainData *pDat, cNorthBridge *nb)
  *	 is provided by nb.
  *
  *  Parameters:
- *	  @param[in]	    node	  u8		 = create a northbridge interface for this node.
- *	  @param[out]	    cNorthBridge* nb		 = the caller's northbridge structure to initialize.
+ *	  @param            node
+ *	  @param[out]	    nb		 = the caller's northbridge structure to initialize.
  *
- * ---------------------------------------------------------------------------------------
- */
+ ******************************************************************************/
 void newNorthBridge(u8 node, cNorthBridge *nb)
 {
 	u32 match;
 	u32 extFam, baseFam, model;
+
+	cNorthBridge fam15 =
+	{
+#ifdef HT_BUILD_NC_ONLY
+		8,
+		1,
+		12,
+#else
+		8,
+		8,
+		64,
+#endif /* HT_BUILD_NC_ONLY*/
+		writeRoutingTable,
+		writeNodeID,
+		readDefLnk,
+		enableRoutingTables,
+		verifyLinkIsCoherent,
+		readTrueLinkFailStatus,
+		readToken,
+		writeToken,
+		fam15GetNumCoresOnNode,
+		setTotalNodesAndCores,
+		limitNodes,
+		writeFullRoutingTable,
+		isCompatible,
+		fam15IsCapable,
+		(void (*)(u8, u8, cNorthBridge*))commonVoid,
+		(BOOL (*)(u8, u8, sMainData*, cNorthBridge*))commonReturnFalse,
+		readSbLink,
+		verifyLinkIsNonCoherent,
+		ht3SetCFGAddrMap,
+		convertBitsToWidth,
+		convertWidthToBits,
+		fam15NorthBridgeFreqMask,
+		gatherLinkData,
+		setLinkData,
+		ht3WriteTrafficDistribution,
+		fam15BufferOptimizations,
+		0x00000001,
+		0x00000200,
+		18,
+		0x00000f06
+	};
 
 	cNorthBridge fam10 =
 	{
@@ -2199,8 +2532,14 @@ void newNorthBridge(u8 node, cNorthBridge *nb)
 			7, 4, &model);
 	match = (u32)((baseFam << 8) | extFam);
 
-	/* Test each in turn looking for a match.	Init the struct if found */
-	if (match == fam10.compatibleKey)
+	/* Test each in turn looking for a match.
+	 * Initialize the struct if found.
+	 */
+	if (match == fam15.compatibleKey)
+	{
+		Amdmemcpy((void *)nb, (const void *)&fam15, (u32) sizeof(cNorthBridge));
+	}
+	else if (match == fam10.compatibleKey)
 	{
 		Amdmemcpy((void *)nb, (const void *)&fam10, (u32) sizeof(cNorthBridge));
 	}
@@ -2219,4 +2558,3 @@ void newNorthBridge(u8 node, cNorthBridge *nb)
 	/* Update the initial limited key to the real one, which may include other matching info */
 	nb->compatibleKey = makeKey(node);
 }
-

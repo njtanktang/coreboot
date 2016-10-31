@@ -11,15 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef MAINBOARD_EC_H
 #define MAINBOARD_EC_H
 
+#include <ec/ec.h>
 #include <ec/google/chromeec/ec_commands.h>
 
 /* GPIO_S0_000 is EC_SCI#, but it is bit 24 in GPE_STS */
@@ -39,7 +36,8 @@
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_THERMAL_OVERLOAD)  |\
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_THROTTLE_START)    |\
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_THROTTLE_STOP)     |\
-	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_USB_CHARGER))
+	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_USB_CHARGER)       |\
+	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_MKBP))
 
 #define MAINBOARD_EC_SMI_EVENTS \
 	(EC_HOST_EVENT_MASK(EC_HOST_EVENT_LID_CLOSED))
@@ -58,9 +56,5 @@
 #define MAINBOARD_EC_LOG_EVENTS \
 	(EC_HOST_EVENT_MASK(EC_HOST_EVENT_THERMAL_SHUTDOWN) |\
 	 EC_HOST_EVENT_MASK(EC_HOST_EVENT_BATTERY_SHUTDOWN))
-
-#ifndef __ACPI__
-extern void mainboard_ec_init(void);
-#endif
 
 #endif

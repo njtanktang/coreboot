@@ -80,6 +80,9 @@ typedef volatile struct {
 	u8 res1[0x40-0x1c];
 	u32 configflag;
 	portsc_t portsc[0];
+	u8 res2[0x40];
+	u32 hostpc;
+	/* hostpc register is used for CONFIG_LP_USB_EHCI_HOSTPC_ROOT_HUB_TT */
 } __attribute__ ((packed)) hc_op_t;
 
 typedef volatile struct {
@@ -135,12 +138,13 @@ typedef struct ehci {
 	hc_cap_t *capabilities;
 	hc_op_t *operation;
 	ehci_qh_t *dummy_qh;
+#define DMA_SIZE (64 * 1024)
+	void *dma_buffer;
 } ehci_t;
 
 #define PS_TERMINATE 1
 #define PS_TYPE_QH 1 << 1
 #define PS_PTR_MASK ~0x1f
-
 
 #define EHCI_INST(controller) ((ehci_t*)((controller)->instance))
 

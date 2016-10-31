@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 u8 mct_checkNumberOfDqsRcvEn_Pass(u8 pass)
@@ -26,7 +23,7 @@ u8 mct_checkNumberOfDqsRcvEn_Pass(u8 pass)
 u32 SetupDqsPattern_PassA(u8 Pass)
 {
 	u32 ret;
-	if(Pass == FirstPass)
+	if (Pass == FirstPass)
 		ret = (u32) TestPattern1_D;
 	else
 		ret = (u32) TestPattern2_D;
@@ -37,7 +34,7 @@ u32 SetupDqsPattern_PassA(u8 Pass)
 u32 SetupDqsPattern_PassB(u8 Pass)
 {
 	u32 ret;
-	if(Pass == FirstPass)
+	if (Pass == FirstPass)
 		ret = (u32) TestPattern0_D;
 	else
 		ret = (u32) TestPattern2_D;
@@ -61,10 +58,10 @@ u8 mct_Get_Start_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
 		u8 bn;
 		bn = 8;
 
-		for ( i=0;i<bn; i++) {
+		for (i = 0; i < bn; i++) {
 			val  = p[i];
 
-			if(val > max) {
+			if (val > max) {
 				max = val;
 			}
 		}
@@ -74,15 +71,15 @@ u8 mct_Get_Start_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
 	return RcvrEnDly;
 }
 
-u8 mct_Average_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
-				u8 RcvrEnDly, u8 RcvrEnDlyLimit,
+u16 mct_Average_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
+				u16 RcvrEnDly, u16 RcvrEnDlyLimit,
 				u8 Channel, u8 Receiver, u8 Pass)
 {
 	u8 i;
-	u8 *p;
-	u8 *p_1;
-	u8 val;
-	u8 val_1;
+	u16 *p;
+	u16 *p_1;
+	u16 val;
+	u16 val_1;
 	u8 valid = 1;
 	u8 bn;
 
@@ -94,7 +91,7 @@ u8 mct_Average_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
 		/* FIXME: which byte? */
 		p_1 = pDCTstat->B_RCVRDLY_1;
 		/* p_1 = pDCTstat->CH_D_B_RCVRDLY_1[Channel][Receiver>>1]; */
-		for(i=0; i<bn; i++) {
+		for (i = 0; i < bn; i++) {
 			val = p[i];
 			/* left edge */
 			if (val != (RcvrEnDlyLimit - 1)) {
@@ -114,7 +111,7 @@ u8 mct_Average_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat,
 			pDCTstat->DimmTrainFail &= ~(1<<(Receiver + Channel));
 		}
 	} else {
-		for(i=0; i < bn; i++) {
+		for (i = 0; i < bn; i++) {
 			val = p[i];
 			/* Add 1/2 Memlock delay */
 			/* val += Pass1MemClkDly; */

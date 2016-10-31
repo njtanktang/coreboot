@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 Device(EC0)
@@ -22,14 +18,18 @@ Device(EC0)
 	Name (_HID, EISAID("PNP0C09"))
 	Name (_UID, 1)
 
-	Method (_CRS, 0)
-	{
-		Name (ECMD, ResourceTemplate()
-		{
-			IO (Decode16, 0x62, 0x62, 0, 1)
-			IO (Decode16, 0x66, 0x66, 0, 1)
-		})
+	// _REG method requires that an operation region is defined.
+	OperationRegion (ERAM, EmbeddedControl, 0x00, 0xff)
+	Field (ERAM, ByteAcc, Lock, Preserve) {}
 
+	Name (ECMD, ResourceTemplate()
+	{
+		IO (Decode16, 0x62, 0x62, 0, 1)
+		IO (Decode16, 0x66, 0x66, 0, 1)
+	})
+
+	Method (_CRS, 0, NotSerialized)
+	{
 		Return (ECMD)
 	}
 

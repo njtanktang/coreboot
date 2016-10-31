@@ -2,6 +2,7 @@ if BOARD_LENOVO_X60
 
 config BOARD_SPECIFIC_OPTIONS # dummy
 	def_bool y
+	select SYSTEM_TYPE_LAPTOP
 	select CPU_INTEL_SOCKET_MFCPGA478
 	select NORTHBRIDGE_INTEL_I945
 	select NORTHBRIDGE_INTEL_SUBTYPE_I945GM
@@ -13,6 +14,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select EC_LENOVO_H8
 	select DRIVERS_ICS_954309
 	select HAVE_OPTION_TABLE
+	select INTEL_INT15
 	select HAVE_CMOS_DEFAULT
 	select HAVE_PIRQ_TABLE
 	select HAVE_MP_TABLE
@@ -22,7 +24,10 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select HAVE_ACPI_RESUME
 	select USE_OPTION_TABLE
 	select MAINBOARD_HAS_NATIVE_VGA_INIT
+	select MAINBOARD_HAS_NATIVE_VGA_INIT_TEXTMODECFG
 	select H8_DOCK_EARLY_INIT
+	select DRIVERS_LENOVO_WACOM
+	select INTEL_EDID
 
 config MAINBOARD_DIR
 	string
@@ -38,7 +43,7 @@ config DCACHE_RAM_SIZE
 
 config MAINBOARD_PART_NUMBER
 	string
-	default "ThinkPad X60 / X60s"
+	default "ThinkPad X60"
 
 config MMCONF_BASE_ADDRESS
 	hex
@@ -52,12 +57,9 @@ config MAX_CPUS
 	int
 	default 2
 
-config MAINBOARD_SMBIOS_MANUFACTURER
-	string
-	default "LENOVO"
-
 config SEABIOS_PS2_TIMEOUT
 	int
+	depends on PAYLOAD_SEABIOS
 	default 3000
 
 endif

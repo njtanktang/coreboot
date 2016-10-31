@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -31,45 +27,7 @@
 
 #include <cpu/amd/amdk8_sysconf.h>
 
-
-#if 0
-unsigned node_link_to_bus(unsigned node, unsigned link)
-{
-	device_t dev;
-	unsigned reg;
-
-	dev = dev_find_slot(0, PCI_DEVFN(0x18, 1));
-	if (!dev) {
-		return 0;
-	}
-	for(reg = 0xE0; reg < 0xF0; reg += 0x04) {
-		uint32_t config_map;
-		unsigned dst_node;
-		unsigned dst_link;
-		unsigned bus_base;
-		config_map = pci_read_config32(dev, reg);
-		if ((config_map & 3) != 3) {
-			continue;
-		}
-		dst_node = (config_map >> 4) & 7;
-		dst_link = (config_map >> 8) & 3;
-		bus_base = (config_map >> 16) & 0xff;
-#if 0
-		printk(BIOS_DEBUG, "node.link=bus: %d.%d=%d 0x%2x->0x%08x\n",
-			dst_node, dst_link, bus_base,
-			reg, config_map);
-#endif
-		if ((dst_node == node) && (dst_link == link))
-		{
-			return bus_base;
-		}
-	}
-	return 0;
-}
-#endif
-
-
-/**
+/*
  * Why we need the pci1234[] array
  *
  * It will keep the sequence of HT devices in the HT link registers even when a
@@ -176,9 +134,6 @@ unsigned node_link_to_bus(unsigned node, unsigned link)
  * Just put all the possible HT Node/link to the list tp pci1234[] in
  * src/mainboard/<vendor>/<mainboard>get_bus_conf.c
  *
- * Also don't forget to increase the CONFIG_ACPI_SSDTX_NUM etc (FIXME what else) if
- * you have too many SSDTs
- *
  * What about co-processor in socket 1 on a 2 way system? Or socket 2 and
  * socket 3 on a 4 way system? Treat that as an HC, too!
  *
@@ -218,22 +173,22 @@ void get_sblk_pci1234(void)
 
 	dev = dev_find_slot(0, PCI_DEVFN(0x18, 1));
 
-	for(j=0;j<4;j++) {
+	for (j = 0; j < 4; j++) {
 		uint32_t dwordx;
 		dwordx = pci_read_config32(dev, 0xe0 + j*4);
 		dwordx &=0xffff0ff1; /* keep bus num, node_id, link_num, enable bits */
-		if((dwordx & 0xff1) == dword) { /* SBLINK */
+		if ((dwordx & 0xff1) == dword) { /* SBLINK */
 			sysconf.pci1234[0] = dwordx;
 			sysconf.hcdn[0] = sysconf.hcdn_reg[j];
 			continue;
 		}
 
-		if((dwordx & 1) == 1) {
+		if ((dwordx & 1) == 1) {
 			/* We need to find out the number of HC
 			 * for exact match
 			 */
-			for(i=1;i<sysconf.hc_possible_num;i++) {
-				if((dwordx & 0xff0) == (sysconf.pci1234[i] & 0xff0)) {
+			for (i = 1; i < sysconf.hc_possible_num; i++) {
+				if ((dwordx & 0xff0) == (sysconf.pci1234[i] & 0xff0)) {
 					sysconf.pci1234[i] = dwordx;
 					sysconf.hcdn[i] = sysconf.hcdn_reg[j];
 					break;
@@ -241,8 +196,8 @@ void get_sblk_pci1234(void)
 			}
 
 			/* For 0xff0 match or same node */
-			for(i=1;i<sysconf.hc_possible_num;i++) {
-				if((dwordx & 0xff0) == (dwordx & sysconf.pci1234[i] & 0xff0)) {
+			for (i = 1; i < sysconf.hc_possible_num; i++) {
+				if ((dwordx & 0xff0) == (dwordx & sysconf.pci1234[i] & 0xff0)) {
 					sysconf.pci1234[i] = dwordx;
 					sysconf.hcdn[i] = sysconf.hcdn_reg[j];
 					break;
@@ -251,8 +206,8 @@ void get_sblk_pci1234(void)
 		}
 	}
 
-	for(i=1;i<sysconf.hc_possible_num;i++) {
-		if((sysconf.pci1234[i] & 1) != 1) {
+	for (i = 1; i < sysconf.hc_possible_num; i++) {
+		if ((sysconf.pci1234[i] & 1) != 1) {
 			sysconf.pci1234[i] = 0;
 			sysconf.hcdn[i] = 0x20202020;
 		}
@@ -260,4 +215,3 @@ void get_sblk_pci1234(void)
 	}
 
 }
-

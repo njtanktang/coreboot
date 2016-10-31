@@ -12,17 +12,15 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
-PROGRAM = cbmem
-ROOT = ../../src
-CC     ?= $(CROSS_COMPILE)gcc
-CFLAGS ?= -O2
-CFLAGS += -Wall -Werror
-CPPFLAGS += -iquote $(ROOT)/include -iquote $(ROOT)/src/arch/x86
+PROGRAM   = cbmem
+ROOT      = ../../src
+CC       ?= $(CROSS_COMPILE)gcc
+INSTALL  ?= /usr/bin/install
+PREFIX   ?= /usr/local
+CFLAGS   ?= -O2
+CFLAGS   += -Wall -Werror
+CPPFLAGS += -I $(ROOT)/commonlib/include
 
 OBJS = $(PROGRAM).o
 
@@ -31,7 +29,11 @@ all: $(PROGRAM)
 $(PROGRAM): $(OBJS)
 
 clean:
-	rm -f $(PROGRAM) *.o *~
+	rm -f $(PROGRAM) *.o *~ junit.xml
+
+install: $(PROGRAM)
+	$(INSTALL) -d $(DESTDIR)$(PREFIX)/sbin/
+	$(INSTALL) cbmem $(DESTDIR)$(PREFIX)/sbin/
 
 distclean: clean
 	rm -f .dependencies
@@ -42,21 +44,3 @@ distclean: clean
 .PHONY: all clean distclean
 
 -include .dependencies
-
-junit.xml:
-	echo '<?xml version="1.0" encoding="utf-8"?><testsuite>' > $@.tmp
-	$(MAKE) clean; \
-	echo "<testcase classname='cbmem' name='cbmem'>" >> $@.tmp; \
-	$(MAKE) >> $@.tmp.2 2>&1 && type="system-out" || type="failure"; \
-	if [ $$type = "failure" ]; then \
-		echo "<failure type='buildFailed'>" >> $@.tmp; \
-	else \
-		echo "<$$type>" >> $@.tmp; \
-	fi; \
-	echo '<![CDATA[' >> $@.tmp; \
-	cat $@.tmp.2 >> $@.tmp; \
-	echo "]]></$$type>" >>$@.tmp; \
-	rm -f $@.tmp.2; \
-	echo "</testcase>" >> $@.tmp; \
-	echo "</testsuite>" >> $@.tmp
-	mv $@.tmp $@

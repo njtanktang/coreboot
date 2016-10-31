@@ -8,20 +8,16 @@
  * the Free Software Foundation; version 2 of the License.
  *
  * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied wacbmem_entryanty of
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
-#include <baytrail/iosf.h>
+#include <soc/iosf.h>
 #include <cpu/intel/microcode/microcode.c>
 
 static void set_var_mtrr(int reg, uint32_t base, uint32_t size, int type)
@@ -29,10 +25,10 @@ static void set_var_mtrr(int reg, uint32_t base, uint32_t size, int type)
 	msr_t basem, maskm;
 	basem.lo = base | type;
 	basem.hi = 0;
-	wrmsr(MTRRphysBase_MSR(reg), basem);
-	maskm.lo = ~(size - 1) | MTRRphysMaskValid;
+	wrmsr(MTRR_PHYS_BASE(reg), basem);
+	maskm.lo = ~(size - 1) | MTRR_PHYS_MASK_VALID;
 	maskm.hi = (1 << (CONFIG_CPU_ADDR_BITS - 32)) - 1;
-	wrmsr(MTRRphysMask_MSR(reg), maskm);
+	wrmsr(MTRR_PHYS_MASK(reg), maskm);
 }
 
 static void enable_rom_caching(void)
@@ -47,7 +43,7 @@ static void enable_rom_caching(void)
 	/* Enable Variable MTRRs */
 	msr.hi = 0x00000000;
 	msr.lo = 0x00000800;
-	wrmsr(MTRRdefType_MSR, msr);
+	wrmsr(MTRR_DEF_TYPE_MSR, msr);
 }
 
 static void setup_mmconfig(void)

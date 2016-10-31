@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Field(ERAM, ByteAcc, NoLock, Preserve)
@@ -124,7 +119,7 @@ Method(BSTA, 4, NotSerialized)
 	if (Local1) {
 		Multiply (BARC, 10, Index(Arg1, 2))
 		Multiply (Local2, BAVO, Local2)
-		Divide (Local2, 1000, Local3, Index(Arg1, 1))
+		Divide (Local2, 1000, , Index(Arg1, 1))
 	} else {
 		Store(BARC, Index(Arg1, 2))
 		Store(Local2, Index(Arg1, 1))
@@ -223,7 +218,7 @@ Device (BAT0)
 		if (B0PR) {
 			Return (BSTA(0, BATI, B0CH, B0DI))
 		} else {
-			Return (BATS)
+			Return (Package () { 0, 0, 0, 0 })
 		}
 	}
 
@@ -281,7 +276,7 @@ Device (BAT1)
 		if (B1PR) {
 			Return (BSTA(0x10, BATI, B1CH, B1DI))
 		} else {
-			Return (BATS)
+			Return (Package () { 0, 0, 0, 0 })
 		}
 	}
 

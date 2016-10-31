@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define __SIMPLE_DEVICE__
@@ -30,7 +26,6 @@
 
 static unsigned int oxpcie_present CAR_GLOBAL;
 static ROMSTAGE_CONST u32 uart0_base = CONFIG_EARLY_PCI_MMIO_BASE + 0x1000;
-static ROMSTAGE_CONST u32 uart1_base = CONFIG_EARLY_PCI_MMIO_BASE + 0x2000;
 
 int pci_early_device_probe(u8 bus, u8 dev, u32 mmio_base)
 {
@@ -77,12 +72,10 @@ static int oxpcie_uart_active(void)
 	return (car_get_var(oxpcie_present));
 }
 
-unsigned int uart_platform_base(int idx)
+uintptr_t uart_platform_base(int idx)
 {
-	if (idx == 0 && oxpcie_uart_active())
-		return uart0_base;
-	if (idx == 1 && oxpcie_uart_active())
-		return uart1_base;
+	if ((idx >= 0) && (idx < 8) && oxpcie_uart_active())
+		return uart0_base + idx * 0x200;
 	return 0;
 }
 
@@ -90,7 +83,6 @@ unsigned int uart_platform_base(int idx)
 void oxford_remap(u32 new_base)
 {
 	uart0_base = new_base + 0x1000;
-	uart1_base = new_base + 0x2000;
 }
 
 void uart_fill_lb(void *data)
@@ -99,6 +91,9 @@ void uart_fill_lb(void *data)
 	serial.type = LB_SERIAL_TYPE_MEMORY_MAPPED;
 	serial.baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
 	serial.baud = default_baudrate();
+	serial.regwidth = 1;
+	serial.input_hertz = uart_platform_refclk();
+	serial.uart_pci_addr = CONFIG_UART_PCI_ADDR;
 	lb_add_serial(&serial, data);
 
 	lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, data);

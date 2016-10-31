@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Pre-RAM driver for SMSC LPC47N227 Super I/O chip. */
@@ -23,13 +19,13 @@
 #include <arch/io.h>
 #include "lpc47n227.h"
 
-static void pnp_enter_conf_state(device_t dev)
+void pnp_enter_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(0x55, port);
 }
 
-static void pnp_exit_conf_state(device_t dev)
+void pnp_exit_conf_state(pnp_devfn_t dev)
 {
 	u16 port = dev >> 8;
 	outb(0xaa, port);
@@ -41,7 +37,7 @@ static void pnp_exit_conf_state(device_t dev)
  * @param dev High 8 bits = Super I/O port, low 8 bits = logical device number.
  * @param iobase Base I/O port for the logical device.
  */
-static void lpc47n227_pnp_set_iobase(device_t dev, u16 iobase)
+static void lpc47n227_pnp_set_iobase(pnp_devfn_t dev, u16 iobase)
 {
 	/* LPC47N227 requires base ports to be a multiple of 4. */
 	/* it's not very useful to do an ASSERT here: if it trips,
@@ -76,7 +72,7 @@ static void lpc47n227_pnp_set_iobase(device_t dev, u16 iobase)
  * @param dev High 8 bits = Super I/O port, low 8 bits = logical device number.
  * @param enable 0 to disable, anythig else to enable.
  */
-static void lpc47n227_pnp_set_enable(device_t dev, int enable)
+static void lpc47n227_pnp_set_enable(pnp_devfn_t dev, int enable)
 {
 	u8 power_register = 0, power_mask = 0, current_power, new_power;
 
@@ -111,7 +107,7 @@ static void lpc47n227_pnp_set_enable(device_t dev, int enable)
  * @param dev High 8 bits = Super I/O port, low 8 bits = logical device number.
  * @param iobase Processor I/O port address to assign to this serial device.
  */
-static void lpc47n227_enable_serial(device_t dev, u16 iobase)
+void lpc47n227_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	/*
 	 * NOTE: Cannot use pnp_set_XXX() here because they assume chip

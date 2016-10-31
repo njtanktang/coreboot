@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #ifndef ELOG_INTERNAL_H_
@@ -31,6 +27,8 @@ struct elog_header {
 /* ELOG related constants */
 #define ELOG_SIGNATURE			0x474f4c45  /* 'ELOG' */
 #define ELOG_VERSION			1
+#define ELOG_MIN_AVAILABLE_ENTRIES	2  /* Shrink when this many can't fit */
+#define ELOG_SHRINK_PERCENTAGE		25 /* Percent of total area to remove */
 
 /* SMBIOS event log header */
 struct event_header {
@@ -46,26 +44,5 @@ struct event_header {
 
 /* SMBIOS Type 15 related constants */
 #define ELOG_HEADER_TYPE_OEM		0x88
-
-typedef enum elog_area_state {
-	ELOG_AREA_UNDEFINED,		/* Initial boot strap state */
-	ELOG_AREA_EMPTY,		/* Entire area is empty */
-	ELOG_AREA_HAS_CONTENT,		/* Area has some content */
-} elog_area_state;
-
-typedef enum elog_header_state {
-	ELOG_HEADER_INVALID,
-	ELOG_HEADER_VALID,
-} elog_header_state;
-
-typedef enum elog_event_buffer_state {
-	ELOG_EVENT_BUFFER_OK,
-	ELOG_EVENT_BUFFER_CORRUPTED,
-} elog_event_buffer_state;
-
-struct elog_area {
-	struct elog_header header;
-	u8 data[0];
-} __attribute__((packed));
 
 #endif /* ELOG_INTERNAL_H_ */

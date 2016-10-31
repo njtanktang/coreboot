@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,16 +20,11 @@
 #include "southbridge/intel/ibexpeak/nvs.h"
 #include "southbridge/intel/ibexpeak/pch.h"
 #include "southbridge/intel/ibexpeak/me.h"
-#include <northbridge/intel/sandybridge/sandybridge.h>
+#include <northbridge/intel/nehalem/nehalem.h>
 #include <cpu/intel/model_2065x/model_2065x.h>
 #include <ec/acpi/ec.h>
 #include <pc80/mc146818rtc.h>
 #include <delay.h>
-
-/* The southbridge SMI handler checks whether gnvs has a
- * valid pointer before calling the trap handler
- */
-extern global_nvs_t *gnvs;
 
 static void mainboard_smm_init(void)
 {
@@ -69,15 +59,7 @@ static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 data)
 {
-	u16 pmbase = pci_read_config16(PCI_DEV(0, 0x1f, 0), 0x40) & 0xfffc;
 	u8 tmp;
-
-	printk(BIOS_DEBUG, "%s: pmbase %04X, data %02X\n", __func__, pmbase,
-	       data);
-
-	if (!pmbase)
-		return 0;
-
 	switch (data) {
 	case APM_CNT_FINALIZE:
 		printk(BIOS_DEBUG, "APMC: FINALIZE\n");
@@ -88,7 +70,7 @@ int mainboard_smi_apmc(u8 data)
 
 		intel_me_finalize_smm();
 		intel_pch_finalize_smm();
-		intel_sandybridge_finalize_smm();
+		intel_nehalem_finalize_smm();
 		intel_model_2065x_finalize_smm();
 
 		mainboard_finalized = 1;

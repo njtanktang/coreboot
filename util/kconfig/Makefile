@@ -2,6 +2,11 @@
 # Kernel configuration targets
 # These targets are used from top-level makefile
 
+export LC_ALL=C
+export LANG=C
+
+DEFCONFIG?=defconfig
+
 PHONY += oldconfig xconfig gconfig menuconfig config silentoldconfig update-po-config \
 	localmodconfig localyesconfig
 
@@ -11,7 +16,7 @@ ifeq ($(_OS),MINGW32)
 	regex-objs=regex.o
 endif
 
-Kconfig := src/Kconfig
+Kconfig ?= src/Kconfig
 
 xconfig: $(objk)/qconf
 	$< $(Kconfig)
@@ -29,8 +34,10 @@ config: $(objk)/conf
 nconfig: $(objk)/nconf
 	$< $(Kconfig)
 
+# Disable strict mode because oldconfig is typically used to clean up
+# templates and the like. The second invocation should already have sane data.
 oldconfig: $(objk)/conf
-	$< --$@ $(Kconfig)
+	KCONFIG_STRICT= $< --$@ $(Kconfig)
 	$< --silentoldconfig $(Kconfig)
 
 silentoldconfig: $(objk)/conf
@@ -76,38 +83,48 @@ update-po-config: $(obj)/kxgettext $(obj)/gconf.glade.h
 	$(Q)rm -f $(obj)/config.pot
 # --- UNUSED, ignore ----------------------------------------------------------
 
-PHONY += allnoconfig allyesconfig allmodconfig alldefconfig randconfig
+PHONY += allnoconfig allyesconfig allmodconfig alldefconfig randconfig savedefconfig
 
 allnoconfig allyesconfig allmodconfig alldefconfig randconfig: $(objk)/conf
 	$< --$@ $(Kconfig)
 
+savedefconfig: $(objk)/conf
+	$< --$@=$(DEFCONFIG) $(Kconfig)
+
 defconfig: $(objk)/conf
 ifeq ($(KBUILD_DEFCONFIG),)
-	$< -d $(Kconfig)
+	$< --defconfig $(Kconfig)
 else
 	@echo "*** Default configuration is based on '$(KBUILD_DEFCONFIG)'"
-	$< -D $(KBUILD_DEFCONFIG) $(Kconfig)
+	$< --defconfig=$(KBUILD_DEFCONFIG) $(Kconfig)
 endif
 
+olddefconfig: $(objk)/conf
+	$< --olddefconfig $(Kconfig)
+
 %_defconfig: $(objk)/conf
-	$< -D configs/$@ $(Kconfig)
+	$< --defconfig=configs/$@ $(Kconfig)
 
 # Help text used by make help
-help:
+help_kconfig help::
+	@echo  '*** Kconfig Targets ***'
 	@echo  '  config	  - Update current config utilising a line-oriented program'
 	@echo  '  nconfig         - Update current config utilising a ncurses menu based program'
 	@echo  '  menuconfig	  - Update current config utilising a menu based program'
 	@echo  '  xconfig	  - Update current config utilising a QT based front-end'
 	@echo  '  gconfig	  - Update current config utilising a GTK based front-end'
 	@echo  '  oldconfig	  - Update current config utilising a provided .config as base'
-	@echo  '  localmodconfig  - Update current config disabling modules not loaded'
-	@echo  '  localyesconfig  - Update current config converting local mods to core'
+	@echo  '  olddefconfig    - Same as oldconfig, but with default answer to all new options'
+	#@echo  '  localmodconfig  - Update current config disabling modules not loaded'
+	#@echo  '  localyesconfig  - Update current config converting local mods to core'
 	@echo  '  silentoldconfig - Same as oldconfig, but quietly, additionally update deps'
 	@echo  '  defconfig	  - New config with default answer to all options'
-	@echo  '  allnoconfig	  - New config where all options are answered with no'
-	@echo  '  allyesconfig	  - New config where all options are accepted with yes'
-	@echo  '  allmodconfig	  - New config selecting modules when possible'
-	@echo  '  randconfig	  - New config with random answer to all options'
+	@echo  '  savedefconfig   - Save current config as ./defconfig (minimal config)'
+	#@echo  '  allnoconfig	  - New config where all options are answered with no'
+	#@echo  '  allyesconfig	  - New config where all options are accepted with yes'
+	#@echo  '  allmodconfig	  - New config selecting modules when possible'
+	#@echo  '  randconfig	  - New config with random answer to all options'
+	@echo
 
 # lxdialog stuff
 check-lxdialog  := $(srck)/lxdialog/check-lxdialog.sh
@@ -218,48 +235,20 @@ $(objk)/.tmp_qtcheck: $(srck)/Makefile
 # QT needs some extra effort...
 $(objk)/.tmp_qtcheck:
 	@set -e; echo "  CHECK   qt"; dir=""; pkg=""; \
-	if ! pkg-config --exists QtCore 2> /dev/null; then \
-	    echo "* Unable to find the QT4 tool qmake. Trying to use QT3"; \
-	    pkg-config --exists qt 2> /dev/null && pkg=qt; \
-	    pkg-config --exists qt-mt 2> /dev/null && pkg=qt-mt; \
-	    if [ -n "$$pkg" ]; then \
-	      cflags="\$$(shell pkg-config $$pkg --cflags)"; \
-	      libs="\$$(shell pkg-config $$pkg --libs)"; \
-	      moc="\$$(shell pkg-config $$pkg --variable=prefix)/bin/moc"; \
-	      dir="$$(pkg-config $$pkg --variable=prefix)"; \
-	    else \
-	      for d in $$QTDIR /usr/share/qt* /usr/lib/qt*; do \
-	        if [ -f $$d/include/qconfig.h ]; then dir=$$d; break; fi; \
-	      done; \
-	      if [ -z "$$dir" ]; then \
-	        echo >&2 "*"; \
-	        echo >&2 "* Unable to find any QT installation. Please make sure that"; \
-	        echo >&2 "* the QT4 or QT3 development package is correctly installed and"; \
-	        echo >&2 "* either qmake can be found or install pkg-config or set"; \
-	        echo >&2 "* the QTDIR environment variable to the correct location."; \
-	        echo >&2 "*"; \
-	        false; \
-	      fi; \
-	      libpath=$$dir/lib; lib=qt; osdir=""; \
-	      $(HOSTCXX) -print-multi-os-directory > /dev/null 2>&1 && \
-	        osdir=x$$($(HOSTCXX) -print-multi-os-directory); \
-	      test -d $$libpath/$$osdir && libpath=$$libpath/$$osdir; \
-	      test -f $$libpath/libqt-mt.so && lib=qt-mt; \
-	      cflags="-I$$dir/include"; \
-	      libs="-L$$libpath -Wl,-rpath,$$libpath -l$$lib"; \
-	      moc="$$dir/bin/moc"; \
-	    fi; \
-	    if [ ! -x $$dir/bin/moc -a -x /usr/bin/moc ]; then \
-	      echo "*"; \
-	      echo "* Unable to find $$dir/bin/moc, using /usr/bin/moc instead."; \
-	      echo "*"; \
-	      moc="/usr/bin/moc"; \
-	    fi; \
+	if pkg-config --exists Qt5Core; then \
+	  cflags="-std=c++11 -fPIC `pkg-config --cflags Qt5Core Qt5Gui Qt5Widgets`"; \
+	  libs=`pkg-config --libs Qt5Core Qt5Gui Qt5Widgets`; \
+	  moc=`pkg-config --variable=host_bins Qt5Core`/moc; \
+	elif pkg-config --exists QtCore; then \
+	  cflags=`pkg-config --cflags QtCore QtGui`; \
+	  libs=`pkg-config --libs QtCore QtGui`; \
+	  moc=`pkg-config --variable=moc_location QtCore`; \
 	else \
-	  cflags="\$$(shell pkg-config QtCore QtGui Qt3Support --cflags)"; \
-	  libs="\$$(shell pkg-config QtCore QtGui Qt3Support --libs)"; \
-	  moc="\$$(shell pkg-config QtCore --variable=moc_location)"; \
-	  [ -n "$$moc" ] || moc="\$$(shell pkg-config QtCore --variable=prefix)/bin/moc"; \
+	  echo >&2 "*"; \
+	  echo >&2 "* Could not find Qt via pkg-config."; \
+	  echo >&2 "* Please install either Qt 4.8 or 5.x. and make sure it's in PKG_CONFIG_PATH"; \
+	  echo >&2 "*"; \
+	  exit 1; \
 	fi; \
 	echo "KC_QT_CFLAGS=$$cflags" > $@; \
 	echo "KC_QT_LIBS=$$libs" >> $@; \
@@ -326,12 +315,16 @@ $(obj)/zconf.lex.c: $(src)/zconf.l
 $(obj)/zconf.hash.c: $(src)/zconf.gperf
 
 %.tab.c: %.y
-	bison -l -b $* -p $(notdir $*) $<
-	cp $@ $@_shipped
+	bison -t -l -b $* -p $(notdir $*) $<
 
-lex.%.c: %.l
+%.tab.c_shipped: %.tab.c
+	cp $< $@
+
+%.lex.c: %.l
 	flex -L -P$(notdir $*) -o$@ $<
-	cp $@ $@_shipped
+
+%.lex.c_shipped: %.lex.c
+	cp $< $@
 
 %.hash.c: %.gperf
 	gperf < $< > $@

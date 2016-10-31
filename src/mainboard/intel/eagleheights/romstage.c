@@ -13,30 +13,29 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
-#include <delay.h>
 #include <stdint.h>
-#include <arch/io.h>
+#include <stdlib.h>
 #include <device/pci_def.h>
+#include <device/pci_ids.h>
+#include <arch/io.h>
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
+#include <delay.h>
 #include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <cpu/intel/speedstep.h>
 #include "southbridge/intel/i3100/early_smbus.c"
 #include "southbridge/intel/i3100/early_lpc.c"
 #include "southbridge/intel/i3100/reset.c"
-#include "superio/intel/i3100/early_serial.c"
+#include <superio/intel/i3100/i3100.h>
 #include <superio/smsc/smscsuperio/smscsuperio.h>
-#include "northbridge/intel/i3100/i3100.h"
-#include "southbridge/intel/i3100/i3100.h"
+#include <northbridge/intel/i3100/i3100.h>
+#include <southbridge/intel/i3100/i3100.h>
+#include "lib/debug.c" // XXX
 
 #define DEVPRES_CONFIG  (DEVPRES_D1F0 | DEVPRES_D2F0 | DEVPRES_D3F0)
 #define DEVPRES1_CONFIG (DEVPRES1_D0F1 | DEVPRES1_D8F0)
@@ -66,12 +65,11 @@ static inline int spd_read_byte(u16 device, u8 address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/intel/i3100/raminit.h"
+#include <northbridge/intel/i3100/raminit.h>
 #include "northbridge/intel/i3100/memory_initialized.c"
 #include "northbridge/intel/i3100/raminit.c"
 #include "lib/generic_sdram.c"
 #include "northbridge/intel/i3100/reset_test.c"
-#include "debug.c"
 #include <spd.h>
 
 #define SERIAL_DEV PNP_DEV(0x4e, I3100_SP1)
@@ -81,7 +79,7 @@ static void early_config(void)
 	u32 gcs, rpc, fd;
 
 	/* Enable RCBA */
-	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, (uintptr_t)DEFAULT_RCBA | 1);
 
 	/* Disable watchdog */
 	gcs = read32(DEFAULT_RCBA + RCBA_GCS);
@@ -120,7 +118,7 @@ static void early_config(void)
 	pci_write_config8(PCI_DEV(0, 0x1F, 2), SATA_MAP, (SATA_MODE_AHCI << 6) | (0 << 0));
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	/* int boot_mode = 0; */
 

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 DefinitionBlock ("DSDT", "DSDT", 1, "EAGLE", "COREBOOT", 0x0000001)
@@ -178,10 +173,17 @@ DefinitionBlock ("DSDT", "DSDT", 1, "EAGLE", "COREBOOT", 0x0000001)
 
 		Method (_OSC, 4)
 		{
-			/* Check for proper GUID */
+			/* Check for PCI/PCI-X/PCIe GUID */
 			If (LEqual (Arg0, ToUUID("33DB4D5B-1FF7-401C-9657-7441C03DD766")))
 			{
 				/* Let OS control everything */
+				Return (Arg3)
+			}
+			Else
+			{
+				/* Unrecognized UUID, so set bit 2 of Arg3 to 1 */
+				CreateDWordField (Arg3, 0, CDW1)
+				Or (CDW1, 4, CDW1)
 				Return (Arg3)
 			}
 		} /* End _OSC */
@@ -406,6 +408,7 @@ DefinitionBlock ("DSDT", "DSDT", 1, "EAGLE", "COREBOOT", 0x0000001)
 
 		/* COM ports of SIO */
 		Device(SIO) {
+				Name (_ADR, 0x4E)
 				OperationRegion (PT4E, SystemIO, 0x4E, 0x02)
 				Field (PT4E, ByteAcc, NoLock, Preserve)
 				{
@@ -1036,5 +1039,3 @@ DefinitionBlock ("DSDT", "DSDT", 1, "EAGLE", "COREBOOT", 0x0000001)
 		}
 	}
 }
-
-

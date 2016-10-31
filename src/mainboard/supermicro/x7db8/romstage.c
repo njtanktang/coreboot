@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -29,11 +24,12 @@
 #include <lib.h>
 #include <console/console.h>
 #include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
 #include <northbridge/intel/i5000/raminit.h>
-#include "northbridge/intel/i3100/i3100.h"
-#include "southbridge/intel/i3100/i3100.h"
+#include <northbridge/intel/i3100/i3100.h>
+#include <southbridge/intel/i3100/i3100.h>
 #include <southbridge/intel/i3100/early_smbus.c>
 
 #define DEVPRES_CONFIG  (DEVPRES_D1F0 | DEVPRES_D2F0 | DEVPRES_D3F0)
@@ -51,7 +47,7 @@ static void early_config(void)
 	u32 gcs, rpc, fd;
 
 	/* Enable RCBA */
-	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, (uintptr_t)DEFAULT_RCBA | 1);
 
 	/* Disable watchdog */
 	gcs = read32(DEFAULT_RCBA + RCBA_GCS);
@@ -111,7 +107,7 @@ int mainboard_set_fbd_clock(int speed)
 	}
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	if (bist == 0)
 		enable_lapic();
@@ -143,7 +139,7 @@ void main(unsigned long bist)
 	outb(0x03, 0x11b8);
 	outb(0x01, 0x11b8);
 
-	pci_write_config32(PCI_DEV(0, 0x1f, 0), 0xf0, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1f, 0), 0xf0, (uintptr_t)DEFAULT_RCBA | 1);
 	i5000_fbdimm_init();
 	smbus_write_byte(0x69, 0x01, 0x01);
 }

@@ -1,9 +1,7 @@
 config CPU_AMD_SOCKET_AM2R2
 	bool
 	select CPU_AMD_MODEL_10XXX
-	select HT3_SUPPORT
 	select PCI_IO_CFG_EXT
-	select CACHE_AS_RAM
 	select X86_AMD_FIXED_MTRRS
 
 if CPU_AMD_SOCKET_AM2R2
@@ -13,10 +11,6 @@ config CPU_SOCKET_TYPE
 	default 0x11
 
 config EXT_RT_TBL_SUPPORT
-	bool
-	default n
-
-config EXT_CONF_SUPPORT
 	bool
 	default n
 

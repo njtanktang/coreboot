@@ -44,7 +44,7 @@ static int ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq
 static void* ohci_create_intr_queue (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
 static void ohci_destroy_intr_queue (endpoint_t *ep, void *queue);
 static u8* ohci_poll_intr_queue (void *queue);
-static void ohci_process_done_queue(ohci_t *ohci, int spew_debug);
+static int ohci_process_done_queue(ohci_t *ohci, int spew_debug);
 
 #ifdef USB_DEBUG
 static void
@@ -167,21 +167,13 @@ static const char *direction[] = {
 #endif
 
 hci_t *
-ohci_init (void *bar)
+ohci_init (unsigned long physical_bar)
 {
 	int i;
 
 	hci_t *controller = new_controller ();
-
-	if (!controller)
-		fatal("Could not create USB controller instance.\n");
-
-	controller->instance = malloc (sizeof (ohci_t));
-	if(!controller->instance)
-		fatal("Not enough memory creating USB controller instance.\n");
-
+	controller->instance = xzalloc(sizeof (ohci_t));
 	controller->type = OHCI;
-
 	controller->start = ohci_start;
 	controller->stop = ohci_stop;
 	controller->reset = ohci_reset;
@@ -195,14 +187,10 @@ ohci_init (void *bar)
 	controller->create_intr_queue = ohci_create_intr_queue;
 	controller->destroy_intr_queue = ohci_destroy_intr_queue;
 	controller->poll_intr_queue = ohci_poll_intr_queue;
-	for (i = 0; i < 128; i++) {
-		controller->devices[i] = 0;
-	}
 	init_device_entry (controller, 0);
 	OHCI_INST (controller)->roothub = controller->devices[0];
 
-	controller->reg_base = (u32)(unsigned long)bar;
-	OHCI_INST (controller)->opreg = (opreg_t*)phys_to_virt(controller->reg_base);
+	OHCI_INST (controller)->opreg = (opreg_t*)phys_to_virt(physical_bar);
 	usb_debug("OHCI Version %x.%x\n", (OHCI_INST (controller)->opreg->HcRevision >> 4) & 0xf, OHCI_INST (controller)->opreg->HcRevision & 0xf);
 
 	if ((OHCI_INST (controller)->opreg->HcControl & HostControllerFunctionalStateMask) == USBReset) {
@@ -222,12 +210,18 @@ ohci_init (void *bar)
 	OHCI_INST (controller)->opreg->HcCommandStatus = HostControllerReset;
 	udelay (10); /* at most 10us for reset to complete. State must be set to Operational within 2ms (5.1.1.4) */
 	OHCI_INST (controller)->opreg->HcFmInterval = interval;
-	OHCI_INST (controller)->hcca = memalign(256, 256);
+	OHCI_INST (controller)->hcca = dma_memalign(256, 256);
 	memset((void*)OHCI_INST (controller)->hcca, 0, 256);
+
+	if (dma_initialized()) {
+		OHCI_INST(controller)->dma_buffer = dma_memalign(4096, DMA_SIZE);
+		if (!OHCI_INST(controller)->dma_buffer)
+			fatal("Not enough DMA memory for OHCI bounce buffer.\n");
+	}
 
 	/* Initialize interrupt table. */
 	u32 *const intr_table = OHCI_INST(controller)->hcca->HccaInterruptTable;
-	ed_t *const periodic_ed = memalign(sizeof(ed_t), sizeof(ed_t));
+	ed_t *const periodic_ed = dma_memalign(sizeof(ed_t), sizeof(ed_t));
 	memset((void *)periodic_ed, 0, sizeof(*periodic_ed));
 	for (i = 0; i < 32; ++i)
 		intr_table[i] = virt_to_phys(periodic_ed);
@@ -252,7 +246,7 @@ ohci_init (void *bar)
 	return controller;
 }
 
-#ifdef CONFIG_USB_PCI
+#if IS_ENABLED(CONFIG_LP_USB_PCI)
 hci_t *
 ohci_pci_init (pcidev_t addr)
 {
@@ -263,7 +257,7 @@ ohci_pci_init (pcidev_t addr)
 	 * OHCI mandates MMIO, so bit 0 is clear */
 	reg_base = pci_read_config32 (addr, 0x10) & 0xfffff000;
 
-	return ohci_init((void *)(unsigned long)reg_base);
+	return ohci_init((unsigned long)reg_base);
 }
 #endif
 
@@ -274,8 +268,7 @@ ohci_shutdown (hci_t *controller)
 		return;
 	detach_controller (controller);
 	ohci_stop(controller);
-	OHCI_INST (controller)->roothub->destroy (OHCI_INST (controller)->
-						  roothub);
+	free (OHCI_INST (controller)->hcca);
 	free ((void *)OHCI_INST (controller)->periodic_ed);
 	free (OHCI_INST (controller));
 	free (controller);
@@ -284,13 +277,13 @@ ohci_shutdown (hci_t *controller)
 static void
 ohci_start (hci_t *controller)
 {
-// TODO: turn on all operation of OHCI, but assume that it's initialized.
+	OHCI_INST (controller)->opreg->HcControl |= PeriodicListEnable;
 }
 
 static void
 ohci_stop (hci_t *controller)
 {
-// TODO: turn off all operation of OHCI
+	OHCI_INST (controller)->opreg->HcControl &= ~PeriodicListEnable;
 }
 
 static int
@@ -322,13 +315,13 @@ wait_for_ed(usbdev_t *dev, ed_t *head, int pages)
 		usb_debug("Error: ohci: endpoint "
 			"descriptor processing timed out.\n");
 	/* Clear the done queue. */
-	ohci_process_done_queue(OHCI_INST(dev->controller), 1);
+	int result = ohci_process_done_queue(OHCI_INST(dev->controller), 1);
 
 	if (head->head_pointer & 1) {
 		usb_debug("HALTED!\n");
-		return 1;
+		return -1;
 	}
-	return 0;
+	return result;
 }
 
 static void
@@ -353,10 +346,27 @@ ohci_free_ed (ed_t *const head)
 }
 
 static int
-ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen,
-	      unsigned char *data)
+ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *setup, int dalen,
+	      unsigned char *src)
 {
+	u8 *data = src;
+	u8 *devreq = setup;
+	int remaining = dalen;
 	td_t *cur;
+
+	if (!dma_coherent(devreq)) {
+		devreq = OHCI_INST(dev->controller)->dma_buffer;
+		memcpy(devreq, setup, drlen);
+	}
+	if (dalen > 0 && !dma_coherent(src)) {
+		data = OHCI_INST(dev->controller)->dma_buffer + drlen;
+		if (drlen + dalen > DMA_SIZE) {
+			usb_debug("OHCI control transfer too large for DMA buffer: %d\n", drlen + dalen);
+			return -1;
+		}
+		if (dir == OUT)
+			memcpy(data, src, dalen);
+	}
 
 	// pages are specified as 4K in OHCI, so don't use getpagesize()
 	int first_page = (unsigned long)data / 4096;
@@ -365,7 +375,7 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 	int pages = (dalen==0)?0:(last_page - first_page + 1);
 
 	/* First TD. */
-	td_t *const first_td = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+	td_t *const first_td = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 	memset((void *)first_td, 0, sizeof(*first_td));
 	cur = first_td;
 
@@ -379,7 +389,7 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 
 	while (pages > 0) {
 		/* One more TD. */
-		td_t *const next = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+		td_t *const next = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 		memset((void *)next, 0, sizeof(*next));
 		/* Linked to the previous. */
 		cur->next_td = virt_to_phys(next);
@@ -393,27 +403,27 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 		cur->current_buffer_pointer = virt_to_phys(data);
 		pages--;
 		int consumed = (4096 - ((unsigned long)data % 4096));
-		if (consumed >= dalen) {
+		if (consumed >= remaining) {
 			// end of data is within same page
-			cur->buffer_end = virt_to_phys(data + dalen - 1);
-			dalen = 0;
+			cur->buffer_end = virt_to_phys(data + remaining - 1);
+			remaining = 0;
 			/* assert(pages == 0); */
 		} else {
-			dalen -= consumed;
+			remaining -= consumed;
 			data += consumed;
 			pages--;
-			int second_page_size = dalen;
-			if (dalen > 4096) {
+			int second_page_size = remaining;
+			if (remaining > 4096) {
 				second_page_size = 4096;
 			}
 			cur->buffer_end = virt_to_phys(data + second_page_size - 1);
-			dalen -= second_page_size;
+			remaining -= second_page_size;
 			data += second_page_size;
 		}
 	}
 
 	/* One more TD. */
-	td_t *const next_td = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+	td_t *const next_td = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 	memset((void *)next_td, 0, sizeof(*next_td));
 	/* Linked to the previous. */
 	cur->next_td = virt_to_phys(next_td);
@@ -428,13 +438,13 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 	cur->buffer_end = 0;
 
 	/* Final dummy TD. */
-	td_t *const final_td = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+	td_t *const final_td = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 	memset((void *)final_td, 0, sizeof(*final_td));
 	/* Linked to the previous. */
 	cur->next_td = virt_to_phys(final_td);
 
 	/* Data structures */
-	ed_t *head = memalign(sizeof(ed_t), sizeof(ed_t));
+	ed_t *head = dma_memalign(sizeof(ed_t), sizeof(ed_t));
 	memset((void*)head, 0, sizeof(*head));
 	head->config = (dev->address << ED_FUNC_SHIFT) |
 		(0 << ED_EP_SHIFT) |
@@ -455,7 +465,7 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 	OHCI_INST(dev->controller)->opreg->HcControl |= ControlListEnable;
 	OHCI_INST(dev->controller)->opreg->HcCommandStatus = ControlListFilled;
 
-	int failure = wait_for_ed(dev, head,
+	int result = wait_for_ed(dev, head,
 			(dalen==0)?0:(last_page - first_page + 1));
 	/* Wait some frames before and one after disabling list access. */
 	mdelay(4);
@@ -465,17 +475,34 @@ ohci_control (usbdev_t *dev, direction_t dir, int drlen, void *devreq, int dalen
 	/* free memory */
 	ohci_free_ed(head);
 
-	return failure;
+	if (result >= 0) {
+		result = dalen - result;
+		if (dir == IN && data != src)
+			memcpy(src, data, result);
+	}
+
+	return result;
 }
 
 /* finalize == 1: if data is of packet aligned size, add a zero length packet */
 static int
-ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
+ohci_bulk (endpoint_t *ep, int dalen, u8 *src, int finalize)
 {
 	int i;
-	usb_debug("bulk: %x bytes from %x, finalize: %x, maxpacketsize: %x\n", dalen, data, finalize, ep->maxpacketsize);
-
 	td_t *cur, *next;
+	int remaining = dalen;
+	u8 *data = src;
+	usb_debug("bulk: %x bytes from %x, finalize: %x, maxpacketsize: %x\n", dalen, src, finalize, ep->maxpacketsize);
+
+	if (!dma_coherent(src)) {
+		data = OHCI_INST(ep->dev->controller)->dma_buffer;
+		if (dalen > DMA_SIZE) {
+			usb_debug("OHCI bulk transfer too large for DMA buffer: %d\n", dalen);
+			return -1;
+		}
+		if (ep->direction == OUT)
+			memcpy(data, src, dalen);
+	}
 
 	// pages are specified as 4K in OHCI, so don't use getpagesize()
 	int first_page = (unsigned long)data / 4096;
@@ -489,7 +516,7 @@ ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
 	}
 
 	/* First TD. */
-	td_t *const first_td = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+	td_t *const first_td = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 	memset((void *)first_td, 0, sizeof(*first_td));
 	cur = next = first_td;
 
@@ -502,32 +529,32 @@ ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
                         TD_CC_NOACCESS;
 		cur->current_buffer_pointer = virt_to_phys(data);
 		pages--;
-		if (dalen == 0) {
+		if (remaining == 0) {
 			/* magic TD for empty packet transfer */
 			cur->current_buffer_pointer = 0;
 			cur->buffer_end = 0;
 			/* assert((pages == 0) && finalize); */
 		}
 		int consumed = (4096 - ((unsigned long)data % 4096));
-		if (consumed >= dalen) {
+		if (consumed >= remaining) {
 			// end of data is within same page
-			cur->buffer_end = virt_to_phys(data + dalen - 1);
-			dalen = 0;
+			cur->buffer_end = virt_to_phys(data + remaining - 1);
+			remaining = 0;
 			/* assert(pages == finalize); */
 		} else {
-			dalen -= consumed;
+			remaining -= consumed;
 			data += consumed;
 			pages--;
-			int second_page_size = dalen;
-			if (dalen > 4096) {
+			int second_page_size = remaining;
+			if (remaining > 4096) {
 				second_page_size = 4096;
 			}
 			cur->buffer_end = virt_to_phys(data + second_page_size - 1);
-			dalen -= second_page_size;
+			remaining -= second_page_size;
 			data += second_page_size;
 		}
 		/* One more TD. */
-		next = (td_t *)memalign(sizeof(td_t), sizeof(td_t));
+		next = (td_t *)dma_memalign(sizeof(td_t), sizeof(td_t));
 		memset((void *)next, 0, sizeof(*next));
 		/* Linked to the previous. */
 		cur->next_td = virt_to_phys(next);
@@ -539,7 +566,7 @@ ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
 	cur = next;
 
 	/* Data structures */
-	ed_t *head = memalign(sizeof(ed_t), sizeof(ed_t));
+	ed_t *head = dma_memalign(sizeof(ed_t), sizeof(ed_t));
 	memset((void*)head, 0, sizeof(*head));
 	head->config = (ep->dev->address << ED_FUNC_SHIFT) |
 		((ep->endpoint & 0xf) << ED_EP_SHIFT) |
@@ -559,7 +586,7 @@ ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
 	OHCI_INST(ep->dev->controller)->opreg->HcControl |= BulkListEnable;
 	OHCI_INST(ep->dev->controller)->opreg->HcCommandStatus = BulkListFilled;
 
-	int failure = wait_for_ed(ep->dev, head,
+	int result = wait_for_ed(ep->dev, head,
 			(dalen==0)?0:(last_page - first_page + 1));
 	/* Wait some frames before and one after disabling list access. */
 	mdelay(4);
@@ -571,12 +598,13 @@ ohci_bulk (endpoint_t *ep, int dalen, u8 *data, int finalize)
 	/* free memory */
 	ohci_free_ed(head);
 
-	if (failure) {
-		/* try cleanup */
-		clear_stall(ep);
+	if (result >= 0) {
+		result = dalen - result;
+		if (ep->direction == IN && data != src)
+			memcpy(src, data, result);
 	}
 
-	return failure;
+	return result;
 }
 
 
@@ -634,16 +662,16 @@ ohci_create_intr_queue(endpoint_t *const ep, const int reqsize,
 		return NULL;
 
 	intr_queue_t *const intrq =
-		(intr_queue_t *)memalign(sizeof(intrq->ed), sizeof(*intrq));
+		(intr_queue_t *)dma_memalign(sizeof(intrq->ed), sizeof(*intrq));
 	memset(intrq, 0, sizeof(*intrq));
-	intrq->data = (u8 *)malloc(reqcount * reqsize);
+	intrq->data = (u8 *)dma_malloc(reqcount * reqsize);
 	intrq->reqsize = reqsize;
 	intrq->endp = ep;
 
 	/* Create #reqcount TDs. */
 	u8 *cur_data = intrq->data;
 	for (i = 0; i < reqcount; ++i) {
-		intrq_td_t *const td = memalign(sizeof(td->td), sizeof(*td));
+		intrq_td_t *const td = dma_memalign(sizeof(td->td), sizeof(*td));
 		++intrq->remaining_tds;
 		ohci_fill_intrq_td(td, intrq, cur_data);
 		cur_data += reqsize;
@@ -655,7 +683,7 @@ ohci_create_intr_queue(endpoint_t *const ep, const int reqsize,
 	}
 
 	/* Create last, dummy TD. */
-	intrq_td_t *dummy_td = memalign(sizeof(dummy_td->td), sizeof(*dummy_td));
+	intrq_td_t *dummy_td = dma_memalign(sizeof(dummy_td->td), sizeof(*dummy_td));
 	memset(dummy_td, 0, sizeof(*dummy_td));
 	dummy_td->intrq = intrq;
 	if (last_td)
@@ -781,9 +809,11 @@ ohci_poll_intr_queue(void *const q_)
 	return data;
 }
 
-static void
+static int
 ohci_process_done_queue(ohci_t *const ohci, const int spew_debug)
 {
+	/* returns the amount of bytes *not* transmitted for short packets */
+	int result = 0;
 	int i, j;
 
 	/* Temporary queue of interrupt queue TDs (to reverse order). */
@@ -791,7 +821,7 @@ ohci_process_done_queue(ohci_t *const ohci, const int spew_debug)
 
 	/* Check if done head has been written. */
 	if (!(ohci->opreg->HcInterruptStatus & WritebackDoneHead))
-		return;
+		return 0;
 	/* Fetch current done head.
 	   Lsb is only interesting for hw interrupts. */
 	u32 phys_done_queue = ohci->hcca->HccaDoneHead & ~1;
@@ -808,7 +838,11 @@ ohci_process_done_queue(ohci_t *const ohci, const int spew_debug)
 
 		switch (done_td->config & TD_QUEUETYPE_MASK) {
 		case TD_QUEUETYPE_ASYNC:
-			/* Free processed async TDs. */
+			/* Free processed async TDs and count short transfer. */
+			if (done_td->current_buffer_pointer)
+				result += (done_td->buffer_end & 0xfff) -
+						(done_td->current_buffer_pointer
+						& 0xfff) + 1;
 			free((void *)done_td);
 			break;
 		case TD_QUEUETYPE_INTR: {
@@ -820,12 +854,12 @@ ohci_process_done_queue(ohci_t *const ohci, const int spew_debug)
 				/* Free this TD, and */
 				free(td);
 				--intrq->remaining_tds;
-				/* the interrupt queue if it has no more TDs. */
-				if (!intrq->remaining_tds)
-					free(intrq);
 				usb_debug("Freed TD from orphaned interrupt "
 					  "queue, %d TDs remain.\n",
 					  intrq->remaining_tds);
+				/* the interrupt queue if it has no more TDs. */
+				if (!intrq->remaining_tds)
+					free(intrq);
 			} else {
 				/* Save done TD to be processed. */
 				td->next = temp_tdq;
@@ -865,5 +899,6 @@ ohci_process_done_queue(ohci_t *const ohci, const int spew_debug)
 	}
 	if (spew_debug)
 		usb_debug("processed %d done tds, %d intr tds thereof.\n", i, j);
-}
 
+	return result;
+}

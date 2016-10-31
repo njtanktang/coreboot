@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/acpi.h>
@@ -57,18 +53,18 @@ void acpi_create_intel_hpet(acpi_hpet_t * hpet)
 	    acpi_checksum((void *) hpet, sizeof(acpi_hpet_t));
 }
 
-static int acpi_create_serialio_ssdt_entry(int id, global_nvs_t *gnvs)
+static void acpi_create_serialio_ssdt_entry(int id, global_nvs_t *gnvs)
 {
 	char sio_name[5] = {};
-	snprintf(sio_name, sizeof (sio_name), "S%1uEN", id);
-	return acpigen_write_name_byte(sio_name, gnvs->s0b[id] ? 1 : 0);
+	snprintf(sio_name, sizeof(sio_name), "S%1uEN", id);
+	acpigen_write_name_byte(sio_name, gnvs->s0b[id] ? 1 : 0);
 }
 
 void acpi_create_serialio_ssdt(acpi_header_t *ssdt)
 {
 	unsigned long current = (unsigned long)ssdt + sizeof(acpi_header_t);
 	global_nvs_t *gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
-	int id, len = 0;
+	int id;
 
 	if (!gnvs)
 		return;
@@ -78,8 +74,8 @@ void acpi_create_serialio_ssdt(acpi_header_t *ssdt)
 	memcpy(&ssdt->signature, "SSDT", 4);
 	ssdt->revision = 2;
 	memcpy(&ssdt->oem_id, OEM_ID, 6);
-	memcpy(&ssdt->oem_table_id, ACPI_TABLE_CREATOR, 8);
-	ssdt->oem_revision = 42;
+	memcpy(&ssdt->oem_table_id, "SERIALIO", 8);
+	ssdt->oem_revision = 43;
 	memcpy(&ssdt->asl_compiler_id, ASLC, 4);
 	ssdt->asl_compiler_revision = 42;
 	ssdt->length = sizeof(acpi_header_t);
@@ -87,7 +83,7 @@ void acpi_create_serialio_ssdt(acpi_header_t *ssdt)
 
 	/* Fill the SSDT with an entry for each SerialIO device */
 	for (id = 0; id < 8; id++)
-		len += acpi_create_serialio_ssdt_entry(id, gnvs);
+		acpi_create_serialio_ssdt_entry(id, gnvs);
 
 	/* (Re)calculate length and checksum. */
 	current = (unsigned long)acpigen_get_current();

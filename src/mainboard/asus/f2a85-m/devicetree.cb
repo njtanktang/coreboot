@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 chip northbridge/amd/agesa/family15tn/root_complex
 
 	device cpu_cluster 0 on
@@ -30,9 +26,10 @@ chip northbridge/amd/agesa/family15tn/root_complex
 
 			chip northbridge/amd/agesa/family15tn # PCI side of HT root complex
 				device pci 0.0 on  end # Root Complex
+				device pci 0.2 on  end # IOMMU
 				device pci 1.0 on  end # Internal Graphics P2P bridge 0x99XX
 				device pci 1.1 on  end # Internal Multimedia
-				device pci 2.0 on end # PCIE SLOT0 x16 blue
+				device pci 2.0 on  end # PCIE SLOT0 x16 blue
 				device pci 3.0 off end # unused?
 				device pci 4.0 on  end # PCIE 4x black
 				device pci 5.0 off end # unused?
@@ -65,7 +62,7 @@ chip northbridge/amd/agesa/family15tn/root_complex
 						register hwm_main_ctl_register = "0x33"
 						register hwm_adc_temp_chan_en_reg = "0x38"
 						register hwm_fan1_ctl_pwm = "0x00"
-						register hwm_fan2_ctl_pwm = "0x80"
+						register hwm_fan2_ctl_pwm = "0x00"
 						register hwm_fan3_ctl_pwm = "0x00"
 
 						device pnp 2e.0 off #  Floppy
@@ -110,15 +107,12 @@ chip northbridge/amd/agesa/family15tn/root_complex
 				device pci 14.4 on  end # PCI 0x4384
 				device pci 14.5 on  end # USB 2
 				device pci 14.6 off end # Gec
-				# SD, make it on so the BAR is assigned (if proper hudson on/off handling is implemented this may go away)
-				device pci 14.7 on end
+				device pci 14.7 off end # SD
 				device pci 15.0 on end # PCIe 0 - onboard PCIe 1x
 				device pci 15.1 on end # PCIe 1 onboard gigabit
 				device pci 15.2 off end # unused
 				device pci 15.3 off end # unused
 
-				register "boot_switch_sata_ide" = "0"	# 0: boot from SATA. 1: IDE
-				register "gpp_configuration" = "4"
 			end	#chip southbridge/amd/hudson
 
 			device pci 18.0 on end

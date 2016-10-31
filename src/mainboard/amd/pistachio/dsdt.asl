@@ -11,11 +11,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include <southbridge/amd/sb600/sb600.h>
 
 /* DefinitionBlock Statement */
 DefinitionBlock (
@@ -37,7 +35,6 @@ DefinitionBlock (
 	Name(PBLN, 0x0)	/* Length of BIOS area */
 
 	Name(PCBA, 0xE0000000)	/* Base address of PCIe config space */
-	Name(HPBA, 0xFED00000)	/* Base address of HPET table */
 
 	Name(SSFG, 0x0D)		/* S1 support: bit 0, S2 Support: bit 1, etc. S0 & S5 assumed */
 
@@ -378,7 +375,7 @@ DefinitionBlock (
 
 			if(LNotEqual(OSVR, Ones)) {Return(OSVR)}	/* OS version was already detected */
 
-			if(CondRefOf(\_OSI,Local1))
+			if(CondRefOf(\_OSI))
 			{
 				Store(1, OSVR)                /* Assume some form of XP */
 				if (\_OSI("Windows 2006"))      /* Vista */
@@ -901,7 +898,8 @@ DefinitionBlock (
 		}
 
 		/* Arbitrarily clear PciExpWakeStatus */
-		Store(PWST, PWST)
+		Store(PWST, Local1)
+		Store(Local1, PWST)
 
 		/* if(DeRefOf(Index(WKST,0))) {
 		*	Store(0, Index(WKST,1))
@@ -1363,20 +1361,18 @@ DefinitionBlock (
 					})
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
 
-				Device(HPTM) {
+				Device(HPTM) { /* HPET */
 					Name(_HID,EISAID("PNP0103"))
 					Name(CRS,ResourceTemplate()	{
-						Memory32Fixed(ReadOnly,0xFED00000, 0x00000400, HPT)	/* 1kb reserved space */
+						Memory32Fixed(ReadOnly, HPET_BASE_ADDRESS, 0x00000400, HPT)	/* 1kb reserved space */
 					})
 					Method(_STA, 0) {
-						Return(0x0F) /* sata is visible */
+						Return(0x0F) /* HPET is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
 						Return(CRS)
 					}
-				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */
+				} /* End Device(_SB.PCI0.LpcIsaBr.HPTM) */
 			} /* end LIBR */
 
 			Device(HPBR) {

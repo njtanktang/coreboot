@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _NB_CIMX_H_
@@ -40,5 +36,4 @@ void nb_Late_Post_Init(void);
 void nb_Pcie_Early_Init(void);
 void nb_Pcie_Late_Init(void);
 
-#endif//_RD890_EARLY_H_
-
+#endif /* _NB_CIMX_H_ */

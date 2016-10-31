@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -27,7 +23,7 @@
 
 void enable_smbus(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Set the SMBus device statically. */
 	dev = PCI_DEV(0x0, 0x1f, 0x3);
@@ -52,7 +48,7 @@ void enable_smbus(void)
 
 	/* Clear any lingering errors, so transactions can run. */
 	outb(inb(SMBUS_IO_BASE + SMBHSTSTAT), SMBUS_IO_BASE + SMBHSTSTAT);
-	print_debug("SMBus controller enabled.\n");
+	printk(BIOS_DEBUG, "SMBus controller enabled.\n");
 }
 
 int smbus_read_byte(unsigned device, unsigned address)
@@ -74,4 +70,3 @@ int smbus_block_write(unsigned device, unsigned cmd, u8 bytes, const u8 *buf)
 {
 	return do_smbus_block_write(SMBUS_IO_BASE, device, cmd, bytes, buf);
 }
-

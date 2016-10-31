@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,6 +21,7 @@
 #include <device/pci_ids.h>
 #include "pch.h"
 #include <pc80/mc146818rtc.h>
+#include <acpi/sata.h>
 
 typedef struct southbridge_intel_bd82x6x_config config_t;
 
@@ -66,7 +63,7 @@ static void sata_init(struct device *dev)
 
 	/* AHCI */
 	if (sata_mode == 0) {
-		u32 abar;
+		u8 *abar;
 
 		printk(BIOS_DEBUG, "SATA: Controller in AHCI mode.\n");
 
@@ -100,8 +97,8 @@ static void sata_init(struct device *dev)
 			   ((config->sata_port_map ^ 0x3f) << 24) | 0x183);
 
 		/* Initialize AHCI memory-mapped space */
-		abar = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
-		printk(BIOS_DEBUG, "ABAR: %08X\n", abar);
+		abar = (u8 *)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+		printk(BIOS_DEBUG, "ABAR: %p\n", abar);
 		/* CAP (HBA Capabilities) : enable power management */
 		reg32 = read32(abar + 0x00);
 		reg32 |= 0x0c006000;  // set PSC+SSC+SALP+SSS
@@ -247,6 +244,12 @@ static void sata_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void sata_fill_ssdt(device_t dev)
+{
+	config_t *config = dev->chip_info;
+	generate_sata_ssdt_ports("\\_SB_.PCI0.SATA", config->sata_port_map);
+}
+
 static struct pci_operations sata_pci_ops = {
 	.set_subsystem    = sata_set_subsystem,
 };
@@ -255,6 +258,8 @@ static struct device_operations sata_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.acpi_fill_ssdt_generator
+				= sata_fill_ssdt,
 	.init			= sata_init,
 	.enable			= sata_enable,
 	.scan_bus		= 0,
@@ -270,4 +275,3 @@ static const struct pci_driver pch_sata __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-

@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 config NORTHBRIDGE_AMD_CIMX_RD890
 	bool
@@ -31,6 +27,6 @@ config REDIRECT_NBCIMX_TRACE_TO_SERIAL
 	  This Option allows you to redirect the AMD Northbridge CIMX
 	  Trace debug information to the serial console.
 
-          Warning: Only enable this option when debuging or tracing AMD CIMX code.
+	  Warning: Only enable this option when debuging or tracing AMD CIMX code.
 
 endif # NORTHBRIDGE_AMD_CIMX_RD890

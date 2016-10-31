@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -23,9 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 #include <cpu/amd/amdfam10_sysconf.h>
 #if CONFIG_AMD_SB_CIMX
 #include <sb_cimx.h>
@@ -56,7 +50,6 @@ u32 hcdnx[] = {
 	0x20202020,
 };
 
-u32 bus_type[256];
 
 u32 sbdn_rs780;
 u32 sbdn_sb800;
@@ -69,7 +62,7 @@ void get_bus_conf(void)
 {
 	u32 apicid_base;
 	device_t dev;
-	int i, j;
+	int i;
 
 	if (get_bus_conf_done == 1)
 		return;		/* do it only once */
@@ -93,16 +86,10 @@ void get_bus_conf(void)
 		bus_rs780[i] = 0;
 	}
 
-	for (i = 0; i < 256; i++) {
-		bus_type[i] = 0; /* default ISA bus. */
-	}
-
-	bus_type[0] = 1;	/* pci */
 
 	bus_rs780[0] = (sysconf.pci1234[0] >> 16) & 0xff;
 	bus_sb800[0] = bus_rs780[0];
 
-	bus_type[bus_rs780[0]] = 1;
 
 	/* sb800 */
 	dev = dev_find_slot(bus_sb800[0], PCI_DEVFN(sbdn_sb800 + 0x14, 4));
@@ -110,8 +97,6 @@ void get_bus_conf(void)
 		bus_sb800[1] = pci_read_config8(dev, PCI_SECONDARY_BUS);
 		bus_isa = pci_read_config8(dev, PCI_SUBORDINATE_BUS);
 		bus_isa++;
-		for (j = bus_sb800[1]; j < bus_isa; j++)
-			bus_type[j] = 1;
 	}
 
 	for (i = 0; i < 4; i++) {
@@ -122,8 +107,6 @@ void get_bus_conf(void)
 			bus_isa++;
 		}
 	}
-	for (j = bus_sb800[2]; j < bus_isa; j++)
-		bus_type[j] = 1;
 
 	/* rs780 */
 	for (i = 1; i < ARRAY_SIZE(bus_rs780); i++) {
@@ -133,18 +116,16 @@ void get_bus_conf(void)
 			if(255 != bus_rs780[i]) {
 				bus_isa = pci_read_config8(dev, PCI_SUBORDINATE_BUS);
 				bus_isa++;
-				bus_type[bus_rs780[i]] = 1; /* PCI bus. */
 			}
 		}
 	}
 
 	/* I/O APICs:   APIC ID Version State   Address */
 	bus_isa = 10;
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(1);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(1);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	apicid_sb800 = apicid_base + 0;
 
 #if CONFIG_AMD_SB_CIMX

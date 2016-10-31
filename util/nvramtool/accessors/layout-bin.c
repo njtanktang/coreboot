@@ -29,10 +29,6 @@
  *  WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the terms and
  *  conditions of the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 \*****************************************************************************/
 
 #include <string.h>
@@ -607,4 +603,3 @@ static const struct lb_record *next_cmos_rec(const struct lb_record *last,
 
 	return NULL;
 }
-

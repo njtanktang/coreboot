@@ -35,6 +35,9 @@
 /* Allow a maximum of 8 GPIOs */
 #define SYSINFO_MAX_GPIOS 8
 
+/* Up to 10 MAC addresses */
+#define SYSINFO_MAX_MACS 10
+
 #include <coreboot_tables.h>
 
 struct cb_serial;
@@ -63,10 +66,8 @@ struct sysinfo_t {
 	u32 cmos_range_start;
 	u32 cmos_range_end;
 	u32 cmos_checksum_location;
-#ifdef CONFIG_CHROMEOS
 	u32 vbnv_start;
 	u32 vbnv_size;
-#endif
 
 	char *version;
 	char *extra_version;
@@ -83,34 +84,62 @@ struct sysinfo_t {
 
 	struct cb_framebuffer *framebuffer;
 
-#ifdef CONFIG_CHROMEOS
 	int num_gpios;
 	struct cb_gpio gpios[SYSINFO_MAX_GPIOS];
-#endif
+	int num_macs;
+	struct mac_address macs[SYSINFO_MAX_MACS];
+	char *serialno;
 
 	unsigned long *mbtable; /** Pointer to the multiboot table */
 
 	struct cb_header *header;
 	struct cb_mainboard *mainboard;
 
-#ifdef CONFIG_CHROMEOS
 	void	*vboot_handoff;
 	u32	vboot_handoff_size;
 	void	*vdat_addr;
 	u32	vdat_size;
-#endif
 
-#ifdef CONFIG_ARCH_X86
+#if IS_ENABLED(CONFIG_LP_ARCH_X86)
 	int x86_rom_var_mtrr_index;
 #endif
 
-	void	*tstamp_table;
-	void	*cbmem_cons;
-	void	*mrc_cache;
-	void	*acpi_gnvs;
+	void		*tstamp_table;
+	void		*cbmem_cons;
+	void		*mrc_cache;
+	void		*acpi_gnvs;
+	u32		board_id;
+	u32		ram_code;
+	void		*wifi_calibration;
+	uint64_t	ramoops_buffer;
+	uint32_t	ramoops_buffer_size;
+	struct {
+		uint32_t size;
+		uint32_t sector_size;
+		uint32_t erase_cmd;
+	} spi_flash;
+	uint64_t fmap_offset;
+	uint64_t cbfs_offset;
+	uint64_t cbfs_size;
+	uint64_t boot_media_size;
+	uint64_t mtc_start;
+	uint32_t mtc_size;
 };
 
 extern struct sysinfo_t lib_sysinfo;
 
-#endif
+/*
+ * Check if this is an architecture specific coreboot table record and process
+ * it, if it is. Return 1 if record type was recognized, 0 otherwise.
+ */
+int cb_parse_arch_specific(struct cb_record *rec, struct sysinfo_t *info);
 
+/*
+ * Check if the region in range addr..addr+len contains a 16 byte aligned
+ * coreboot table. If it does - process the table filling up the sysinfo
+ * structure with information from the table. Return 0 on success and -1 on
+ * failure.
+ */
+int cb_parse_header(void *addr, int len, struct sysinfo_t *info);
+
+#endif

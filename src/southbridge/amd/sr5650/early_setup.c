@@ -1,7 +1,9 @@
 /*
  * This file is part of the coreboot project.
  *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -22,6 +20,8 @@
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/msr.h>
+#include <option.h>
+#include <reset.h>
 #include "sr5650.h"
 #include "cmn.h"
 
@@ -30,22 +30,22 @@
  */
 static void alink_ax_indx(u32 space, u32 axindc, u32 mask, u32 val)
 {
-        u32 tmp;
+	u32 tmp;
 
-        /* read axindc to tmp */
-        outl(space << 30 | space << 3 | 0x30, AB_INDX);
-        outl(axindc, AB_DATA);
-        outl(space << 30 | space << 3 | 0x34, AB_INDX);
-        tmp = inl(AB_DATA);
+	/* read axindc to tmp */
+	outl(space << 30 | space << 3 | 0x30, AB_INDX);
+	outl(axindc, AB_DATA);
+	outl(space << 30 | space << 3 | 0x34, AB_INDX);
+	tmp = inl(AB_DATA);
 
-        tmp &= ~mask;
-        tmp |= val;
+	tmp &= ~mask;
+	tmp |= val;
 
-        /* write tmp */
-        outl(space << 30 | space << 3 | 0x30, AB_INDX);
-        outl(axindc, AB_DATA);
-        outl(space << 30 | space << 3 | 0x34, AB_INDX);
-        outl(tmp, AB_DATA);
+	/* write tmp */
+	outl(space << 30 | space << 3 | 0x30, AB_INDX);
+	outl(axindc, AB_DATA);
+	outl(space << 30 | space << 3 | 0x34, AB_INDX);
+	outl(tmp, AB_DATA);
 }
 
 
@@ -92,6 +92,8 @@ static void get_cpu_rev(void)
 		printk(BIOS_INFO, "CPU Rev is K8_G1.\n");
 	else if (eax <= 0x100fa0)
 		printk(BIOS_INFO, "CPU Rev is Fam 10.\n");
+	else if (eax <= 0x600f20)
+		printk(BIOS_INFO, "CPU Rev is Fam 15.\n");
 	else
 		printk(BIOS_INFO, "CPU Rev is not recognized.\n");
 }
@@ -126,20 +128,20 @@ static u8 get_nb_rev(device_t nb_dev)
 *****************************************/
 static const u8 sr5650_ibias[] = {
 	/* 1, 3 are reserved. */
-	[0x0] = 0x44,		/* 200Mhz HyperTransport 1 only */
-	[0x2] = 0x44,		/* 400Mhz HyperTransport 1 only */
-	[0x4] = 0xB6,		/* 600Mhz HyperTransport 1 only */
-	[0x5] = 0x44,		/* 800Mhz HyperTransport 1 only */
-	[0x6] = 0x96,		/* 1Ghz   HyperTransport 1 only */
+	[0x0] = 0x44,		/* 200MHz HyperTransport 1 only */
+	[0x2] = 0x44,		/* 400MHz HyperTransport 1 only */
+	[0x4] = 0xB6,		/* 600MHz HyperTransport 1 only */
+	[0x5] = 0x44,		/* 800MHz HyperTransport 1 only */
+	[0x6] = 0x96,		/* 1GHz   HyperTransport 1 only */
 	/* HT3 for Family 10 */
-	[0x7] = 0xB6,		/* 1.2Ghz HyperTransport 3 only */
-	[0x8] = 0x23,		/* 1.4Ghz HyperTransport 3 only */
-	[0x9] = 0x44,		/* 1.6Ghz HyperTransport 3 only */
-	[0xa] = 0x64,		/* 1.8Ghz HyperTransport 3 only */
-	[0xb] = 0x96,		/* 2.0Ghz HyperTransport 3 only */
-	[0xc] = 0xA6,		/* 2.2Ghz HyperTransport 3 only */
-	[0xd] = 0xB6,		/* 2.4Ghz HyperTransport 3 only */
-	[0xe] = 0xC6,		/* 2.6Ghz HyperTransport 3 only */
+	[0x7] = 0xB6,		/* 1.2GHz HyperTransport 3 only */
+	[0x8] = 0x23,		/* 1.4GHz HyperTransport 3 only */
+	[0x9] = 0x44,		/* 1.6GHz HyperTransport 3 only */
+	[0xa] = 0x64,		/* 1.8GHz HyperTransport 3 only */
+	[0xb] = 0x96,		/* 2.0GHz HyperTransport 3 only */
+	[0xc] = 0xA6,		/* 2.2GHz HyperTransport 3 only */
+	[0xd] = 0xB6,		/* 2.4GHz HyperTransport 3 only */
+	[0xe] = 0xC6,		/* 2.6GHz HyperTransport 3 only */
 };
 
 void sr5650_htinit(void)
@@ -229,11 +231,11 @@ void sr5650_htinit(void)
 		set_htiu_enable_bits(sr5650_f0, 0x2A, 0x3, 0x1);
 		/* Enables error-retry mode */
 		set_nbcfg_enable_bits(sr5650_f0, 0x44, 0x1, 0x1);
-		/* Enables scrambling and Disalbes command throttling */
+		/* Enables scrambling and Disables command throttling */
 		set_nbcfg_enable_bits(sr5650_f0, 0xac, (1 << 3) | (1 << 14), (1 << 3) | (1 << 14));
 		/* Enables transmitter de-emphasis */
 		set_nbcfg_enable_bits(sr5650_f0, 0xa4, 1 << 31, 1 << 31);
-		/* Enabels transmitter de-emphasis level */
+		/* Enables transmitter de-emphasis level */
 		/* Sets training 0 time */
 		set_nbcfg_enable_bits(sr5650_f0, 0xa0, 0x3F, 0x14);
 
@@ -258,7 +260,7 @@ void sr5650_htinit(void)
 		set_fam10_ext_cfg_enable_bits(cpu_f0, 0x168, 1 << 10, 1 << 10);
 
 		/* Sets Training 0 Time. See T0Time table for encodings */
-		/* AGESA have set it to recommanded value already
+		/* AGESA have set it to recommended value already
 		 * The recommended values are 14h(2us) if F0x[18C:170][LS2En]=0
 		 * and 26h(12us) if F0x[18C:170][LS2En]=1
 		 */
@@ -266,6 +268,34 @@ void sr5650_htinit(void)
 
 		/* HT Buffer Allocation for Ganged Links!!! */
 #endif	/* CONFIG_NORTHBRIDGE_AMD_AMDFAM10 || CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY10 */
+	}
+
+}
+
+/* Must be run immediately after HT setup is complete and first warm reset has occurred (if applicable)
+ * Attempting to switch the NB into isochronous mode before the CPUs have engaged isochronous mode
+ * will cause a system hard lockup...
+ */
+void sr5650_htinit_dect_and_enable_isochronous_link(void)
+{
+	device_t sr5650_f0;
+	unsigned char iommu;
+
+	sr5650_f0 = PCI_DEV(0, 0, 0);
+
+	iommu = 1;
+	get_option(&iommu, "iommu");
+
+	if (iommu) {
+		/* Enable isochronous mode */
+		set_nbcfg_enable_bits(sr5650_f0, 0xc8, 1 << 12, 1 << 12);
+
+		/* Apply pending changes */
+		if (!((pci_read_config32(sr5650_f0, 0xc8) >> 12) & 0x1)) {
+			printk(BIOS_INFO, "...WARM RESET...\n\n\n");
+			soft_reset();
+			die("After soft_reset_x - shouldn't see this message!!!\n");
+		}
 	}
 }
 
@@ -297,7 +327,7 @@ void fam10_optimization(void)
 	/* rpr Table 5-11, 5-12 */
 }
 #else
-#define fam10_optimization() do{}while(0)
+#define fam10_optimization() do {} while (0)
 #endif	/* CONFIG_NORTHBRIDGE_AMD_AMDFAM10 || CONFIG_NORTHBRIDGE_AMD_AGESA_FAMILY10 */
 
 /*****************************************
@@ -313,7 +343,7 @@ static void sr5650_por_pcicfg_init(device_t nb_dev)
 	set_nbcfg_enable_bits(nb_dev, 0x20, ~0, 0x0);
 	set_nbcfg_enable_bits(nb_dev, 0x84, ~0, 0x03000010);
 
-	/* Reg4Ch[1]=1 (APIC_ENABLE) force cpu request with address 0xFECx_xxxx to south-bridge
+	/* Reg4Ch[1]=1 (APIC_ENABLE) force CPU request with address 0xFECx_xxxx to south-bridge
 	 * Reg4Ch[6]=1 (BMMsgEn) enable BM_Set message generation
 	 * BMMsgEn */
 	set_nbcfg_enable_bits(nb_dev, 0x4C, (u8)(~0x00), 0x52042);
@@ -331,8 +361,21 @@ static void sr5650_por_pcicfg_init(device_t nb_dev)
 *****************************************/
 static void sr5650_por_misc_index_init(device_t nb_dev)
 {
-	/* disable IOMMU */
-	set_nbmisc_enable_bits(nb_dev, 0x75, 0x1, 0x0);
+	unsigned char iommu;
+
+	iommu = 1;
+	get_option(&iommu, "iommu");
+
+	if (iommu) {
+		/* enable IOMMU */
+		printk(BIOS_DEBUG, "Enabling IOMMU\n");
+		set_nbmisc_enable_bits(nb_dev, 0x75, 0x1, 0x1);
+	} else {
+		/* disable IOMMU */
+		printk(BIOS_DEBUG, "Disabling IOMMU\n");
+		set_nbmisc_enable_bits(nb_dev, 0x75, 0x1, 0x0);
+	}
+
 	/* NBMISCIND:0x75[29]= 1 Device ID for hotplug and PME message */
 	set_nbmisc_enable_bits(nb_dev, 0x75, 1 << 29, 1 << 29);
 	set_nbmisc_enable_bits(nb_dev, 0x75, 1 << 9, 1 << 9); /* no doc reference, comply with BTS */
@@ -367,13 +410,14 @@ static void sr5650_por_misc_index_init(device_t nb_dev)
 	set_nbmisc_enable_bits(nb_dev, 0x01, 0xFFFFFFFF, 0x00000310);
 
 	/* NBCFG (NBMISCIND 0x0): NB_CNTL -
-	 *   HIDE_NB_AGP_CAP  ([0], default=1)HIDE
-	 *   HIDE_P2P_AGP_CAP ([1], default=1)HIDE
-	 *   HIDE_NB_GART_BAR ([2], default=1)HIDE
-	 *   AGPMODE30        ([4], default=0)DISABLE
-	 *   AGP30ENCHANCED   ([5], default=0)DISABLE
-	 *   HIDE_AGP_CAP     ([8], default=1)ENABLE */
-	set_nbmisc_enable_bits(nb_dev, 0x00, 0x0000FFFF, 0 << 0 | 1 << 1 | 1 << 2 | 0 << 6);
+	 *   HIDE_NB_AGP_CAP    ([0], default=1)HIDE
+	 *   HIDE_P2P_AGP_CAP   ([1], default=1)HIDE
+	 *   HIDE_NB_GART_BAR   ([2], default=1)HIDE
+	 *   HIDE_MMCFG_BAR     ([3], default=1)SHOW
+	 *   AGPMODE30          ([4], default=0)DISABLE
+	 *   AGP30ENCHANCED     ([5], default=0)DISABLE
+	 *   HIDE_CLKCFG_HEADER ([8], default=0)SHOW */
+	set_nbmisc_enable_bits(nb_dev, 0x00, 0x0000FFFF, 0 << 0 | 1 << 1 | 1 << 2 | 0 << 3 | 0 << 6 | 0 << 8);
 
 	/* IOC_LAT_PERF_CNTR_CNTL */
 	set_nbmisc_enable_bits(nb_dev, 0x30, 0xFF, 0x00);
@@ -437,7 +481,6 @@ static void sr5650_por_htiu_index_init(device_t nb_dev)
 	set_htiu_enable_bits(nb_dev, 0x1D, 0x1<<2,  0x1<<2);
 	set_htiu_enable_bits(nb_dev, 0x1D, 0x1<<4,  0x1<<4);
 
-	set_nbcfg_enable_bits(cpu_f0, 0x68, 3 << 21, 0 << 21);
 	axindxc_reg(0x10, 1 << 9, 1 << 9);
 	set_pcie_enable_bits(nb_dev, 0x10 | 5 << 16, 1 << 9, 1 << 9);
 	set_htiu_enable_bits(nb_dev, 0x06, 0x1<<26, 0x1<<26);
@@ -504,7 +547,8 @@ void sr5650_early_setup(void)
 	/*ATINB_PrepareInit */
 	get_cpu_rev();
 
-	switch (get_nb_rev(nb_dev)) {	/* PCIEMiscInit */
+	uint8_t revno = get_nb_rev(nb_dev);
+	switch (revno) {	/* PCIEMiscInit */
 	case REV_SR5650_A11:
 		printk(BIOS_INFO, "NB Revision is A11.\n");
 		break;
@@ -513,6 +557,9 @@ void sr5650_early_setup(void)
 		break;
 	case REV_SR5650_A21:
 		printk(BIOS_INFO, "NB Revision is A21.\n");
+		break;
+	default:
+		printk(BIOS_INFO, "NB Revision is %02x (Unrecognized).\n", revno);
 		break;
 	}
 

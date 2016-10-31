@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef NORTHBRIDGE_I5000_RAMINIT_H
@@ -151,7 +146,7 @@
 #define I5000_DMIR3 0x9c
 #define I5000_DMIR4 0xa0
 
-#define DEFAULT_AMBASE 0xfe000000
+#define DEFAULT_AMBASE ((u8 *)0xfe000000)
 
 /* AMB function 1 registers */
 #define AMB_FBDSBCFGNXT 0x54
@@ -281,7 +276,7 @@ struct i5000_fbd_channel {
 struct i5000_fbd_branch {
 	struct i5000_fbd_channel channel[I5000_MAX_CHANNEL];
 	struct i5000_fbd_setup *setup;
-	device_t branchdev;
+	pci_devfn_t branchdev;
 	int num;
 	int used;
 	/* memory size in MB on this branch */

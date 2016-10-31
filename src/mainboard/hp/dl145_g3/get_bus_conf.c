@@ -16,19 +16,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include <console/console.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdk8_sysconf.h>
 
@@ -74,7 +68,7 @@ void get_bus_conf(void)
 	int i;
 	struct mb_sysconf_t *m;
 
-	if(get_bus_conf_done==1) return; //do it only once
+	if(get_bus_conf_done == 1) return; //do it only once
 
 	get_bus_conf_done = 1;
 
@@ -82,9 +76,9 @@ void get_bus_conf(void)
 
 	m = sysconf.mb;
 
-	sysconf.hc_possible_num = sizeof(pci1234x)/sizeof(pci1234x[0]);
+	sysconf.hc_possible_num = ARRAY_SIZE(pci1234x);
 
-	for(i=0;i<sysconf.hc_possible_num; i++) {
+	for(i = 0; i < sysconf.hc_possible_num; i++) {
 		sysconf.pci1234[i] = pci1234x[i];
 		sysconf.hcdn[i] = hcdnx[i];
 	}
@@ -127,11 +121,10 @@ void get_bus_conf(void)
 
 
 /*I/O APICs:   APIC ID Version State	   Address*/
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(3);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
-	for(i=0;i<3;i++)
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(3);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
+	for(i = 0; i < 3; i++)
 		m->apicid_bcm5785[i] = apicid_base+i;
 }

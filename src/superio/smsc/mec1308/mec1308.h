@@ -11,11 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef SUPERIO_SMSC_MEC1308_H
+#define SUPERIO_SMSC_MEC1308_H
 
 #define MEC1308_PM1   1
 #define MEC1308_EC1   2
@@ -25,3 +24,4 @@
 #define MEC1308_EC0   8
 #define MEC1308_MBX   9
 
+#endif /* SUPERIO_SMSC_MEC1308_H */

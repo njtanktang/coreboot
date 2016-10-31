@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 #ifndef _CONSOLE_CBMEM_CONSOLE_H_
 #define _CONSOLE_CBMEM_CONSOLE_H_
@@ -25,14 +21,11 @@
 void cbmemc_init(void);
 void cbmemc_tx_byte(unsigned char data);
 
-#if CONFIG_CONSOLE_CBMEM
-void cbmemc_reinit(void);
-#else
-static inline void cbmemc_reinit(void) {}
-#endif
-
 #define __CBMEM_CONSOLE_ENABLE__	CONFIG_CONSOLE_CBMEM && \
-	((ENV_ROMSTAGE && CONFIG_EARLY_CBMEM_INIT) || ENV_RAMSTAGE)
+	(ENV_RAMSTAGE || ENV_VERSTAGE || ENV_POSTCAR  || \
+		(IS_ENABLED(CONFIG_EARLY_CBMEM_INIT) && \
+		 (ENV_ROMSTAGE || (ENV_BOOTBLOCK && CONFIG_BOOTBLOCK_CONSOLE)))\
+	)
 
 #if __CBMEM_CONSOLE_ENABLE__
 static inline void __cbmemc_init(void)	{ cbmemc_init(); }
@@ -42,4 +35,5 @@ static inline void __cbmemc_init(void)	{}
 static inline void __cbmemc_tx_byte(u8 data)	{}
 #endif
 
+void cbmem_dump_console(void);
 #endif

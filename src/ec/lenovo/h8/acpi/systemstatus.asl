@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 
@@ -27,37 +22,37 @@ Scope (\_SI)
 		If (LEqual (Arg0, 0)) {
 			/* Indicator off */
 
-			/* power LED off */
-			\_SB.PCI0.LPCB.EC.LED(0x00)
-			/* suspend LED off */
-			\_SB.PCI0.LPCB.EC.LED(0x07)
+			/* power TLED off */
+			\_SB.PCI0.LPCB.EC.TLED(0x00)
+			/* suspend TLED off */
+			\_SB.PCI0.LPCB.EC.TLED(0x07)
 		}
 
 		If (LEqual (Arg0, 1)) {
 			/* working state */
 
-			/* power LED on */
-			\_SB.PCI0.LPCB.EC.LED(0x80)
-			/* suspend LED off */
-			\_SB.PCI0.LPCB.EC.LED(0x07)
+			/* power TLED on */
+			\_SB.PCI0.LPCB.EC.TLED(0x80)
+			/* suspend TLED off */
+			\_SB.PCI0.LPCB.EC.TLED(0x07)
 		}
 
 		If (LEqual (Arg0, 2)) {
 			/* waking state */
 
-			/* power LED om */
-			\_SB.PCI0.LPCB.EC.LED(0x80)
+			/* power LED on */
+			\_SB.PCI0.LPCB.EC.TLED(0x80)
 			/* suspend LED blinking */
-			\_SB.PCI0.LPCB.EC.LED(0xc7)
+			\_SB.PCI0.LPCB.EC.TLED(0xc7)
 		}
 
 		If (LEqual (Arg0, 3)) {
 			/* sleep state */
 
-			/* power LED off */
-			\_SB.PCI0.LPCB.EC.LED(0x00)
-			/* suspend LED on */
-			\_SB.PCI0.LPCB.EC.LED(0x87)
+			/* power TLED off */
+			\_SB.PCI0.LPCB.EC.TLED(0x00)
+			/* suspend TLED on */
+			\_SB.PCI0.LPCB.EC.TLED(0x87)
 		}
 	}
 }

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -27,7 +23,7 @@
 #include <stdlib.h>
 #include "wpcm450.h"
 
-static void init(device_t dev)
+static void init(struct device *dev)
 {
 
 	if (!dev->enabled)
@@ -35,7 +31,7 @@ static void init(device_t dev)
 
 	switch(dev->path.pnp.device) {
 	case WPCM450_KBCK:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }
@@ -60,6 +56,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_nuvoton_wpcm450_ops = {
-	CHIP_NAME("NUVOTON WPCM450 Super I/O")
+	CHIP_NAME("Nuvoton WPCM450 Super I/O")
 	.enable_dev = enable_dev,
 };

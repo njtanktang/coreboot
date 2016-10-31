@@ -13,14 +13,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_FSP_BD82X6X_PCH_H
 #define SOUTHBRIDGE_INTEL_FSP_BD82X6X_PCH_H
+
+#include <arch/acpi.h>
 
 /* PCH types */
 #define PCH_TYPE_CPT	0x1c /* CougarPoint */
@@ -48,7 +46,11 @@
 #define DEFAULT_GPIOBASE	0x0480
 #define DEFAULT_PMBASE		0x0400
 
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
+#endif
 
 #ifndef __ACPI__
 #define DEBUG_PERIODIC_SMIS 0
@@ -471,13 +473,6 @@ void display_fd_settings(void);
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
-#define    SLP_TYP_S0	0
-#define    SLP_TYP_S1	1
-#define    SLP_TYP_S3	5
-#define    SLP_TYP_S4	6
-#define    SLP_TYP_S5	7
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)
@@ -582,4 +577,4 @@ void display_fd_settings(void);
 #define SPIBAR_FDATA(n)             (0x3810 + (4 * n)) /* SPI flash data */
 
 #endif /* __ACPI__ */
-#endif				/* SOUTHBRIDGE_INTEL_BD82X6X_PCH_H */
+#endif /* SOUTHBRIDGE_INTEL_FSP_BD82X6X_PCH_H */

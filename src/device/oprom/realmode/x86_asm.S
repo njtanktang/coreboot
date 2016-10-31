@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
 #define REALMODE_BASE		0x600
@@ -147,7 +143,7 @@ __realmode_call:
 	mov	%ax, %ds
 	lidt	__realmode_idt
 
-	/* initialize registers for option rom lcall */
+	/* initialize registers for option ROM lcall */
 	movl	__registers +  0, %eax
 	movl	__registers +  4, %ebx
 	movl	__registers +  8, %ecx

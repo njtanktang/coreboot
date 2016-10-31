@@ -22,11 +22,11 @@ struct msrinit {
 
 /*  Master Configuration Register for Bus Masters. */
 static struct msrinit SB_MASTER_CONF_TABLE[] = {
-	{ USB1_SB_GLD_MSR_CONF,	{.hi=0,.lo=0x00008f000} },	/*  NOTE: Must be 1st entry in table */
-	{ USB2_SB_GLD_MSR_CONF,	{.hi=0,.lo=0x00008f000} },
-	{ ATA_SB_GLD_MSR_CONF,	{.hi=0,.lo=0x00048f000} },
-	{ AC97_SB_GLD_MSR_CONF,	{.hi=0,.lo=0x00008f000} },
-	{ MDD_SB_GLD_MSR_CONF,	{.hi=0,.lo=0x00000f000} },
+	{ USB1_SB_GLD_MSR_CONF,	{.hi = 0,.lo = 0x00008f000} },	/*  NOTE: Must be 1st entry in table */
+	{ USB2_SB_GLD_MSR_CONF,	{.hi = 0,.lo = 0x00008f000} },
+	{ ATA_SB_GLD_MSR_CONF,	{.hi = 0,.lo = 0x00048f000} },
+	{ AC97_SB_GLD_MSR_CONF,	{.hi = 0,.lo = 0x00008f000} },
+	{ MDD_SB_GLD_MSR_CONF,	{.hi = 0,.lo = 0x00000f000} },
 /* GLPCI_SB_GLD_MSR_CONF,	0x0FFFFFFFF*/
 /* GLCP_SB_GLD_MSR_CONF,	0x0FFFFFFFF*/
 /* GLIU_SB_GLD_MSR_CONF,	0x0*/
@@ -35,15 +35,15 @@ static struct msrinit SB_MASTER_CONF_TABLE[] = {
 
 /*  5535_A3 Clock Gating*/
 static struct msrinit CS5535_CLOCK_GATING_TABLE[] = {
-	{ USB1_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000005} },
-	{ USB2_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000005} },
-	{ GLIU_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000004} },
-	{ GLPCI_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000005} },
-	{ GLCP_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000004} },
-	{ MDD_SB_GLD_MSR_PM,	{.hi=0, .lo=0x050554111} },
-	{ ATA_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000005} },
-	{ AC97_SB_GLD_MSR_PM,	{.hi=0, .lo=0x000000005} },
-	{ 0,			{.hi=0, .lo=0x000000000} }
+	{ USB1_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000005} },
+	{ USB2_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000005} },
+	{ GLIU_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000004} },
+	{ GLPCI_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000005} },
+	{ GLCP_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000004} },
+	{ MDD_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x050554111} },
+	{ ATA_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000005} },
+	{ AC97_SB_GLD_MSR_PM,	{.hi = 0, .lo = 0x000000005} },
+	{ 0,			{.hi = 0, .lo = 0x000000000} }
 };
 
 #ifdef UNUSED_CODE
@@ -116,7 +116,7 @@ static void pmChipsetInit(void)
 	/* GPIO24 is setup in preChipsetInit for two reasons
 	 * 1. GPIO24 at reset defaults to disabled, since this signal is
 	 *    vsb_work_aux on Hawk it controls the FET's for all voltage
-	 *    rails except Vstanby & Vmem.  BIOS needs to enable GPIO24 as
+	 *    rails except Vstandby & Vmem.  BIOS needs to enable GPIO24 as
 	 *    OUT_AUX1 & OUTPUT_EN early so it is driven by 5535.
 	 * 2. Non-PM builds will require GPIO24 enabled for instant-off power
 	 *    button
@@ -127,7 +127,7 @@ static void pmChipsetInit(void)
 	 * On Hawk, GPIO11 is connected to control input of external clock
 	 * generator for 14MHz, PCI, USB & LPC clocks.
 	 * Programming of GPIO11 will be done by VSA PM code.  During VSA
-	 * Init. BIOS writes PM Core Virual Register indicating if S1 Clocks
+	 * Init. BIOS writes PM Core Virtual Register indicating if S1 Clocks
 	 * should be On or Off. This is based on a Setup item.  We do not want
 	 * to leave GPIO11 enabled because of a Hawk board problem.  With
 	 * GPIO11 enabled in S3, something is back-driving GPIO11 causing it
@@ -310,7 +310,7 @@ chipsetinit(void)
 	outl	(GPIOL_2_SET, GPIOL_IN_AUX1_SELECT);
 
 	/*  Allow IO read and writes during a ATA DMA operation. */
-	/*   This could be done in the HD rom but do it here for easier debugging. */
+	/*   This could be done in the HD ROM but do it here for easier debugging. */
 
 	msrnum = ATA_SB_GLD_MSR_ERR;
 	msr = rdmsr(msrnum);
@@ -328,7 +328,7 @@ chipsetinit(void)
 	i = 0;
 
 	csi = &SB_MASTER_CONF_TABLE[i];
-	for(; csi->msrnum; csi++){
+	for (; csi->msrnum; csi++){
 		msr.lo = csi->msr.lo;
 		msr.hi = csi->msr.hi;
 		wrmsr(csi->msrnum, msr); // MSR - see table above
@@ -347,11 +347,10 @@ chipsetinit(void)
 	{
 		csi = CS5535_CLOCK_GATING_TABLE;
 
-		for(; csi->msrnum; csi++){
+		for (; csi->msrnum; csi++){
 			msr.lo = csi->msr.lo;
 			msr.hi = csi->msr.hi;
 			wrmsr(csi->msrnum, msr);	// MSR - see table above
 		}
 	}
 }
-

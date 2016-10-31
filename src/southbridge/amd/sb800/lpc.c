@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,8 +21,11 @@
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <pc80/mc146818rtc.h>
+#include <pc80/i8254.h>
+#include <pc80/i8259.h>
 #include <pc80/isa-dma.h>
 #include <arch/io.h>
+#include <arch/acpi.h>
 #include "sb800.h"
 
 static void lpc_init(device_t dev)
@@ -61,13 +61,16 @@ static void lpc_init(device_t dev)
 				   interrupt and visit LPC. */
 	pci_write_config8(dev, 0x78, byte);
 
-	/* bit0: Enable prefetch a cacheline (64 bytes) when Host reads code from SPI rom */
+	/* bit0: Enable prefetch a cacheline (64 bytes) when Host reads code from SPI ROM */
 	/* bit3: Fix SPI_CS# timing issue when running at 66M. TODO:A12. */
 	byte = pci_read_config8(dev, 0xBB);
 	byte |= 1 << 0 | 1 << 3;
 	pci_write_config8(dev, 0xBB, byte);
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
+
+	setup_i8259(); /* Initialize i8259 pic */
+	setup_i8254(); /* Initialize i8254 timers */
 }
 
 static void sb800_lpc_read_resources(device_t dev)
@@ -106,7 +109,7 @@ static void sb800_lpc_set_resources(struct device *dev)
 
 	pci_dev_set_resources(dev);
 
-	/* Specical case. SPI Base Address. The SpiRomEnable should be set. */
+	/* Special case. SPI Base Address. The SpiRomEnable should be set. */
 	res = find_resource(dev, 0xA0);
 	pci_write_config32(dev, 0xA0, res->base | 1 << 1);
 
@@ -115,7 +118,7 @@ static void sb800_lpc_set_resources(struct device *dev)
 /**
  * @brief Enable resources for children devices
  *
- * @param dev the device whos children's resources are to be enabled
+ * @param dev the device whose children's resources are to be enabled
  *
  */
 static void sb800_lpc_enable_childrens_resources(device_t dev)
@@ -243,8 +246,11 @@ static struct device_operations lpc_ops = {
 	.read_resources = sb800_lpc_read_resources,
 	.set_resources = sb800_lpc_set_resources,
 	.enable_resources = sb800_lpc_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 	.ops_pci = &lops_pci,
 };
 static const struct pci_driver lpc_driver __pci_driver = {

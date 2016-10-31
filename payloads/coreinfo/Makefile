@@ -13,20 +13,23 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
-src := $(shell pwd)
+src := $(CURDIR)
 srctree := $(src)
-srck := $(src)/util/kconfig
-obj := $(src)/build
+srck := $(src)/../../util/kconfig
+coreinfo_obj := $(src)/build
 objk := $(src)/build/util/kconfig
 
 export KERNELVERSION      := 0.1.0
-export KCONFIG_AUTOHEADER := $(obj)/config.h
-export KCONFIG_AUTOCONFIG := $(obj)/auto.conf
+export KCONFIG_AUTOHEADER := $(coreinfo_obj)/config.h
+export KCONFIG_AUTOCONFIG := $(coreinfo_obj)/auto.conf
+export KCONFIG_DEPENDENCIES := $(coreinfo_obj)/auto.conf.cmd
+export KCONFIG_SPLITCONFIG := $(coreinfo_obj)/config
+export KCONFIG_TRISTATE := $(coreinfo_obj)/tristate.conf
+export KCONFIG_CONFIG := $(CURDIR)/.config
+export KCONFIG_NEGATIVES := 1
+export Kconfig := Kconfig
+
 export V := $(V)
 
 CONFIG_SHELL := sh
@@ -37,7 +40,7 @@ MAKEFLAGS += -rR --no-print-directory
 
 # Make is silent per default, but 'make V=1' will show all compiler calls.
 ifneq ($(V),1)
-Q := @
+.SILENT:
 endif
 
 HOSTCC ?= gcc
@@ -45,67 +48,93 @@ HOSTCXX ?= g++
 HOSTCFLAGS := -I$(srck) -I$(objk)
 HOSTCXXFLAGS := -I$(srck) -I$(objk)
 
-LIBCONFIG_PATH := ../libpayload
-LIBPAYLOAD_DIR := ./libpayloadbin
-LPCC := $(LIBPAYLOAD_DIR)/libpayload/bin/lpgcc
-LPAS := $(LIBPAYLOAD_DIR)/libpayload/bin/lpas
-HAVE_LIBPAYLOAD := $(wildcard $(LIBPAYLOAD_DIR)/libpayload/lib/libpayload.a)
-LIB_CONFIG ?= defconfig
+LIBPAYLOAD_PATH := $(realpath ../libpayload)
+LIBPAYLOAD_OBJ := $(coreinfo_obj)/libpayload
+HAVE_LIBPAYLOAD := $(wildcard $(LIBPAYLOAD_OBJ)/lib/libpayload.a)
+LIBPAYLOAD_CONFIG ?= configs/defconfig-tinycurses
 OBJCOPY ?= objcopy
 
-INCLUDES = -I$(obj)
-CFLAGS := -Wall -Werror -Os $(INCLUDES)
+INCLUDES = -I$(coreinfo_obj) -include $(LIBPAYLOAD_OBJ)/include/kconfig.h -I$(src)/../../src/commonlib/include
 OBJECTS = cpuinfo_module.o cpuid.S.o pci_module.o coreboot_module.o \
-	  nvram_module.o bootlog_module.o ramdump_module.o lar_module.o \
-	  multiboot_module.o cbfs_module.o coreinfo.o
-OBJS    = $(patsubst %,$(obj)/%,$(OBJECTS))
-TARGET  = $(obj)/coreinfo.elf
+	  nvram_module.o bootlog_module.o ramdump_module.o \
+	  multiboot_module.o cbfs_module.o timestamps_module.o coreinfo.o
+OBJS    = $(patsubst %,$(coreinfo_obj)/%,$(OBJECTS))
+TARGET  = $(coreinfo_obj)/coreinfo.elf
+
+all: real-all
+
+# in addition to the dependency below, create the file if it doesn't exist
+# to silence warnings about a file that would be generated anyway.
+$(if $(wildcard .xcompile),,$(eval $(shell ../../util/xcompile/xcompile $(XGCCPATH) > .xcompile || rm -f .xcompile)))
+.xcompile: ../../util/xcompile/xcompile
+	$< $(XGCCPATH) > $@.tmp
+	\mv -f $@.tmp $@ 2> /dev/null || rm -f $@.tmp $@
+
+CONFIG_COMPILER_GCC := y
+ARCH-y     := x86_32
+
+include .xcompile
+
+CC := $(CC_$(ARCH-y))
+AS := $(AS_$(ARCH-y))
+OBJCOPY := $(OBJCOPY_$(ARCH-y))
+
+LPCC := CC="$(CC)" $(LIBPAYLOAD_OBJ)/bin/lpgcc
+LPAS := AS="$(AS)" $(LIBPAYLOAD_OBJ)/bin/lpas
+
+CFLAGS += -Wall -Werror -Os -fno-builtin $(CFLAGS_$(ARCH-y)) $(INCLUDES)
 
 ifneq ($(strip $(HAVE_DOTCONFIG)),)
 include $(src)/.config
-all: $(TARGET)
+real-all: $(TARGET)
 
-$(TARGET): $(src)/.config $(OBJS) prepare libpayload
-	$(Q)printf "  LPCC      $(subst $(shell pwd)/,,$(@))\n"
-	$(Q)$(LPCC) -o $@ $(OBJS)
-	$(Q)$(OBJCOPY) --only-keep-debug $@ $(TARGET).debug
-	$(Q)$(OBJCOPY) --strip-debug $@
-	$(Q)$(OBJCOPY) --add-gnu-debuglink=$(TARGET).debug $@
+$(TARGET): $(src)/.config $(coreinfo_obj)/config.h $(OBJS) libpayload
+	printf "    LPCC       $(subst $(CURDIR)/,,$(@)) (LINK)\n"
+	$(LPCC) -o $@ $(OBJS)
+	$(OBJCOPY) --only-keep-debug $@ $(TARGET).debug
+	$(OBJCOPY) --strip-debug $@
+	$(OBJCOPY) --add-gnu-debuglink=$(TARGET).debug $@
 
-$(obj)/%.S.o: $(src)/%.S libpayload
-	$(Q)printf "  LPAS      $(subst $(shell pwd)/,,$(@))\n"
-	$(Q)$(LPAS) -o $@ $<
+$(coreinfo_obj)/%.S.o: $(src)/%.S libpayload
+	printf "    LPAS       $(subst $(CURDIR)/,,$(@))\n"
+	$(LPAS) -o $@ $<
 
-$(obj)/%.o: $(src)/%.c libpayload
-	$(Q)printf "  LPCC      $(subst $(shell pwd)/,,$(@))\n"
-	$(Q)$(LPCC) $(CFLAGS) -c -o $@ $<
+$(coreinfo_obj)/%.o: $(src)/%.c libpayload
+	printf "    LPCC       $(subst $(CURDIR)/,,$(@))\n"
+	$(LPCC) $(CFLAGS) -c -o $@ $<
 
 else
-all: config
+real-all: config
 endif
+
+defaultbuild:
+	$(MAKE) olddefconfig
+	$(MAKE) all
 
 ifneq ($(strip $(HAVE_LIBPAYLOAD)),)
 libpayload:
-	$(Q)printf "Found Libpayload $(LIBPAYLOAD_DIR).\n"
+	printf "Found Libpayload $(LIBPAYLOAD_OBJ).\n"
 else
+LPOPTS=obj="$(CURDIR)/lpbuild" DOTCONFIG="$(CURDIR)/lp.config"
 libpayload:
-	$(Q)printf "Building libpayload @ $(LIBCONFIG_PATH).\n"
-	$(Q)make -C $(LIBCONFIG_PATH) distclean
-	$(Q)make -C $(LIBCONFIG_PATH) $(LIB_CONFIG)
-	$(Q)make -C $(LIBCONFIG_PATH) DESTDIR=$(shell pwd)/$(LIBPAYLOAD_DIR) install
+	printf "Building libpayload @ $(LIBPAYLOAD_PATH).\n"
+	$(MAKE) -C $(LIBPAYLOAD_PATH) $(LPOPTS) distclean coreinfo_obj=$(coreinfo_obj)/libptmp
+	$(MAKE) -C $(LIBPAYLOAD_PATH) $(LPOPTS) defconfig KBUILD_DEFCONFIG=$(LIBPAYLOAD_CONFIG)
+	$(MAKE) -C $(LIBPAYLOAD_PATH) $(LPOPTS) install DESTDIR=$(coreinfo_obj)
 endif
 
-prepare:
-	$(Q)mkdir -p $(obj)/util/kconfig/lxdialog
+$(coreinfo_obj)/config.h:
+	$(MAKE) oldconfig
+
+$(shell mkdir -p $(coreinfo_obj) $(objk)/lxdialog $(KCONFIG_SPLITCONFIG))
 
 clean:
-	$(Q)rm -rf build/*.elf build/*.o
+	rm -rf build/*.elf build/*.o .xcompile
 
 distclean: clean
-	$(Q)rm -rf build
-	$(Q)rm -f .config .config.old ..config.tmp .kconfig.d .tmpconfig*
+	rm -rf build lpbuild
+	rm -f .config* lp.config*
 
-include util/kconfig/Makefile
+include $(srck)/Makefile
 
 .PHONY: $(PHONY) prepare clean distclean
-

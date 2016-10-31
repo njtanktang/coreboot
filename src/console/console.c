@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/cbmem_console.h>
@@ -24,6 +20,7 @@
 #include <console/streams.h>
 #include <console/uart.h>
 #include <console/usb.h>
+#include <console/spi.h>
 #include <rules.h>
 
 void console_hw_init(void)
@@ -35,6 +32,7 @@ void console_hw_init(void)
 	__uart_init();
 	__ne2k_init();
 	__usbdebug_init();
+	__spiconsole_init();
 }
 
 void console_tx_byte(unsigned char byte)
@@ -43,9 +41,18 @@ void console_tx_byte(unsigned char byte)
 	__spkmodem_tx_byte(byte);
 	__qemu_debugcon_tx_byte(byte);
 
+	/* Some consoles want newline conversion
+	 * to keep terminals happy.
+	 */
+	if (byte == '\n') {
+		__uart_tx_byte('\r');
+		__usb_tx_byte('\r');
+	}
+
 	__uart_tx_byte(byte);
 	__ne2k_tx_byte(byte);
 	__usb_tx_byte(byte);
+	__spiconsole_tx_byte(byte);
 }
 
 void console_tx_flush(void)
@@ -53,6 +60,19 @@ void console_tx_flush(void)
 	__uart_tx_flush();
 	__ne2k_tx_flush();
 	__usb_tx_flush();
+}
+
+void console_write_line(uint8_t *buffer, size_t number_of_bytes)
+{
+	/* Finish displaying all of the console data if requested */
+	if (number_of_bytes == 0) {
+		console_tx_flush();
+		return;
+	}
+
+	/* Output the console data */
+	while (number_of_bytes--)
+		console_tx_byte(*buffer++);
 }
 
 

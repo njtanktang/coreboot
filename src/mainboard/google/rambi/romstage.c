@@ -11,19 +11,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <string.h>
 #include <cbfs.h>
 #include <console/console.h>
-#include <baytrail/gpio.h>
-#include <baytrail/mrc_wrapper.h>
-#include <baytrail/romstage.h>
+#include <soc/gpio.h>
+#include <soc/mrc_wrapper.h>
+#include <soc/romstage.h>
 
 /*
  * RAM_ID[2:0] are on GPIO_SSUS[39:37]
@@ -42,12 +38,6 @@ static const uint32_t dual_channel_config =
 #define GPIO_SSUS_38_PAD 50
 #define GPIO_SSUS_39_PAD 58
 
-static inline void disable_internal_pull(int pad)
-{
-	const int pull_mask = ~(0xf << 7);
-	write32(ssus_pconf0(pad), read32(ssus_pconf0(pad)) & pull_mask);
-}
-
 static void *get_spd_pointer(char *spd_file_content, int total_spds, int *dual)
 {
 	int ram_id = 0;
@@ -55,9 +45,9 @@ static void *get_spd_pointer(char *spd_file_content, int total_spds, int *dual)
 	/* The ram_id[2:0] pullups on rambi are too large for the default 20K
 	 * pulldown on the pad. Therefore, disable the internal pull resistor to
 	 * read high values correctly. */
-	disable_internal_pull(GPIO_SSUS_37_PAD);
-	disable_internal_pull(GPIO_SSUS_38_PAD);
-	disable_internal_pull(GPIO_SSUS_39_PAD);
+	ssus_disable_internal_pull(GPIO_SSUS_37_PAD);
+	ssus_disable_internal_pull(GPIO_SSUS_38_PAD);
+	ssus_disable_internal_pull(GPIO_SSUS_39_PAD);
 
 	ram_id |= (ssus_get_gpio(GPIO_SSUS_37_PAD) << 0);
 	ram_id |= (ssus_get_gpio(GPIO_SSUS_38_PAD) << 1);
@@ -77,23 +67,25 @@ static void *get_spd_pointer(char *spd_file_content, int total_spds, int *dual)
 
 void mainboard_romstage_entry(struct romstage_params *rp)
 {
-	struct cbfs_file *spd_file;
 	void *spd_content;
 	int dual_channel = 0;
+	void *spd_file;
+	size_t spd_fsize;
 
 	struct mrc_params mp = {
 		.mainboard = {
 			.dram_type = DRAM_DDR3L,
 			.dram_info_location = DRAM_INFO_SPD_MEM,
+			.weaker_odt_settings = 1,
 		},
 	};
 
-	spd_file = cbfs_get_file(CBFS_DEFAULT_MEDIA, "spd.bin");
+	spd_file = cbfs_boot_map_with_leak("spd.bin", CBFS_TYPE_SPD,
+						&spd_fsize);
 	if (!spd_file)
 		die("SPD data not found.");
 
-	spd_content = get_spd_pointer(CBFS_SUBHEADER(spd_file),
-	                              ntohl(spd_file->len) / SPD_SIZE,
+	spd_content = get_spd_pointer(spd_file, spd_fsize / SPD_SIZE,
 	                              &dual_channel);
 	mp.mainboard.dram_data[0] = spd_content;
 	if (dual_channel)

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -122,7 +117,7 @@ static void set_c7_speed(int model) {
 		}
 		break;
 	default:
-		print_info("CPU type not known, multiplier unchanged.\n");
+		printk(BIOS_INFO, "CPU type not known, multiplier unchanged.\n");
 	}
 
 	msr.lo = new;
@@ -147,7 +142,7 @@ static void set_c7_speed(int model) {
 	printk(BIOS_INFO, "Current CPU multiplier: %dx\n", (int)((msr.lo >> 8) & 0xff));
 }
 
-static void c7_init(device_t dev)
+static void c7_init(struct device *dev)
 {
 	u8 brand;
 	struct cpuinfo_x86 c;
@@ -205,7 +200,7 @@ static void c7_init(device_t dev)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 };
 
@@ -214,7 +209,7 @@ static struct device_operations cpu_dev_ops = {
 };
 
 /* Look in arch/x86/lib/cpu.c:cpu_initialize. If there is no CPU with an exact
- * ID, the cpu mask (stepping) is masked out and the check is repeated. This
+ * ID, the CPU mask (stepping) is masked out and the check is repeated. This
  * allows us to keep the table significantly smaller.
  */
 

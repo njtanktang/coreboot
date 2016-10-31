@@ -12,10 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
- *
  */
 
 /* This code is based on src/northbridge/intel/e7520/northbridge.c */
@@ -33,6 +29,7 @@
 #include <cpu/cpu.h>
 #include "chip.h"
 #include "i3100.h"
+#include <arch/acpi.h>
 
 
 static u32 max_bus;
@@ -43,13 +40,13 @@ static void pci_domain_set_resources(device_t dev)
 	device_t mc_dev;
 	u32 pci_tolm;
 
-        pci_tolm = find_pci_tolm(dev->link_list);
+	pci_tolm = find_pci_tolm(dev->link_list);
 
 #if 1
 	printk(BIOS_DEBUG, "PCI mem marker = %x\n", pci_tolm);
 #endif
 	/* FIXME Me temporary hack */
-	if(pci_tolm > 0xe0000000)
+	if (pci_tolm > 0xe0000000)
 		pci_tolm = 0xe0000000;
 	/* Ensure pci_tolm is 128M aligned */
 	pci_tolm &= 0xf8000000;
@@ -96,7 +93,7 @@ static void pci_domain_set_resources(device_t dev)
 			/* Find the offset of the remap window from tolm */
 			remapoffsetk = remapbasek - tolmk;
 		}
-		/* Write the ram configruation registers,
+		/* Write the RAM configruation registers,
 		 * preserving the reserved bits.
 		 */
 		tolm_r = pci_read_config16(mc_dev, 0xc4);
@@ -131,18 +128,12 @@ static void pci_domain_set_resources(device_t dev)
 	assign_resources(dev->link_list);
 }
 
-static u32 i3100_domain_scan_bus(device_t dev, u32 max)
-{
-	max_bus = pci_domain_scan_bus(dev, max);
-	return max_bus;
-}
-
 static struct device_operations pci_domain_ops = {
 	.read_resources   = pci_domain_read_resources,
 	.set_resources    = pci_domain_set_resources,
 	.enable_resources = NULL,
 	.init             = NULL,
-	.scan_bus         = i3100_domain_scan_bus,
+	.scan_bus         = pci_domain_scan_bus,
 	.ops_pci_bus      = pci_bus_default_ops,
 };
 
@@ -175,6 +166,30 @@ static void intel_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 		((device & 0xffff) << 16) | (vendor & 0xffff));
 }
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	device_t dev;
+	u64 mmcfg;
+
+	dev = dev_find_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_3100_MC, 0);	// 0:0x13.0
+	if (!dev)
+		return current;
+
+	// MMCFG not supported or not enabled.
+	mmcfg = ((u64) pci_read_config16(dev, 0xce)) << 16;
+	if (!mmcfg)
+		return current;
+
+	current += acpi_create_mcfg_mmconfig((acpi_mcfg_mmconfig_t *) current,
+			mmcfg, 0x0, 0x0, 0xff);
+
+	return current;
+}
+
+#endif
+
 static struct pci_operations intel_pci_ops = {
 	.set_subsystem = intel_set_subsystem,
 };
@@ -196,19 +211,15 @@ static const struct pci_driver mc_driver __pci_driver = {
 
 static void cpu_bus_init(device_t dev)
 {
-        initialize_cpus(dev->link_list);
-}
-
-static void cpu_bus_noop(device_t dev)
-{
+	initialize_cpus(dev->link_list);
 }
 
 static struct device_operations cpu_bus_ops = {
-        .read_resources   = cpu_bus_noop,
-        .set_resources    = cpu_bus_noop,
-        .enable_resources = cpu_bus_noop,
-        .init             = cpu_bus_init,
-        .scan_bus         = 0,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
+	.init             = cpu_bus_init,
+	.scan_bus         = 0,
 };
 
 

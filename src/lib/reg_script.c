@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -30,8 +26,11 @@
 #include <cpu/x86/msr.h>
 #endif
 
-#if CONFIG_SOC_INTEL_BAYTRAIL
-#include <baytrail/iosf.h>
+#define HAS_IOSF (IS_ENABLED(CONFIG_SOC_INTEL_BAYTRAIL) || \
+		IS_ENABLED(CONFIG_SOC_INTEL_FSP_BAYTRAIL))
+
+#if HAS_IOSF
+#include <soc/iosf.h>	/* TODO: wrap in <soc/reg_script.h, remove #ifdef? */
 #endif
 
 #define POLL_DELAY 100 /* 100us */
@@ -40,12 +39,6 @@
 #else
 #define EMPTY_DEV NULL
 #endif
-
-struct reg_script_context {
-	device_t dev;
-	struct resource *res;
-	const struct reg_script *step;
-};
 
 static inline void reg_script_set_dev(struct reg_script_context *ctx,
                                       device_t dev)
@@ -155,11 +148,11 @@ static uint32_t reg_script_read_mmio(struct reg_script_context *ctx)
 
 	switch (step->size) {
 	case REG_SCRIPT_SIZE_8:
-		return read8(step->reg);
+		return read8((u8 *)step->reg);
 	case REG_SCRIPT_SIZE_16:
-		return read16(step->reg);
+		return read16((u16 *)step->reg);
 	case REG_SCRIPT_SIZE_32:
-		return read32(step->reg);
+		return read32((u32 *)step->reg);
 	}
 	return 0;
 }
@@ -170,13 +163,13 @@ static void reg_script_write_mmio(struct reg_script_context *ctx)
 
 	switch (step->size) {
 	case REG_SCRIPT_SIZE_8:
-		write8(step->reg, step->value);
+		write8((u8 *)step->reg, step->value);
 		break;
 	case REG_SCRIPT_SIZE_16:
-		write16(step->reg, step->value);
+		write16((u16 *)step->reg, step->value);
 		break;
 	case REG_SCRIPT_SIZE_32:
-		write32(step->reg, step->value);
+		write32((u32 *)step->reg, step->value);
 		break;
 	}
 }
@@ -243,9 +236,9 @@ static void reg_script_write_res(struct reg_script_context *ctx)
 	reg_script_set_step(ctx, step);
 }
 
+#if HAS_IOSF
 static uint32_t reg_script_read_iosf(struct reg_script_context *ctx)
 {
-#if CONFIG_SOC_INTEL_BAYTRAIL
 	const struct reg_script *step = reg_script_get_step(ctx);
 
 	switch (step->id) {
@@ -296,13 +289,11 @@ static uint32_t reg_script_read_iosf(struct reg_script_context *ctx)
 		       step->id);
 		break;
 	}
-#endif
 	return 0;
 }
 
 static void reg_script_write_iosf(struct reg_script_context *ctx)
 {
-#if CONFIG_SOC_INTEL_BAYTRAIL
 	const struct reg_script *step = reg_script_get_step(ctx);
 
 	switch (step->id) {
@@ -374,8 +365,9 @@ static void reg_script_write_iosf(struct reg_script_context *ctx)
 		       step->id);
 		break;
 	}
-#endif
 }
+#endif /* HAS_IOSF */
+
 
 static uint64_t reg_script_read_msr(struct reg_script_context *ctx)
 {
@@ -401,25 +393,106 @@ static void reg_script_write_msr(struct reg_script_context *ctx)
 #endif
 }
 
+/* Locate the structure containing the platform specific bus access routines */
+static const struct reg_script_bus_entry
+	*find_bus(const struct reg_script *step)
+{
+	extern const struct reg_script_bus_entry *_rsbe_init_begin[];
+	extern const struct reg_script_bus_entry *_ersbe_init_begin[];
+	const struct reg_script_bus_entry * const * bus;
+	size_t table_entries;
+	size_t i;
+
+	/* Locate the platform specific bus */
+	bus = _rsbe_init_begin;
+	table_entries = &_ersbe_init_begin[0] - &_rsbe_init_begin[0];
+	for (i = 0; i < table_entries; i++) {
+		if (bus[i]->type == step->type)
+			return bus[i];
+	}
+
+	/* Bus not found */
+	return NULL;
+}
+
+static void reg_script_display(struct reg_script_context *ctx,
+	const struct reg_script *step, const char *arrow, uint64_t value)
+{
+	/* Display the register address and data */
+	if (ctx->display_prefix != NULL)
+		printk(BIOS_INFO, "%s: ", ctx->display_prefix);
+	if (ctx->display_features & REG_SCRIPT_DISPLAY_REGISTER)
+		printk(BIOS_INFO, "0x%08x %s ", step->reg, arrow);
+	if (ctx->display_features & REG_SCRIPT_DISPLAY_VALUE)
+		switch (step->size) {
+		case REG_SCRIPT_SIZE_8:
+			printk(BIOS_INFO, "0x%02x\n", (uint8_t)value);
+			break;
+		case REG_SCRIPT_SIZE_16:
+			printk(BIOS_INFO, "0x%04x\n", (int16_t)value);
+			break;
+		case REG_SCRIPT_SIZE_32:
+			printk(BIOS_INFO, "0x%08x\n", (uint32_t)value);
+			break;
+		default:
+			printk(BIOS_INFO, "0x%016llx\n", value);
+			break;
+		}
+}
+
 static uint64_t reg_script_read(struct reg_script_context *ctx)
 {
 	const struct reg_script *step = reg_script_get_step(ctx);
+	uint64_t value = 0;
 
 	switch (step->type) {
 	case REG_SCRIPT_TYPE_PCI:
-		return reg_script_read_pci(ctx);
+		ctx->display_prefix = "PCI";
+		value = reg_script_read_pci(ctx);
+		break;
 	case REG_SCRIPT_TYPE_IO:
-		return reg_script_read_io(ctx);
+		ctx->display_prefix = "IO";
+		value = reg_script_read_io(ctx);
+		break;
 	case REG_SCRIPT_TYPE_MMIO:
-		return reg_script_read_mmio(ctx);
+		ctx->display_prefix = "MMIO";
+		value = reg_script_read_mmio(ctx);
+		break;
 	case REG_SCRIPT_TYPE_RES:
-		return reg_script_read_res(ctx);
-	case REG_SCRIPT_TYPE_IOSF:
-		return reg_script_read_iosf(ctx);
+		ctx->display_prefix = "RES";
+		value = reg_script_read_res(ctx);
+		break;
 	case REG_SCRIPT_TYPE_MSR:
-		return reg_script_read_msr(ctx);
+		ctx->display_prefix = "MSR";
+		value = reg_script_read_msr(ctx);
+		break;
+#if HAS_IOSF
+	case REG_SCRIPT_TYPE_IOSF:
+		ctx->display_prefix = "IOSF";
+		value = reg_script_read_iosf(ctx);
+		break;
+#endif /* HAS_IOSF */
+	default:
+		{
+			const struct reg_script_bus_entry *bus;
+
+			/* Read from the platform specific bus */
+			bus = find_bus(step);
+			if (NULL != bus) {
+				value = bus->reg_script_read(ctx);
+				break;
+			}
+		}
+		printk(BIOS_ERR,
+			"Unsupported read type (0x%x) for this device!\n",
+			step->type);
+		return 0;
 	}
-	return 0;
+
+	/* Display the register address and data */
+	if (ctx->display_features)
+		reg_script_display(ctx, step, "-->", value);
+	return value;
 }
 
 static void reg_script_write(struct reg_script_context *ctx)
@@ -428,24 +501,51 @@ static void reg_script_write(struct reg_script_context *ctx)
 
 	switch (step->type) {
 	case REG_SCRIPT_TYPE_PCI:
+		ctx->display_prefix = "PCI";
 		reg_script_write_pci(ctx);
 		break;
 	case REG_SCRIPT_TYPE_IO:
+		ctx->display_prefix = "IO";
 		reg_script_write_io(ctx);
 		break;
 	case REG_SCRIPT_TYPE_MMIO:
+		ctx->display_prefix = "MMIO";
 		reg_script_write_mmio(ctx);
 		break;
 	case REG_SCRIPT_TYPE_RES:
+		ctx->display_prefix = "RES";
 		reg_script_write_res(ctx);
 		break;
-	case REG_SCRIPT_TYPE_IOSF:
-		reg_script_write_iosf(ctx);
-		break;
 	case REG_SCRIPT_TYPE_MSR:
+		ctx->display_prefix = "MSR";
 		reg_script_write_msr(ctx);
 		break;
+#if HAS_IOSF
+	case REG_SCRIPT_TYPE_IOSF:
+		ctx->display_prefix = "IOSF";
+		reg_script_write_iosf(ctx);
+		break;
+#endif /* HAS_IOSF */
+	default:
+		{
+			const struct reg_script_bus_entry *bus;
+
+			/* Write to the platform specific bus */
+			bus = find_bus(step);
+			if (NULL != bus) {
+				bus->reg_script_write(ctx);
+				break;
+			}
+		}
+		printk(BIOS_ERR,
+			"Unsupported write type (0x%x) for this device!\n",
+			step->type);
+		return;
 	}
+
+	/* Display the register address and data */
+	if (ctx->display_features)
+		reg_script_display(ctx, step, "<--", step->value);
 }
 
 static void reg_script_rmw(struct reg_script_context *ctx)
@@ -457,6 +557,41 @@ static void reg_script_rmw(struct reg_script_context *ctx)
 	value = reg_script_read(ctx);
 	value &= step->mask;
 	value |= step->value;
+	write_step.value = value;
+	reg_script_set_step(ctx, &write_step);
+	reg_script_write(ctx);
+	reg_script_set_step(ctx, step);
+}
+
+static void reg_script_rxw(struct reg_script_context *ctx)
+{
+	uint64_t value;
+	const struct reg_script *step = reg_script_get_step(ctx);
+	struct reg_script write_step = *step;
+
+/*
+ * XOR logic table
+ *      Input  XOR  Value
+ *        0     0     0
+ *        0     1     1
+ *        1     0     1
+ *        1     1     0
+ *
+ * Supported operations
+ *
+ *      Input  Mask  Temp  XOR  Value  Operation
+ *        0      0    0     0     0    Clear bit
+ *        1      0    0     0     0
+ *        0      0    0     1     1    Set bit
+ *        1      0    0     1     1
+ *        0      1    0     0     0    Preserve bit
+ *        1      1    1     0     1
+ *        0      1    0     1     1    Toggle bit
+ *        1      1    1     1     0
+ */
+	value = reg_script_read(ctx);
+	value &= step->mask;
+	value ^= step->value;
 	write_step.value = value;
 	reg_script_set_step(ctx, &write_step);
 	reg_script_write(ctx);
@@ -476,6 +611,8 @@ static void reg_script_run_step(struct reg_script_context *ctx,
 {
 	uint64_t value = 0, try;
 
+	ctx->display_features = ctx->display_state;
+	ctx->display_prefix = NULL;
 	switch (step->command) {
 	case REG_SCRIPT_COMMAND_READ:
 		(void)reg_script_read(ctx);
@@ -485,6 +622,9 @@ static void reg_script_run_step(struct reg_script_context *ctx,
 		break;
 	case REG_SCRIPT_COMMAND_RMW:
 		reg_script_rmw(ctx);
+		break;
+	case REG_SCRIPT_COMMAND_RXW:
+		reg_script_rxw(ctx);
 		break;
 	case REG_SCRIPT_COMMAND_POLL:
 		for (try = 0; try < step->timeout; try += POLL_DELAY) {
@@ -505,6 +645,10 @@ static void reg_script_run_step(struct reg_script_context *ctx,
 	case REG_SCRIPT_COMMAND_NEXT:
 		reg_script_run_next(ctx, step->next);
 		break;
+	case REG_SCRIPT_COMMAND_DISPLAY:
+		ctx->display_state = step->value;
+		break;
+
 	default:
 		printk(BIOS_WARNING, "Invalid command: %08x\n",
 		       step->command);
@@ -540,6 +684,7 @@ void reg_script_run_on_dev(device_t dev, const struct reg_script *step)
 {
 	struct reg_script_context ctx;
 
+	ctx.display_state = REG_SCRIPT_DISPLAY_NOTHING;
 	reg_script_set_dev(&ctx, dev);
 	reg_script_set_step(&ctx, step);
 	reg_script_run_with_context(&ctx);

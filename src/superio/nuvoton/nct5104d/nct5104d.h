@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #ifndef SUPERIO_NUVOTON_NCT5104D_H
@@ -48,6 +44,6 @@
 #define NCT5104D_GPIO1 ((1 << 8) | NCT5104D_GPIO_V)
 #define NCT5104D_GPIO6 ((6 << 8) | NCT5104D_GPIO_V)
 
-void nct5104d_enable_uartd(device_t dev);
+void nct5104d_enable_uartd(pnp_devfn_t dev);
 
 #endif /* SUPERIO_NUVOTON_NCT5104D_H */

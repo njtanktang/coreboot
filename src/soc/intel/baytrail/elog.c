@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -28,8 +23,8 @@
 #include <device/pci.h>
 #include <device/pci_ops.h>
 #include <elog.h>
-#include <baytrail/iomap.h>
-#include <baytrail/pmc.h>
+#include <soc/iomap.h>
+#include <soc/pmc.h>
 
 static void log_power_and_resets(const struct chipset_power_state *ps)
 {
@@ -40,6 +35,10 @@ static void log_power_and_resets(const struct chipset_power_state *ps)
 
 	if (ps->gen_pmcon1 & SUS_PWR_FLR) {
 		elog_add_event(ELOG_TYPE_SUS_POWER_FAIL);
+	}
+
+	if (ps->gen_pmcon1 & RPS) {
+		elog_add_event(ELOG_TYPE_RTC_RESET);
 	}
 
 	if (ps->tco_sts & SECOND_TO_STS) {

@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -23,7 +20,9 @@
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <arch/ioapic.h>
+#include <lib.h>
 #include "sr5650.h"
+#include "cmn.h"
 
 /* Table 6-6 Recommended Interrupt Routing Configuration */
 typedef struct _apic_device_info {
@@ -55,7 +54,7 @@ static const apic_device_info default_apic_device_info_t [] = {
 	[13] = {4,     ABCD,       30}    /* Dev13 Grp4 [Int - 16..19] */
 };
 
-/* Their name are quite regular. So I undefine them. */
+/* These define names are common, so undefine them to avoid potential issues in other code */
 #undef ABCD
 #undef BCDA
 #undef CDAB
@@ -128,7 +127,7 @@ static void sr5690_apic_init(struct device *dev)
 	dword = pci_read_config32(dev, 0xFC) & 0xfffffff0;
 	/* TODO: On SR56x0/SP5100 board, the IOAPIC on SR56x0 is the
 	 * 2nd one. We need to check if it also is on your board. */
-	setup_ioapic(dword, 1);
+	setup_ioapic((void *)dword, 1);
 }
 
 static void pcie_init(struct device *dev)
@@ -157,11 +156,16 @@ static void pcie_init(struct device *dev)
 
 static void sr5690_read_resource(struct device *dev)
 {
+	if (IS_ENABLED(CONFIG_EXT_CONF_SUPPORT)) {
+		printk(BIOS_DEBUG,"%s: %s\n", __func__, dev_path(dev));
+		set_nbmisc_enable_bits(dev, 0x0, 1 << 3, 1 << 3);	/* Hide BAR3 */
+	}
+
 	pci_dev_read_resources(dev);
 
 	/* rpr6.2.(1). Write the Base Address Register (BAR) */
-	pci_write_config32(dev, 0xF8, 0x1); /* set IOAPIC's index as 1 and make sure no one changes it. */
-	pci_get_resource(dev, 0xFC); /* APIC located in sr5690 */
+	pci_write_config32(dev, 0xf8, 0x1);	/* Set IOAPIC's index to 1 and make sure no one changes it */
+	pci_get_resource(dev, 0xfc);		/* APIC located in sr5690 */
 
 	compact_resources(dev);
 }
@@ -169,7 +173,89 @@ static void sr5690_read_resource(struct device *dev)
 /* If IOAPIC's index changes, we should replace the pci_dev_set_resource(). */
 static void sr5690_set_resources(struct device *dev)
 {
-	pci_write_config32(dev, 0xF8, 0x1); /* set IOAPIC's index as 1 and make sure no one changes it. */
+	pci_write_config32(dev, 0xf8, 0x1);	/* Set IOAPIC's index to 1 and make sure no one changes it */
+
+	if (IS_ENABLED(CONFIG_EXT_CONF_SUPPORT)) {
+		uint32_t reg;
+		device_t amd_ht_cfg_dev;
+		device_t amd_addr_map_dev;
+		resource_t res_base;
+		resource_t res_end;
+		uint32_t base;
+		uint32_t limit;
+		struct resource *res;
+
+		printk(BIOS_DEBUG,"%s %s\n", dev_path(dev), __func__);
+
+		/* Find requisite AMD CPU devices */
+		amd_ht_cfg_dev = dev_find_slot(0, PCI_DEVFN(0x18, 0));
+		amd_addr_map_dev = dev_find_slot(0, PCI_DEVFN(0x18, 1));
+
+		if (!amd_ht_cfg_dev || !amd_addr_map_dev) {
+			printk(BIOS_WARNING, "%s: %s Unable to locate CPU control devices\n", __func__, dev_path(dev));
+		} else {
+			res = sr5650_retrieve_cpu_mmio_resource();
+			if (res) {
+				/* Set up MMCONFIG bus range */
+				set_nbmisc_enable_bits(dev, 0x0, 1 << 3, 0 << 3);	/* Make BAR3 visible */
+				set_nbcfg_enable_bits(dev, 0x7c, 1 << 30, 1 << 30);	/* Enables writes to the BAR3 register */
+				set_nbcfg_enable_bits(dev, 0x84, 7 << 16, 0 << 16);	/* Program bus range = 255 busses */
+				pci_write_config32(dev, 0x1c, res->base);
+
+				/* Enable MMCONFIG decoding. */
+				set_htiu_enable_bits(dev, 0x32, 1 << 28, 1 << 28);	/* PCIEMiscInit */
+				set_nbcfg_enable_bits(dev, 0x7c, 1 << 30, 0 << 30);	/* Disable writes to the BAR3 register */
+				set_nbmisc_enable_bits(dev, 0x0, 1 << 3, 1 << 3);	/* Hide BAR3 */
+
+				/* Set up nonposted resource in MMIO space */
+				res_base = res->base;		/* Get the base address */
+				res_end = resource_end(res);	/* Get the limit (rounded up) */
+				printk(BIOS_DEBUG, "%s: %s[0x1c] base = %0llx limit = %0llx\n", __func__, dev_path(dev), res_base, res_end);
+
+				/* Locate an unused MMIO resource */
+				for (reg = 0xb8; reg >= 0x80; reg -= 8) {
+					base = pci_read_config32(amd_addr_map_dev, reg);
+					limit = pci_read_config32(amd_addr_map_dev, reg + 4);
+					if (!(base & 0x3))
+						break;	/* Unused resource found */
+				}
+
+				/* If an unused MMIO resource was available, set up the mapping */
+				if (!(base & 0x3)) {
+					uint32_t sblk;
+
+					/* Remember this resource has been stored. */
+					res->flags |= IORESOURCE_STORED;
+					report_resource_stored(dev, res, " <mmconfig>");
+
+					/* Get SBLink value (HyperTransport I/O Hub Link ID). */
+					sblk = (pci_read_config32(amd_ht_cfg_dev, 0x64) >> 8) & 0x3;
+
+					/* Calculate the MMIO mapping base */
+					base &= 0x000000f0;
+					base |= ((res_base >> 8) & 0xffffff00);
+					base |= 3;
+
+					/* Calculate the MMIO mapping limit */
+					limit &= 0x00000048;
+					limit |= ((res_end >> 8) & 0xffffff00);
+					limit |= (sblk << 4);
+					limit |= (1 << 7);
+
+					/* Configure and enable MMIO mapping */
+					printk(BIOS_INFO, "%s: %s <- index %x base %04x limit %04x\n", __func__, dev_path(amd_addr_map_dev), reg, base, limit);
+					pci_write_config32(amd_addr_map_dev, reg + 4, limit);
+					pci_write_config32(amd_addr_map_dev, reg, base);
+				}
+				else {
+					printk(BIOS_WARNING, "%s: %s No free MMIO resources available\n", __func__, dev_path(dev));
+				}
+			} else {
+				printk(BIOS_WARNING, "%s: %s Unable to locate CPU MMCONF resource\n", __func__, dev_path(dev));
+			}
+		}
+	}
+
 	pci_dev_set_resources(dev);
 }
 

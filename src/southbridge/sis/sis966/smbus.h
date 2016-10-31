@@ -17,10 +17,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/smbus_def.h>
@@ -43,4 +39,3 @@ int do_smbus_recv_byte(unsigned smbus_io_base, unsigned device);
 int do_smbus_send_byte(unsigned smbus_io_base, unsigned device, unsigned char val);
 int smbus_read_byte(unsigned device, unsigned address);
 int smbus_write_byte(unsigned device, unsigned address, unsigned char val);
-

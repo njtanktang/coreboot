@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 DefinitionBlock(
@@ -44,6 +39,9 @@ DefinitionBlock(
 		{
 			#include <northbridge/intel/nehalem/acpi/nehalem.asl>
 			#include <southbridge/intel/bd82x6x/acpi/pch.asl>
+			#include <southbridge/intel/bd82x6x/acpi/default_irq_route.asl>
+
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 		Device (UNCR)
 		{
@@ -80,8 +78,6 @@ DefinitionBlock(
 			}
 		}
 	}
-
-	#include "acpi/video.asl"
 
 	/* Chipset specific sleep states */
 	#include <southbridge/intel/i82801gx/acpi/sleepstates.asl>

@@ -1,12 +1,23 @@
 /*
- * Setup helpers for Two Wire Interface (TWI) (I²C) Allwinner CPUs
- *
- * Only functionality for I²C master is provided.
- * Largely based on the uboot-sunxi code.
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2012 Henrik Nordstrom <henrik@henriknordstrom.net>
  * Copyright (C) 2013 Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Setup helpers for Two Wire Interface (TWI) (I2C) Allwinner CPUs
+ *
+ * Only functionality for I2C master is provided.
+ * Largely based on the uboot-sunxi code.
  */
 
 #include "memmap.h"
@@ -42,7 +53,7 @@ static void configure_clock(struct a1x_twi *twi, u32 speed_hz)
 	/* Pre-divide the clock by 8 */
 	n = 3;
 	m = (apb_clk >> n) / speed_hz;
-	write32(TWI_CLK_M(m) | TWI_CLK_N(n), &twi->clk);
+	write32(&twi->clk, TWI_CLK_M(m) | TWI_CLK_N(n));
 }
 
 void a1x_twi_init(u8 bus, u32 speed_hz)
@@ -52,10 +63,10 @@ void a1x_twi_init(u8 bus, u32 speed_hz)
 
 	configure_clock(twi, speed_hz);
 
-	/* Enable the I²C bus */
-	write32(TWI_CTL_BUS_EN, &twi->ctl);
+	/* Enable the I2C bus */
+	write32(&twi->ctl, TWI_CTL_BUS_EN);
 	/* Issue soft reset */
-	write32(1, &twi->reset);
+	write32(&twi->reset, 1);
 
 	while (i-- && read32(&twi->reset))
 		udelay(1);
@@ -63,12 +74,12 @@ void a1x_twi_init(u8 bus, u32 speed_hz)
 
 static void clear_interrupt_flag(struct a1x_twi *twi)
 {
-	write32(read32(&twi->ctl) & ~TWI_CTL_INT_FLAG, &twi->ctl);
+	write32(&twi->ctl, read32(&twi->ctl) & ~TWI_CTL_INT_FLAG);
 }
 
 static void i2c_send_data(struct a1x_twi *twi, u8 data)
 {
-	write32(data, &twi->data);
+	write32(&twi->data, data);
 	clear_interrupt_flag(twi);
 }
 
@@ -90,7 +101,7 @@ static void i2c_send_start(struct a1x_twi *twi)
 	reg32 = read32(&twi->ctl);
 	reg32 &= ~TWI_CTL_INT_FLAG;
 	reg32 |= TWI_CTL_M_START;
-	write32(reg32, &twi->ctl);
+	write32(&twi->ctl, reg32);
 
 	/* M_START is automatically cleared after condition is transmitted */
 	i = TWI_TIMEOUT;
@@ -106,32 +117,14 @@ static void i2c_send_stop(struct a1x_twi *twi)
 	reg32 = read32(&twi->ctl);
 	reg32 &= ~TWI_CTL_INT_FLAG;
 	reg32 |= TWI_CTL_M_STOP;
-	write32(reg32, &twi->ctl);
+	write32(&twi->ctl, reg32);
 }
 
-int i2c_read(unsigned bus, unsigned chip, unsigned addr,
-	     unsigned alen, uint8_t *buf, unsigned len)
+static int i2c_read(struct a1x_twi *twi, uint8_t chip,
+			uint8_t *buf, size_t len)
 {
 	unsigned count = len;
 	enum twi_status expected_status;
-	struct a1x_twi *twi = (void *)TWI_BASE(bus);
-
-	if (wait_until_idle(twi) != CB_SUCCESS)
-		return CB_ERR;
-
-	i2c_send_start(twi);
-	if (wait_for_status(twi) != TWI_STAT_TX_START)
-		return CB_ERR;
-
-	/* Send chip address */
-	i2c_send_data(twi, chip << 1);
-	if (wait_for_status(twi) != TWI_STAT_TX_AW_ACK)
-		return CB_ERR;
-
-	/* Send data address */
-	i2c_send_data(twi, addr);
-	if (wait_for_status(twi) != TWI_STAT_TXD_ACK)
-		return CB_ERR;
 
 	/* Send restart for read */
 	i2c_send_start(twi);
@@ -164,19 +157,13 @@ int i2c_read(unsigned bus, unsigned chip, unsigned addr,
 		count--;
 	}
 
-	i2c_send_stop(twi);
-
 	return len;
 }
 
-int i2c_write(unsigned bus, unsigned chip, unsigned addr,
-	      unsigned alen, const uint8_t *buf, unsigned len)
+static int i2c_write(struct a1x_twi *twi, uint8_t chip,
+		     const uint8_t *buf, size_t len)
 {
-	unsigned count = len;
-	struct a1x_twi *twi = (void *)TWI_BASE(bus);
-
-	if (wait_until_idle(twi) != CB_SUCCESS)
-		return CB_ERR;
+	size_t count = len;
 
 	i2c_send_start(twi);
 	if (wait_for_status(twi) != TWI_STAT_TX_START)
@@ -187,11 +174,6 @@ int i2c_write(unsigned bus, unsigned chip, unsigned addr,
 	if (wait_for_status(twi) != TWI_STAT_TX_AW_ACK)
 		return CB_ERR;
 
-	/* Send data address */
-	i2c_send_data(twi, addr);
-	if (wait_for_status(twi) != TWI_STAT_TXD_ACK)
-		return CB_ERR;
-
 	/* Send data */
 	while (count > 0) {
 		i2c_send_data(twi, *buf++);
@@ -200,7 +182,35 @@ int i2c_write(unsigned bus, unsigned chip, unsigned addr,
 		count--;
 	}
 
+	return len;
+}
+
+int platform_i2c_transfer(unsigned bus, struct i2c_seg *segments, int count)
+{
+	int i, ret = CB_SUCCESS;
+	struct i2c_seg *seg = segments;
+	struct a1x_twi *twi = (void *)TWI_BASE(bus);
+
+
+	if (wait_until_idle(twi) != CB_SUCCESS)
+		return CB_ERR;
+
+	for (i = 0; i < count; i++) {
+		seg = segments + i;
+
+		if (seg->read) {
+			ret = i2c_read(twi, seg->chip, seg->buf, seg->len);
+			if (ret < 0)
+				break;
+		} else {
+			ret = i2c_write(twi, seg->chip, seg->buf, seg->len);
+			if (ret < 0)
+				break;
+		}
+	}
+
+	/* Don't worry about the status. STOP is on a best-effort basis */
 	i2c_send_stop(twi);
 
-	return len;
+	return ret;
 }

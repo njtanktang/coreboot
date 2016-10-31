@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stddef.h>
@@ -103,14 +99,13 @@ void pci_ehci_read_resources(struct device *dev)
 }
 #endif
 
-unsigned long pci_ehci_base_regs(pci_devfn_t sdev)
+u8 *pci_ehci_base_regs(pci_devfn_t sdev)
 {
 #ifdef __SIMPLE_DEVICE__
-	unsigned long base = pci_read_config32(sdev, EHCI_BAR_INDEX) & ~0x0f;
+	u8 *base = (u8 *)(pci_read_config32(sdev, EHCI_BAR_INDEX) & ~0x0f);
 #else
 	device_t dev = dev_find_slot(PCI_DEV2SEGBUS(sdev), PCI_DEV2DEVFN(sdev));
-	unsigned long base = pci_read_config32(dev, EHCI_BAR_INDEX) & ~0x0f;
+	u8 *base = (u8 *)(pci_read_config32(dev, EHCI_BAR_INDEX) & ~0x0f);
 #endif
 	return base + HC_LENGTH(read32(base));
 }
-

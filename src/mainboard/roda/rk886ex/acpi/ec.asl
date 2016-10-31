@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Device(EC0)
@@ -98,8 +93,8 @@ Device(EC0)
 	Method (_Q12, 0)
 	{
 		Store("_Q12: Fn-F9 (Display Switch) pressed", Debug)
+		Notify (\_SB.PCI0.GFX0, 0x82)
 		// Store(1, TLST)
-		// HKDS(10)
 	}
 
 	Method (_Q30, 0)
@@ -107,6 +102,9 @@ Device(EC0)
 		Store("_Q30: AC In/Out", Debug)
 		Notify(ADP1, 0x80)	// Tell the Power Adapter
 		PNOT()			// and the CPU and Battery
+		// Notify the Batteries
+		Notify(BAT1, 0x80) // Execute BAT1 _BST
+		Notify(BAT2, 0x80) // Execute BAT2 _BST
 	}
 
 	Method (_Q31, 0)

@@ -107,12 +107,22 @@
 
 #include "Fch.h"
 #include "amdlib.h"
-#include "FchCommonCfg.h"
-#include "AcpiLib.h"
-#include "FchDef.h"
-#include "FchBiosRamUsage.h"
-#include "AmdFch.h"
+#include "Common/FchCommonCfg.h"
+#include "Common/AcpiLib.h"
+#include "Common/FchDef.h"
+#include "Common/FchBiosRamUsage.h"
+#include <Proc/Common/AmdFch.h>
 
 extern BUILD_OPT_CFG    UserOptions;
+
+VOID
+FchInitS3EarlyRestore (
+  IN      FCH_DATA_BLOCK     *FchDataPtr
+  );
+
+VOID
+FchInitS3LateRestore (
+  IN      FCH_DATA_BLOCK     *FchDataPtr
+  );
 
 #endif // _FCH_PLATFORM_H_

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _SOUTHBRIDGE_AMD_CS5536
@@ -40,4 +36,4 @@ struct southbridge_amd_cs5536_config {
 	unsigned int unwanted_vpci[MAX_UNWANTED_VPCI];	/* the following allow you to disable unwanted virtualized PCI devices */
 };
 
-#endif				/* _SOUTHBRIDGE_AMD_CS5536 */
+#endif /* _SOUTHBRIDGE_AMD_CS5536 */

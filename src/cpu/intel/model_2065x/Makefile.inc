@@ -7,16 +7,17 @@ subdirs-y += ../../x86/tsc
 subdirs-y += ../../intel/turbo
 subdirs-y += ../../intel/microcode
 subdirs-y += ../../x86/smm
-
+subdirs-y += ../smm/gen1
 
 ramstage-y += tsc_freq.c
 romstage-y += tsc_freq.c
 smm-$(CONFIG_HAVE_SMI_HANDLER) += tsc_freq.c
 
-ramstage-$(CONFIG_GENERATE_ACPI_TABLES) += acpi.c
+ramstage-y += acpi.c
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += finalize.c
 
-cpu_microcode-$(CONFIG_CPU_MICROCODE_CBFS_GENERATE)  += microcode_blob.c
+cpu_microcode_bins += 3rdparty/blobs/cpu/intel/model_2065x/microcode.bin
 
-cpu_incs += $(src)/cpu/intel/model_2065x/cache_as_ram.inc
+cpu_incs-y += $(src)/cpu/intel/model_2065x/cache_as_ram.inc
+romstage-y += ../car/romstage.c

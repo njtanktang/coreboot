@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -31,15 +27,15 @@
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include "southbridge/nvidia/mcp55/early_smbus.c"
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
 #include <lib.h>
 #include <spd.h>
-#include "cpu/x86/lapic.h"
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include <superio/ite/common/ite.h>
 #include <superio/ite/it8716f/it8716f.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/debug.c"
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include "southbridge/nvidia/mcp55/early_ctrl.c"
@@ -55,24 +51,32 @@ static inline int spd_read_byte(unsigned int device, unsigned int address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdk8/f.h"
+#include <northbridge/amd/amdk8/f.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit_f.c"
 #include "lib/generic_sdram.c"
 #include "resourcemap.c"
 #include "cpu/amd/dualcore/dualcore.c"
-#include "southbridge/nvidia/mcp55/early_setup_ss.h"
+#include <southbridge/nvidia/mcp55/early_setup_ss.h>
 #include "southbridge/nvidia/mcp55/early_setup_car.c"
 #include "cpu/amd/model_fxx/init_cpus.c"
-#include "cpu/amd/model_fxx/fidvid.c"
 #include "northbridge/amd/amdk8/early_ht.c"
+
+/* FIXME
+ * Dummy method to allow build
+ * Determine if this board / CPU should support
+ * FID/VID and implement proper support if so
+ */
+#if IS_ENABLED(CONFIG_SET_FIDVID)
+void init_fidvid_ap(u32 bsp_apicid, u32 apicid) { }
+#endif
 
 static void sio_setup(void)
 {
 	u8 byte;
 	u32 dword;
-	device_t dev = PCI_DEV(0, MCP55_DEVN_BASE + 1, 0); /* LPC */
+	pci_devfn_t dev = PCI_DEV(0, MCP55_DEVN_BASE + 1, 0); /* LPC */
 
 	/* Subject decoding */
 	byte = pci_read_config8(dev, 0x7b);
@@ -138,7 +142,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	/* TODO: FIDVID */
 
-	init_timer(); /* Need to use TMICT to synconize FID/VID. */
+	init_timer(); /* Need to use TMICT to synchronize FID/VID. */
 
 	needs_reset |= optimize_link_coherent_ht();
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
@@ -149,7 +153,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	 * effective too.
 	 */
 	if (needs_reset) {
-		print_info("ht reset -\n");
+		printk(BIOS_INFO, "ht reset -\n");
 		soft_reset();
 	}
 	allow_all_aps_stop(bsp_apicid);

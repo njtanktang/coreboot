@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <arch/io.h>
@@ -53,7 +50,7 @@
  * the IGP is able to use it. GRUB2 and linux are capable of getting a usable
  * text console, which uses the monitor's native resolution (even 1920x1080).
  * The graphical console (linux) does not work properly.
- * @TODO
+ * @todo
  * 1. Figure out what sequence we need to do to get the VGA BIOS running
  *    properly. Use the code provided by VIA and compare their sequence to ours,
  *    fill in any missing steps, etc.
@@ -136,7 +133,7 @@ u32 chrome9hd_fb_size(void)
 }
 
 /**
- * @defgroup vx900_int15
+ * vx900_int15
  *
  * \brief INT15 helpers for Chrome9HD IGP
  *
@@ -296,9 +293,9 @@ static void chrome9hd_biosguide_init_seq(device_t dev)
 
 static void chrome9hd_init(device_t dev)
 {
-	print_debug("======================================================\n");
-	print_debug("== Chrome9 HD INIT\n");
-	print_debug("======================================================\n");
+	printk(BIOS_DEBUG, "======================================================\n");
+	printk(BIOS_DEBUG, "== Chrome9 HD INIT\n");
+	printk(BIOS_DEBUG, "======================================================\n");
 
 	chrome9hd_biosguide_init_seq(dev);
 
@@ -309,7 +306,6 @@ static void chrome9hd_init(device_t dev)
 	vga_misc_mask(1 << 0, 1 << 0);
 
 	/* FIXME: recheck; Enable Base VGA 16 Bits Decode */
-	////pci_mod_config8(host, 0x4e, 0, 1<<4);
 
 	u32 fb_address = pci_read_config32(dev, PCI_BASE_ADDRESS_2);
 	fb_address &= ~0x0F;
@@ -334,7 +330,7 @@ static void chrome9hd_enable(device_t dev)
 {
 	device_t mcu = dev_find_device(PCI_VENDOR_ID_VIA,
 				       PCI_DEVICE_ID_VIA_VX900_MEMCTRL, 0);
-	/* FIXME: here? -=- ACLK 250Mhz */
+	/* FIXME: here? -=- ACLK 250MHz */
 	pci_mod_config8(mcu, 0xbb, 0, 0x01);
 }
 

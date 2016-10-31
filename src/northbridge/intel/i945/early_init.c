@@ -11,18 +11,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <console/console.h>
+#include <arch/acpi.h>
 #include <arch/io.h>
 #include <device/pci_def.h>
+#include <cbmem.h>
+#include <halt.h>
+#include <string.h>
 #include "i945.h"
+#include <pc80/mc146818rtc.h>
 
 int i945_silicon_revision(void)
 {
@@ -145,7 +146,7 @@ static void i945_detect_chipset(void)
 
 static void i945_setup_bars(void)
 {
-	u8 reg8;
+	u8 reg8, gfxsize;
 
 	/* As of now, we don't have all the A0 workarounds implemented */
 	if (i945_silicon_revision() == 0)
@@ -153,7 +154,7 @@ static void i945_setup_bars(void)
 
 	/* Setting up Southbridge. In the northbridge code. */
 	printk(BIOS_DEBUG, "Setting up static southbridge registers...");
-	pci_write_config32(PCI_DEV(0, 0x1f, 0), RCBA, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1f, 0), RCBA, (uintptr_t)DEFAULT_RCBA | 1);
 
 	pci_write_config32(PCI_DEV(0, 0x1f, 0), PMBASE, DEFAULT_PMBASE | 1);
 	pci_write_config8(PCI_DEV(0, 0x1f, 0), 0x44 /* ACPI_CNTL */ , 0x80); /* Enable ACPI BAR */
@@ -168,17 +169,23 @@ static void i945_setup_bars(void)
 	outw((1 << 11), DEFAULT_PMBASE | 0x60 | 0x08);	/* halt timer */
 	printk(BIOS_DEBUG, " done.\n");
 
+	/* Enable upper 128bytes of CMOS */
+	RCBA32(0x3400) = (1 << 2);
+
 	printk(BIOS_DEBUG, "Setting up static northbridge registers...");
 	/* Set up all hardcoded northbridge BARs */
 	pci_write_config32(PCI_DEV(0, 0x00, 0), EPBAR, DEFAULT_EPBAR | 1);
-	pci_write_config32(PCI_DEV(0, 0x00, 0), MCHBAR, DEFAULT_MCHBAR | 1);
-	pci_write_config32(PCI_DEV(0, 0x00, 0), DMIBAR, DEFAULT_DMIBAR | 1);
+	pci_write_config32(PCI_DEV(0, 0x00, 0), MCHBAR, (uintptr_t)DEFAULT_MCHBAR | 1);
+	pci_write_config32(PCI_DEV(0, 0x00, 0), DMIBAR, (uintptr_t)DEFAULT_DMIBAR | 1);
 	pci_write_config32(PCI_DEV(0, 0x00, 0), X60BAR, DEFAULT_X60BAR | 1);
 
-	/* Hardware default is 8MB UMA. If someone wants to make this a
-	 * CMOS or compile time option, send a patch.
-	 * pci_write_config16(PCI_DEV(0, 0x00, 0), GGC, 0x30);
-	 */
+	/* vram size from cmos option */
+	if (get_option(&gfxsize, "gfx_uma_size") != CB_SUCCESS)
+		gfxsize = 2;	/* 2 for 8MB */
+	/* make sure no invalid setting is used */
+	if (gfxsize > 6)
+		gfxsize = 2;
+	pci_write_config16(PCI_DEV(0, 0x00, 0), GGC, ((gfxsize + 1) << 4));
 
 	/* Set C0000-FFFFF to access RAM on both reads and writes */
 	pci_write_config8(PCI_DEV(0, 0x00, 0), PAM0, 0x30);
@@ -194,7 +201,7 @@ static void i945_setup_bars(void)
 
 	/* Wait for MCH BAR to come up */
 	printk(BIOS_DEBUG, "Waiting for MCHBAR to come up...");
-	if ((pci_read_config8(PCI_DEV(0, 0x0f, 0), 0xe6) & 0x2) == 0x00) { /* Bit 49 of CAPID0 */
+	if ((pci_read_config32(PCI_DEV(0, 0x00, 0), 0xe4) & 0x20000) == 0x00) { /* Bit 49 of CAPID0 */
 		do {
 			reg8 = *(volatile u8 *)0xfed40000;
 		} while (!(reg8 & 0x80));
@@ -278,7 +285,7 @@ static void i945_setup_egress_port(void)
 	printk(BIOS_DEBUG, "Loading port arbitration table ...");
 	/* Loop until bit 0 becomes 0 */
 	timeout = 0x7fffff;
-	while ((EPBAR16(EPVC1RSTS) & 1) && --timeout) ;
+	while ((EPBAR16(EPVC1RSTS) & 1) && --timeout);
 	if (!timeout)
 		printk(BIOS_DEBUG, "timeout!\n");
 	else
@@ -290,7 +297,7 @@ static void i945_setup_egress_port(void)
 	printk(BIOS_DEBUG, "Wait for VC1 negotiation ...");
 	/* Wait for VC1 negotiation pending */
 	timeout = 0x7fff;
-	while ((EPBAR16(EPVC1RSTS) & (1 << 1)) && --timeout) ;
+	while ((EPBAR16(EPVC1RSTS) & (1 << 1)) && --timeout);
 	if (!timeout)
 		printk(BIOS_DEBUG, "timeout!\n");
 	else
@@ -336,7 +343,7 @@ static void ich7_setup_dmi_rcrb(void)
 
 	RCBA32(ULD) |= (1 << 24) | (1 << 16);
 
-	RCBA32(ULBA) = DEFAULT_DMIBAR;
+	RCBA32(ULBA) = (uintptr_t)DEFAULT_DMIBAR;
 
 	RCBA32(RP1D) |= (2 << 16);
 	RCBA32(RP2D) |= (2 << 16);
@@ -383,7 +390,7 @@ static void i945_setup_dmi_rcrb(void)
 	printk(BIOS_DEBUG, "Wait for VC1 negotiation ...");
 	/* Wait for VC1 negotiation pending */
 	timeout = 0x7ffff;
-	while ((DMIBAR16(DMIVC1RSTS) & (1 << 1)) && --timeout) ;
+	while ((DMIBAR16(DMIVC1RSTS) & (1 << 1)) && --timeout);
 	if (!timeout)
 		printk(BIOS_DEBUG, "timeout!\n");
 	else
@@ -483,7 +490,7 @@ static void i945_setup_dmi_rcrb(void)
 	/* wait for bit toggle to 0 */
 	printk(BIOS_DEBUG, "Waiting for DMI hardware...");
 	timeout = 0x7fffff;
-	while ((DMIBAR8(0x32) & (1 << 1)) && --timeout) ;
+	while ((DMIBAR8(0x32) & (1 << 1)) && --timeout);
 	if (!timeout)
 		printk(BIOS_DEBUG, "timeout!\n");
 	else
@@ -502,7 +509,7 @@ static void i945_setup_dmi_rcrb(void)
 	DMIBAR32(0x338) = DMIBAR32(0x334);
 	DMIBAR32(0x338) = DMIBAR32(0x338);
 
-	if (i945_silicon_revision() == 1 && ((MCHBAR8(0xe08) & (1 << 5)) == 1)) {
+	if (i945_silicon_revision() == 1 && (MCHBAR8(DFT_STRAP1) & (1 << 5))) {
 		if ((MCHBAR32(0x214) & 0xf) != 0x3) {
 			printk(BIOS_INFO, "DMI link requires A1 stepping workaround. Rebooting.\n");
 			reg32 = DMIBAR32(0x224);
@@ -510,7 +517,7 @@ static void i945_setup_dmi_rcrb(void)
 			reg32 |= (3 << 0);
 			DMIBAR32(0x224) = reg32;
 			outb(0x06, 0xcf9);
-			for (;;) asm("hlt");	/* wait for reset */
+			halt(); /* wait for reset */
 		}
 	}
 }
@@ -586,7 +593,7 @@ static void i945_setup_pci_express_x16(void)
 	/* Wait for training to succeed */
 	printk(BIOS_DEBUG, "PCIe link training ...");
 	timeout = 0x7ffff;
-	while ((((pci_read_config32(PCI_DEV(0, 0x01, 0), 0x214) >> 16) & 4) != 3)  && --timeout) ;
+	while ((((pci_read_config32(PCI_DEV(0, 0x01, 0), PEGSTS) >> 16) & 3) != 3)  && --timeout);
 
 	reg32 = pci_read_config32(PCI_DEV(0x0a, 0x0, 0), 0);
 	if (reg32 != 0x00000000 && reg32 != 0xffffffff) {
@@ -597,10 +604,10 @@ static void i945_setup_pci_express_x16(void)
 
 		printk(BIOS_DEBUG, "Restrain PCIe port to x1\n");
 
-		reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), 0x214);
+		reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), PEGSTS);
 		reg32 &= ~(0xf << 1);
 		reg32 |=1;
-		pci_write_config32(PCI_DEV(0, 0x01, 0), 0x214, reg32);
+		pci_write_config32(PCI_DEV(0, 0x01, 0), PEGSTS, reg32);
 
 		reg16 = pci_read_config16(PCI_DEV(0, 0x01, 0), 0x3e);
 
@@ -611,7 +618,7 @@ static void i945_setup_pci_express_x16(void)
 
 		printk(BIOS_DEBUG, "PCIe link training ...");
 		timeout = 0x7ffff;
-		while ((((pci_read_config32(PCI_DEV(0, 0x01, 0), 0x214) >> 16) & 4) != 3)  && --timeout) ;
+		while ((((pci_read_config32(PCI_DEV(0, 0x01, 0), PEGSTS) >> 16) & 3) != 3)  && --timeout);
 
 		reg32 = pci_read_config32(PCI_DEV(0xa, 0x00, 0), 0);
 		if (reg32 != 0x00000000 && reg32 != 0xffffffff) {
@@ -745,7 +752,7 @@ static void i945_setup_pci_express_x16(void)
 		};
 
 		int i;
-		for (i=0; i<ARRAY_SIZE(reglist); i++) {
+		for (i = 0; i < ARRAY_SIZE(reglist); i++) {
 			reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), reglist[i]);
 			reg32 &= 0x0fffffff;
 			reg32 |= (2 << 28);
@@ -757,7 +764,7 @@ static void i945_setup_pci_express_x16(void)
 		/* Set voltage specific parameters */
 		reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), 0xe80);
 		reg32 &= (0xf << 4);	/* Default case 1.05V */
-		if ((MCHBAR32(0xe08) & (1 << 20)) == 0) {	/* 1.50V */
+		if ((MCHBAR32(DFT_STRAP1) & (1 << 20)) == 0) {	/* 1.50V */
 			reg32 |= (7 << 4);
 		}
 		pci_write_config32(PCI_DEV(0, 0x01, 0), 0xe80, reg32);
@@ -785,8 +792,8 @@ disable_pciexpress_x16_link:
 
 	printk(BIOS_DEBUG, "Wait for link to enter detect state... ");
 	timeout = 0x7fffff;
-	for (reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), 0x214);
-	     (reg32 & 0x000f0000) && --timeout;) ;
+	for (reg32 = pci_read_config32(PCI_DEV(0, 0x01, 0), PEGSTS);
+	     (reg32 & 0x000f0000) && --timeout;);
 	if (!timeout)
 		printk(BIOS_DEBUG, "timeout!\n");
 	else
@@ -812,7 +819,7 @@ static void i945_setup_root_complex_topology(void)
 
 	EPBAR32(EPLE1D) |= (1 << 16) | (1 << 0);
 
-	EPBAR32(EPLE1A) = DEFAULT_DMIBAR;
+	EPBAR32(EPLE1A) = (uintptr_t)DEFAULT_DMIBAR;
 
 	EPBAR32(EPLE2D) |= (1 << 16) | (1 << 0);
 
@@ -827,7 +834,7 @@ static void i945_setup_root_complex_topology(void)
 	reg32 |= (1 << 0);
 	DMIBAR32(DMILE1D) = reg32;
 
-	DMIBAR32(DMILE1A) = DEFAULT_RCBA;
+	DMIBAR32(DMILE1A) = (uintptr_t)DEFAULT_RCBA;
 
 	DMIBAR32(DMILE2D) |= (1 << 16) | (1 << 0);
 
@@ -887,7 +894,25 @@ void i945_early_initialization(void)
 	RCBA32(0x2010) |= (1 << 10);
 }
 
-void i945_late_initialization(void)
+static void i945_prepare_resume(int s3resume)
+{
+	int cbmem_was_initted;
+
+	cbmem_was_initted = !cbmem_recovery(s3resume);
+
+	/* If there is no high memory area, we didn't boot before, so
+	 * this is not a resume. In that case we just create the cbmem toc.
+	 */
+	if (s3resume && cbmem_was_initted) {
+		acpi_prepare_for_resume();
+
+		/* Magic for S3 resume */
+		pci_write_config32(PCI_DEV(0, 0x00, 0), SKPAD,
+				   SKPAD_ACPI_S3_MAGIC);
+	}
+}
+
+void i945_late_initialization(int s3resume)
 {
 	i945_setup_egress_port();
 
@@ -902,5 +927,25 @@ void i945_late_initialization(void)
 	i945_setup_pci_express_x16();
 
 	i945_setup_root_complex_topology();
-}
 
+#if !CONFIG_HAVE_ACPI_RESUME
+#if CONFIG_DEFAULT_CONSOLE_LOGLEVEL > 8
+#if CONFIG_DEBUG_RAM_SETUP
+	sdram_dump_mchbar_registers();
+
+	{
+		/* This will not work if TSEG is in place! */
+		u32 tom = pci_read_config32(PCI_DEV(0, 2, 0), BSM);
+
+		printk(BIOS_DEBUG, "TOM: 0x%08x\n", tom);
+		ram_check(0x00000000, 0x000a0000);
+		ram_check(0x00100000, tom);
+	}
+#endif
+#endif
+#endif
+
+	MCHBAR16(SSKPD) = 0xCAFE;
+
+	i945_prepare_resume(s3resume);
+}

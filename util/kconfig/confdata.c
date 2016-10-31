@@ -27,6 +27,10 @@ static int conf_lineno, conf_warnings, conf_unsaved;
 
 const char conf_defname[] = "arch/$ARCH/defconfig";
 
+#ifdef __MINGW32__
+#define mkdir(_n,_p) mkdir((_n))
+#endif
+
 static void conf_warning(const char *fmt, ...)
 {
 	va_list ap;
@@ -59,6 +63,7 @@ static void conf_message(const char *fmt, ...)
 	va_start(ap, fmt);
 	if (conf_message_callback)
 		conf_message_callback(fmt, ap);
+	va_end(ap);
 }
 
 const char *conf_get_configname(void)
@@ -357,6 +362,9 @@ load:
 			if (def == S_DEF_USER) {
 				sym = sym_find(line + strlen(CONFIG_));
 				if (!sym) {
+					conf_message(
+						"ignoring nonexistent symbol %s",
+						line + strlen(CONFIG_));
 					sym_add_change_count(1);
 					goto setsym;
 				}
@@ -401,6 +409,9 @@ setsym:
 
 	if (modules_sym)
 		sym_calc_value(modules_sym);
+
+	kconfig_warnings += conf_warnings;
+
 	return 0;
 }
 
@@ -980,14 +991,26 @@ int conf_write_autoconf(void)
 	if (conf_split_config())
 		return 1;
 
-	char *tmpconfig_name = strdup(".tmpconfig.XXXXXX");
+	char *tmpconfig_name = malloc(PATH_MAX);
+	if (getenv("COREBOOT_BUILD_DIR")) {
+		sprintf(tmpconfig_name, "%s/.tmpconfig.XXXXXX",
+			getenv("COREBOOT_BUILD_DIR"));
+	} else {
+		tmpconfig_name = strdup(".tmpconfig.XXXXXX");
+	}
 	if ((i = mkstemp(tmpconfig_name)) == -1)
 		return 1;
 	out = fdopen(i, "w");
 	if (!out)
 		return 1;
 
-	char *tmpconfig_triname = strdup(".tmpconfig_tristate.XXXXXX");
+	char *tmpconfig_triname = malloc(PATH_MAX);
+	if (getenv("COREBOOT_BUILD_DIR")) {
+		sprintf(tmpconfig_triname, "%s/.tmpconfig_tristate.XXXXXX",
+			getenv("COREBOOT_BUILD_DIR"));
+	} else {
+		tmpconfig_triname = strdup(".tmpconfig_tristate.XXXXXX");
+	}
 	if ((i = mkstemp(tmpconfig_triname)) == -1)
 		return 1;
 	tristate = fdopen(i, "w");
@@ -996,7 +1019,13 @@ int conf_write_autoconf(void)
 		return 1;
 	}
 
-	char *tmpconfig_h = strdup(".tmpconfig_tristate.XXXXXX");
+	char *tmpconfig_h = malloc(PATH_MAX);
+	if (getenv("COREBOOT_BUILD_DIR")) {
+		sprintf(tmpconfig_h, "%s/.tmpconfig_tristate.XXXXXX",
+			getenv("COREBOOT_BUILD_DIR"));
+	} else {
+		tmpconfig_h = strdup(".tmpconfig_tristate.XXXXXX");
+	}
 	if ((i = mkstemp(tmpconfig_h)) == -1)
 		return 1;
 	out_h = fdopen(i, "w");

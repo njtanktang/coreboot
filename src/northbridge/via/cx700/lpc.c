@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -91,7 +87,7 @@ static void setup_pm(device_t dev)
 	/* set ACPI irq to 9 */
 	pci_write_config8(dev, 0x82, 0x49);
 
-	/* Primary interupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
+	/* Primary interupt channel, define wake events 0 = IRQ0 15 = IRQ15 1 = en. */
 	pci_write_config16(dev, 0x84, 0x609a);
 
 	/* SMI output level to low, 7.5us throttle clock */
@@ -114,7 +110,6 @@ static void setup_pm(device_t dev)
 	/* GP2 Timer Counter */
 	pci_write_config8(dev, 0x99, 0xfb);
 	/* GP3 Timer Counter */
-	//pci_write_config8(dev, 0x9a, 0x20);
 
 	/* Multi Function Select 1 */
 	pci_write_config8(dev, 0xe4, 0x00);
@@ -173,7 +168,6 @@ static void cx700_set_lpc_registers(struct device *dev)
 	pci_write_config8(dev, 0x6C, enables);
 
 	// Map 4MB of FLASH into the address space
-//      pci_write_config8(dev, 0x41, 0x7f);
 
 	// Set bit 6 of 0x40, because Award does it (IO recovery time)
 	// IMPORTANT FIX - EISA 0x4d0 decoding must be on so that PCI
@@ -207,7 +201,7 @@ static void cx700_set_lpc_registers(struct device *dev)
 	enables |= 1 << 3;
 	pci_write_config8(dev, 0x4d, enables);
 
-	/* Set bit 3 of 0x4f to match award (use INIT# as cpu reset) */
+	/* Set bit 3 of 0x4f to match award (use INIT# as CPU reset) */
 	enables = pci_read_config8(dev, 0x4f);
 	enables |= 0x08;
 	pci_write_config8(dev, 0x4f, enables);
@@ -224,7 +218,7 @@ static void cx700_set_lpc_registers(struct device *dev)
 	// Power management setup
 	setup_pm(dev);
 
-	/* set up isa bus -- i/o recovery time, rom write enable, extend-ale */
+	/* set up isa bus -- i/o recovery time, ROM write enable, extend-ale */
 	pci_write_config8(dev, 0x40, 0x54);
 
 	/* Enable HPET timer */
@@ -274,7 +268,7 @@ static void cx700_lpc_init(struct device *dev)
 
 #if CONFIG_IOAPIC
 #define IO_APIC_ID 2
-	setup_ioapic(IO_APIC_ADDR, IO_APIC_ID);
+	setup_ioapic(VIO_APIC_VADDR, IO_APIC_ID);
 #endif
 
 	/* Initialize interrupts */
@@ -283,25 +277,25 @@ static void cx700_lpc_init(struct device *dev)
 	setup_i8259();
 
 	/* Start the Real Time Clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	/* Initialize isa dma */
 	isa_dma_init();
 
 	/* Initialize keyboard controller */
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 }
 
 static struct device_operations cx700_lpc_ops = {
 	.read_resources = cx700_read_resources,
 	.set_resources = cx700_set_resources,
 	.enable_resources = cx700_enable_resources,
-	.init = &cx700_lpc_init,
-	.scan_bus = scan_static_bus,
+	.init = cx700_lpc_init,
+	.scan_bus = scan_lpc_bus,
 };
 
 static const struct pci_driver lpc_driver __pci_driver = {
-	.ops = &cx700_lpc_ops,
+	.ops    = &cx700_lpc_ops,
 	.vendor = PCI_VENDOR_ID_VIA,
 	.device = 0x8324,
 };

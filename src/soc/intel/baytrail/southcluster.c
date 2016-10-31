@@ -12,27 +12,33 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <arch/io.h>
+#include <arch/acpi.h>
+#include <bootstate.h>
+#include <cbmem.h>
 #include <console/console.h>
+#include <cpu/x86/smm.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
-#include <romstage_handoff.h>
+#include <pc80/mc146818rtc.h>
+#include <drivers/uart/uart8250reg.h>
 
-#include <baytrail/iomap.h>
-#include <baytrail/irq.h>
-#include <baytrail/lpc.h>
-#include <baytrail/nvs.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
-#include <baytrail/ramstage.h>
+#include <soc/iomap.h>
+#include <soc/irq.h>
+#include <soc/lpc.h>
+#include <soc/nvs.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/ramstage.h>
+#include <soc/spi.h>
+#include "chip.h"
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
+#include <cpu/cpu.h>
 
 static inline void
 add_mmio_resource(device_t dev, int i, unsigned long addr, unsigned long size)
@@ -117,36 +123,109 @@ static void sc_read_resources(device_t dev)
 	sc_add_io_resources(dev);
 }
 
+static void sc_rtc_init(void)
+{
+	uint32_t gen_pmcon1;
+	int rtc_fail;
+	struct chipset_power_state *ps = cbmem_find(CBMEM_ID_POWER_STATE);
+
+	if (ps != NULL) {
+		gen_pmcon1 = ps->gen_pmcon1;
+	} else {
+		gen_pmcon1 = read32((u32 *)(PMC_BASE_ADDRESS + GEN_PMCON1));
+	}
+
+	rtc_fail = !!(gen_pmcon1 & RPS);
+
+	if (rtc_fail) {
+		printk(BIOS_DEBUG, "RTC failure.\n");
+	}
+
+	cmos_init(rtc_fail);
+}
+
+/*
+ * The UART hardware loses power while in suspend. Because of this the kernel
+ * can hang because it doesn't re-initialize serial ports it is using for
+ * consoles at resume time. The following function configures the UART
+ * if the hardware is enabled though it may not be the correct baud rate
+ * or configuration.  This is definitely a hack, but it helps the kernel
+ * along.
+ */
+static void com1_configure_resume(device_t dev)
+{
+	const uint16_t port = 0x3f8;
+
+	/* Is the UART I/O port enabled? */
+	if (!(pci_read_config32(dev, UART_CONT) & 1))
+		return;
+
+	/* Disable interrupts */
+	outb(0x0, port + UART8250_IER);
+
+	/* Enable FIFOs */
+	outb(UART8250_FCR_FIFO_EN, port + UART8250_FCR);
+
+	/* assert DTR and RTS so the other end is happy */
+	outb(UART8250_MCR_DTR | UART8250_MCR_RTS, port + UART8250_MCR);
+
+	/* DLAB on */
+	outb(UART8250_LCR_DLAB | 3, port + UART8250_LCR);
+
+	/* Set Baud Rate Divisor. 1 ==> 115200 Baud */
+	outb(1, port + UART8250_DLL);
+	outb(0, port + UART8250_DLM);
+
+	/* Set to 3 for 8N1 */
+	outb(3, port + UART8250_LCR);
+}
+
 static void sc_init(device_t dev)
 {
 	int i;
-	const unsigned long pr_base = ILB_BASE_ADDRESS + 0x08;
-	const unsigned long ir_base = ILB_BASE_ADDRESS + 0x20;
-	const unsigned long actl = ILB_BASE_ADDRESS + ACTL;
+	u8 *pr_base = (u8 *)(ILB_BASE_ADDRESS + 0x08);
+	u16 *ir_base = (u16 *)(ILB_BASE_ADDRESS + 0x20);
+	u32 *gen_pmcon1 = (u32 *)(PMC_BASE_ADDRESS + GEN_PMCON1);
+	u32 *actl = (u32 *)(ILB_BASE_ADDRESS + ACTL);
 	const struct baytrail_irq_route *ir = &global_baytrail_irq_route;
+	struct soc_intel_baytrail_config *config = dev->chip_info;
 
 	/* Set up the PIRQ PIC routing based on static config. */
 	for (i = 0; i < NUM_PIRQS; i++) {
-		write8(pr_base + i*sizeof(ir->pic[i]), ir->pic[i]);
+		write8(pr_base + i, ir->pic[i]);
 	}
 	/* Set up the per device PIRQ routing base on static config. */
 	for (i = 0; i < NUM_IR_DEVS; i++) {
-		write16(ir_base + i*sizeof(ir->pcidev[i]), ir->pcidev[i]);
+		write16(ir_base + i, ir->pcidev[i]);
 	}
 
 	/* Route SCI to IRQ9 */
 	write32(actl, (read32(actl) & ~SCIS_MASK) | SCIS_IRQ9);
+
+	sc_rtc_init();
+
+	if (config->disable_slp_x_stretch_sus_fail) {
+		printk(BIOS_DEBUG, "Disabling slp_x stretching.\n");
+		write32(gen_pmcon1,
+			read32(gen_pmcon1) | DIS_SLP_X_STRCH_SUS_UP);
+	} else {
+		write32(gen_pmcon1,
+			read32(gen_pmcon1) & ~DIS_SLP_X_STRCH_SUS_UP);
+	}
+
+	if (acpi_is_wakeup_s3())
+		com1_configure_resume(dev);
 }
 
 /*
  * Common code for the south cluster devices.
  */
 
-/* Set bit in function disble register to hide this device. */
+/* Set bit in function disable register to hide this device. */
 static void sc_disable_devfn(device_t dev)
 {
-	const unsigned long func_dis = PMC_BASE_ADDRESS + FUNC_DIS;
-	const unsigned long func_dis2 = PMC_BASE_ADDRESS + FUNC_DIS2;
+	u32 *func_dis = (u32 *)(PMC_BASE_ADDRESS + FUNC_DIS);
+	u32 *func_dis2 = (u32 *)(PMC_BASE_ADDRESS + FUNC_DIS2);
 	uint32_t mask = 0;
 	uint32_t mask2 = 0;
 
@@ -266,7 +345,7 @@ static inline void set_d3hot_bits(device_t dev, int offset)
  * the audio paths work for LPE audio. */
 static void hda_work_around(device_t dev)
 {
-	unsigned long gctl = TEMP_BASE_ADDRESS + 0x8;
+	u32 *gctl = (u32 *)(TEMP_BASE_ADDRESS + 0x8);
 
 	/* Need to set magic register 0x43 to 0xd7 in config space. */
 	pci_write_config8(dev, 0x43, 0xd7);
@@ -430,13 +509,40 @@ void southcluster_enable_dev(device_t dev)
 	}
 }
 
+static void southcluster_inject_dsdt(device_t device)
+{
+	global_nvs_t *gnvs;
+
+	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
+	if (!gnvs) {
+		gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof (*gnvs));
+		if (gnvs)
+			memset(gnvs, 0, sizeof(*gnvs));
+	}
+
+	if (gnvs) {
+		acpi_create_gnvs(gnvs);
+		acpi_save_gnvs((unsigned long)gnvs);
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to DSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
+}
+
+
 static struct device_operations device_ops = {
 	.read_resources		= sc_read_resources,
 	.set_resources		= pci_dev_set_resources,
+	.acpi_inject_dsdt_generator = southcluster_inject_dsdt,
+	.write_acpi_tables      = acpi_write_hpet,
 	.enable_resources	= NULL,
 	.init			= sc_init,
 	.enable			= southcluster_enable_dev,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &soc_pci_ops,
 };
 
@@ -445,3 +551,48 @@ static const struct pci_driver southcluster __pci_driver = {
 	.vendor		= PCI_VENDOR_ID_INTEL,
 	.device		= LPC_DEVID,
 };
+
+int __attribute__((weak)) mainboard_get_spi_config(struct spi_config *cfg)
+{
+	return -1;
+}
+
+static void finalize_chipset(void *unused)
+{
+	u32 *bcr = (u32 *)(SPI_BASE_ADDRESS + BCR);
+	u32 *gcs = (u32 *)(RCBA_BASE_ADDRESS + GCS);
+	u32 *gen_pmcon2 = (u32 *)(PMC_BASE_ADDRESS + GEN_PMCON2);
+	u32 *etr = (u32 *)(PMC_BASE_ADDRESS + ETR);
+	u8 *spi = (u8 *)SPI_BASE_ADDRESS;
+	struct spi_config cfg;
+
+	/* Set the lock enable on the BIOS control register. */
+	write32(bcr, read32(bcr) | BCR_LE);
+
+	/* Set BIOS lock down bit controlling boot block size and swapping. */
+	write32(gcs, read32(gcs) | BILD);
+
+	/* Lock sleep stretching policy and set SMI lock. */
+	write32(gen_pmcon2, read32(gen_pmcon2) | SLPSX_STR_POL_LOCK | SMI_LOCK);
+
+	/*  Set the CF9 lock. */
+	write32(etr, read32(etr) | CF9LOCK);
+
+	if (mainboard_get_spi_config(&cfg) < 0) {
+		printk(BIOS_DEBUG, "No SPI lockdown configuration.\n");
+	} else {
+		write16(spi + PREOP, cfg.preop);
+		write16(spi + OPTYPE, cfg.optype);
+		write32(spi + OPMENU0, cfg.opmenu[0]);
+		write32(spi + OPMENU1, cfg.opmenu[1]);
+		write16(spi + HSFSTS, read16(spi + HSFSTS) | FLOCKDN);
+		write32(spi + UVSCC, cfg.uvscc);
+		write32(spi + LVSCC, cfg.lvscc | VCL);
+	}
+
+	printk(BIOS_DEBUG, "Finalizing SMM.\n");
+	outb(APM_CNT_FINALIZE, APM_CNT);
+}
+
+BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, finalize_chipset, NULL);
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, finalize_chipset, NULL);

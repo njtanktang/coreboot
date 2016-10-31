@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /* IBV defined Structure */ /* IBV Specific Options */
 #ifndef MWLC_D_H
@@ -33,15 +30,16 @@
 #define C_MAX_DIMMS 4		/* Maximum Number of DIMMs on each DCT */
 
 /* STATUS Definition */
-#define DCT_STATUS_REGISTERED 3	/* Registered DIMMs support */
+#define DCT_STATUS_REGISTERED 3		/* Registered DIMMs support */
+#define DCT_STATUS_LOAD_REDUCED 4	/* Load-Reduced DIMMs support */
 #define DCT_STATUS_OnDimmMirror 24	/* OnDimmMirror support */
 
-/* PCI Defintions */
-#define FUN_HT 0	  /* Funtion 0 Access */
-#define FUN_MAP 1	  /* Funtion 1 Access */
-#define FUN_DCT 2	  /* Funtion 2 Access */
-#define FUN_MISC 3	  /* Funtion 3 Access */
-#define FUN_ADD_DCT 0xF	  /* Funtion 2 Additional Register Access */
+/* PCI Definitions */
+#define FUN_HT 0	  /* Function 0 Access */
+#define FUN_MAP 1	  /* Function 1 Access */
+#define FUN_DCT 2	  /* Function 2 Access */
+#define FUN_MISC 3	  /* Function 3 Access */
+#define FUN_ADD_DCT 0xF	  /* Function 2 Additional Register Access */
 #define BOTH_DCTS 2	  /* The access is independent of DCTs */
 #define PCI_MIN_LOW 0	  /* Lowest possible PCI register location */
 #define PCI_MAX_HIGH 31	  /* Highest possible PCI register location */
@@ -62,7 +60,7 @@
 #define DRAM_CONT_ADD_ECC_PHASE_REC_CTRL 0x52
 #define DRAM_CONT_ADD_WRITE_LEV_ERROR_REG 0x53
 
-/* CPU Register defintions */
+/* CPU Register definitions */
 
 /* Register Bit Location */
 #define DctAccessDone 31
@@ -78,12 +76,18 @@
 #define SendMrsCmd 26
 #define Qoff 12
 #define MRS_Level 7
-#define MrsAddressStart 0
-#define MrsAddressEnd 15
-#define MrsBankStart 16
-#define MrsBankEnd 18
-#define MrsChipSelStart 20
-#define MrsChipSelEnd 22
+#define MrsAddressStartFam10 0
+#define MrsAddressEndFam10 15
+#define MrsAddressStartFam15 0
+#define MrsAddressEndFam15 17
+#define MrsBankStartFam10 16
+#define MrsBankEndFam10 18
+#define MrsBankStartFam15 18
+#define MrsBankEndFam15 20
+#define MrsChipSelStartFam10 20
+#define MrsChipSelEndFam10 22
+#define MrsChipSelStartFam15 21
+#define MrsChipSelEndFam15 23
 #define ASR 18
 #define SRT 19
 #define DramTermDynStart 10
@@ -101,12 +105,8 @@
 
 typedef struct _sMCTStruct
 {
-	u8 PlatMaxTotalDimms;			/* IBV defined total number of DIMMs */
-						/* on a particular node */
-	u8 PlatMaxDimmsDct;			/* IBV defined maximum number of */
-						/* DIMMs on a DCT */
 	void (*AgesaDelay)(u32 delayval);	/* IBV defined Delay Function */
-} sMCTStruct;
+} __attribute__((packed, aligned(4))) sMCTStruct;
 
 /* DCT 0 and DCT 1 Data structure */
 typedef struct _sDCTStruct
@@ -115,10 +115,37 @@ typedef struct _sDCTStruct
 	u8 DctTrain;			/* Current DCT being trained */
 	u8 CurrDct;			/* Current DCT number (0 or 1) */
 	u8 DctCSPresent;		/* Current DCT CS mapping */
-	u8 WLGrossDelay[MAX_BYTE_LANES*MAX_LDIMMS];	/* Write Levelization Gross Delay */
-							/* per byte Lane Per Logical DIMM*/
-	u8 WLFineDelay[MAX_BYTE_LANES*MAX_LDIMMS];	/* Write Levelization Fine Delay */
-							/* per byte Lane Per Logical DIMM*/
+	uint8_t WrDqsGrossDlyBaseOffset;
+	int32_t WLSeedGrossDelay[MAX_BYTE_LANES*MAX_LDIMMS];	/* Write Levelization Seed Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	int32_t WLSeedFineDelay[MAX_BYTE_LANES*MAX_LDIMMS];	/* Write Levelization Seed Fine Delay */
+								/* per byte Lane Per Logical DIMM*/
+	int32_t WLSeedPreGrossDelay[MAX_BYTE_LANES*MAX_LDIMMS];	/* Write Levelization Seed Pre-Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	uint8_t WLSeedPreGrossPrevNibble[MAX_BYTE_LANES*MAX_LDIMMS];
+	uint8_t WLSeedGrossPrevNibble[MAX_BYTE_LANES*MAX_LDIMMS];
+	uint8_t WLSeedFinePrevNibble[MAX_BYTE_LANES*MAX_LDIMMS];
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLGrossDelay[MAX_BYTE_LANES*MAX_LDIMMS];		/* Write Levelization Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLFineDelay[MAX_BYTE_LANES*MAX_LDIMMS];		/* Write Levelization Fine Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLGrossDelayFirstPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* First-Pass Write Levelization Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLFineDelayFirstPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* First-Pass Write Levelization Fine Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLGrossDelayPrevPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* Previous Pass Write Levelization Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLFineDelayPrevPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* Previous Pass Write Levelization Fine Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLGrossDelayFinalPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* Final-Pass Write Levelization Gross Delay */
+								/* per byte Lane Per Logical DIMM*/
+	u8 WLFineDelayFinalPass[MAX_BYTE_LANES*MAX_LDIMMS];	/* Final-Pass Write Levelization Fine Delay */
+								/* per byte Lane Per Logical DIMM*/
+	int32_t WLCriticalGrossDelayFirstPass;
+	int32_t WLCriticalGrossDelayPrevPass;
+	int32_t WLCriticalGrossDelayFinalPass;
+	uint16_t WLPrevMemclkFreq[MAX_TOTAL_DIMMS];
 	u16 RegMan1Present;
 	u8 DimmPresent[MAX_TOTAL_DIMMS];/* Indicates which DIMMs are present */
 					/* from Total Number of DIMMs(per Node)*/
@@ -128,12 +155,12 @@ typedef struct _sDCTStruct
 	u8 ErrStatus[MAX_ERRORS];	/* Minor Error codes for DCT0 and 1 */
 	u8 DimmValid[MAX_TOTAL_DIMMS];	/* Indicates which DIMMs are valid for */
 					/* Total Number of DIMMs(per Node) */
-	u8 WLTotalDelay[MAX_BYTE_LANES];/* Write Levelization Toral Delay */
+	u8 WLTotalDelay[MAX_BYTE_LANES];/* Write Levelization Total Delay */
 					/* per byte lane */
 	u8 MaxDimmsInstalled;		/* Max Dimms Installed for current DCT */
 	u8 DimmRanks[MAX_TOTAL_DIMMS];	/* Total Number of Ranks(per Dimm) */
-	u32 LogicalCPUID;
+	uint64_t LogicalCPUID;
 	u8 WLPass;
-} sDCTStruct;
+} __attribute__((packed, aligned(4))) sDCTStruct;
 
 #endif

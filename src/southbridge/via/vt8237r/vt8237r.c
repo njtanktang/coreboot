@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -37,13 +33,9 @@ void writeback(struct device *dev, u16 where, u8 what)
 	pci_write_config8(dev, where, what);
 	regval = pci_read_config8(dev, where);
 
-	if (regval != what) {
-		print_debug("Writeback to ");
-		print_debug_hex8(where);
-		print_debug(" failed ");
-		print_debug_hex8(regval);
-		print_debug("\n");
-	}
+	if (regval != what)
+		printk(BIOS_DEBUG, "Writeback to %02x failed %02x\n",
+			where, regval);
 }
 #else
 void writeback(struct device *dev, u16 where, u8 what)

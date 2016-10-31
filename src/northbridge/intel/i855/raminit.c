@@ -12,13 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <assert.h>
+#include <lib.h>
 #include <spd.h>
 #include <sdram_mode.h>
 #include <stdlib.h>
@@ -372,32 +369,32 @@ static void do_ram_command(uint8_t command, uint16_t jedec_mode_bits)
 	PRINTK_DEBUG("  Sending RAM command 0x%08x\n", reg32);
 	pci_write_config32(NORTHBRIDGE_MMC, DRC, reg32);
 
-        // RAM_COMMAND_NORMAL is an exception.
-        // It affects only the memory controller and does not need to be "sent" to the DIMMs.
+	// RAM_COMMAND_NORMAL is an exception.
+	// It affects only the memory controller and does not need to be "sent" to the DIMMs.
 
-        if (command != RAM_COMMAND_NORMAL) {
+	if (command != RAM_COMMAND_NORMAL) {
 
-                // Send the command to all DIMMs by accessing a memory location within each
-                // NOTE: for mode select commands, some of the location address bits
-                // are part of the command
+		// Send the command to all DIMMs by accessing a memory location within each
+		// NOTE: for mode select commands, some of the location address bits
+		// are part of the command
 
-                // Map JEDEC mode bits to i855
-                if (command == RAM_COMMAND_MRS || command == RAM_COMMAND_EMRS) {
+		// Map JEDEC mode bits to i855
+		if (command == RAM_COMMAND_MRS || command == RAM_COMMAND_EMRS) {
 			/* Host address lines [13:3] map to DIMM address lines [11, 9:0] */
 			i855_mode_bits = ((jedec_mode_bits & 0x800) << (13 - 11)) | ((jedec_mode_bits & 0x3ff) << (12 - 9));
-                }
+		}
 
-                for (i = 0; i < (DIMM_SOCKETS * 2); ++i) {
-                        uint8_t dimm_end_32M_multiple = pci_read_config8(NORTHBRIDGE_MMC, DRB + i);
-                        if (dimm_end_32M_multiple > dimm_start_32M_multiple) {
+		for (i = 0; i < (DIMM_SOCKETS * 2); ++i) {
+			uint8_t dimm_end_32M_multiple = pci_read_config8(NORTHBRIDGE_MMC, DRB + i);
+			if (dimm_end_32M_multiple > dimm_start_32M_multiple) {
 
-                                uint32_t dimm_start_address = dimm_start_32M_multiple << 25;
+				uint32_t dimm_start_address = dimm_start_32M_multiple << 25;
 				PRINTK_DEBUG("  Sending RAM command to 0x%08x\n", dimm_start_address + i855_mode_bits);
-                                read32(dimm_start_address + i855_mode_bits);
+				read32((void *)(dimm_start_address + i855_mode_bits));
 
-                                // Set the start of the next DIMM
-                                dimm_start_32M_multiple = dimm_end_32M_multiple;
-                        }
+				// Set the start of the next DIMM
+				dimm_start_32M_multiple = dimm_end_32M_multiple;
+			}
 		}
 	}
 }
@@ -415,7 +412,7 @@ static void sdram_enable(void)
 {
 	int i;
 
-	print_debug("Ram enable 1\n");
+	printk(BIOS_DEBUG, "Ram enable 1\n");
 	delay();
 	delay();
 
@@ -433,16 +430,16 @@ static void sdram_enable(void)
 	delay();
 	delay();
 
-	print_debug("Ram enable 4\n");
+	printk(BIOS_DEBUG, "Ram enable 4\n");
 	do_ram_command(RAM_COMMAND_EMRS, SDRAM_EXTMODE_DLL_ENABLE);
 	delay();
 	delay();
 	delay();
 
-	print_debug("Ram enable 5\n");
+	printk(BIOS_DEBUG, "Ram enable 5\n");
 	do_ram_command(RAM_COMMAND_MRS, VG85X_MODE | SDRAM_MODE_DLL_RESET);
 
-	print_debug("Ram enable 6\n");
+	printk(BIOS_DEBUG, "Ram enable 6\n");
 	do_ram_command(RAM_COMMAND_PRECHARGE, 0);
 	delay();
 	delay();
@@ -450,14 +447,14 @@ static void sdram_enable(void)
 
 	/* 8 CBR refreshes (Auto Refresh) */
 	PRINTK_DEBUG(" 8 CBR refreshes\n");
-	for(i = 0; i < 8; i++) {
+	for (i = 0; i < 8; i++) {
 		do_ram_command(RAM_COMMAND_CBR, 0);
 		delay();
 		delay();
 		delay();
 	}
 
-	print_debug("Ram enable 8\n");
+	printk(BIOS_DEBUG, "Ram enable 8\n");
 	do_ram_command(RAM_COMMAND_MRS, VG85X_MODE | SDRAM_MODE_NORMAL);
 
 	/* Set GME-M Mode Select bits back to NORMAL operation mode */
@@ -467,7 +464,7 @@ static void sdram_enable(void)
 	delay();
 	delay();
 
-	print_debug("Ram enable 9\n");
+	printk(BIOS_DEBUG, "Ram enable 9\n");
 	set_initialize_complete();
 
 	delay();
@@ -476,11 +473,11 @@ static void sdram_enable(void)
 	delay();
 	delay();
 
-	print_debug("After configuration:\n");
+	printk(BIOS_DEBUG, "After configuration:\n");
 	/* dump_pci_devices(); */
 
 	/*
-	print_debug("\n\n***** RAM TEST *****\n");
+	printk(BIOS_DEBUG, "\n\n***** RAM TEST *****\n");
 	ram_check(0, 0xa0000);
 	ram_check(0x100000, 0x40000000);
 	*/
@@ -497,7 +494,7 @@ DIMM-independant configuration functions:
 static void sdram_set_registers(void)
 {
 	/*
-	print_debug("Before configuration:\n");
+	printk(BIOS_DEBUG, "Before configuration:\n");
 	dump_pci_devices();
 	*/
 }
@@ -572,13 +569,13 @@ static void spd_set_dram_controller_mode(uint8_t dimm_mask)
 		die_on_spd_error(value);
 		value &= 0x7f;	// Mask off self-refresh bit
 		if (value > MAX_SPD_REFRESH_RATE) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// Get the appropriate i855 refresh mode for this DIMM
 		dimm_refresh_mode = refresh_rate_map[value];
 		if (dimm_refresh_mode > 7) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// If this DIMM requires more frequent refresh than others,
@@ -881,7 +878,7 @@ static void spd_update(u8 reg, u32 new_value)
 #endif
 }
 
-/* if ram still doesn't work do this function */
+/* if RAM still doesn't work do this function */
 static void spd_set_undocumented_registers(void)
 {
 	spd_update(0x74, 0x00000001);
@@ -965,7 +962,7 @@ static void sdram_set_spd_registers(void)
 	dimm_mask = spd_get_supported_dimms();
 
 	if (dimm_mask == 0) {
-		print_debug("No usable memory for this controller\n");
+		printk(BIOS_DEBUG, "No usable memory for this controller\n");
 	} else {
 		PRINTK_DEBUG("DIMM MASK: %02x\n", dimm_mask);
 
@@ -981,4 +978,3 @@ static void sdram_set_spd_registers(void)
 	/* Setup Initial Northbridge Registers */
 	northbridge_set_registers();
 }
-

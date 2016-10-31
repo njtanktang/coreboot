@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -108,18 +104,8 @@ static void pci_domain_set_resources(device_t dev)
 	/* Note: subtract IGD device and TSEG */
 	reg16 = pci_read_config16(dev_find_slot(0, PCI_DEVFN(0, 0)), GGC);
 	if (!(reg16 & 2)) {
-		int uma_size = 0;
 		printk(BIOS_DEBUG, "IGD decoded, subtracting ");
-		reg16 >>= 4;
-		reg16 &= 7;
-		switch (reg16) {
-		case 1:
-			uma_size = 1024;
-			break;
-		case 3:
-			uma_size = 8192;
-			break;
-		}
+		int uma_size = decode_igd_memory_size((reg16 >> 4) & 7);
 
 		printk(BIOS_DEBUG, "%dM UMA\n", uma_size >> 10);
 		tomk_stolen -= uma_size;
@@ -191,11 +177,6 @@ static void mc_read_resources(device_t dev)
 
 	pci_dev_read_resources(dev);
 
-	/* So, this is one of the big mysteries in the coreboot resource
-	 * allocator. This resource should make sure that the address space
-	 * of the PCIe memory mapped config space bar. But it does not.
-	 */
-
 	/* We use 0xcf as an unused index for our PCIe bar so that we find it again */
 	resource = new_resource(dev, 0xcf);
 	resource->base = DEFAULT_PCIEXBAR;
@@ -238,15 +219,15 @@ static void northbridge_init(struct device *dev)
 	switch (pci_read_config32(dev, SKPAD)) {
 	case SKPAD_NORMAL_BOOT_MAGIC:
 		printk(BIOS_DEBUG, "Normal boot.\n");
-		acpi_slp_type=0;
+		acpi_slp_type = 0;
 		break;
 	case SKPAD_ACPI_S3_MAGIC:
 		printk(BIOS_DEBUG, "S3 Resume.\n");
-		acpi_slp_type=3;
+		acpi_slp_type = 3;
 		break;
 	default:
 		printk(BIOS_DEBUG, "Unknown boot method, assuming normal.\n");
-		acpi_slp_type=0;
+		acpi_slp_type = 0;
 		break;
 	}
 }
@@ -260,6 +241,7 @@ static struct device_operations mc_ops = {
 	.read_resources   = mc_read_resources,
 	.set_resources    = mc_set_resources,
 	.enable_resources = pci_dev_enable_resources,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 #if CONFIG_HAVE_ACPI_RESUME
 	.init             = northbridge_init,
 #endif
@@ -267,10 +249,15 @@ static struct device_operations mc_ops = {
 	.ops_pci          = &intel_pci_ops,
 };
 
+static const unsigned short pci_device_ids[] = {
+	0x2770, /* desktop */
+	0x27a0, 0x27ac, /* mobile */
+	0 };
+
 static const struct pci_driver mc_driver __pci_driver = {
 	.ops    = &mc_ops,
 	.vendor = PCI_VENDOR_ID_INTEL,
-	.device = 0x27a0,
+	.devices = pci_device_ids,
 };
 
 static void cpu_bus_init(device_t dev)
@@ -278,14 +265,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = 0,
 };

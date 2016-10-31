@@ -13,14 +13,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #ifndef __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__
-#define __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__ 1
+#define __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__
 
 /* Chipset types */
 #define SANDYBRIDGE_MOBILE	0
@@ -49,13 +45,20 @@
 
 /* Northbridge BARs */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS	/* 4 KB per PCIe device */
+#ifndef __ACPI__
+#define DEFAULT_MCHBAR		((u8 *)0xfed10000)	/* 16 KB */
+#define DEFAULT_DMIBAR		((u8 *)0xfed18000)	/* 4 KB */
+#else
 #define DEFAULT_MCHBAR		0xfed10000	/* 16 KB */
 #define DEFAULT_DMIBAR		0xfed18000	/* 4 KB */
+#endif
 #define DEFAULT_EPBAR		0xfed19000	/* 4 KB */
-#define DEFAULT_RCBABASE	0xfed1c000
+#define DEFAULT_RCBABASE	((u8 *)0xfed1c000)
 
-#if CONFIG_SOUTHBRIDGE_INTEL_FSP_BD82X6X
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_FSP_BD82X6X)
 #include <southbridge/intel/fsp_bd82x6x/pch.h>
+#elif IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_FSP_I89XX)
+#include <southbridge/intel/fsp_i89xx/pch.h>
 #endif
 
 /* Everything below this line is ignored in the DSDT */
@@ -89,14 +92,10 @@
 
 #define LAC		0x87	/* Legacy Access Control */
 #define SMRAM		0x88	/* System Management RAM Control */
-#define  D_OPEN		(1 << 6)
-#define  D_CLS		(1 << 5)
-#define  D_LCK		(1 << 4)
-#define  G_SMRAME	(1 << 3)
-#define  C_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0))
 
 #define TOM		0xa0
 #define TOUUD		0xa8	/* Top of Upper Usable DRAM */
+#define BGSM		0xb4	/* Base GTT Stolen Memory */
 #define TSEG		0xb8	/* TSEG base */
 #define TOLUD		0xbc	/* Top of Low Used Memory */
 
@@ -197,12 +196,6 @@
 #ifndef __ASSEMBLER__
 static inline void barrier(void) { asm("" ::: "memory"); }
 
-struct ied_header {
-	char signature[10];
-	u32 size;
-	u8 reserved[34];
-} __attribute__ ((packed));
-
 #define PCI_DEVICE_ID_SB 0x0104
 #define PCI_DEVICE_ID_IB 0x0154
 
@@ -222,10 +215,6 @@ void dump_mem(unsigned start, unsigned end);
 void report_platform_info(void);
 #endif /* !__SMM__ */
 
-
-#define MRC_DATA_ALIGN           0x1000
-#define MRC_DATA_SIGNATURE       (('M'<<0)|('R'<<8)|('C'<<16)|('D'<<24))
-
 #if !defined(__PRE_RAM__)
 #include "gma.h"
 int init_igd_opregion(igd_opregion_t *igd_opregion);
@@ -233,4 +222,4 @@ int init_igd_opregion(igd_opregion_t *igd_opregion);
 
 #endif
 #endif
-#endif
+#endif /* __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__ */

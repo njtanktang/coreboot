@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -25,7 +21,8 @@
 
 
 /**
- * @def BIOS_SIZE -> BIOS_SIZE_{1,2,4,8,16}M
+ * @def BIOS_SIZE
+ *      BIOS_SIZE_{1,2,4,8,16}M
  *
  * In Hudson-2, default ROM size is 1M Bytes, if your platform ROM
  * bigger than 1M you have to set the ROM size outside CIMx module and
@@ -127,7 +124,7 @@
 // #endif
 
 /**
- *   @section GecShadowRomBase
+ *   @section GecShadowRomAddress
  */
 #ifndef GEC_ROM_SHADOW_ADDRESS
   #define GEC_ROM_SHADOW_ADDRESS 0xFED61000
@@ -190,7 +187,7 @@
 // #endif
 
 /**
- *   @section SataController
+ *   @section InChipSataController
  *    @li <b>0</b> - Disable
  *    @li <b>1</b> - Enable
  */
@@ -199,7 +196,7 @@
 #endif
 
 /**
- *  @section SataIdeCombMdPriSecOpt
+ *  @section SataIdeCombModeChannel
  *    @li <b>0</b> - Primary
  *    @li <b>1</b> - Secondary<TD></TD>
  *  Sata Controller set as primary or
@@ -220,7 +217,7 @@
 #endif
 
 /**
- *   @section SataIdeCombinedMode
+ *   @section SataCombineMode
  *    @li <b>0</b> - Disable
  *    @li <b>1</b> - Enable
  *    Sata IDE Controller set to Combined Mode
@@ -737,12 +734,6 @@
 #define IDE_DISUNUSED_IDE_S_CHANNEL 0
 
 /**
- *   @section IdeDisUnusedIdeSChannel
- *    @li <b>0</b> - Disable
- *    @li <b>1</b> - Enable
- */
-
-/**
  *   @section SataEspPort0
  *    @li <b>0</b> - Disable
  *    @li <b>1</b> - Enable
@@ -1218,10 +1209,10 @@ void SbPowerOnInit_Config(AMDSBCFG *sb_cfg);
  *
  * @param[in] func    Southbridge CIMx Function ID.
  * @param[in] data    Southbridge Input Data.
- * @param[in] sb_cfg  Southbridge configuration structure pointer.
+ * @param[in] config  Southbridge configuration structure pointer.
  *
  */
-u32 sb900_callout_entry(u32 func, u32 data, void* sb_cfg);
+u32 sb900_callout_entry(u32 func, u32 data, void* config);
 
 // definition for function in gpio.c
 void gpioEarlyInit (void);

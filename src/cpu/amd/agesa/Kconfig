@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 config CPU_AMD_AGESA
 	bool
@@ -24,9 +20,11 @@ config CPU_AMD_AGESA
 	default y if CPU_AMD_AGESA_FAMILY14
 	default y if CPU_AMD_AGESA_FAMILY15
 	default y if CPU_AMD_AGESA_FAMILY15_TN
+	default y if CPU_AMD_AGESA_FAMILY15_RL
 	default y if CPU_AMD_AGESA_FAMILY16_KB
 	default n
 	select ARCH_BOOTBLOCK_X86_32
+	select ARCH_VERSTAGE_X86_32
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_RAMSTAGE_X86_32
 	select TSC_SYNC_LFENCE
@@ -36,19 +34,15 @@ config CPU_AMD_AGESA
 
 if CPU_AMD_AGESA
 
-config UDELAY_IO
-	bool
-	default n
-
 config XIP_ROM_SIZE
 	hex
 	default 0x100000
 	help
 	  Overwride the default write through caching size as 1M Bytes.
-	  On some AMD paltform, one socket support 2 or more kinds of
-	  processor family, compiling several cpu families agesa code
+	  On some AMD platforms, one socket supports 2 or more kinds of
+	  processor family, compiling several CPU families agesa code
 	  will increase the romstage size.
-	  In order to execute romstage in place on the flash rom,
+	  In order to execute romstage in place on the flash ROM,
 	  more space is required to be set as write through caching.
 
 config UDELAY_LAPIC_FIXED_FSB
@@ -82,5 +76,5 @@ source src/cpu/amd/agesa/family12/Kconfig
 source src/cpu/amd/agesa/family14/Kconfig
 source src/cpu/amd/agesa/family15/Kconfig
 source src/cpu/amd/agesa/family15tn/Kconfig
+source src/cpu/amd/agesa/family15rl/Kconfig
 source src/cpu/amd/agesa/family16kb/Kconfig
-

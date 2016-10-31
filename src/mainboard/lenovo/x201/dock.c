@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #define __SIMPLE_DEVICE__
@@ -42,16 +37,24 @@ void h8_mainboard_init_dock (void)
 
 void dock_connect(void)
 {
+	u16 gpiobase = pci_read_config16(PCH_LPC_DEV, GPIO_BASE) & 0xfffc;
+
 	ec_set_bit(0x02, 0);
 	ec_set_bit(0x1a, 0);
 	ec_set_bit(0xfe, 4);
+
+	outl(inl(gpiobase + 0x0c) | (1 << 28), gpiobase + 0x0c);
 }
 
 void dock_disconnect(void)
 {
+	u16 gpiobase = pci_read_config16(PCH_LPC_DEV, GPIO_BASE) & 0xfffc;
+
 	ec_clr_bit(0x02, 0);
 	ec_clr_bit(0x1a, 0);
 	ec_clr_bit(0xfe, 4);
+
+	outl(inl(gpiobase + 0x0c) & ~(1 << 28), gpiobase + 0x0c);
 }
 
 int dock_present(void)
@@ -59,5 +62,5 @@ int dock_present(void)
 	u16 gpiobase = pci_read_config16(PCH_LPC_DEV, GPIO_BASE) & 0xfffc;
 	u8 st = inb(gpiobase + 0x0c);
 
-	return !((st >> 3) & 1);
+	return ((st >> 3) & 7) != 7;
 }

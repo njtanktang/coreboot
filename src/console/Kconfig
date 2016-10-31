@@ -2,14 +2,22 @@ menu "Console"
 
 config BOOTBLOCK_CONSOLE
 	bool "Enable early (bootblock) console output."
-	depends on ARCH_ARMV7
+	depends on C_ENVIRONMENT_BOOTBLOCK
 	default n
 	help
 	  Use console during the bootblock if supported
 
+config POSTCAR_CONSOLE
+	bool "Enable console output during postcar."
+	depends on POSTCAR_STAGE
+	default n
+	help
+	  Use console during the postcar if supported
+
 config SQUELCH_EARLY_SMP
 	bool "Squelch AP CPUs from early console."
 	default y
+	depends on SMP
 	help
 	  When selected only the BSP CPU will output to early console.
 
@@ -43,12 +51,15 @@ if CONSOLE_SERIAL
 config UART_FOR_CONSOLE
 	int "Index for UART port to use for console"
 	default 0
+	help
+	  Select an I/O port to use for serial console:
+	    0 = 0x3f8, 1 = 0x2f8, 2 = 0x3e8, 3 = 0x2e8
 
 # FIXME: Early programming in romstage is incorrect as we should
 # program different LDN to actually change the physical port.
 config TTYS0_BASE
 	hex
-	depends on DRIVERS_UART_8250IO
+	depends on DRIVERS_UART
 	default 0x3f8 if UART_FOR_CONSOLE = 0
 	default 0x2f8 if UART_FOR_CONSOLE = 1
 	default 0x3e8 if UART_FOR_CONSOLE = 2
@@ -56,10 +67,31 @@ config TTYS0_BASE
 	help
 	  Map the COM port number to the respective I/O port.
 
+comment "Serial port base address = 0x3f8"
+depends on UART_FOR_CONSOLE = 0
+comment "Serial port base address = 0x2f8"
+depends on UART_FOR_CONSOLE = 1
+comment "Serial port base address = 0x3e8"
+depends on UART_FOR_CONSOLE = 2
+comment "Serial port base address = 0x2e8"
+depends on UART_FOR_CONSOLE = 3
+
 choice
 	prompt "Baud rate"
 	default CONSOLE_SERIAL_115200
 
+config CONSOLE_SERIAL_921600
+	bool "921600"
+	help
+	  Set serial port Baud rate to 921600.
+config CONSOLE_SERIAL_460800
+	bool "460800"
+	help
+	  Set serial port Baud rate to 460800.
+config CONSOLE_SERIAL_230400
+	bool "230400"
+	help
+	  Set serial port Baud rate to 230400.
 config CONSOLE_SERIAL_115200
 	bool "115200"
 	help
@@ -86,6 +118,9 @@ endchoice
 #FIXME(dhendrix): Change name to SERIAL_BAUD? (Stefan sayz: yes!!)
 config TTYS0_BAUD
 	int
+	default 921600 if CONSOLE_SERIAL_921600
+	default 460800 if CONSOLE_SERIAL_460800
+	default 230400 if CONSOLE_SERIAL_230400
 	default 115200 if CONSOLE_SERIAL_115200
 	default 57600 if CONSOLE_SERIAL_57600
 	default 38400 if CONSOLE_SERIAL_38400
@@ -105,6 +140,7 @@ endif # CONSOLE_SERIAL
 config SPKMODEM
 	bool "spkmodem (console on speaker) console output"
 	default n
+	depends on ARCH_X86
 	help
 	  Send coreboot debug output through speaker
 
@@ -122,12 +158,14 @@ config CONSOLE_USB
 config ONBOARD_VGA_IS_PRIMARY
 	bool "Use onboard VGA as primary video device"
 	default n
+	depends on PCI
 	help
 	  If not selected, the last adapter found will be used.
 
 config CONSOLE_NE2K
 	bool "Network console over NE2000 compatible Ethernet adapter"
 	default n
+	depends on PCI
 	help
 	  Send coreboot debug output to a Ethernet console, it works
 	  same way as Linux netconsole, packets are received to UDP
@@ -147,7 +185,7 @@ config CONSOLE_NE2K_DST_IP
 	string "Destination IP of logging system"
 	default "10.0.1.27"
 	help
-	  This is IP adress of the system running for example
+	  This is IP address of the system running for example
 	  netcat command to dump the packets.
 
 config CONSOLE_NE2K_SRC_IP
@@ -169,29 +207,31 @@ config CONSOLE_NE2K_IO_PORT
 
 config CONSOLE_CBMEM
 	bool "Send console output to a CBMEM buffer"
-	default n
+	default y
 	help
 	  Enable this to save the console output in a CBMEM buffer. This would
 	  allow to see coreboot console output from Linux space.
 
+if CONSOLE_CBMEM
+
 config CONSOLE_CBMEM_BUFFER_SIZE
-	depends on CONSOLE_CBMEM
 	hex "Room allocated for console output in CBMEM"
-	default 0x10000
+	default 0x20000
 	help
 	  Space allocated for console output storage in CBMEM. The default
-	  value (64K or 0x10000 bytes) is large enough to accommodate
+	  value (128K or 0x20000 bytes) is large enough to accommodate
 	  even the BIOS_SPEW level.
 
-config CONSOLE_CAR_BUFFER_SIZE
-	depends on CONSOLE_CBMEM
-	hex "Room allocated for console output in Cache as RAM"
-	default 0xc00
+config CONSOLE_CBMEM_DUMP_TO_UART
+	depends on !CONSOLE_SERIAL
+	bool "Dump CBMEM console on resets"
+	default n
 	help
-	  Console is used before RAM is initialized. This is the room reserved
-	  in the DCACHE based RAM to keep console output before it can be
-	  saved in a CBMEM buffer. 3K bytes should be enough even for the
-	  BIOS_SPEW level.
+	  Enable this to have CBMEM console buffer contents dumped on the
+	  serial output in case serial console is disabled and the device
+	  resets itself while trying to boot the payload.
+
+endif
 
 config CONSOLE_QEMU_DEBUGCON
 	bool "QEMU debug console output"
@@ -208,6 +248,14 @@ config CONSOLE_QEMU_DEBUGCON_PORT
 	hex "QEMU debug console port"
 	depends on CONSOLE_QEMU_DEBUGCON
 	default 0x402
+
+config SPI_CONSOLE
+	bool "SPI debug console output"
+	depends on HAVE_SPI_CONSOLE_SUPPORT && !DEBUG_SPI_FLASH
+	help
+	  Enable support for the debug console on the Dediprog EM100Pro.
+	  This is currently working only in ramstage due to how the spi
+	  drivers are written.
 
 choice
 	prompt "Default console log level"
@@ -282,7 +330,7 @@ config CMOS_POST
 config CMOS_POST_OFFSET
 	hex "Offset into CMOS to store POST codes"
 	depends on CMOS_POST
-	default 0
+	default 0x0
 	help
 	  If CMOS_POST is enabled then an offset into CMOS must be provided.
 	  If CONFIG_HAVE_OPTION_TABLE is enabled then it will use the value
@@ -296,7 +344,7 @@ config CMOS_POST_EXTRA
 	  This will enable extra logging of work that happens between post
 	  codes into CMOS for debug.  This uses an additional 8 bytes of CMOS.
 
-config POST_IO
+config CONSOLE_POST
 	bool "Show POST codes on the debug console"
 	depends on !NO_POST
 	default n
@@ -319,8 +367,10 @@ config POST_DEVICE_NONE
 	bool "None"
 config POST_DEVICE_LPC
 	bool "LPC"
+	depends on PCI
 config POST_DEVICE_PCI_PCIE
 	bool "PCI/PCIe"
+	depends on PCI
 endchoice
 
 config POST_IO
@@ -336,8 +386,17 @@ config POST_IO_PORT
 	default 0x80
 	help
 	  POST codes on x86 are typically written to the LPC bus on port
-	  0x80. However, it may be desireable to change the port number
+	  0x80. However, it may be desirable to change the port number
 	  depending on the presence of coprocessors/microcontrollers or if the
 	  platform does not support IO in the conventional x86 manner.
+
+config NO_EARLY_BOOTBLOCK_POSTCODES
+	def_bool n
+	help
+	  Some chipsets require that the routing for the port 80h POST
+	  code be configured before any POST codes are sent out.
+	  This can be done in the boot block, but there are a couple of
+	  POST codes that go out before the chipset's bootblock initialization
+	  can happen.  This option suppresses those POST codes.
 
 endmenu

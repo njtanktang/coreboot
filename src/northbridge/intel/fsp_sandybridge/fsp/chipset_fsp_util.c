@@ -11,15 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
 #include <string.h>
-#include <cpu/x86/stack.h>
 #include <console/console.h>
 #include <bootstate.h>
 #include <cbmem.h>
@@ -28,10 +23,6 @@
 #include <fsp_util.h>
 #include "../chip.h"
 #include <reset.h>
-
-#ifndef CONFIG_ENABLE_FSP_FAST_BOOT
-# error "CONFIG_ENABLE_FSP_FAST_BOOT must be set."
-#endif
 
 #ifdef __PRE_RAM__
 
@@ -54,11 +45,7 @@ static void ConfigureDefaultUpdData(UPD_DATA_REGION   *UpdData)
 }
 #else	/* IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_FSP_I89XX) */
 const PLATFORM_CONFIG DefaultPlatformConfig = {
-#if IS_ENABLED(CONFIG_DISABLE_SANDYBRIDGE_HYPERTHREADING)
-	FALSE,  /* Hyperthreading */
-#else
 	TRUE,  /* Hyperthreading */
-#endif
 	FALSE, /* Turbo Mode */
 	FALSE, /* Memory Down */
 #if IS_ENABLED(CONFIG_ENABLE_FSP_FAST_BOOT)
@@ -108,6 +95,7 @@ void chipset_fsp_early_init(FSP_INIT_PARAMS *FspInitParams,
 void ChipsetFspReturnPoint(EFI_STATUS Status,
 		VOID *HobListPtr)
 {
+	*(void **)CBMEM_FSP_HOB_PTR = HobListPtr;
 	if (Status == 0xFFFFFFFF) {
 		hard_reset();
 	}

@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  * ---------------------------------------------------------------------------
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,6 +59,7 @@ typedef uint8_t u8;
 
 #define CBFS_COMPRESS_NONE  0
 #define CBFS_COMPRESS_LZMA  1
+#define CBFS_COMPRESS_LZ4   2
 
 /** These are standard component types for well known
     components (i.e - those that coreboot needs to consume.
@@ -178,4 +175,3 @@ void *cbfs_find_file(const char *name, unsigned int type, unsigned int *len);
 
 void open_cbfs(const char *filename);
 #endif
-

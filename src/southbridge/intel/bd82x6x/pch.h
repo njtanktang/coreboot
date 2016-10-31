@@ -12,14 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_BD82X6X_PCH_H
 #define SOUTHBRIDGE_INTEL_BD82X6X_PCH_H
+
+#include <arch/acpi.h>
 
 /* PCH types */
 #define PCH_TYPE_CPT	0x1c /* CougarPoint */
@@ -47,7 +45,17 @@
 #define DEFAULT_GPIOBASE	0x0480
 #define DEFAULT_PMBASE		0x0500
 
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
+#endif
+
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_BD82X6X)
+#define CROS_GPIO_DEVICE_NAME	"CougarPoint"
+#elif IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_C216)
+#define CROS_GPIO_DEVICE_NAME	"PantherPoint"
+#endif
 
 #ifndef __ACPI__
 #define DEBUG_PERIODIC_SMIS 0
@@ -58,7 +66,7 @@ void intel_pch_finalize_smm(void);
 
 #if !defined(__ASSEMBLER__)
 #if !defined(__PRE_RAM__)
-#if !defined(__SMM__)
+#if !defined(__SIMPLE_DEVICE__)
 #include "chip.h"
 void pch_enable(device_t dev);
 #endif
@@ -66,6 +74,7 @@ int pch_silicon_revision(void);
 int pch_silicon_type(void);
 int pch_silicon_supported(int type, int rev);
 void pch_iobp_update(u32 address, u32 andvalue, u32 orvalue);
+void gpi_route_interrupt(u8 gpi, u8 mode);
 #if CONFIG_ELOG
 void pch_log_state(void);
 #endif
@@ -74,6 +83,25 @@ void enable_smbus(void);
 void enable_usb_bar(void);
 int smbus_read_byte(unsigned device, unsigned address);
 int early_spi_read(u32 offset, u32 size, u8 *buffer);
+void early_thermal_init(void);
+void southbridge_configure_default_intmap(void);
+void early_pch_init_native(void);
+int southbridge_detect_s3_resume(void);
+
+struct southbridge_usb_port
+{
+	int enabled;
+	int current;
+	int oc_pin;
+};
+
+#ifndef __ROMCC__
+extern const struct southbridge_usb_port mainboard_usb_ports[14];
+#endif
+
+void
+early_usb_init (const struct southbridge_usb_port *portmap);
+
 #endif
 #endif
 
@@ -100,6 +128,10 @@ int early_spi_read(u32 offset, u32 size, u8 *buffer);
 #define PCH_XHCI_DEV		PCI_DEV(0, 0x14, 0)
 #define PCH_ME_DEV		PCI_DEV(0, 0x16, 0)
 #define PCH_PCIE_DEV_SLOT	28
+#define PCH_IOAPIC_PCI_BUS	250
+#define PCH_IOAPIC_PCI_SLOT	31
+#define PCH_HPET_PCI_BUS	250
+#define PCH_HPET_PCI_SLOT	15
 
 /* PCI Configuration Space (D31:F0): LPC */
 #define PCH_LPC_DEV		PCI_DEV(0, 0x1f, 0)
@@ -123,7 +155,12 @@ int early_spi_read(u32 offset, u32 size, u8 *buffer);
 #define BIOS_CNTL		0xDC
 #define GPIO_BASE		0x48 /* LPC GPIO Base Address Register */
 #define GPIO_CNTL		0x4C /* LPC GPIO Control Register */
+
 #define GPIO_ROUT		0xb8
+#define   GPI_DISABLE		0x00
+#define   GPI_IS_SMI		0x01
+#define   GPI_IS_SCI		0x02
+#define   GPI_IS_NMI		0x03
 
 #define PIRQA_ROUT		0x60
 #define PIRQB_ROUT		0x61
@@ -133,6 +170,9 @@ int early_spi_read(u32 offset, u32 size, u8 *buffer);
 #define PIRQF_ROUT		0x69
 #define PIRQG_ROUT		0x6A
 #define PIRQH_ROUT		0x6B
+
+#define LPC_IBDF		0x6C /* I/O APIC bus/dev/fn */
+#define LPC_HnBDF(n)		(0x70 + n * 2) /* HPET n bus/dev/fn */
 
 #define LPC_IO_DEC		0x80 /* IO Decode Ranges Register */
 #define LPC_EN			0x82 /* LPC IF Enables Register */
@@ -419,21 +459,16 @@ int early_spi_read(u32 offset, u32 size, u8 *buffer);
 #define PCH_DISABLE_MEI1	(1 << 1)
 #define PCH_ENABLE_DBDF		(1 << 0)
 
-/* ICH7 GPIOBASE */
-#define GPIO_USE_SEL	0x00
-#define GP_IO_SEL	0x04
-#define GP_LVL		0x0c
-#define GPO_BLINK	0x18
-#define GPI_INV		0x2c
-#define GPIO_USE_SEL2	0x30
-#define GP_IO_SEL2	0x34
-#define GP_LVL2		0x38
-#define GPIO_USE_SEL3	0x40
-#define GP_IO_SEL3	0x44
-#define GP_LVL3		0x48
-#define GP_RST_SEL1	0x60
-#define GP_RST_SEL2	0x64
-#define GP_RST_SEL3	0x68
+/* USB Port Disable Override */
+#define USBPDO		0x359c	/* 32bit */
+/* USB Overcurrent MAP Register */
+#define USBOCM1		0x35a0	/* 32bit */
+#define USBOCM2		0x35a4	/* 32bit */
+
+/* XHCI USB 3.0 */
+#define XOCM		0xc0	/* 32bit */
+#define XUSB2PRM	0xd4	/* 32bit */
+#define USB3PRM		0xdc	/* 32bit */
 
 /* ICH7 PMBASE */
 #define PM1_STS		0x00
@@ -452,13 +487,6 @@ int early_spi_read(u32 offset, u32 size, u8 *buffer);
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
-#define    SLP_TYP_S0	0
-#define    SLP_TYP_S1	1
-#define    SLP_TYP_S3	5
-#define    SLP_TYP_S4	6
-#define    SLP_TYP_S5	7
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)

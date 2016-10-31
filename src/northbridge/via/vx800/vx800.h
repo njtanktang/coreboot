@@ -11,21 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef VX800_H
-#define  VX800_H 1
-
-#ifndef __PRE_RAM__
-#include <device/device.h>
-static inline void vx800_noop(device_t dev)
-{
-}
-#endif
+#define VX800_H 1
 
 #ifdef __PRE_RAM__
 /* vx800_early_smbus.c */
@@ -37,12 +26,9 @@ void smbus_fixup(const struct mem_controller *mem_ctrl);
 void enable_vx800_serial(void);
 #endif
 
-//#define REV_B0 0x10
 #define REV_B1 0x11
-//#define REV_B2 0x12
 #define REV_B3 0x13
 #define REV_B4 0x14
-//#define REV_B2 0xB4
 #define REV_B0 0x00
 #define REV_B2 0x01
 

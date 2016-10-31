@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -27,9 +23,7 @@
 #include <device/pci_ids.h>
 #include <string.h>
 #include <stdint.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdk8_sysconf.h>
 
@@ -101,30 +95,29 @@ void get_bus_conf(void)
 		m->bus_mcp55[1] = pci_read_config8(dev, PCI_SECONDARY_BUS);
 	} else {
 		printk(BIOS_DEBUG,
-		       "ERROR - could not find PCI 1:%02x.0, using defaults\n",
-		       sysconf.sbdn + 0x06);
+			"ERROR - could not find PCI 1:%02x.0, using defaults\n",
+			sysconf.sbdn + 0x06);
 	}
 
 	for (i = 2; i < 8; i++) {
 		dev =
-		    dev_find_slot(m->bus_mcp55[0],
-				  PCI_DEVFN(sysconf.sbdn + 0x0a + i - 2, 0));
+			dev_find_slot(m->bus_mcp55[0],
+				PCI_DEVFN(sysconf.sbdn + 0x0a + i - 2, 0));
 		if (dev) {
 			m->bus_mcp55[i] =
-			    pci_read_config8(dev, PCI_SECONDARY_BUS);
+				pci_read_config8(dev, PCI_SECONDARY_BUS);
 		} else {
 			printk(BIOS_DEBUG,
-			       "ERROR - could not find PCI %02x:%02x.0, using defaults\n",
-			       m->bus_mcp55[0], sysconf.sbdn + 0x0a + i - 2);
+				"ERROR - could not find PCI %02x:%02x.0, using defaults\n",
+				m->bus_mcp55[0], sysconf.sbdn + 0x0a + i - 2);
 		}
 	}
 
 /*I/O APICs:   APIC ID Version State           Address*/
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(1);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(1);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	m->apicid_mcp55 = apicid_base + 0;
 
 }

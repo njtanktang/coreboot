@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 CONFIG_LZMA=y
 CONFIG_NRV2B=y
@@ -24,7 +20,7 @@ CONFIG_BUILTIN_LAR=y
 PBUILDER_CONFIG=bayou.xml
 BUILTIN_LAR=builtin.lar
 
-export src := $(shell pwd)
+export src := $(CURDIR)
 export obj := $(src)/build
 
 LIBPAYLOAD_DIR := $(obj)/libpayload
@@ -69,4 +65,3 @@ util/pbuilder/pbuilder:
 clean:
 	rm -f *.o bayou.elf builtin.lar
 	$(MAKE) -C util/pbuilder clean
-

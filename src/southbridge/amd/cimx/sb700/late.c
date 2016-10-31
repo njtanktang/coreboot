@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -28,8 +24,9 @@
 #include <pc80/i8259.h>
 #include <console/console.h>    /* printk */
 #include <device/pci_ehci.h>
+#include <arch/acpi.h>
 #include "lpc.h"                /* lpc_read_resources */
-#include "Platform.h"   /* Platfrom Specific Definitions */
+#include "Platform.h"   /* Platform Specific Definitions */
 #include "sb_cimx.h"
 #include "sb700_cfg.h"                /* sb700 Cimx configuration */
 #include "chip.h"               /* struct southbridge_amd_cimx_sb700_config */
@@ -50,7 +47,7 @@ static AMDSBCFG *sb_config = &sb_late_cfg;
  *
  * @param[in] func      Southbridge CIMx Function ID.
  * @param[in] data      Southbridge Input Data.
- * @param[in] sb_config Southbridge configuration structure pointer.
+ * @param[in] config    Southbridge configuration structure pointer.
  *
  */
 u32 sb700_callout_entry(u32 func, u32 data, void* config)
@@ -80,14 +77,14 @@ static void lpc_init(device_t dev)
 {
 	printk(BIOS_DEBUG, "SB700 - Late.c - lpc_init - Start.\n");
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
 
 	/* Initialize the real time clock.
-	 * The 0 argument tells rtc_init not to
+	 * The 0 argument tells cmos_init not to
 	 * update CMOS unless it is invalid.
-	 * 1 tells rtc_init to always initialize the CMOS.
+	 * 1 tells cmos_init to always initialize the CMOS.
 	 */
-	rtc_init(0);
+	cmos_init(0);
 
 	setup_i8259(); /* Initialize i8259 pic */
 	setup_i8254(); /* Initialize i8254 timers */
@@ -95,12 +92,22 @@ static void lpc_init(device_t dev)
 	printk(BIOS_DEBUG, "SB700 - Late.c - lpc_init - End.\n");
 }
 
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
+
+
 static struct device_operations lpc_ops = {
 	.read_resources = lpc_read_resources,
 	.set_resources = lpc_set_resources,
 	.enable_resources = lpc_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables = acpi_write_hpet,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 	.ops_pci = &lops_pci,
 };
 
@@ -223,15 +230,15 @@ static void sb700_enable(device_t dev)
 
 		case (0x14 << 3) | 0: /* 0:14:0 SMBUS */
 			{
-				u32 ioapic_base;
+				uintptr_t ioapic_base;
 				printk(BIOS_DEBUG, "sm_init().\n");
 				ioapic_base = IO_APIC_ADDR;
-				clear_ioapic(ioapic_base);
+				clear_ioapic((void *)ioapic_base);
 				/* I/O APIC IDs are normally limited to 4-bits. Enforce this limit. */
 				if (CONFIG_MAX_CPUS >= 16)
-					setup_ioapic(ioapic_base, 0);
+					setup_ioapic((void *)ioapic_base, 0);
 				else
-					setup_ioapic(ioapic_base, CONFIG_MAX_CPUS + 1);
+					setup_ioapic((void *)ioapic_base, CONFIG_MAX_CPUS + 1);
 			}
 			break;
 

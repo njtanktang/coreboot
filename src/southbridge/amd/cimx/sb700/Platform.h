@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _AMD_SB_CIMx_PLATFORM_H_
@@ -24,7 +20,7 @@
 
 #include <cpu/amd/common/cbtypes.h>
 #include <console/console.h>
-#include <console/loglevel.h>
+#include <commonlib/loglevel.h>
 #ifdef NULL
 #undef NULL
 #endif
@@ -66,7 +62,7 @@ void    TraceCode ( UINT32 Level, UINT32 Code);
 	#if CONFIG_REDIRECT_SBCIMX_TRACE_TO_SERIAL
 		#define TRACE(Arguments) printk Arguments
 	#else
-		#define TRACE(Arguments) do {} while(0)
+		#define TRACE(Arguments) do {} while (0)
 	#endif
 	#define TRACECODE(Arguments)
 #endif
@@ -86,5 +82,4 @@ void    TraceCode ( UINT32 Level, UINT32 Code);
 
 #define DMSG_SB_TRACE   0x02
 
-#endif  //#ifndef _AMD_SB_CIMx_PLATFORM_H_
-
+#endif /* _AMD_SB_CIMx_PLATFORM_H_ */

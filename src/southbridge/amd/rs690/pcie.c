@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -88,7 +84,7 @@ static void PciePowerOffGppPorts(device_t nb_dev, device_t dev, u32 port)
 			   PCIE_GFX_COMPLIANCE))) {
 	}
 
-        if (!cfg->gfx_tmds){
+	if (!cfg->gfx_tmds){
 		/* step 3 Power Down Control for Southbridge */
 		reg = nbpcie_p_read_index(dev, 0xa2);
 
@@ -142,7 +138,7 @@ static void switching_gpp_configurations(device_t nb_dev, device_t sb_dev)
 	reg |= cfg->gpp_configuration << 4;
 	nbmisc_write_index(nb_dev, 0x67, reg);
 
-	/* read bit14 and write back its inverst value */
+	/* read bit14 and write back its inverted value */
 	reg = nbmisc_read_index(nb_dev, PCIE_NBCFG_REG7);
 	reg ^= RECONFIG_GPPSB_GPPSB;
 	nbmisc_write_index(nb_dev, PCIE_NBCFG_REG7, reg);
@@ -256,7 +252,7 @@ void rs690_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	case 7:
 		/* Blocks DMA traffic during C3 state */
 		set_pcie_enable_bits(dev, 0x10, 1 << 0, 0 << 0);
-		/* Enabels TLP flushing */
+		/* Enables TLP flushing */
 		set_pcie_enable_bits(dev, 0x20, 1 << 19, 0 << 19);
 
 		/* check port enable */
@@ -301,10 +297,10 @@ void rs690_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	}
 
 	/* step 6b: L0s for the southbridge link */
-	/* To enalbe L0s in the southbridage*/
+	/* To enable L0s in the southbridge*/
 
 	/* step 6c: L0s for the GPP link(s) */
-	/* To eable L0s in the RS690 for the GPP port(s) */
+	/* To enable L0s in the RS690 for the GPP port(s) */
 	set_pcie_enable_bits(nb_dev, 0xf9, 3 << 13, 2 << 13);
 	set_pcie_enable_bits(dev, 0xa0, 0xf << 8, 0x9 << 8);
 	reg16 = pci_read_config16(dev, 0x68);
@@ -312,9 +308,9 @@ void rs690_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	pci_write_config16(dev, 0x68, reg16);
 
 	/* step 6d: ASPM L1 for the southbridge link */
-	/* To enalbe L1s in the southbridage*/
+	/* To enable L1s in the southbridge*/
 
-	/* step 6e: ASPM L1 for GPP link(s) */;
+	/* step 6e: ASPM L1 for GPP link(s) */
 	set_pcie_enable_bits(nb_dev, 0xf9, 3 << 13, 2 << 13);
 	set_pcie_enable_bits(dev, 0xa0, 3 << 12, 3 << 12);
 	set_pcie_enable_bits(dev, 0xa0, 0xf << 4, 3 << 4);

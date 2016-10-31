@@ -43,22 +43,28 @@ enum registers {
  * is no limitation on the AXP209 as to how many registers we may read or write
  * in one transaction.
  * These return the number of bytes read/written, or an error code. In this
- * case, they return 1 on success, or an error code otherwise.
+ * case, they return 1 on success, or an error code otherwise. This is done to
+ * work with I2C drivers that return either 0 on success or the number of bytes
+ * actually transferred.
  */
 static int axp209_read(u8 bus, u8 reg, u8 *val)
 {
-	return i2c_read(bus, AXP209_I2C_ADDR, reg, 1, val, 1);
+	if (i2c_readb(bus, AXP209_I2C_ADDR, reg, val) < 0)
+		return CB_ERR;
+	return 1;
 }
 
 static int axp209_write(u8 bus, u8 reg, u8 val)
 {
-	return i2c_write(bus, AXP209_I2C_ADDR, reg, 1, &val, 1);
+	if (i2c_writeb(bus, AXP209_I2C_ADDR, reg, val) < 0)
+		return CB_ERR;
+	return 1;
 }
 
 /**
- * \brief Identify and initialize an AXP209 on the I²C bus
+ * \brief Identify and initialize an AXP209 on the I2C bus
  *
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on if an AXP209 is found, or an error code otherwise.
  */
 enum cb_err axp209_init(u8 bus)
@@ -69,8 +75,10 @@ enum cb_err axp209_init(u8 bus)
 		return CB_ERR;
 
 	/* From U-Boot code : Low 4 bits is chip version */
-	if ((id & 0x0f) != 0x1)
+	if ((id & 0x0f) != 0x1) {
+		printk(BIOS_ERR, "[axp209] ID 0x%x does not match\n", id);
 		return CB_ERR;
+	}
 
 	return CB_SUCCESS;
 }
@@ -83,7 +91,7 @@ enum cb_err axp209_init(u8 bus)
  * Valid values are between 700mV and 2275mV
  *
  * @param[in] millivolts voltage in mV units.
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success,
  *	   CB_ERR_ARG if voltage is out of range, or an error code otherwise.
  */
@@ -110,7 +118,7 @@ enum cb_err axp209_set_dcdc2_voltage(u8 bus, u16 millivolts)
  * Valid values are between 700mV and 3500mV
  *
  * @param[in] millivolts voltage in mV units.
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success,
  *	   CB_ERR_ARG if voltage is out of range, or an error code otherwise.
  */
@@ -137,7 +145,7 @@ enum cb_err axp209_set_dcdc3_voltage(u8 bus, u16 millivolts)
  * Valid values are between 700mV and 3300mV
  *
  * @param[in] millivolts voltage in mV units.
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success,
  *	   CB_ERR_ARG if voltage is out of range, or an error code otherwise.
  */
@@ -171,7 +179,7 @@ enum cb_err axp209_set_ldo2_voltage(u8 bus, u16 millivolts)
  * 2250mV, but hardware samples go as high as 3500mV.
  *
  * @param[in] millivolts voltage in mV units.
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success,
  *	   CB_ERR_ARG if voltage is out of range, or an error code otherwise.
  */
@@ -199,7 +207,7 @@ enum cb_err axp209_set_ldo3_voltage(u8 bus, u16 millivolts)
  * Valid values are between 1250V and 3300mV
  *
  * @param[in] millivolts voltage in mV units.
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success,
  *	   CB_ERR_ARG if voltage is out of range, or an error code otherwise.
  */
@@ -282,7 +290,7 @@ static enum cb_err set_rail(u8 bus, int idx, u16 mv)
  * reconfigured, and retain its powerup voltage.
  *
  * @param[in] cfg pointer to @ref drivers_xpowers_axp209_config structure
- * @param[in] bus I²C bus to which the AXP209 is connected
+ * @param[in] bus I2C bus to which the AXP209 is connected
  * @return CB_SUCCES on success, or an error code otherwise.
  */
 enum cb_err axp209_set_voltages(u8 bus, const struct

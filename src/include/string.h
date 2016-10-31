@@ -24,7 +24,7 @@ int snprintf(char * buf, size_t size, const char *fmt, ...);
 static inline size_t strnlen(const char *src, size_t max)
 {
 	size_t i = 0;
-	while((*src++) && (i < max)) {
+	while ((*src++) && (i < max)) {
 		i++;
 	}
 	return i;
@@ -33,7 +33,7 @@ static inline size_t strnlen(const char *src, size_t max)
 static inline size_t strlen(const char *src)
 {
 	size_t i = 0;
-	while(*src++) {
+	while (*src++) {
 		i++;
 	}
 	return i;
@@ -54,6 +54,16 @@ static inline char *strdup(const char *s)
 	size_t sz = strlen(s) + 1;
 	char *d = malloc(sz);
 	memcpy(d, s, sz);
+	return d;
+}
+
+static inline char *strconcat(const char *s1, const char *s2)
+{
+	size_t sz_1 = strlen(s1);
+	size_t sz_2 = strlen(s2);
+	char *d = malloc(sz_1 + sz_2 + 1);
+	memcpy(d, s1, sz_1);
+	memcpy(d + sz_1, s2, sz_2 + 1);
 	return d;
 }
 #endif
@@ -102,7 +112,7 @@ static inline int strncmp(const char *s1, const char *s2, int maxlen)
 	int i;
 
 	for (i = 0; i < maxlen; i++) {
-		if (s1[i] != s2[i])
+		if ((s1[i] != s2[i]) || (s1[i] == '\0'))
 			return s1[i] - s2[i];
 	}
 
@@ -144,15 +154,15 @@ static inline int islower(int c)
 
 static inline int toupper(int c)
 {
-        if (islower(c))
-                c -= 'a'-'A';
-        return c;
+	if (islower(c))
+		c -= 'a'-'A';
+	return c;
 }
 
 static inline int tolower(int c)
 {
-        if (isupper(c))
-                c -= 'A'-'a';
-        return c;
+	if (isupper(c))
+		c -= 'A'-'a';
+	return c;
 }
 #endif /* STRING_H */

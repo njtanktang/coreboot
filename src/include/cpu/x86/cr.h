@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef CPU_X86_CR_H
 #define CPU_X86_CR_H
@@ -32,46 +28,55 @@
 #define COMPILER_BARRIER "memory"
 #endif
 
-static alwaysinline uint32_t read_cr0(void)
+#ifdef __x86_64__
+#define CRx_TYPE uint64_t
+#define CRx_IN   "q"
+#define CRx_RET  "=q"
+#else
+#define CRx_TYPE uint32_t
+#define CRx_IN   "r"
+#define CRx_RET  "=r"
+#endif
+static alwaysinline CRx_TYPE read_cr0(void)
 {
-	uint32_t value;
+	CRx_TYPE value;
 	__asm__ __volatile__ (
 		"mov %%cr0, %0"
-		: "=r" (value)
+		: CRx_RET (value)
 		:
 		: COMPILER_BARRIER
 	);
 	return value;
 }
 
-static alwaysinline void write_cr0(uint32_t data)
+static alwaysinline void write_cr0(CRx_TYPE data)
 {
 	__asm__ __volatile__ (
 		"mov %0, %%cr0"
 		:
-		: "r" (data)
+		: CRx_IN (data)
 		: COMPILER_BARRIER
 	);
 }
 
-static alwaysinline uint32_t read_cr4(void)
+static alwaysinline CRx_TYPE read_cr4(void)
 {
-	uint32_t value;
+	CRx_TYPE value;
 	__asm__ __volatile__ (
 		"mov %%cr4, %0"
-		: "=r" (value)
+		: CRx_RET (value)
 		:
 		: COMPILER_BARRIER
 	);
 	return value;
 }
 
-static alwaysinline void write_cr4(uint32_t data)
+static alwaysinline void write_cr4(CRx_TYPE data)
 {
 	__asm__ __volatile__ (
 		"mov %0, %%cr4"
 		:
-		: "r" (data)
+		: CRx_IN (data)
 		: COMPILER_BARRIER
 	);
 }

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "msrtool.h"
@@ -24,7 +20,10 @@ int intel_nehalem_probe(const struct targetdef *target, const struct cpuid_t *id
 		(0x1a == id->model) ||
 		(0x1e == id->model) ||
 		(0x1f == id->model) ||
-		(0x2e == id->model)
+		(0x2e == id->model) ||
+		(0x25 == id->model) ||	/* westmere */
+		(0x2c == id->model) ||	/* westmere */
+		(0x2f == id->model)	/* westmere */
 		));
 }
 
@@ -2276,5 +2275,3 @@ const struct msrdef intel_nehalem_msrs[] = {
 	}},
 	{ MSR_EOT }
 };
-
-

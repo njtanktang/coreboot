@@ -12,15 +12,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef __CPU__INTEL__MICROCODE__
 #define __CPU__INTEL__MICROCODE__
 
-#ifndef __PRE_RAM__
+#include <stdint.h>
+
 void intel_update_microcode_from_cbfs(void);
 /* Find a microcode that matches the revision and platform family returning
  * NULL if none found. */
@@ -29,6 +26,9 @@ const void *intel_microcode_find(void);
  * well as ensuring the microcode matches the family and revision (i.e. with
  * intel_microcode_find()). */
 void intel_microcode_load_unlocked(const void *microcode_patch);
-#endif
+
+/* SoC specific check to determine if microcode update is really
+ * required, will skip microcode update if true. */
+int soc_skip_ucode_update(u32 currrent_patch_id, u32 new_patch_id);
 
 #endif

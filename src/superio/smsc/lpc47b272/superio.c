@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* RAM driver for SMSC LPC47B272 Super I/O chip. */
@@ -34,15 +30,26 @@
 #include <stdlib.h>
 #include "lpc47b272.h"
 
-/* Forward declarations */
-static void enable_dev(device_t dev);
-static void lpc47b272_init(device_t dev);
-// static void dump_pnp_device(device_t dev);
+/**
+ * Initialize the specified Super I/O device.
+ *
+ * Devices other than COM ports and the keyboard controller are ignored.
+ * For COM ports, we configure the baud rate.
+ *
+ * @param dev Pointer to structure describing a Super I/O device.
+ */
+static void lpc47b272_init(struct device *dev)
+{
 
-struct chip_operations superio_smsc_lpc47b272_ops = {
-	CHIP_NAME("SMSC LPC47B272 Super I/O")
-	.enable_dev = enable_dev
-};
+	if (!dev->enabled)
+		return;
+
+	switch(dev->path.pnp.device) {
+	case LPC47B272_KBC:
+		pc_keyboard_init(NO_AUX_DEVICE);
+		break;
+	}
+}
 
 static struct device_operations ops = {
 	.read_resources   = pnp_read_resources,
@@ -68,69 +75,13 @@ static struct pnp_info pnp_dev_info[] = {
  *
  * @param dev Pointer to structure describing a Super I/O device.
  */
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info),
 			   pnp_dev_info);
 }
 
-/**
- * Initialize the specified Super I/O device.
- *
- * Devices other than COM ports and the keyboard controller are ignored.
- * For COM ports, we configure the baud rate.
- *
- * @param dev Pointer to structure describing a Super I/O device.
- */
-static void lpc47b272_init(device_t dev)
-{
-
-	if (!dev->enabled)
-		return;
-
-	switch(dev->path.pnp.device) {
-	case LPC47B272_KBC:
-		pc_keyboard_init();
-		break;
-	}
-}
-
-#if 0
-/**
- * Print the values of all of the LPC47B272's configuration registers.
- *
- * NOTE: The LPC47B272 must be in config mode when this function is called.
- *
- * @param dev Pointer to structure describing a Super I/O device.
- */
-static void dump_pnp_device(device_t dev)
-{
-	int i;
-	print_debug("\n");
-
-	for (i = 0; i <= LPC47B272_MAX_CONFIG_REGISTER; i++) {
-		u8 register_value;
-
-		if ((i & 0x0f) == 0) {
-			print_debug_hex8(i);
-			print_debug_char(':');
-		}
-
-		/*
-		 * Skip over 'register' that would cause exit from
-		 * configuration mode.
-		 */
-		if (i == 0xaa)
-			register_value = 0xaa;
-		else
-			register_value = pnp_read_config(dev, i);
-
-		print_debug_char(' ');
-		print_debug_hex8(register_value);
-		if ((i & 0x0f) == 0x0f)
-			print_debug("\n");
-	}
-
-   	print_debug("\n");
-}
-#endif
+struct chip_operations superio_smsc_lpc47b272_ops = {
+	CHIP_NAME("SMSC LPC47B272 Super I/O")
+	.enable_dev = enable_dev
+};

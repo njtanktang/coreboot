@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -84,7 +80,7 @@ static void host_ctrl_enable_k8t8xx(struct device *dev)
 	writeback(dev, 0xc4, 0x50);
 	writeback(dev, 0xc5, 0x50);
 
-	print_debug(" VIA_X_2 device dump:\n");
+	printk(BIOS_DEBUG, " VIA_X_2 device dump:\n");
 	dump_south(dev);
 }
 
@@ -113,9 +109,13 @@ static void host_ctrl_enable_k8m8xx(struct device *dev) {
 	pci_write_config8(dev, 0xa6, 0x83);
 
 }
-void backup_top_of_ram(uint64_t ramtop) {
+
+#if IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
+void backup_top_of_ram(uint64_t ramtop)
+{
 		outl((u32) ramtop, K8T890_NVRAM_IO_BASE+K8T890_NVRAM_TOP_OF_RAM);
 }
+#endif
 
 static struct pci_operations lops_pci = {
 	.set_subsystem = pci_dev_set_subsystem,

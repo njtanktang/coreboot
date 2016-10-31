@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 
@@ -28,14 +23,8 @@
 #include <cpu/x86/cache.h>
 #include <cpu/x86/smm.h>
 #include <string.h>
+#include <cpu/intel/smm/gen1/smi.h>
 #include "pch.h"
-
-#if CONFIG_NORTHBRIDGE_INTEL_FSP_SANDYBRIDGE || CONFIG_NORTHBRIDGE_INTEL_FSP_IVYBRIDGE
-#include "northbridge/intel/fsp_sandybridge/northbridge.h"
-#endif
-
-extern unsigned char _binary_smm_start;
-extern unsigned char _binary_smm_size;
 
 /* While we read PMBASE dynamically in case it changed, let's
  * initialize it with a sane value
@@ -132,7 +121,7 @@ static void dump_gpe0_status(u32 gpe0_sts)
 {
 	int i;
 	printk(BIOS_DEBUG, "GPE0_STS: ");
-	for (i=31; i<= 16; i--) {
+	for (i=31; i>= 16; i--) {
 		if (gpe0_sts & (1 << i)) printk(BIOS_DEBUG, "GPIO%d ", (i-16));
 	}
 	if (gpe0_sts & (1 << 14)) printk(BIOS_DEBUG, "USB4 ");
@@ -172,8 +161,8 @@ static void dump_alt_gp_smi_status(u16 alt_gp_smi_sts)
 {
 	int i;
 	printk(BIOS_DEBUG, "ALT_GP_SMI_STS: ");
-	for (i=15; i<= 0; i--) {
-		if (alt_gp_smi_sts & (1 << i)) printk(BIOS_DEBUG, "GPI%d ", (i-16));
+	for (i=15; i>= 0; i--) {
+		if (alt_gp_smi_sts & (1 << i)) printk(BIOS_DEBUG, "GPI%d ", i);
 	}
 	printk(BIOS_DEBUG, "\n");
 }
@@ -232,15 +221,18 @@ static void smi_set_eos(void)
 	outb(reg8, pmbase + SMI_EN);
 }
 
-extern uint8_t smm_relocation_start, smm_relocation_end;
-
-static void smm_relocate(void)
+void southbridge_smm_init(void)
 {
 	u32 smi_en;
 	u16 pm1_en;
 	u32 gpe0_en;
 
-	printk(BIOS_DEBUG, "Initializing SMM handler...");
+#if CONFIG_ELOG
+	/* Log events from chipset before clearing */
+	pch_log_state();
+#endif
+
+	printk(BIOS_DEBUG, "Initializing southbridge SMI...");
 
 	pmbase = pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x1f, 0)),
 							PMBASE) & 0xff80;
@@ -252,10 +244,6 @@ static void smm_relocate(void)
 		printk(BIOS_INFO, "SMI# handler already enabled?\n");
 		return;
 	}
-
-	/* copy the SMM relocation code */
-	memcpy((void *)0x38000, &smm_relocation_start,
-			&smm_relocation_end - &smm_relocation_start);
 
 	printk(BIOS_DEBUG, "\n");
 	dump_smi_status(reset_smi_status());
@@ -305,7 +293,10 @@ static void smm_relocate(void)
 	smi_en |= EOS | GBL_SMI_EN;
 
 	outl(smi_en, pmbase + SMI_EN);
+}
 
+void southbridge_trigger_smi(void)
+{
 	/**
 	 * There are several methods of raising a controlled SMI# via
 	 * software, among them:
@@ -324,76 +315,16 @@ static void smm_relocate(void)
 	outb(0x00, 0xb2);
 }
 
-static int smm_handler_copied = 0;
-
-static void smm_install(void)
+void southbridge_clear_smi_status(void)
 {
-	device_t dev = dev_find_slot(0, PCI_DEVFN(0, 0));
-	u32 smm_base = 0xa0000;
-	struct ied_header ied = {
-		.signature = "INTEL RSVD",
-		.size = IED_SIZE,
-		.reserved = {0},
-	};
+	/* Clear SMI status */
+	reset_smi_status();
 
-	/* The first CPU running this gets to copy the SMM handler. But not all
-	 * of them.
-	 */
-	if (smm_handler_copied)
-		return;
-	smm_handler_copied = 1;
+	/* Clear PM1 status */
+	reset_pm1_status();
 
-	/* enable the SMM memory window */
-	pci_write_config8(dev, SMRAM, D_OPEN | G_SMRAME | C_BASE_SEG);
-
-#if CONFIG_SMM_TSEG
-	smm_base = pci_read_config32(dev, TSEG) & ~1;
-#endif
-
-	/* copy the real SMM handler */
-	printk(BIOS_DEBUG, "Installing SMM handler to 0x%08x\n", smm_base);
-	memcpy((void *)smm_base, &_binary_smm_start, (size_t)&_binary_smm_size);
-
-	/* copy the IED header into place */
-	if (CONFIG_SMM_TSEG_SIZE > IED_SIZE) {
-		/* Top of TSEG region */
-		smm_base += CONFIG_SMM_TSEG_SIZE - IED_SIZE;
-		printk(BIOS_DEBUG, "Installing IED header to 0x%08x\n",
-		       smm_base);
-		memcpy((void *)smm_base, &ied, sizeof(ied));
-	}
-	wbinvd();
-
-	/* close the SMM memory window and enable normal SMM */
-	pci_write_config8(dev, SMRAM, G_SMRAME | C_BASE_SEG);
-}
-
-void smm_init(void)
-{
-#if CONFIG_ELOG
-	/* Log events from chipset before clearing */
-	pch_log_state();
-#endif
-
-	/* Put SMM code to 0xa0000 */
-	smm_install();
-
-	/* Put relocation code to 0x38000 and relocate SMBASE */
-	smm_relocate();
-
-	/* We're done. Make sure SMIs can happen! */
-	smi_set_eos();
-}
-
-void smm_lock(void)
-{
-	/* LOCK the SMM memory window and enable normal SMM.
-	 * After running this function, only a full reset can
-	 * make the SMM registers writable again.
-	 */
-	printk(BIOS_DEBUG, "Locking SMM.\n");
-	pci_write_config8(dev_find_slot(0, PCI_DEVFN(0, 0)), SMRAM,
-			D_LCK | G_SMRAME | C_BASE_SEG);
+	/* Set EOS bit so other SMIs can occur. */
+ 	smi_set_eos();
 }
 
 void smm_setup_structures(void *gnvs, void *tcg, void *smi1)

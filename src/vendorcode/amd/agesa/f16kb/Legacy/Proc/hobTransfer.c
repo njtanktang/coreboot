@@ -141,7 +141,7 @@ CopyHeapToTempRamAtPost (
   //
   if (AmdHeapRamAddress < 0x100000) {
     // Region below 1MB
-    // Fixed MTTR region
+    // Fixed MTRR region
     // turn on modification bit
     LibAmdMsrRead (MSR_SYS_CFG, &MsrData, StdHeader);
     MsrData |= 0x80000;
@@ -172,14 +172,14 @@ CopyHeapToTempRamAtPost (
       LibAmdMsrWrite (AMD_MTRR_FIX64k_00000, &MsrData, StdHeader);
     }
 
-    // Turn on MTTR enable bit and turn off modification bit
+    // Turn on MTRR enable bit and turn off modification bit
     LibAmdMsrRead (MSR_SYS_CFG, &MsrData, StdHeader);
     MsrData |= 0x40000;
     MsrData &= 0xFFFFFFFFFFF7FFFF;
     LibAmdMsrWrite (MSR_SYS_CFG, &MsrData, StdHeader);
   } else {
     // Region above 1MB
-    // Variable MTTR region
+    // Variable MTRR region
     // Get family specific cache Info
     GetCpuServicesOfCurrentCore ((CONST CPU_SPECIFIC_SERVICES **)&FamilySpecificServices, StdHeader);
     FamilySpecificServices->GetCacheInfo (FamilySpecificServices, (CONST VOID **) &CacheInfoPtr, &Ignored, StdHeader);
@@ -212,7 +212,7 @@ CopyHeapToTempRamAtPost (
     TotalSize = sizeof (HEAP_MANAGER);
     SizeOfNodeData = 0;
     AlignTo16ByteInTempMem = 0;
-    BaseAddressInCache = (UINT8 *)(UINT32) StdHeader->HeapBasePtr;
+    BaseAddressInCache = (UINT8 *)(UINTN) StdHeader->HeapBasePtr;
     HeapManagerInCache = (HEAP_MANAGER *) BaseAddressInCache;
     HeapInCacheOffset = HeapManagerInCache->FirstActiveBufferOffset;
     HeapInCache = (BUFFER_NODE *) (BaseAddressInCache + HeapInCacheOffset);
@@ -315,8 +315,8 @@ CopyHeapToMainRamAtPost (
     TotalSize = sizeof (HEAP_MANAGER);
     SizeOfNodeData = 0;
     AlignTo16ByteInMainMem = 0;
-    BaseAddressInTempMem = (UINT8 *)(UINT32) StdHeader->HeapBasePtr;
-    HeapManagerInTempMem = (HEAP_MANAGER *)(UINT32) StdHeader->HeapBasePtr;
+    BaseAddressInTempMem = (UINT8 *)(UINTN) StdHeader->HeapBasePtr;
+    HeapManagerInTempMem = (HEAP_MANAGER *)(UINTN) StdHeader->HeapBasePtr;
     HeapInTempMemOffset = HeapManagerInTempMem->FirstActiveBufferOffset;
     HeapInTempMem = (BUFFER_NODE *) (BaseAddressInTempMem + HeapInTempMemOffset);
 

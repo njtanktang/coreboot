@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -36,6 +32,7 @@
 #include <cbmem.h>
 #include "chip.h"
 #include "sandybridge.h"
+#include <cpu/intel/smm/gen1/smi.h>
 
 static int bridge_revision_id = -1;
 
@@ -127,9 +124,18 @@ static void add_fixed_resources(struct device *dev, int index)
 			CONFIG_CHROMEOS_RAMOOPS_RAM_SIZE >> 10);
 #endif
 
-	/* Required for SandyBridge sighting 3715511 */
-	bad_ram_resource(dev, index++, 0x20000000 >> 10, 0x00200000 >> 10);
-	bad_ram_resource(dev, index++, 0x40000000 >> 10, 0x00200000 >> 10);
+	if ((bridge_silicon_revision() & BASE_REV_MASK) == BASE_REV_SNB) {
+		/* Required for SandyBridge sighting 3715511 */
+		bad_ram_resource(dev, index++, 0x20000000 >> 10, 0x00200000 >> 10);
+		bad_ram_resource(dev, index++, 0x40000000 >> 10, 0x00200000 >> 10);
+	}
+
+	/* Reserve IOMMU BARs */
+	const u32 capid0_a = pci_read_config32(dev, 0xe4);
+	if (!(capid0_a & (1 << 23))) {
+		mmio_resource(dev, index++, IOMMU_BASE1 >> 10, 4);
+		mmio_resource(dev, index++, IOMMU_BASE2 >> 10, 4);
+	}
 }
 
 static void pci_domain_set_resources(device_t dev)
@@ -188,6 +194,7 @@ static void pci_domain_set_resources(device_t dev)
 
 	printk(BIOS_DEBUG, "MEBASE 0x%llx\n", me_base);
 
+	uma_memory_base = tolud;
 	tomk = tolud >> 10;
 	if (me_base == tolud) {
 		/* ME is from MEBASE-TOM */
@@ -264,6 +271,7 @@ static struct device_operations pci_domain_ops = {
 	.init             = NULL,
 	.scan_bus         = pci_domain_scan_bus,
 	.ops_pci_bus	  = pci_bus_default_ops,
+	.write_acpi_tables = northbridge_write_acpi_tables,
 };
 
 static void mc_read_resources(device_t dev)
@@ -360,6 +368,51 @@ static void northbridge_dmi_init(struct device *dev)
 	DMIBAR32(0x88) = reg32;
 }
 
+/* Disable unused PEG devices based on devicetree */
+static void disable_peg(void)
+{
+	struct device *dev;
+	u32 reg;
+
+	dev = dev_find_slot(0, PCI_DEVFN(0, 0));
+	reg = pci_read_config32(dev, DEVEN);
+
+	dev = dev_find_slot(0, PCI_DEVFN(1, 2));
+	if (!dev || !dev->enabled) {
+		printk(BIOS_DEBUG, "Disabling PEG12.\n");
+		reg &= ~DEVEN_PEG12;
+	}
+	dev = dev_find_slot(0, PCI_DEVFN(1, 1));
+	if (!dev || !dev->enabled) {
+		printk(BIOS_DEBUG, "Disabling PEG11.\n");
+		reg &= ~DEVEN_PEG11;
+	}
+	dev = dev_find_slot(0, PCI_DEVFN(1, 0));
+	if (!dev || !dev->enabled) {
+		printk(BIOS_DEBUG, "Disabling PEG10.\n");
+		reg &= ~DEVEN_PEG10;
+	}
+	dev = dev_find_slot(0, PCI_DEVFN(2, 0));
+	if (!dev || !dev->enabled) {
+		printk(BIOS_DEBUG, "Disabling IGD.\n");
+		reg &= ~DEVEN_IGD;
+	}
+	dev = dev_find_slot(0, PCI_DEVFN(6, 0));
+	if (!dev || !dev->enabled) {
+		printk(BIOS_DEBUG, "Disabling PEG60.\n");
+		reg &= ~DEVEN_PEG60;
+	}
+
+	dev = dev_find_slot(0, PCI_DEVFN(0, 0));
+	pci_write_config32(dev, DEVEN, reg);
+	if (!(reg & (DEVEN_PEG60 | DEVEN_PEG10 | DEVEN_PEG11 | DEVEN_PEG12))) {
+		/* Set the PEG clock gating bit.
+		 * Disables the IO clock on all PEG devices. */
+		MCHBAR32(0x7010) = MCHBAR32(0x7010) | 0x01;
+		printk(BIOS_DEBUG, "Disabling PEG IO clock.\n");
+	}
+}
+
 static void northbridge_init(struct device *dev)
 {
 	u8 bios_reset_cpl;
@@ -384,6 +437,11 @@ static void northbridge_init(struct device *dev)
 		bridge_type |= 0x20;
 	}
 	MCHBAR32(0x5f10) = bridge_type;
+
+	/* Turn off unused devices. Has to be done before
+	 * setting BIOS_RESET_CPL.
+	 */
+	disable_peg();
 
 	/*
 	 * Set bit 0 of BIOS_RESET_CPL to indicate to the CPU
@@ -432,6 +490,28 @@ static void northbridge_enable(device_t dev)
 #endif
 }
 
+static u32 northbridge_get_base_reg(device_t dev, int reg)
+{
+	u32 value;
+
+	value = pci_read_config32(dev, reg);
+	/* Base registers are at 1MiB granularity. */
+	value &= ~((1 << 20) - 1);
+	return value;
+}
+
+u32 northbridge_get_tseg_base(void)
+{
+	const device_t dev = dev_find_slot(0, PCI_DEVFN(0, 0));
+
+	return northbridge_get_base_reg(dev, TSEG);
+}
+
+void northbridge_write_smram(u8 smram)
+{
+	pci_write_config8(dev_find_slot(0, PCI_DEVFN(0, 0)), SMRAM, smram);
+}
+
 static struct pci_operations intel_pci_ops = {
 	.set_subsystem    = intel_set_subsystem,
 };
@@ -444,6 +524,7 @@ static struct device_operations mc_ops = {
 	.enable           = northbridge_enable,
 	.scan_bus         = 0,
 	.ops_pci          = &intel_pci_ops,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 };
 
 static const struct pci_driver mc_driver_0100 __pci_driver = {
@@ -458,6 +539,12 @@ static const struct pci_driver mc_driver __pci_driver = {
 	.device = 0x0104, /* Sandy bridge */
 };
 
+static const struct pci_driver mc_driver_150 __pci_driver = {
+	.ops    = &mc_ops,
+	.vendor = PCI_VENDOR_ID_INTEL,
+	.device = 0x0150, /* Ivy bridge */
+};
+
 static const struct pci_driver mc_driver_1 __pci_driver = {
 	.ops    = &mc_ops,
 	.vendor = PCI_VENDOR_ID_INTEL,
@@ -469,14 +556,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = 0,
 };
@@ -492,6 +575,6 @@ static void enable_dev(device_t dev)
 }
 
 struct chip_operations northbridge_intel_sandybridge_ops = {
-	CHIP_NAME("Intel i7 (SandyBridge/IvyBridge) integrated Northbridge")
+	CHIP_NAME("Intel SandyBridge/IvyBridge integrated Northbridge")
 	.enable_dev = enable_dev,
 };

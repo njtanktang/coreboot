@@ -124,7 +124,7 @@ BOOLEAN MemFS3DefConstructorRet (
   IN       UINT8 NodeID
   )
 {
-  return TRUE;
+  return FALSE;
 }
 
 #if (OPTION_MEMCTLR_DR == TRUE)
@@ -4633,9 +4633,9 @@ BOOLEAN MemFS3DefConstructorRet (
   *---------------------------------------------------------------------------------------------------
   */
   #if (OPTION_LRDIMMS == TRUE)
-    #if ((OPTION_MEMCTLR_OR == TRUE)
+    #if (OPTION_MEMCTLR_OR == TRUE)
       #define MEM_TECH_FEATURE_LRDIMM_INIT  &MemTLrdimmConstructor3
-    #else //#if ((OPTION_MEMCTLR_OR == FALSE)
+    #else //#if (OPTION_MEMCTLR_OR == FALSE)
       #define MEM_TECH_FEATURE_LRDIMM_INIT    MemTFeatDef
     #endif
   #else //#if (OPTION_LRDIMMS == FALSE)
@@ -4687,7 +4687,7 @@ BOOLEAN MemFS3DefConstructorRet (
    *---------------------------------------------------------------------------------------------------
    */
   MEM_FEAT_BLOCK_MAIN MemFeatMain = {
-    NULL
+    0
   };
 
   /*---------------------------------------------------------------------------------------------------
@@ -4744,18 +4744,18 @@ BOOLEAN MemFS3DefConstructorRet (
    */
   #if OPTION_DDR2
     MEM_TECH_FEAT_BLOCK  memTechTrainingFeatDDR2 = {
-      NULL
+      0
     };
     MEM_FEAT_TRAIN_SEQ memTrainSequenceDDR2[] = {
-      NULL
+      0
     };
   #endif
   #if OPTION_DDR3
     MEM_TECH_FEAT_BLOCK  memTechTrainingFeatDDR3 = {
-      NULL
+      0
     };
     MEM_FEAT_TRAIN_SEQ memTrainSequenceDDR3[] = {
-      NULL
+      0
     };
   #endif
     /*---------------------------------------------------------------------------------------------------

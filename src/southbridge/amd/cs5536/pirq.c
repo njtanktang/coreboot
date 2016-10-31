@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/pirq_routing.h>
@@ -23,7 +19,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 
-#if (CONFIG_PIRQ_ROUTE==1 && CONFIG_GENERATE_PIRQ_TABLE==1)
+#if (CONFIG_PIRQ_ROUTE == 1 && CONFIG_GENERATE_PIRQ_TABLE == 1)
 void pirq_assign_irqs(const unsigned char pIntAtoD[4])
 {
 	device_t pdev;

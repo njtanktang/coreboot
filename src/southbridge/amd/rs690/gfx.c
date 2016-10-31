@@ -11,15 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
  *  for rs690 internal graphics device
- *  device id of internal grphics:
+ *  device id of internal graphics:
  *	RS690M/T: 0x791f
  *    RS690:	   0x791e
  */
@@ -465,51 +461,51 @@ void rs690_gfx_init(device_t nb_dev, device_t dev, u32 port)
 	/* done by enable_pci_bar3() before */
 
 	/* step 6 SBIOS compile flags */
-        if (cfg->gfx_tmds) {
-                /* step 6.2.2 Clock-Muxing Control */
-                /* step 6.2.2.1 */
-                set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 16, 1 << 16);
+	if (cfg->gfx_tmds) {
+		/* step 6.2.2 Clock-Muxing Control */
+		/* step 6.2.2.1 */
+		set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 16, 1 << 16);
 
-                /* step 6.2.2.2 */
-                set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 8, 1 << 8);
-                set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 10, 1 << 10);
+		/* step 6.2.2.2 */
+		set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 8, 1 << 8);
+		set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 10, 1 << 10);
 
-                /* step 6.2.2.3 */
-                set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 26, 1 << 26);
+		/* step 6.2.2.3 */
+		set_nbmisc_enable_bits(nb_dev, 0x7, 1 << 26, 1 << 26);
 
-                /* step 6.2.3 Lane-Muxing Control */
-                /* step 6.2.3.1 */
-                set_nbmisc_enable_bits(nb_dev, 0x37, 0x3 << 8, 0x2 << 8);
+		/* step 6.2.3 Lane-Muxing Control */
+		/* step 6.2.3.1 */
+		set_nbmisc_enable_bits(nb_dev, 0x37, 0x3 << 8, 0x2 << 8);
 
-                /* step 6.2.4 Received Data Control */
-                /* step 6.2.4.1 */
-                set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 16, 0x2 << 16);
+		/* step 6.2.4 Received Data Control */
+		/* step 6.2.4.1 */
+		set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 16, 0x2 << 16);
 
-                /* step 6.2.4.2 */
-                set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 18, 0x3 << 18);
+		/* step 6.2.4.2 */
+		set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 18, 0x3 << 18);
 
-                /* step 6.2.4.3 */
-                set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 20, 0x0 << 20);
+		/* step 6.2.4.3 */
+		set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 20, 0x0 << 20);
 
-                /* step 6.2.4.4 */
-                set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 22, 0x1 << 22);
+		/* step 6.2.4.4 */
+		set_pcie_enable_bits(nb_dev, 0x40, 0x3 << 22, 0x1 << 22);
 
-                /* step 6.2.5 PLL Power Down Control */
-                /* step 6.2.5.1 */
-                set_nbmisc_enable_bits(nb_dev, 0x35, 0x3 << 6, 0x0 << 6);
+		/* step 6.2.5 PLL Power Down Control */
+		/* step 6.2.5.1 */
+		set_nbmisc_enable_bits(nb_dev, 0x35, 0x3 << 6, 0x0 << 6);
 
-                /* step 6.2.6 Driving Strength Control */
-                /* step 6.2.6.1 */
-                set_nbmisc_enable_bits(nb_dev, 0x34, 0x1 << 24, 0x0 << 24);
+		/* step 6.2.6 Driving Strength Control */
+		/* step 6.2.6.1 */
+		set_nbmisc_enable_bits(nb_dev, 0x34, 0x1 << 24, 0x0 << 24);
 
-                /* step 6.2.6.2 */
-                set_nbmisc_enable_bits(nb_dev, 0x35, 0x3 << 2, 0x3 << 2);
-        }
+		/* step 6.2.6.2 */
+		set_nbmisc_enable_bits(nb_dev, 0x35, 0x3 << 2, 0x3 << 2);
+	}
 
-        printk(BIOS_INFO, "rs690_gfx_init step6.\n");
+	printk(BIOS_INFO, "rs690_gfx_init step6.\n");
 
 	/* step 7 compliance state, (only need if CMOS option is enabled) */
-	/* the compliance stete is just for test. refer to 4.2.5.2 of PCIe specification */
+	/* the compliance state is just for test. refer to 4.2.5.2 of PCIe specification */
 	if (cfg->gfx_compliance) {
 		/* force compliance */
 		set_nbmisc_enable_bits(nb_dev, 0x32, 1 << 6, 1 << 6);
@@ -558,7 +554,7 @@ void rs690_gfx_init(device_t nb_dev, device_t dev, u32 port)
 	pci_write_config16(dev, 0x5a, reg16);
 	printk(BIOS_INFO, "rs690_gfx_init step8.9.\n");
 
-	/* step 8.10 Setting this register to 0x1 will hide the Advanced Error Rporting Capabilities in the PCIE Brider.
+	/* step 8.10 Setting this register to 0x1 will hide the Advanced Error Reporting Capabilities in the PCIE Bridge.
 	 * This will workaround several failures reported by the PCI Compliance test under Vista DTM. */
 	set_nbmisc_enable_bits(nb_dev, 0x33, 1 << 31, 0 << 31);
 	printk(BIOS_INFO, "rs690_gfx_init step8.10.\n");

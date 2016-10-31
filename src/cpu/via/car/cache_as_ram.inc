@@ -19,13 +19,8 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include <cpu/x86/stack.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/cache.h>
 #include <console/post_codes.h>
@@ -45,9 +40,9 @@ CacheAsRam:
 	invd
 
 	/* Set the default memory type and enable fixed and variable MTRRs. */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	xorl	%edx, %edx
-	movl	$(MTRRdefTypeEn | MTRRdefTypeFixEn), %eax
+	movl	$(MTRR_DEF_TYPE_EN | MTRR_DEF_TYPE_FIX_EN), %eax
 	wrmsr
 
 	/* Clear all MTRRs. */
@@ -67,55 +62,55 @@ clear_fixed_var_mtrr:
 
 all_mtrr_msrs:
 	/* fixed MTRR MSRs */
-	.long	MTRRfix64K_00000_MSR
-	.long	MTRRfix16K_80000_MSR
-	.long	MTRRfix16K_A0000_MSR
-	.long	MTRRfix4K_C0000_MSR
-	.long	MTRRfix4K_C8000_MSR
-	.long	MTRRfix4K_D0000_MSR
-	.long	MTRRfix4K_D8000_MSR
-	.long	MTRRfix4K_E0000_MSR
-	.long	MTRRfix4K_E8000_MSR
-	.long	MTRRfix4K_F0000_MSR
-	.long	MTRRfix4K_F8000_MSR
+	.long	MTRR_FIX_64K_00000
+	.long	MTRR_FIX_16K_80000
+	.long	MTRR_FIX_16K_A0000
+	.long	MTRR_FIX_4K_C0000
+	.long	MTRR_FIX_4K_C8000
+	.long	MTRR_FIX_4K_D0000
+	.long	MTRR_FIX_4K_D8000
+	.long	MTRR_FIX_4K_E0000
+	.long	MTRR_FIX_4K_E8000
+	.long	MTRR_FIX_4K_F0000
+	.long	MTRR_FIX_4K_F8000
 
 	/* var MTRR MSRs */
-	.long	MTRRphysBase_MSR(0)
-	.long	MTRRphysMask_MSR(0)
-	.long	MTRRphysBase_MSR(1)
-	.long	MTRRphysMask_MSR(1)
-	.long	MTRRphysBase_MSR(2)
-	.long	MTRRphysMask_MSR(2)
-	.long	MTRRphysBase_MSR(3)
-	.long	MTRRphysMask_MSR(3)
-	.long	MTRRphysBase_MSR(4)
-	.long	MTRRphysMask_MSR(4)
-	.long	MTRRphysBase_MSR(5)
-	.long	MTRRphysMask_MSR(5)
-	.long	MTRRphysBase_MSR(6)
-	.long	MTRRphysMask_MSR(6)
-	.long	MTRRphysBase_MSR(7)
-	.long	MTRRphysMask_MSR(7)
+	.long	MTRR_PHYS_BASE(0)
+	.long	MTRR_PHYS_MASK(0)
+	.long	MTRR_PHYS_BASE(1)
+	.long	MTRR_PHYS_MASK(1)
+	.long	MTRR_PHYS_BASE(2)
+	.long	MTRR_PHYS_MASK(2)
+	.long	MTRR_PHYS_BASE(3)
+	.long	MTRR_PHYS_MASK(3)
+	.long	MTRR_PHYS_BASE(4)
+	.long	MTRR_PHYS_MASK(4)
+	.long	MTRR_PHYS_BASE(5)
+	.long	MTRR_PHYS_MASK(5)
+	.long	MTRR_PHYS_BASE(6)
+	.long	MTRR_PHYS_MASK(6)
+	.long	MTRR_PHYS_BASE(7)
+	.long	MTRR_PHYS_MASK(7)
 
 	.long	0x000 /* NULL, end of table */
 
 clear_fixed_var_mtrr_out:
-	movl	$MTRRphysBase_MSR(0), %ecx
+	movl	$MTRR_PHYS_BASE(0), %ecx
 	xorl	%edx, %edx
 	movl	$(CacheBase | MTRR_TYPE_WRBACK), %eax
 	wrmsr
 
-	movl	$MTRRphysMask_MSR(0), %ecx
+	movl	$MTRR_PHYS_MASK(0), %ecx
 	/* This assumes we never access addresses above 2^36 in CAR. */
 	movl	$0x0000000f, %edx
-	movl	$(~(CacheSize - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CacheSize - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 	/*
 	 * Enable write base caching so we can do execute in place (XIP)
 	 * on the flash ROM.
 	 */
-	movl	$MTRRphysBase_MSR(1), %ecx
+	movl	$MTRR_PHYS_BASE(1), %ecx
 	xorl	%edx, %edx
 	/*
 	 * IMPORTANT: The following calculation _must_ be done at runtime. See
@@ -126,16 +121,16 @@ clear_fixed_var_mtrr_out:
 	orl	$MTRR_TYPE_WRBACK, %eax
 	wrmsr
 
-	movl	$MTRRphysMask_MSR(1), %ecx
+	movl	$MTRR_PHYS_MASK(1), %ecx
 	movl	$0x0000000f, %edx
-	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 	/* Set the default memory type and enable fixed and variable MTRRs. */
 	/* TODO: Or also enable fixed MTRRs? Bug in the code? */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	xorl	%edx, %edx
-	movl	$(MTRRdefTypeEn), %eax
+	movl	$(MTRR_DEF_TYPE_EN), %eax
 	wrmsr
 
 	/* Enable cache. */
@@ -225,24 +220,24 @@ testok:
 
 	/* Set the default memory type and enable variable MTRRs. */
 	/* TODO: Or also enable fixed MTRRs? Bug in the code? */
-	movl	$MTRRdefType_MSR, %ecx
+	movl	$MTRR_DEF_TYPE_MSR, %ecx
 	xorl	%edx, %edx
-	movl	$(MTRRdefTypeEn), %eax
+	movl	$(MTRR_DEF_TYPE_EN), %eax
 	wrmsr
 
-	/* Enable caching for CONFIG_RAMBASE..CONFIG_RAMTOP. */
-	movl	$MTRRphysBase_MSR(0), %ecx
+	/* Enable caching for 0..CACHE_TMP_RAMTOP. */
+	movl	$MTRR_PHYS_BASE(0), %ecx
 	xorl	%edx, %edx
-	movl	$(CONFIG_RAMBASE | MTRR_TYPE_WRBACK), %eax
+	movl	$(0x0 | MTRR_TYPE_WRBACK), %eax
 	wrmsr
 
-	movl	$MTRRphysMask_MSR(0), %ecx
+	movl	$MTRR_PHYS_MASK(0), %ecx
 	movl	$0x0000000f, %edx	/* AMD 40 bit 0xff */
-	movl	$(~(CONFIG_RAMTOP - CONFIG_RAMBASE - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CACHE_TMP_RAMTOP - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 	/* Cache XIP_ROM area to speedup coreboot code. */
-	movl	$MTRRphysBase_MSR(1), %ecx
+	movl	$MTRR_PHYS_BASE(1), %ecx
 	xorl	%edx, %edx
 	/*
 	 * IMPORTANT: The following calculation _must_ be done at runtime. See
@@ -253,9 +248,9 @@ testok:
 	orl	$MTRR_TYPE_WRBACK, %eax
 	wrmsr
 
-	movl	$MTRRphysMask_MSR(1), %ecx
+	movl	$MTRR_PHYS_MASK(1), %ecx
 	xorl	%edx, %edx
-	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRRphysMaskValid), %eax
+	movl	$(~(CONFIG_XIP_ROM_SIZE - 1) | MTRR_PHYS_MASK_VALID), %eax
 	wrmsr
 
 	/* Enable cache. */
@@ -268,7 +263,7 @@ __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 	cld			/* Clear direction flag. */
 
-	movl	$ROMSTAGE_STACK, %esp
+	movl	$CONFIG_RAMTOP, %esp
 	movl	%esp, %ebp
 	call	copy_and_run
 
@@ -276,4 +271,3 @@ __main:
 	post_code(POST_DEAD_CODE)
 	hlt
 	jmp	.Lhlt
-

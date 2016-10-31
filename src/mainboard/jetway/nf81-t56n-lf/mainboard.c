@@ -13,13 +13,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 
 #include <arch/acpi.h>
 #include <arch/io.h>
@@ -30,7 +26,7 @@
 #include <device/pci.h>
 #include <device/pci_def.h>
 
-#include <southbridge/amd/amd_pci_util.h>
+#include <southbridge/amd/common/amd_pci_util.h>
 #include <southbridge/amd/cimx/sb800/SBPLATFORM.h>
 #include <southbridge/amd/cimx/sb800/pci_devs.h>
 #include <southbridge/amd/cimx/cimx_util.h>
@@ -157,22 +153,14 @@ static void mainboard_enable(device_t dev)
 {
 	printk(BIOS_INFO, "Mainboard " CONFIG_MAINBOARD_PART_NUMBER " Enable.\n");
 
-/*
- * The mainboard is the first place that we get control in ramstage. Check
- * for S3 resume and call the appropriate AGESA/CIMx resume functions.
- */
-#if CONFIG_HAVE_ACPI_RESUME
-	acpi_slp_type = acpi_get_sleep_type();
-#endif /* CONFIG_HAVE_ACPI_RESUME */
-
 	/* enable GPP CLK0 thru CLK3 (interleaved) */
 	/* disable GPP CLK4 thru SLT_GFX_CLK */
 	u8 *misc_mem_clk_cntrl = (u8 *)(ACPI_MMIO_BASE + MISC_BASE);
-	*(misc_mem_clk_cntrl + 0) = 0xFF;
-	*(misc_mem_clk_cntrl + 1) = 0xFF;
-	*(misc_mem_clk_cntrl + 2) = 0x00;
-	*(misc_mem_clk_cntrl + 3) = 0x00;
-	*(misc_mem_clk_cntrl + 4) = 0x00;
+	write8(misc_mem_clk_cntrl + 0, 0xFF);
+	write8(misc_mem_clk_cntrl + 1, 0xFF);
+	write8(misc_mem_clk_cntrl + 2, 0x00);
+	write8(misc_mem_clk_cntrl + 3, 0x00);
+	write8(misc_mem_clk_cntrl + 4, 0x00);
 
 	/*
 	 * Initialize ASF registers to an arbitrary address because someone

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -55,16 +51,10 @@
 #define HWM_FAN1_SEG3_SPEED_COUNT  0xAC
 #define HWM_FAN1_TEMP_MAP_SEL      0xAF
 
-static void pnp_write_index(u16 port, u8 reg, u8 value)
-{
-	outb(reg, port);
-	outb(value, port + 1);
-}
-
 /* note: multifunc registers need to be tweaked before here */
-void f71869ad_hwm_init(device_t dev)
+void f71869ad_hwm_init(struct device *dev)
 {
-	struct superio_fintek_f71869ad_config *conf = dev->chip_info;
+	const struct superio_fintek_f71869ad_config *conf = dev->chip_info;
 	struct resource *res = find_resource(dev, PNP_IDX_IO0);
 
 	if (!res) {
@@ -92,11 +82,11 @@ void f71869ad_hwm_init(device_t dev)
 	pnp_write_index(port, HWM_FAN1_TEMP_MAP_SEL, conf->hwm_fan1_temp_map_sel);
 	/* set FAN_PROG_SEL = 1 */
 	pnp_write_index(port, HWM_FAN_FAULT_TIME_REG, 0x8a);
-	/* FAN1_BASE_TEMP (Tb) set when FAN_PROG_SEL=1, p.64-65 */
+	/* FAN1_BASE_TEMP (Tb) set when FAN_PROG_SEL = 1, p.64-65 */
 	pnp_write_index(port, HWM_FAN_TYPE_SEL_REG, conf->hwm_fan_type_sel_reg);
 	/* set TFAN1_ADJ_SEL (Ta) p.67 to use CR7Ah p.61 */
 	pnp_write_index(port, HWM_FAN_MODE_SEL_REG, conf->hwm_fan_mode_sel_reg);
-	/* TFAN1_ADJ_{UP,DOWN}_RATE (Ct=1/4 up & down) in 0x95 when FAN_PROG_SEL =
+	/* TFAN1_ADJ_{UP,DOWN}_RATE (Ct = 1/4 up & down) in 0x95 when FAN_PROG_SEL =
 		1, p.88 */
 	pnp_write_index(port, HWM_FAN1_TEMP_ADJ_RATE_REG, conf->hwm_fan1_temp_adj_rate_reg);
 	/* set FAN_PROG_SEL = 0 */

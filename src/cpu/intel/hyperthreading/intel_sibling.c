@@ -1,3 +1,16 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <console/console.h>
 #include <cpu/cpu.h>
 #include <cpu/x86/lapic.h>
@@ -8,7 +21,7 @@
 #include <assert.h>
 
 #if CONFIG_PARALLEL_CPU_INIT
-#error Intel hyper-threading requires serialized cpu init
+#error Intel hyper-threading requires serialized CPU init
 #endif
 
 static int first_time = 1;
@@ -38,7 +51,7 @@ int intel_ht_sibling(void)
 	return !!(lapicid() & (threads-1));
 }
 
-void intel_sibling_init(device_t cpu)
+void intel_sibling_init(struct device *cpu)
 {
 	unsigned i, siblings;
 	struct cpuid_result result;
@@ -71,16 +84,16 @@ void intel_sibling_init(device_t cpu)
 		return;
 	}
 
-	/* I am the primary cpu start up my siblings */
-	for(i = 1; i < siblings; i++) {
+	/* I am the primary CPU start up my siblings */
+	for (i = 1; i < siblings; i++) {
 		struct device_path cpu_path;
-		device_t new;
-		/* Build the cpu device path */
+		struct device *new;
+		/* Build the CPU device path */
 		cpu_path.type = DEVICE_PATH_APIC;
 		cpu_path.apic.apic_id = cpu->path.apic.apic_id + i;
 
 
-		/* Allocate new cpu device structure iff sibling CPU
+		/* Allocate new CPU device structure iff sibling CPU
 		 * was not in static device tree.
 		 */
 		new = alloc_find_dev(cpu->bus, &cpu_path);
@@ -94,4 +107,3 @@ void intel_sibling_init(device_t cpu)
 			new->path.apic.apic_id);
 	}
 }
-

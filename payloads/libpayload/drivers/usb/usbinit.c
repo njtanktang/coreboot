@@ -34,9 +34,10 @@
 #include "ohci.h"
 #include "ehci.h"
 #include "xhci.h"
+#include "dwc2.h"
 #include <usb/usbdisk.h>
 
-#ifdef CONFIG_USB_PCI
+#if IS_ENABLED(CONFIG_LP_USB_PCI)
 /**
  * Initializes USB controller attached to PCI
  *
@@ -71,7 +72,7 @@ static int usb_controller_initialize(int bus, int dev, int func)
 			pciid >> 16, pciid & 0xFFFF, func);
 		switch (prog_if) {
 		case 0x00:
-#ifdef CONFIG_USB_UHCI
+#if IS_ENABLED(CONFIG_LP_USB_UHCI)
 			usb_debug("UHCI controller\n");
 			uhci_pci_init (pci_device);
 #else
@@ -80,7 +81,7 @@ static int usb_controller_initialize(int bus, int dev, int func)
 			break;
 
 		case 0x10:
-#ifdef CONFIG_USB_OHCI
+#if IS_ENABLED(CONFIG_LP_USB_OHCI)
 			usb_debug("OHCI controller\n");
 			ohci_pci_init(pci_device);
 #else
@@ -89,7 +90,7 @@ static int usb_controller_initialize(int bus, int dev, int func)
 			break;
 
 		case 0x20:
-#ifdef CONFIG_USB_EHCI
+#if IS_ENABLED(CONFIG_LP_USB_EHCI)
 			usb_debug("EHCI controller\n");
 			ehci_pci_init(pci_device);
 #else
@@ -98,7 +99,7 @@ static int usb_controller_initialize(int bus, int dev, int func)
 			break;
 
 		case 0x30:
-#ifdef CONFIG_USB_XHCI
+#if IS_ENABLED(CONFIG_LP_USB_XHCI)
 			usb_debug("xHCI controller\n");
 			xhci_pci_init(pci_device);
 #else
@@ -146,28 +147,17 @@ static void usb_scan_pci_bus(int bus)
 			header_type = pci_read_config8(pci_device, REG_HEADER_TYPE);
 			/* If this is a bridge, scan the other side. */
 			if ((header_type & ~HEADER_TYPE_MULTIFUNCTION) ==
-					HEADER_TYPE_BRIDGE)
-				usb_scan_pci_bus(pci_read_config8(pci_device,
-							REG_SECONDARY_BUS));
+					HEADER_TYPE_BRIDGE) {
+				/* Verify that the bridge is enabled */
+				if ((pci_read_config16(pci_device, REG_COMMAND)
+						& 3) != 0)
+					usb_scan_pci_bus(pci_read_config8(
+						pci_device, REG_SECONDARY_BUS));
+			}
 			else
 				usb_controller_initialize(bus, dev, func);
 		}
 	}
-}
-#endif
-
-#ifdef CONFIG_USB_MEMORY
-static void usb_scan_memory(void)
-{
-#ifdef CONFIG_USB_XHCI
-	xhci_init((void *)(unsigned long)CONFIG_USB_XHCI_BASE_ADDRESS);
-#endif
-#ifdef CONFIG_USB_EHCI
-	ehci_init((void *)(unsigned long)CONFIG_USB_EHCI_BASE_ADDRESS);
-#endif
-#ifdef CONFIG_USB_OHCI
-	ohci_init((void *)(unsigned long)CONFIG_USB_OHCI_BASE_ADDRESS);
-#endif
 }
 #endif
 
@@ -176,11 +166,33 @@ static void usb_scan_memory(void)
  */
 int usb_initialize(void)
 {
-#ifdef CONFIG_USB_PCI
+#if IS_ENABLED(CONFIG_LP_USB_PCI)
 	usb_scan_pci_bus(0);
 #endif
-#ifdef CONFIG_USB_MEMORY
-	usb_scan_memory();
-#endif
 	return 0;
+}
+
+hci_t *usb_add_mmio_hc(hc_type type, void *bar)
+{
+	switch (type) {
+#if IS_ENABLED(CONFIG_LP_USB_OHCI)
+	case OHCI:
+		return ohci_init((unsigned long)bar);
+#endif
+#if IS_ENABLED(CONFIG_LP_USB_EHCI)
+	case EHCI:
+		return ehci_init((unsigned long)bar);
+#endif
+#if IS_ENABLED(CONFIG_LP_USB_DWC2)
+	case DWC2:
+		return dwc2_init(bar);
+#endif
+#if IS_ENABLED(CONFIG_LP_USB_XHCI)
+	case XHCI:
+		return xhci_init((unsigned long)bar);
+#endif
+	default:
+		usb_debug("HC type %d (at %p) is not supported!\n", type, bar);
+		return NULL;
+	}
 }

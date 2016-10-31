@@ -12,18 +12,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
 #include <arch/cpu.h>
 #include <string.h>
 
-#if CONFIG_SOUTHBRIDGE_INTEL_FSP_BD82X6X
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_FSP_BD82X6X)
 #include <southbridge/intel/fsp_bd82x6x/pch.h>
+#elif IS_ENABLED(CONFIG_SOUTHBRIDGE_INTEL_FSP_I89XX)
+#include <southbridge/intel/fsp_i89xx/pch.h>
 #endif
 
 #include <arch/io.h>
@@ -43,7 +41,7 @@ static void report_cpu_info(void)
 		strcpy(cpu_string, "Platform info not available");
 	} else {
 		u32 *p = (u32*) cpu_string;
-		for (i = 2; i <= 4 ; i++) {
+		for (i = 2; i <= 4; i++) {
 			cpuidr = cpuid(index + i);
 			*p++ = cpuidr.eax;
 			*p++ = cpuidr.ebx;

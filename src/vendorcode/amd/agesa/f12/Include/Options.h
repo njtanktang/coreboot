@@ -15,7 +15,7 @@
  *
  * Copyright (c) 2011, Advanced Micro Devices, Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -23,10 +23,10 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Advanced Micro Devices, Inc. nor the names of 
- *       its contributors may be used to endorse or promote products derived 
+ *     * Neither the name of Advanced Micro Devices, Inc. nor the names of
+ *       its contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -63,29 +63,5 @@ typedef struct {
   UINT32              FunctionId;                   ///< The function id specified.
   IMAGE_ENTRY         EntryPoint;                   ///< The corresponding entry point to call.
 } DISPATCH_TABLE;
-
-#ifdef BLDCFG_PLATFORM_POWER_POLICY_MODE
-  #define CFG_PLATFORM_POWER_POLICY_MODE  (BLDCFG_PLATFORM_POWER_POLICY_MODE)
-#else
-  #define CFG_PLATFORM_POWER_POLICY_MODE  (Performance)
-#endif
-
-#ifdef BLDCFG_PCI_MMIO_BASE
-  #define CFG_PCI_MMIO_BASE               (BLDCFG_PCI_MMIO_BASE)
-#else
-  #define CFG_PCI_MMIO_BASE               (0)
-#endif
-
-#ifdef BLDCFG_PCI_MMIO_SIZE
-  #define CFG_PCI_MMIO_SIZE               (BLDCFG_PCI_MMIO_SIZE)
-#else
-  #define CFG_PCI_MMIO_SIZE               (0)
-#endif
-
-#ifdef BLDCFG_AP_MTRR_SETTINGS_LIST
-  #define CFG_AP_MTRR_SETTINGS_LIST           (BLDCFG_AP_MTRR_SETTINGS_LIST)
-#else
-  #define CFG_AP_MTRR_SETTINGS_LIST           (NULL)
-#endif
 
 #endif // _OPTIONS_H_

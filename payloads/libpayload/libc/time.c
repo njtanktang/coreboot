@@ -34,7 +34,7 @@
 
 #include <libpayload-config.h>
 #include <libpayload.h>
-#ifdef CONFIG_ARCH_X86
+#if IS_ENABLED(CONFIG_LP_ARCH_X86) && IS_ENABLED(CONFIG_LP_NVRAM)
 #include <arch/rdtsc.h>
 #endif
 
@@ -70,7 +70,7 @@ static void update_clock(void)
 	}
 }
 
-#ifdef CONFIG_NVRAM
+#if IS_ENABLED(CONFIG_LP_NVRAM)
 
 static unsigned int day_of_year(int mon, int day, int year)
 {
@@ -188,4 +188,21 @@ void mdelay(unsigned int m)
 void delay(unsigned int s)
 {
 	_delay((uint64_t)s * timer_hz());
+}
+
+u64 timer_us(u64 base)
+{
+	static u64 hz;
+
+	// Only check timer_hz once. Assume it doesn't change.
+	if (hz == 0) {
+		hz = timer_hz();
+		if (hz < 1000000) {
+			printf("Timer frequency %lld is too low, "
+			       "must be at least 1MHz.\n", hz);
+			halt();
+		}
+	}
+
+	return (1000000 * timer_raw_value()) / hz - base;
 }

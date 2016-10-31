@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __DRAMINIT_H_
@@ -32,12 +28,11 @@
 // UMA size
 #define 	UMASIZE  M64
 
-#define  ENABLE_CHC   0		//CHC enable, how ever, this CHC,used some reg define in CHB
-#define  ENABLE_CHB   0		//CHB enable , CHB is VX800's, VX855 no this CHB.
+#define ENABLE_CHC   0		//CHC enable, how ever, this CHC,used some reg define in CHB
+#define ENABLE_CHB   0		//CHB enable , CHB is VX800's, VX855 no this CHB.
 //Dram Freq
 #define DIMMFREQ_800	400
 #define DIMMFREQ_667	333
-//#define DIMMFREQ_600  300
 #define DIMMFREQ_533	266
 #define DIMMFREQ_400	200
 #define DIMMFREQ_333	166
@@ -45,14 +40,14 @@
 #define DIMMFREQ_200	100
 
 //Dram Type
-#define  RAMTYPE_FPMDRAM   1
-#define  RAMTYPE_EDO       2
-#define  RAMTYPE_PipelinedNibble 3
-#define  RAMTYPE_SDRAM     4
-#define  RAMTYPE_ROM       5
-#define  RAMTYPE_SGRAMDDR  6
-#define  RAMTYPE_SDRAMDDR  7
-#define  RAMTYPE_SDRAMDDR2 8
+#define RAMTYPE_FPMDRAM   1
+#define RAMTYPE_EDO       2
+#define RAMTYPE_PipelinedNibble 3
+#define RAMTYPE_SDRAM     4
+#define RAMTYPE_ROM       5
+#define RAMTYPE_SGRAMDDR  6
+#define RAMTYPE_SDRAMDDR  7
+#define RAMTYPE_SDRAMDDR2 8
 
 /* CAS latency constant */
 #define CASLAN_15         15
@@ -66,20 +61,18 @@
 #define CASLAN_NULL     00
 
 //Burst length
-#define  BURSTLENGTH8    8
-#define  BURSTLENGTH4    4
+#define BURSTLENGTH8    8
+#define BURSTLENGTH4    4
 
 //Data Width
-//#define  DATAWIDTHX16    16
-//#define  DATAWIDTHX8       8
-//#define  DATAWIDTHX4       4
+
 
 #define SPD_MEMORY_TYPE              2	/*Memory type FPM,EDO,SDRAM,DDR,DDR2 */
 #define SPD_SDRAM_ROW_ADDR           3	/*Number of row addresses on this assembly */
 #define SPD_SDRAM_COL_ADDR           4	/*Number of column addresses on this assembly */
 #define SPD_SDRAM_DIMM_RANKS         5	/*Number of RANKS on this assembly */
 #define SPD_SDRAM_MOD_DATA_WIDTH     6	/*Data width of this assembly */
-#define SPD_SDRAM_TCLK_X             9	/*Cycle time at Maximum supported CAS latency (CL=X) */
+#define SPD_SDRAM_TCLK_X             9	/*Cycle time at Maximum supported CAS latency (CL = X) */
 #define SPD_SDRAM_TAC_X              10	/*Access time for highest CL */
 #define SPD_SDRAM_CONFIG_TYPE        11	/*Non-parity , Parity or ECC */
 #define SPD_SDRAM_REFRESH            12	/*Refresh rate/type */
@@ -107,15 +100,15 @@
 #define SPC_SDRAM_TRC				 41	/*minimum active to active/refresh time */
 #define SPD_SDRAM_TRFC               42	/*minimum refresh to active / refresh command period */
 
-#define  SPD_DATA_SIZE 44
+#define SPD_DATA_SIZE 44
 //Dram cofig are
 /*the most number of socket*/
-#define  MAX_RAM_SLOTS  2
+#define MAX_RAM_SLOTS  2
 
 #define MAX_SOCKETS MAX_RAM_SLOTS
-#define  MAX_DIMMS     MAX_SOCKETS	/*every sockets can plug one DIMM */
+#define MAX_DIMMS     MAX_SOCKETS	/*every sockets can plug one DIMM */
 /*the most number of RANKs on a DIMM*/
-#define  MAX_RANKS  MAX_SOCKETS*2
+#define MAX_RANKS  MAX_SOCKETS*2
 
 struct mem_controller {
 	u8 channel0[MAX_DIMMS];
@@ -137,17 +130,8 @@ typedef struct _DRAM_CONFIG_DATA {
 
 	u8 CmdRate;
 	u8 DualEn;
-	//u8    IntLv0;
-	//u8    IntLv1;
-	//u8    Ba0Sel;
-	//u8    Ba1Sel;
-	//u8    Ba2Sel;
 	u8 BaScmb;
 	u8 DrdyTiming;
-	//u8    Above4G;
-	//u8    RdsaitMode;
-	//u8    Rdsait;
-	//u8    TopPerf;
 
 	u16 UMASize;
 } DRAM_CONFIG_DATA;

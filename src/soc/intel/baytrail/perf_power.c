@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -22,7 +18,7 @@
 #include <bootstate.h>
 #include <console/console.h>
 #include <reg_script.h>
-#include <baytrail/iosf.h>
+#include <soc/iosf.h>
 
 #define MAKE_MASK_INCLUSIVE(msb) \
 	((1ULL << (1 + (msb))) - 1)
@@ -288,7 +284,5 @@ static void perf_power(void *unused)
 	reg_script_run(perf_power_settings);
 }
 
-BOOT_STATE_INIT_ENTRIES(disable_rom_cache_bscb) = {
-	BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, perf_power, NULL),
-	BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, perf_power, NULL),
-};
+BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, perf_power, NULL);
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, perf_power, NULL);

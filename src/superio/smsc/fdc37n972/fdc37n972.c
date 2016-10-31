@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -24,7 +20,7 @@
 
 #include "fdc37n972.h"
 
-static void init(device_t dev)
+static void init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
@@ -35,7 +31,7 @@ static void init(device_t dev)
 	case FDC37N972_PP: /* TODO. */
 		break;
 	case FDC37N972_KBDC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	// [..] The rest: TODO
 	}

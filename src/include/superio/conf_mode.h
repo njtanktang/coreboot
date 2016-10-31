@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef DEVICE_PNP_CONF_MODE_H
@@ -24,14 +20,20 @@
 #include <device/pnp.h>
 
 /* Common enter/exit implementations */
-void pnp_enter_conf_mode_55(device_t dev);
-void pnp_enter_conf_mode_8787(device_t dev);
-void pnp_exit_conf_mode_aa(device_t dev);
-void pnp_enter_conf_mode_870155aa(device_t dev);
-void pnp_exit_conf_mode_0202(device_t dev);
+void pnp_enter_conf_mode_55(struct device *dev);
+void pnp_enter_conf_mode_6767(struct device *dev);
+void pnp_enter_conf_mode_7777(struct device *dev);
+void pnp_enter_conf_mode_8787(struct device *dev);
+void pnp_enter_conf_mode_a0a0(struct device *dev);
+void pnp_exit_conf_mode_aa(struct device *dev);
+void pnp_enter_conf_mode_870155aa(struct device *dev);
+void pnp_exit_conf_mode_0202(struct device *dev);
 
 extern const struct pnp_mode_ops pnp_conf_mode_55_aa;
+extern const struct pnp_mode_ops pnp_conf_mode_6767_aa;
+extern const struct pnp_mode_ops pnp_conf_mode_7777_aa;
 extern const struct pnp_mode_ops pnp_conf_mode_8787_aa;
+extern const struct pnp_mode_ops pnp_conf_mode_a0a0_aa;
 extern const struct pnp_mode_ops pnp_conf_mode_870155_aa;
 
 #endif /* DEVICE_PNP_CONF_MODE_H */

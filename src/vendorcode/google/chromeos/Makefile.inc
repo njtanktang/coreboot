@@ -12,19 +12,23 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
-romstage-$(CONFIG_ARCH_ROMSTAGE_X86_32) += vbnv.c
-ramstage-$(CONFIG_ARCH_RAMSTAGE_X86_32) += vbnv.c
-romstage-$(CONFIG_ARCH_ROMSTAGE_X86_32) += vboot.c
-ramstage-y += gnvs.c
-romstage-y += fmap.c
-ramstage-y += fmap.c
+bootblock-y += chromeos.c
+verstage-y += chromeos.c
+romstage-y += chromeos.c
+ramstage-y += chromeos.c
+
+ramstage-$(CONFIG_ELOG) += elog.c
+ramstage-$(CONFIG_HAVE_ACPI_TABLES) += gnvs.c
+ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
 ramstage-$(CONFIG_CHROMEOS_RAMOOPS) += ramoops.c
-smm-y += fmap.c
+romstage-y += vpd_decode.c
+ramstage-y += vpd_decode.c cros_vpd.c vpd_mac.c vpd_serialno.c vpd_calibration.c
+ramstage-$(CONFIG_HAVE_REGULATORY_DOMAIN) += wrdd.c
+ifeq ($(CONFIG_ARCH_MIPS),)
+bootblock-y += watchdog.c
+ramstage-y += watchdog.c
+endif
 
 ifeq ($(MOCK_TPM),1)
 CFLAGS_common += -DMOCK_TPM=1
@@ -32,54 +36,112 @@ else
 CFLAGS_common += -DMOCK_TPM=0
 endif
 
-ifeq ($(CONFIG_VBOOT_VERIFY_FIRMWARE),y)
-romstage-y += vboot_handoff.c
-ramstage-y += vboot_handoff.c
-romstage-y += vboot_loader.c
-rmodules-y += vboot_wrapper.c
+CONFIG_GBB_HWID := $(call strip_quotes,$(CONFIG_GBB_HWID))
+CONFIG_GBB_BMPFV_FILE := $(call strip_quotes,$(CONFIG_GBB_BMPFV_FILE))
+CONFIG_VBOOT_KEYBLOCK := $(call strip_quotes,$(CONFIG_VBOOT_KEYBLOCK))
+CONFIG_VBOOT_FIRMWARE_PRIVKEY := $(call strip_quotes,$(CONFIG_VBOOT_FIRMWARE_PRIVKEY))
+CONFIG_VBOOT_KERNEL_KEY := $(call strip_quotes,$(CONFIG_VBOOT_KERNEL_KEY))
 
-VB_LIB = $(obj)/external/vboot_reference/vboot_fw.a
-# Currently, vboot comes into picture only during the romstage, thus
-# is compiled for being used in romstage only. Since, we are splitting
-# up all components in one of the three stages of coreboot, vboot seems
-# most logical to fall under the romstage. Thus, all references to arch
-# and other compiler stuff for vboot is using the romstage arch.
-VB_FIRMWARE_ARCH := $(ARCHDIR-$(ARCH-romstage-y))
-VB_SOURCE := vboot_reference
+# bool-to-mask(var, value)
+# return "value" if var is "y", 0 otherwise
+bool-to-mask = $(if $(filter y,$(1)),$(2),0)
 
-# Add the vboot include paths.
-CPPFLAGS_common += -I$(VB_SOURCE)/firmware/include
+GBB_FLAGS := $(call int-add, \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DEV_SCREEN_SHORT_DELAY),0x1) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_LOAD_OPTION_ROMS),0x2) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_ENABLE_ALTERNATE_OS),0x4) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_SWITCH_ON),0x8) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_USB),0x10) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_FW_ROLLBACK_CHECK),0x20) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_ENTER_TRIGGERS_TONORM),0x40) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_LEGACY),0x80) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FAFT_KEY_OVERIDE),0x100) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC),0x200) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DEFAULT_DEV_BOOT_LEGACY),0x400) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC),0x800) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_LID_SHUTDOWN),0x1000) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_FASTBOOT_FULL_CAP),0x2000) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_ENABLE_SERIAL),0x4000) \
+	)
 
-VBOOT_STUB_ELF = $(obj)/vendorcode/google/chromeos/vbootstub.elf
-VBOOT_STUB = $(VBOOT_STUB_ELF).rmod
-VBOOT_STUB_DOTO = $(VBOOT_STUB_ELF:.elf=.o)
+ifneq ($(CONFIG_GBB_BMPFV_FILE),)
+$(obj)/gbb.sizetmp: $(obj)/coreboot.rom
+	$(CBFSTOOL) $< read -r GBB -f $@
 
-# Dependency for the vboot rmodules. Ordering matters.
-VBOOT_STUB_DEPS += $(obj)/vendorcode/google/chromeos/vboot_wrapper.rmodules.o
-VBOOT_STUB_DEPS += $(obj)/lib/memcmp.rmodules.o
-VBOOT_STUB_DEPS += $(obj)/arch/x86/lib/memset.rmodules.o
-VBOOT_STUB_DEPS += $(obj)/arch/x86/lib/memcpy.rmodules.o
-VBOOT_STUB_DEPS += $(VB_LIB)
-# Remove the '-include' option since that will break vboot's build and ensure
-# vboot_reference can get to coreboot's include files.
-VBOOT_CFLAGS += $(patsubst -I%,-I../%,$(filter-out -include $(src)/include/kconfig.h, $(CFLAGS_romstage)))
-VBOOT_CFLAGS += -DVBOOT_DEBUG
-
-$(VBOOT_STUB_DOTO): $(VBOOT_STUB_DEPS)
-	$(CC_romstage) $(CFLAGS_romstage) -nostdlib -r -o $@ $^
-
-# Link the vbootstub module with a 64KiB-byte heap.
-$(eval $(call rmodule_link,$(VBOOT_STUB_ELF), $(VBOOT_STUB_DOTO), 0x10000))
-
-# Build vboot library without the default includes from coreboot proper.
-$(VB_LIB):
-	@printf "    MAKE       $(subst $(obj)/,,$(@))\n"
-	$(Q)FIRMWARE_ARCH=$(VB_FIRMWARE_ARCH) \
-		CC="$(CC_romstage)" \
-		CFLAGS="$(VBOOT_CFLAGS)" \
-		make -C $(VB_SOURCE) \
-		BUILD=../$(dir $(VB_LIB)) \
-		V=$(V) \
-		fwlib
-
+$(obj)/gbb.stub: $(obj)/coreboot.rom $(FUTILITY) $(obj)/gbb.sizetmp
+	@printf "    CREATE GBB (with BMPFV)\n"
+	$(FUTILITY) gbb_utility -c 0x100,0x1000,$(call int-subtract,$(call file-size,$(obj)/gbb.sizetmp) 0x2180),0x1000 $@.tmp
+	mv $@.tmp $@
+else
+$(obj)/gbb.stub: $(obj)/coreboot.rom $(FUTILITY)
+	@printf "    CREATE GBB (without BMPFV)\n"
+	$(FUTILITY) gbb_utility -c 0x100,0x1000,0,0x1000 $@.tmp
+	mv $@.tmp $@
 endif
+
+$(obj)/gbb.region: $(obj)/gbb.stub
+	@printf "    SETUP GBB\n"
+	cp $< $@.tmp
+	$(FUTILITY) gbb_utility -s \
+		--hwid="$(CONFIG_GBB_HWID)" \
+		--rootkey="$(CONFIG_VBOOT_ROOT_KEY)" \
+		--recoverykey="$(CONFIG_VBOOT_RECOVERY_KEY)" \
+		--flags=$(GBB_FLAGS) \
+		$@.tmp
+ifneq ($(CONFIG_GBB_BMPFV_FILE),)
+	$(FUTILITY) gbb_utility -s \
+		--bmpfv="$(CONFIG_GBB_BMPFV_FILE)" \
+		$@.tmp
+endif
+	mv $@.tmp $@
+
+build_complete:: $(obj)/gbb.region
+	@printf "    WRITE GBB\n"
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r GBB -f $<
+
+# Extract FW_MAIN_? region and minimize it if the last file is empty, so it
+# doesn't contain this empty file (that can have a significant size),
+# improving a lot on hash times due to a smaller amount of data loaded from
+# firmware storage.
+# When passing the minimized image to vbutil_firmware, its length is recorded
+# in the keyblock, and coreboot's vboot code clips the region_device to match,
+# which prevents any potential extension attacks.
+$(obj)/FW_MAIN_%.bin: $(obj)/coreboot.rom
+	$(CBFSTOOL) $< read -r $(basename $(notdir $@)) -f $@.tmp
+	$(CBFSTOOL) $(obj)/coreboot.rom print -k -r $(basename $(notdir $@)) | \
+		tail -1 | \
+		sed "s,^(empty)[[:space:]]\(0x[0-9a-f]*\)\tnull\t.*$$,\1," \
+		> $@.tmp.size
+	if [ -n "$$(cat $@.tmp.size)" ] && [ $$( printf "%d" $$(cat $@.tmp.size)) -gt 0 ]; then \
+		head -c $$( printf "%d" $$(cat $@.tmp.size)) $@.tmp > $@.tmp2 && \
+		mv $@.tmp2 $@; \
+	else \
+		mv $@.tmp $@; \
+	fi
+
+$(obj)/VBLOCK_%.bin: $(obj)/FW_MAIN_%.bin $(FUTILITY)
+	$(FUTILITY) vbutil_firmware \
+		--vblock $@ \
+		--keyblock "$(CONFIG_VBOOT_KEYBLOCK)" \
+		--signprivate "$(CONFIG_VBOOT_FIRMWARE_PRIVKEY)" \
+		--version $(CONFIG_VBOOT_KEYBLOCK_VERSION) \
+		--fv $< \
+		--kernelkey "$(CONFIG_VBOOT_KERNEL_KEY)" \
+		--flags $(CONFIG_VBOOT_KEYBLOCK_PREAMBLE_FLAGS)
+
+$(obj)/RO_FRID.bin: $(obj)/coreboot.rom
+	$(CBFSTOOL) $(obj)/coreboot.rom read -r $(basename $(notdir $@)) -f $@
+	printf $(KERNELVERSION) > $@.tmp
+	objcopy -I binary -O binary --pad-to=$$( stat --printf="%s" $@ ) --gap-fill=0 $@.tmp $@
+
+$(obj)/RW_FWID_%.bin: $(obj)/coreboot.rom
+	$(CBFSTOOL) $(obj)/coreboot.rom read -r $(basename $(notdir $@)) -f $@
+	printf $(KERNELVERSION) > $@.tmp
+	objcopy -I binary -O binary --pad-to=$$( stat --printf="%s" $@ ) --gap-fill=0 $@.tmp $@
+
+files_added:: $(obj)/VBLOCK_A.bin $(obj)/VBLOCK_B.bin $(obj)/RO_FRID.bin $(obj)/RW_FWID_A.bin $(obj)/RW_FWID_B.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_A -f $(obj)/VBLOCK_A.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_B -f $(obj)/VBLOCK_B.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r RO_FRID -f $(obj)/RO_FRID.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r RW_FWID_A -f $(obj)/RW_FWID_A.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r RW_FWID_B -f $(obj)/RW_FWID_B.bin

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_WINBOND_COMMON_ROMSTAGE_H
@@ -24,6 +20,10 @@
 #include <arch/io.h>
 #include <stdint.h>
 
-void winbond_enable_serial(device_t dev, u16 iobase);
+void winbond_enable_serial(pnp_devfn_t dev, uint16_t iobase);
+void winbond_set_pinmux(pnp_devfn_t dev, uint8_t offset, uint8_t mask, uint8_t state);
+
+void pnp_enter_conf_state(pnp_devfn_t dev);
+void pnp_exit_conf_state(pnp_devfn_t dev);
 
 #endif /* SUPERIO_WINBOND_COMMON_ROMSTAGE_H */

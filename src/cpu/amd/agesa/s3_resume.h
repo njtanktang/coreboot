@@ -11,46 +11,31 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,  MA 02110-1301 USA
  */
 
 #ifndef S3_RESUME_H
 #define S3_RESUME_H
 
-/* The size needs to be 4k aligned, which is the sector size of most flashes. */
-#define S3_DATA_VOLATILE_SIZE	0x6000
-#define S3_DATA_MTRR_SIZE	0x1000
-#define S3_DATA_NONVOLATILE_SIZE	0x1000
-#define S3_DATA_VOLATILE_POS	CONFIG_S3_DATA_POS
-#define S3_DATA_MTRR_POS	(CONFIG_S3_DATA_POS + S3_DATA_VOLATILE_SIZE)
-#define S3_DATA_NONVOLATILE_POS	(CONFIG_S3_DATA_POS + S3_DATA_VOLATILE_SIZE + S3_DATA_MTRR_SIZE)
-
-#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME) && \
-	(S3_DATA_VOLATILE_SIZE + S3_DATA_MTRR_SIZE + S3_DATA_NONVOLATILE_SIZE) > CONFIG_S3_DATA_SIZE
-#error "Please increase the value of S3_DATA_SIZE"
-#endif
-
-typedef enum {
-	S3DataTypeNonVolatile=0,            ///< NonVolatile Data Type
-	S3DataTypeVolatile                  ///< Volatile Data Type
-} S3_DATA_TYPE;
-
 void restore_mtrr(void);
-void s3_resume(void);
-void *backup_resume(void);
-void set_resume_cache(void);
-void move_stack_high_mem(void);
+void prepare_for_resume(void);
 
-u32 OemAgesaSaveS3Info (S3_DATA_TYPE S3DataType, u32 DataSize, void *Data);
-void OemAgesaGetS3Info (S3_DATA_TYPE S3DataType, u32 *DataSize, void **Data);
-void OemAgesaSaveMtrr (void);
+void backup_mtrr(void *mtrr_store, u32 *mtrr_store_size);
+const void *OemS3Saved_MTRR_Storage(void);
 
-#ifndef __PRE_RAM__
-#include <spi_flash.h>
-void write_mtrr(struct spi_flash *flash, u32 *p_nvram_pos, unsigned idx);
+void *GetHeapBase(void);
+void EmptyHeap(void);
+void ResumeHeap(void **heap, size_t *len);
+
+#define BSP_STACK_BASE_ADDR		0x30000
+
+#if 1
+/* This covers node 0 only. */
+#define HIGH_ROMSTAGE_STACK_SIZE	(0x48000 - BSP_STACK_BASE_ADDR)
+#else
+/* This covers total of 8 nodes. */
+#define HIGH_ROMSTAGE_STACK_SIZE	(0xA0000 - BSP_STACK_BASE_ADDR)
 #endif
+
+#define HIGH_MEMORY_SCRATCH		0x30000
 
 #endif

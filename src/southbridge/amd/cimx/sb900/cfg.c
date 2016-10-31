@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -26,13 +22,13 @@
 /**
  * @brief South Bridge CIMx configuration
  *
- * should be called before exeucte CIMx function.
+ * should be called before execute CIMx function.
  * this function will be called in romstage and ramstage.
  */
 void sb900_cimx_config(AMDSBCFG *sb_config)
 {
 	if (!sb_config) {
-        printk(BIOS_INFO, "SB900 - Cfg.c - sb900_cimx_config - No sb_config.\n");
+	printk(BIOS_INFO, "SB900 - Cfg.c - sb900_cimx_config - No sb_config.\n");
 		return;
 	}
     printk(BIOS_INFO, "SB900 - Cfg.c - sb900_cimx_config - Start.\n");
@@ -213,7 +209,7 @@ void sb900_cimx_config(AMDSBCFG *sb_config)
 	sb_config->GppHardwareDowngrade					= INCHIP_GPP_HARDWARE_DOWNGRADE;// Internal Option
 	sb_config->GppToggleReset						= INCHIP_GPP_TOGGLE_RESET;		// External Option
 	sb_config->sdbEnable							= 0;							// CIMx Internal Used
-	sb_config->TempMMIO								= (typeof(sb_config->TempMMIO))NULL;							// CIMx Internal Used
+	sb_config->TempMMIO								= (UINTN)NULL;							// CIMx Internal Used
 	// sb_config->GecPhyStatus							= INCHIP_GEC_PHY_STATUS;		// Field Retired
 	sb_config->SBGecPwr								= INCHIP_GEC_POWER_POLICY;		// Internal Option
 	sb_config->SBGecDebugBus						= INCHIP_GEC_DEBUGBUS;			// Internal Option
@@ -261,7 +257,7 @@ void sb900_cimx_config(AMDSBCFG *sb_config)
 void SbPowerOnInit_Config(AMDSBCFG *sb_config)
 {
 	if (!sb_config) {
-        printk(BIOS_INFO, "SB900 - Cfg.c - SbPowerOnInit_Config - No sb_config.\n");
+	printk(BIOS_INFO, "SB900 - Cfg.c - SbPowerOnInit_Config - No sb_config.\n");
 		return;
 	}
     printk(BIOS_INFO, "SB900 - Cfg.c - SbPowerOnInit_Config - Start.\n");
@@ -274,7 +270,7 @@ void SbPowerOnInit_Config(AMDSBCFG *sb_config)
 	sb_config->BuildParameters.SpiFastSpeed			= SBCIMX_SPI_FASTSPEED;			// Internal Option
 	// sb_config->BuildParameters.SpiWriteSpeed			=  0;							// Field Retired
 	sb_config->BuildParameters.SpiMode				= SBCIMX_SPI_MODE;				// Internal Option
-	sb_config->BuildParameters.SpiBurstWrite		= SBCIMX_SPI_BURST_WRITE;		// Internla Option
+	sb_config->BuildParameters.SpiBurstWrite		= SBCIMX_SPI_BURST_WRITE;		// Internal Option
 	sb_config->BuildParameters.EcKbd				= INCHIP_EC_KBD;				// Board Level
 	sb_config->BuildParameters.Smbus0BaseAddress	= SMBUS0_BASE_ADDRESS;			// Board Level
 	sb_config->BuildParameters.Smbus1BaseAddress	= SMBUS1_BASE_ADDRESS;			// Board Level
@@ -302,5 +298,3 @@ void SbPowerOnInit_Config(AMDSBCFG *sb_config)
 
     printk(BIOS_INFO, "SB900 - Cfg.c - SbPowerOnInit_Config - End.\n");
 }
-
-

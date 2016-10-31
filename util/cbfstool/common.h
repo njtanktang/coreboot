@@ -11,40 +11,39 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #ifndef __CBFSTOOL_COMMON_H
 #define __CBFSTOOL_COMMON_H
 
+#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <assert.h>
+
+#include <commonlib/helpers.h>
+#include <console/console.h>
 
 /* Endianess */
 #include "swab.h"
-#ifndef __APPLE__
-#define ntohl(x)	(is_big_endian() ? (x) : swab32(x))
-#define htonl(x)	(is_big_endian() ? (x) : swab32(x))
-#endif
-#define ntohll(x)	(is_big_endian() ? (x) : swab64(x))
-#define htonll(x)	(is_big_endian() ? (x) : swab64(x))
-extern int is_big_endian(void);
 
-/* Message output */
-extern int verbose;
-#define ERROR(x...) { fprintf(stderr, "E: " x); }
-#define WARN(x...) { fprintf(stderr, "W: " x); }
-#define LOG(x...) { fprintf(stderr, x); }
-#define INFO(x...) { if (verbose > 0) fprintf(stderr, "INFO: " x); }
-#define DEBUG(x...) { if (verbose > 1) fprintf(stderr, "DEBUG: " x); }
+#define IS_TOP_ALIGNED_ADDRESS(x)	((uint32_t)(x) > 0x80000000)
+
+#define unused __attribute__((unused))
+
+static inline uint32_t align_up(uint32_t value, uint32_t align)
+{
+	if (value % align)
+		value += align - (value % align);
+	return value;
+}
 
 /* Buffer and file I/O */
 struct buffer {
 	char *name;
 	char *data;
+	size_t offset;
 	size_t size;
 };
 
@@ -58,6 +57,14 @@ static inline size_t buffer_size(const struct buffer *b)
 	return b->size;
 }
 
+static inline size_t buffer_offset(const struct buffer *b)
+{
+	return b->offset;
+}
+
+/*
+ * Shrink a buffer toward the beginning of its previous space.
+ * Afterward, buffer_delete() remains the means of cleaning it up. */
 static inline void buffer_set_size(struct buffer *b, size_t size)
 {
 	b->size = size;
@@ -70,32 +77,55 @@ static inline void buffer_init(struct buffer *b, char *name, void *data,
 	b->name = name;
 	b->data = data;
 	b->size = size;
+	b->offset = 0;
 }
 
-/*
- * Splice a buffer into another buffer. If size is zero the entire buffer
- * is spliced while if size is non-zero the buffer is spliced starting at
- * offset for size bytes. Note that it's up to caller to bounds check.
- */
+/* Splice a buffer into another buffer. Note that it's up to the caller to
+ * bounds check the offset and size. The resulting buffer is backed by the same
+ * storage as the original, so although it is valid to buffer_delete() either
+ * one of them, doing so releases both simultaneously. */
 static inline void buffer_splice(struct buffer *dest, const struct buffer *src,
                                  size_t offset, size_t size)
 {
-	buffer_init(dest, src->name, src->data, src->size);
-	if (size != 0) {
-		dest->data += offset;
-		buffer_set_size(dest, size);
-	}
+	dest->name = src->name;
+	dest->data = src->data + offset;
+	dest->offset = src->offset + offset;
+	dest->size = size;
 }
 
+/*
+ * Shallow copy a buffer. To clean up the resources, buffer_delete()
+ * either one, but not both. */
 static inline void buffer_clone(struct buffer *dest, const struct buffer *src)
 {
-	buffer_splice(dest, src, 0, 0);
+	buffer_splice(dest, src, 0, src->size);
 }
 
+/*
+ * Shrink a buffer toward the end of its previous space.
+ * Afterward, buffer_delete() remains the means of cleaning it up. */
 static inline void buffer_seek(struct buffer *b, size_t size)
 {
+	b->offset += size;
 	b->size -= size;
 	b->data += size;
+}
+
+/* Returns whether the buffer begins with the specified magic bytes. */
+static inline bool buffer_check_magic(const struct buffer *b, const char *magic,
+							size_t magic_len)
+{
+	assert(magic);
+	return b && b->size >= magic_len &&
+					memcmp(b->data, magic, magic_len) == 0;
+}
+
+/* Returns the start of the underlying buffer, with the offset undone */
+static inline void *buffer_get_original_backing(const struct buffer *b)
+{
+	if (!b)
+		return NULL;
+	return buffer_get(b) - buffer_offset(b);
 }
 
 /* Creates an empty memory buffer with given size.
@@ -112,40 +142,63 @@ int buffer_write_file(struct buffer *buffer, const char *filename);
 /* Destroys a memory buffer. */
 void buffer_delete(struct buffer *buffer);
 
+const char *arch_to_string(uint32_t a);
 uint32_t string_to_arch(const char *arch_string);
 
-#define ALIGN(val, by) (((val) + (by)-1)&~((by)-1))
+/* Compress in_len bytes from in, storing the result at out, returning the
+ * resulting length in out_len.
+ * Returns 0 on error,
+ *         != 0 otherwise, depending on the compressing function.
+ */
+typedef int (*comp_func_ptr) (char *in, int in_len, char *out, int *out_len);
 
-typedef void (*comp_func_ptr) (char *, int, char *, int *);
-typedef enum { CBFS_COMPRESS_NONE = 0, CBFS_COMPRESS_LZMA = 1 } comp_algo;
+/* Decompress in_len bytes from in, storing the result at out, up to out_len
+ * bytes.
+ * Returns 0 on error,
+ *         != 0 otherwise, depending on the decompressing function.
+ */
+typedef int (*decomp_func_ptr) (char *in, int in_len, char *out, int out_len,
+				size_t *actual_size);
 
-comp_func_ptr compression_function(comp_algo algo);
+enum comp_algo {
+	CBFS_COMPRESS_NONE = 0,
+	CBFS_COMPRESS_LZMA = 1,
+	CBFS_COMPRESS_LZ4 = 2,
+};
+
+comp_func_ptr compression_function(enum comp_algo algo);
+decomp_func_ptr decompression_function(enum comp_algo algo);
 
 uint64_t intfiletype(const char *name);
 
 /* cbfs-mkpayload.c */
-int parse_elf_to_payload(const struct buffer *input,
-			 struct buffer *output, uint32_t arch, comp_algo algo);
-int parse_fv_to_payload(const struct buffer *input,
-			 struct buffer *output, comp_algo algo);
+int parse_elf_to_payload(const struct buffer *input, struct buffer *output,
+			 enum comp_algo algo);
+int parse_fv_to_payload(const struct buffer *input, struct buffer *output,
+			enum comp_algo algo);
 int parse_bzImage_to_payload(const struct buffer *input,
 			     struct buffer *output, const char *initrd,
-			     char *cmdline, comp_algo algo);
+			     char *cmdline, enum comp_algo algo);
 int parse_flat_binary_to_payload(const struct buffer *input,
 				 struct buffer *output,
 				 uint32_t loadaddress,
 				 uint32_t entrypoint,
-				 comp_algo algo);
+				 enum comp_algo algo);
 /* cbfs-mkstage.c */
 int parse_elf_to_stage(const struct buffer *input, struct buffer *output,
-		       uint32_t arch, comp_algo algo, uint32_t *location);
+		       enum comp_algo algo, uint32_t *location,
+		       const char *ignore_section);
+/* location is TOP aligned. */
+int parse_elf_to_xip_stage(const struct buffer *input, struct buffer *output,
+				uint32_t *location, const char *ignore_section);
 
 void print_supported_filetypes(void);
 
-#define ARRAY_SIZE(a) (int)(sizeof(a) / sizeof((a)[0]))
 /* lzma/lzma.c */
-void do_lzma_compress(char *in, int in_len, char *out, int *out_len);
-void do_lzma_uncompress(char *dst, int dst_len, char *src, int src_len);
+int do_lzma_compress(char *in, int in_len, char *out, int *out_len);
+int do_lzma_uncompress(char *dst, int dst_len, char *src, int src_len,
+			size_t *actual_size);
+
 /* xdr.c */
 struct xdr {
 	uint8_t (*get8)(struct buffer *input);
@@ -158,9 +211,15 @@ struct xdr {
 	void (*put64)(struct buffer *input, uint64_t val);
 };
 
-/* xdr.c */
 extern struct xdr xdr_le, xdr_be;
 size_t bgets(struct buffer *input, void *output, size_t len);
 size_t bputs(struct buffer *b, const void *data, size_t len);
 
+/* Returns a 0-terminated string containing a hex representation of
+ * len bytes starting at data.
+ * The string is malloc'd and it's the caller's responsibility to free
+ * the memory.
+ * On error, bintohex returns NULL.
+ */
+char *bintohex(uint8_t *data, size_t len);
 #endif

@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -61,8 +58,10 @@ static void ValidatePortEn(device_t nb_dev)
 *****************************************************************/
 static void PciePowerOffGppPorts(device_t nb_dev, device_t dev, u32 port)
 {
+	printk(BIOS_DEBUG, "PciePowerOffGppPorts() port %d\n", port);
 	u32 reg;
 	u16 state_save;
+	uint8_t i;
 	struct southbridge_amd_sr5650_config *cfg =
 		(struct southbridge_amd_sr5650_config *)nb_dev->chip_info;
 	u16 state = cfg->port_enable;
@@ -72,6 +71,28 @@ static void PciePowerOffGppPorts(device_t nb_dev, device_t dev, u32 port)
 	state = ~state;
 	state &= (1 << 4) + (1 << 5) + (1 << 6) + (1 << 7);
 	state_save = state << 17;
+	/* Disable ports any that failed training */
+	for (i = 9; i <= 13; i++) {
+		if (!(AtiPcieCfg.PortDetect & 1 << i)) {
+			if ((port >= 9) && (port <= 13)) {
+				state |= (1 << (port + 7));
+			}
+			if (port == 9)
+				state_save |= 1 << 25;
+			if (port == 10)
+				state_save |= 1 << 26;
+			if (port == 11)
+				state_save |= 1 << 6;
+			if (port == 12)
+				state_save |= 1 << 7;
+
+			if (port == 13) {
+				reg = nbmisc_read_index(nb_dev, 0x2a);
+				reg |= 1 << 4;
+				nbmisc_write_index(nb_dev, 0x2a, reg);
+			}
+		}
+	}
 	state &= !(AtiPcieCfg.PortHp);
 	reg = nbmisc_read_index(nb_dev, 0x0c);
 	reg |= state;
@@ -224,7 +245,7 @@ static void switching_gpp3a_configurations(device_t nb_dev, device_t sb_dev)
 		reg |= 0xFF0BAA0;
 		break;
 	default:	/* shouldn't be here. */
-		printk(BIOS_DEBUG, "Warning:gpp3a_configuration is not correct. Check you devicetree.cb\n");
+		printk(BIOS_DEBUG, "Warning:gpp3a_configuration is not correct. Check your devicetree.cb\n");
 		break;
 	}
 	nbmisc_write_index(nb_dev, 0x26, reg);
@@ -244,7 +265,7 @@ static void switching_gpp3a_configurations(device_t nb_dev, device_t sb_dev)
 *****************************************************************/
 void enable_pcie_bar3(device_t nb_dev)
 {
-	printk(BIOS_DEBUG, "enable_pcie_bar3()\n");
+	printk(BIOS_DEBUG, "%s\n", __func__);
 	set_nbcfg_enable_bits(nb_dev, 0x7C, 1 << 30, 1 << 30);	/* Enables writes to the BAR3 register. */
 	set_nbcfg_enable_bits(nb_dev, 0x84, 7 << 16, 0 << 16);
 
@@ -260,7 +281,7 @@ void enable_pcie_bar3(device_t nb_dev)
 *****************************************************************/
 void disable_pcie_bar3(device_t nb_dev)
 {
-	printk(BIOS_DEBUG, "disable_pcie_bar3()\n");
+	printk(BIOS_DEBUG, "%s\n", __func__);
 	pci_write_config32(nb_dev, 0x1C, 0);	/* clear BAR3 address */
 	set_nbcfg_enable_bits(nb_dev, 0x7C, 1 << 30, 0 << 30);	/* Disable writes to the BAR3. */
 	ProgK8TempMmioBase(0, EXT_CONF_BASE_ADDRESS, TEMP_MMIO_BASE_ADDRESS);
@@ -483,11 +504,13 @@ static void EnableLclkGating(device_t dev)
 *****************************************/
 void sr5650_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 {
+	uint8_t training_ok = 1;
+
 	u32 gpp_sb_sel = 0;
 	struct southbridge_amd_sr5650_config *cfg =
 	    (struct southbridge_amd_sr5650_config *)nb_dev->chip_info;
 
-	printk(BIOS_DEBUG, "gpp_sb_init nb_dev=0x%p, dev=0x%p, port=0x%x\n", nb_dev, dev, port);
+	printk(BIOS_DEBUG, "%s: nb_dev=0x%p, dev=0x%p, port=0x%x\n", __func__, nb_dev, dev, port);
 	switch (port) {
 	case 2:
 	case 3:
@@ -589,8 +612,8 @@ void sr5650_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	   For Hot-Plug Slots: Advertise TX L0s and L1 exit latency.
 	   TX L0s exit latency to be 110b: 2us to 4us.
 	   L1 exit latency to be 111b: more than 64us.*/
-	//set_pcie_enable_bits(dev, 0xC1, 0xF << 0, 0xC << 0); /* 0xF for htplg. */
-	set_pcie_enable_bits(dev, 0xC1, 0xF << 0, 0xF << 0); /* 0xF for htplg. */
+	//set_pcie_enable_bits(dev, 0xC1, 0xF << 0, 0xC << 0); /* 0xF for hotplug. */
+	set_pcie_enable_bits(dev, 0xC1, 0xF << 0, 0xF << 0); /* 0xF for hotplug. */
 	/* 4.4.2.step13.17. Always ACK an ASPM L1 entry DLLP to
 	   workaround credit control issue on PM_NAK
 	   message of SB700 and SB800. */
@@ -690,17 +713,67 @@ void sr5650_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	case 13:
 		/* 4.4.2.step13.5. Blocks DMA traffic during C3 state */
 		set_pcie_enable_bits(dev, 0x10, 1 << 0, 0 << 0);
-		/* Enabels TLP flushing */
+		/* Enables TLP flushing */
 		set_pcie_enable_bits(dev, 0x20, 1 << 19, 0 << 19);
 
 		/* check port enable */
 		if (cfg->port_enable & (1 << port)) {
-			PcieReleasePortTraining(nb_dev, dev, port);
+			uint32_t hw_port = port;
+			switch (cfg->gpp3a_configuration) {
+			case 0x1: /* 4:2:0:0:0:0 */
+				if (hw_port == 9)
+					hw_port = 4 + 1;
+				break;
+			case 0x2: /* 4:1:1:0:0:0 */
+				if (hw_port == 9)
+					hw_port = 4 + 1;
+				else if (hw_port == 10)
+					hw_port = 4 + 2;
+				break;
+			case 0xc: /* 2:2:2:0:0:0 */
+				if (hw_port == 6)
+					hw_port = 4 + 1;
+				else if (hw_port == 9)
+					hw_port = 4 + 2;
+				break;
+			case 0xa: /* 2:2:1:1:0:0 */
+				if (hw_port == 6)
+					hw_port = 4 + 1;
+				else if (hw_port == 9)
+					hw_port = 4 + 2;
+				else if (hw_port == 10)
+					hw_port = 4 + 3;
+				break;
+			case 0x4: /* 2:1:1:1:1:0 */
+				if (hw_port == 6)
+					hw_port = 4 + 1;
+				else if (hw_port == 7)
+					hw_port = 4 + 2;
+				else if (hw_port == 9)
+					hw_port = 4 + 3;
+				else if (hw_port == 10)
+					hw_port = 4 + 4;
+				break;
+			case 0xb: /* 1:1:1:1:1:1 */
+				break;
+			default:  /* shouldn't be here. */
+				printk(BIOS_WARNING, "invalid gpp3a_configuration\n");
+				return;
+			}
+			PcieReleasePortTraining(nb_dev, dev, hw_port);
 			if (!(AtiPcieCfg.Config & PCIE_GPP_COMPLIANCE)) {
-				u8 res = PcieTrainPort(nb_dev, dev, port);
-				printk(BIOS_DEBUG, "PcieTrainPort port=0x%x result=%d\n", port, res);
+				u8 res = PcieTrainPort(nb_dev, dev, hw_port);
+				printk(BIOS_DEBUG, "%s: port=0x%x hw_port=0x%x result=%d\n",
+					__func__, port, hw_port, res);
 				if (res) {
 					AtiPcieCfg.PortDetect |= 1 << port;
+				} else {
+					/* Even though nothing is attached to this port
+					 * the port needs to be "enabled" to obtain
+					 * a bus number from the PCI resource allocator
+					 */
+					training_ok = 0;
+					dev->enabled = 1;
 				}
 			}
 		}
@@ -724,7 +797,7 @@ void sr5650_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	/* Set Slot present 0x5A*/
 	pci_ext_write_config32(nb_dev, dev, 0x58, 1 << 24, 1 << 24);
 
-	//PCIE-GPP1 TXCLK Clock Gating In L1  Late Core sttting - Maybe move somewhere else? */
+	//PCIE-GPP1 TXCLK Clock Gating In L1  Late Core setting - Maybe move somewhere else? */
 	set_pcie_enable_bits(nb_dev, 0x11 | gpp_sb_sel, 0xF << 0, 0x0C << 0);
 	/* Enable powering down PLLs in L1 or L23 Ready states.
 	 * Turns off PHY`s RX FRONTEND during L1 when PLL power down is enabled */
@@ -747,8 +820,8 @@ void sr5650_gpp_sb_init(device_t nb_dev, device_t dev, u32 port)
 	 * wait dev 0x6B bit3 clear
 	 */
 
-	if (port == 8){
-		PciePowerOffGppPorts(nb_dev, dev, port); /* , This should be run for all ports that are not hotplug and don't detect devices */
+	if ((port == 8) || (!training_ok)) {
+		PciePowerOffGppPorts(nb_dev, dev, port);	/* This is run for all ports that are not hotplug and don't detect devices */
 	}
 }
 
@@ -778,6 +851,9 @@ void sr56x0_lock_hwinitreg(void)
 
 	/* Lock HWInit Register NBMISCIND:0x0 NBCNTL[7] HWINIT_WR_LOCK */
 	set_nbmisc_enable_bits(nb_dev, 0x00, 1 << 7, 1 << 7);
+
+	/* Hide clock configuration PCI device HIDE_CLKCFG_HEADER */
+	set_nbmisc_enable_bits(nb_dev, 0x00, 0x00000100, 1 << 8);
 }
 
 /*****************************************
@@ -786,8 +862,6 @@ void sr56x0_lock_hwinitreg(void)
 void config_gpp_core(device_t nb_dev, device_t sb_dev)
 {
 	u32 reg;
-	struct southbridge_amd_sr5650_config *cfg =
-		(struct southbridge_amd_sr5650_config *)nb_dev->chip_info;
 
 	reg = nbmisc_read_index(nb_dev, 0x20);
 	if (AtiPcieCfg.Config & PCIE_ENABLE_STATIC_DEV_REMAP)
@@ -800,17 +874,12 @@ void config_gpp_core(device_t nb_dev, device_t sb_dev)
 	reg = nbmisc_read_index(nb_dev, 0x8);
 	reg |= (1 << 31) | (1 << 15) | (1 << 13);	//asserts
 	nbmisc_write_index(nb_dev, 0x8, reg);
-	reg &= ~((1 << 31) | (1 << 15) | (1 << 13));	//De-aserts
+	reg &= ~((1 << 31) | (1 << 15) | (1 << 13));	//De-asserts
 	nbmisc_write_index(nb_dev, 0x8, reg);
 
-	reg = nbmisc_read_index(nb_dev, 0x67); /* get STRAP_BIF_LINK_CONFIG at bit 0-4 */
-	if (cfg->gpp3a_configuration != (reg & 0x1F))
-		switching_gpp3a_configurations(nb_dev, sb_dev);
-	reg = nbmisc_read_index(nb_dev, 0x8);  /* get MULTIPORT_CONFIG_GPP1 MULTIPORT_CONFIG_CONFIG_GPP2 at bit 8,9 */
-	if ((cfg->gpp1_configuration << 8) != (reg & (1 << 8)))
-		switching_gpp1_configurations(nb_dev, sb_dev);
-	if ((cfg->gpp2_configuration << 9) != (reg & (1 << 9)))
-		switching_gpp2_configurations(nb_dev, sb_dev);
+	switching_gpp3a_configurations(nb_dev, sb_dev);
+	switching_gpp1_configurations(nb_dev, sb_dev);
+	switching_gpp2_configurations(nb_dev, sb_dev);
 	ValidatePortEn(nb_dev);
 }
 

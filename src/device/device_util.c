@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -206,7 +202,7 @@ u32 dev_path_encode(device_t dev)
 		ret |= dev->path.pnp.port << 8 | dev->path.pnp.device;
 		break;
 	case DEVICE_PATH_I2C:
-		ret |= dev->bus->secondary << 8 | dev->path.pnp.device;
+		ret |= dev->path.i2c.mode_10bit << 8 | dev->path.i2c.device;
 		break;
 	case DEVICE_PATH_APIC:
 		ret |= dev->path.apic.apic_id;
@@ -225,6 +221,9 @@ u32 dev_path_encode(device_t dev)
 		break;
 	case DEVICE_PATH_IOAPIC:
 		ret |= dev->path.ioapic.ioapic_id;
+		break;
+	case DEVICE_PATH_GENERIC:
+		ret |= dev->path.generic.subid << 8 | dev->path.generic.id;
 		break;
 	case DEVICE_PATH_NONE:
 	default:
@@ -251,20 +250,11 @@ const char *dev_path(device_t dev)
 			memcpy(buffer, "Root Device", 12);
 			break;
 		case DEVICE_PATH_PCI:
-#if CONFIG_PCI_BUS_SEGN_BITS
-			snprintf(buffer, sizeof (buffer),
-				 "PCI: %04x:%02x:%02x.%01x",
-				 dev->bus->secondary >> 8,
-				 dev->bus->secondary & 0xff,
-				 PCI_SLOT(dev->path.pci.devfn),
-				 PCI_FUNC(dev->path.pci.devfn));
-#else
 			snprintf(buffer, sizeof (buffer),
 				 "PCI: %02x:%02x.%01x",
 				 dev->bus->secondary,
 				 PCI_SLOT(dev->path.pci.devfn),
 				 PCI_FUNC(dev->path.pci.devfn));
-#endif
 			break;
 		case DEVICE_PATH_PNP:
 			snprintf(buffer, sizeof (buffer), "PNP: %04x.%01x",
@@ -298,6 +288,11 @@ const char *dev_path(device_t dev)
 		case DEVICE_PATH_CPU_BUS:
 			snprintf(buffer, sizeof (buffer),
 				 "CPU_BUS: %02x", dev->path.cpu_bus.id);
+			break;
+		case DEVICE_PATH_GENERIC:
+			snprintf(buffer, sizeof (buffer),
+				 "GENERIC: %d.%d", dev->path.generic.id,
+				 dev->path.generic.subid);
 			break;
 		default:
 			printk(BIOS_ERR, "Unknown device path type: %d\n",
@@ -347,7 +342,8 @@ int path_eq(struct device_path *path1, struct device_path *path2)
 			(path1->pnp.device == path2->pnp.device);
 		break;
 	case DEVICE_PATH_I2C:
-		equal = (path1->i2c.device == path2->i2c.device);
+		equal = (path1->i2c.device == path2->i2c.device) &&
+			(path1->i2c.mode_10bit == path2->i2c.mode_10bit);
 		break;
 	case DEVICE_PATH_APIC:
 		equal = (path1->apic.apic_id == path2->apic.apic_id);
@@ -364,6 +360,10 @@ int path_eq(struct device_path *path1, struct device_path *path2)
 		break;
 	case DEVICE_PATH_CPU_BUS:
 		equal = (path1->cpu_bus.id == path2->cpu_bus.id);
+		break;
+	case DEVICE_PATH_GENERIC:
+		equal = (path1->generic.id == path2->generic.id) &&
+			(path1->generic.subid == path2->generic.subid);
 		break;
 	default:
 		printk(BIOS_ERR, "Unknown device type: %d\n", path1->type);
@@ -643,14 +643,8 @@ void report_resource_stored(device_t dev, struct resource *resource,
 	buf[0] = '\0';
 
 	if (resource->flags & IORESOURCE_PCI_BRIDGE) {
-#if CONFIG_PCI_BUS_SEGN_BITS
-		snprintf(buf, sizeof (buf),
-			 "bus %04x:%02x ", dev->bus->secondary >> 8,
-			dev->link_list->secondary & 0xff);
-#else
 		snprintf(buf, sizeof (buf),
 			 "bus %02x ", dev->link_list->secondary);
-#endif
 	}
 	printk(BIOS_DEBUG, "%s %02lx <- [0x%010llx - 0x%010llx] size 0x%08llx "
 	       "gran 0x%02x %s%s%s\n", dev_path(dev), resource->index,
@@ -796,7 +790,7 @@ void print_resource_tree(struct device *root, int debug_level, const char *msg)
 
 void show_devs_tree(struct device *dev, int debug_level, int depth, int linknum)
 {
-	char depth_str[20] = "";
+	char depth_str[20];
 	int i;
 	struct device *sibling;
 	struct bus *link;
@@ -818,7 +812,7 @@ void show_devs_tree(struct device *dev, int debug_level, int depth, int linknum)
 void show_all_devs_tree(int debug_level, const char *msg)
 {
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs in tree form...%s\n", msg))
+	if (!do_printk(debug_level, "Show all devs in tree form... %s\n", msg))
 		return;
 	show_devs_tree(all_devices, debug_level, 0, -1);
 }
@@ -826,7 +820,7 @@ void show_all_devs_tree(int debug_level, const char *msg)
 void show_devs_subtree(struct device *root, int debug_level, const char *msg)
 {
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs in subtree %s...%s\n",
+	if (!do_printk(debug_level, "Show all devs in subtree %s... %s\n",
 		       dev_path(root), msg))
 		return;
 	do_printk(debug_level, "%s\n", msg);
@@ -838,7 +832,7 @@ void show_all_devs(int debug_level, const char *msg)
 	struct device *dev;
 
 	/* Bail if not printing to screen. */
-	if (!do_printk(debug_level, "Show all devs...%s\n", msg))
+	if (!do_printk(debug_level, "Show all devs... %s\n", msg))
 		return;
 	for (dev = all_devices; dev; dev = dev->next) {
 		do_printk(debug_level, "%s: enabled %d\n",
@@ -855,19 +849,6 @@ void show_one_resource(int debug_level, struct device *dev,
 	end = resource_end(resource);
 	buf[0] = '\0';
 
-/*
-	if (resource->flags & IORESOURCE_BRIDGE) {
-#if CONFIG_PCI_BUS_SEGN_BITS
-		snprintf(buf, sizeof (buf), "bus %04x:%02x ",
-		         dev->bus->secondary >> 8,
-			 dev->link[0].secondary & 0xff);
-#else
-		snprintf(buf, sizeof (buf),
-		         "bus %02x ", dev->link[0].secondary);
-#endif
-	}
-*/
-
 	do_printk(debug_level, "%s %02lx <- [0x%010llx - 0x%010llx] "
 		  "size 0x%08llx gran 0x%02x %s%s%s\n", dev_path(dev),
 		  resource->index, base, end, resource->size, resource->gran,
@@ -878,7 +859,7 @@ void show_all_devs_resources(int debug_level, const char* msg)
 {
 	struct device *dev;
 
-	if (!do_printk(debug_level, "Show all devs with resources...%s\n", msg))
+	if (!do_printk(debug_level, "Show all devs with resources... %s\n", msg))
 		return;
 
 	for (dev = all_devices; dev; dev = dev->next) {
@@ -952,4 +933,16 @@ int dev_count_cpu(void)
 	}
 
 	return count;
+}
+
+/* Get device path name */
+const char *dev_path_name(enum device_path_type type)
+{
+	static const char *const type_names[] = DEVICE_PATH_NAMES;
+	const char *type_name = "Unknown";
+
+	/* Translate the type value into a string */
+	if (type < ARRAY_SIZE(type_names))
+		type_name = type_names[type];
+	return type_name;
 }

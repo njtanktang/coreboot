@@ -29,15 +29,16 @@
 
 #include <arch/rom_segs.h>
 .code16
-.globl _start
-.type _start, @function
+.globl _start16bit
+.type _start16bit, @function
 
-_start:
+_start16bit:
 	cli
 	/* Save the BIST result */
 	movl	%eax, %ebp
-
+#if !IS_ENABLED(CONFIG_NO_EARLY_BOOTBLOCK_POSTCODES)
 	post_code(POST_RESET_VECTOR_CORRECT)
+#endif
 
 	/* IMMEDIATELY invalidate the translation lookaside buffer (TLB) before
 	 * executing any further code. Even though paging is disabled we
@@ -53,7 +54,7 @@ _start:
 	 * If we are hyperthreaded or we have multiple cores it is bad,
 	 * for SMP startup.  On Opterons it causes a 5 second delay.
 	 * Invalidating the cache was pure paranoia in any event.
-	 * If you cpu needs it you can write a cpu dependent version of
+	 * If you CPU needs it you can write a CPU dependent version of
 	 * entry16.inc.
 	 */
 
@@ -78,13 +79,13 @@ _start:
 	 *
 	 * The criteria for relocation have been relaxed to their
 	 * utmost, so that we can use the same code for both
-	 * our initial entry point and startup of the second cpu.
-	 * The code assumes when executing at _start that:
-	 * (((cs & 0xfff) == 0) and (ip == _start & 0xffff))
+	 * our initial entry point and startup of the second CPU.
+	 * The code assumes when executing at _start16bit that:
+	 * (((cs & 0xfff) == 0) and (ip == _start16bit & 0xffff))
 	 * or
 	 * ((cs == anything) and (ip == 0)).
 	 *
-	 * The restrictions in reset16.inc mean that _start initially
+	 * The restrictions in reset16.inc mean that _start16bit initially
 	 * must be loaded at or above 0xffff0000 or below 0x100000.
 	 *
 	 * The linker scripts computes gdtptr16_offset by simply returning
@@ -94,7 +95,7 @@ _start:
 	 *
 	 * Also load an IDT with NULL limit to prevent the 16bit IDT being used
 	 * in protected mode before c_start.S sets up a 32bit IDT when entering
-	 * ram stage. In practise: CPU will shutdown on any exception.
+	 * RAM stage. In practise: CPU will shutdown on any exception.
 	 * See IA32 manual Vol 3A 19.26 Interrupts.
 	 */
 
@@ -135,7 +136,6 @@ nullidt:
 	.long	0
 	.word	0
 
-.globl _estart
-_estart:
+.globl _estart16bit
+_estart16bit:
 	.code32
-

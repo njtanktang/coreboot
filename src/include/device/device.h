@@ -18,10 +18,9 @@ struct device;
 
 #ifndef __SIMPLE_DEVICE__
 typedef struct device * device_t;
-typedef u32 pci_devfn_t;
-typedef u32 pnp_devfn_t;
 struct pci_operations;
 struct pci_bus_operations;
+struct i2c_bus_operations;
 struct smbus_bus_operations;
 struct pnp_mode_ops;
 
@@ -39,25 +38,42 @@ struct chip_operations {
 
 struct bus;
 
+struct smbios_type11;
+struct acpi_rsdp;
+
 struct device_operations {
 	void (*read_resources)(device_t dev);
 	void (*set_resources)(device_t dev);
 	void (*enable_resources)(device_t dev);
 	void (*init)(device_t dev);
 	void (*final)(device_t dev);
-	unsigned int (*scan_bus)(device_t bus, unsigned int _max);
+	void (*scan_bus)(device_t bus);
 	void (*enable)(device_t dev);
 	void (*disable)(device_t dev);
 	void (*set_link)(device_t dev, unsigned int link);
 	void (*reset_bus)(struct bus *bus);
 #if CONFIG_GENERATE_SMBIOS_TABLES
 	int (*get_smbios_data)(device_t dev, int *handle, unsigned long *current);
+	void (*get_smbios_strings)(device_t dev, struct smbios_type11 *t);
+#endif
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	unsigned long (*write_acpi_tables)(device_t dev, unsigned long start,  struct acpi_rsdp *rsdp);
+	void (*acpi_fill_ssdt_generator)(device_t dev);
+	void (*acpi_inject_dsdt_generator)(device_t dev);
+	const char *(*acpi_name)(device_t dev);
 #endif
 	const struct pci_operations *ops_pci;
+	const struct i2c_bus_operations *ops_i2c_bus;
 	const struct smbus_bus_operations *ops_smbus_bus;
 	const struct pci_bus_operations * (*ops_pci_bus)(device_t dev);
 	const struct pnp_mode_ops *ops_pnp_mode;
 };
+
+/**
+ * Standard device operations function pointers shims.
+ */
+static inline void device_noop(struct device *dev) {}
+#define DEVICE_NOOP device_noop
 
 #endif /* ! __SIMPLE_DEVICE__ */
 
@@ -68,12 +84,16 @@ struct bus {
 	ROMSTAGE_CONST struct device * 	children;	/* devices behind this bridge */
 	ROMSTAGE_CONST struct bus	*next;		/* The next bridge on this device */
 	unsigned	bridge_ctrl;	/* Bridge control register */
+	uint16_t	bridge_cmd;		/* Bridge command register */
 	unsigned char	link_num;	/* The index of this link */
 	uint16_t	secondary; 	/* secondary bus number */
 	uint16_t	subordinate;	/* max subordinate bus number */
 	unsigned char   cap;		/* PCi capability offset */
+	uint32_t	hcdn_reg;		/* For HyperTransport link  */
+
 	unsigned	reset_needed : 1;
 	unsigned	disable_relaxed_ordering : 1;
+	unsigned	ht_link_up : 1;
 };
 
 /*
@@ -158,10 +178,8 @@ void dev_finalize_chips(void);
 
 /* Generic device helper functions */
 int reset_bus(struct bus *bus);
-unsigned int scan_bus(struct device *bus, unsigned int _max);
+void scan_bridges(struct bus *bus);
 void assign_resources(struct bus *bus);
-void enumerate_static_device(void);
-void enumerate_static_devices(void);
 const char *dev_name(device_t dev);
 const char *dev_path(device_t dev);
 u32 dev_path_encode(device_t dev);
@@ -183,7 +201,6 @@ device_t dev_find_slot_pnp(u16 port, u16 device);
 device_t dev_find_lapic(unsigned apic_id);
 int dev_count_cpu(void);
 
-void remap_bsp_lapic(struct bus *cpu_bus);
 device_t add_cpu_device(struct bus *cpu_bus, unsigned apic_id, int enabled);
 void set_cpu_topology(device_t cpu, unsigned node, unsigned package, unsigned core, unsigned thread);
 
@@ -212,12 +229,14 @@ void show_all_devs_resources(int debug_level, const char* msg);
 
 extern struct device_operations default_dev_ops_root;
 void pci_domain_read_resources(struct device *dev);
-unsigned int pci_domain_scan_bus(struct device *dev, unsigned int _max);
-unsigned int scan_static_bus(device_t bus, unsigned int _max);
+void pci_domain_scan_bus(struct device *dev);
 
 void fixed_mem_resource(device_t dev, unsigned long index,
 		  unsigned long basek, unsigned long sizek, unsigned long type);
 
+void scan_smbus(device_t bus);
+void scan_static_bus(device_t bus);
+void scan_lpc_bus(device_t bus);
 
 /* It is the caller's responsibility to adjust regions such that ram_resource()
  * and mmio_resource() do not overlap.
@@ -248,6 +267,7 @@ ROMSTAGE_CONST struct device *dev_find_next_pci_device(
 						ROMSTAGE_CONST struct device *previous_dev);
 ROMSTAGE_CONST struct device * dev_find_slot_on_smbus (unsigned int bus,
 							unsigned int addr);
+ROMSTAGE_CONST struct device * dev_find_slot_pnp(u16 port, u16 device);
 
 #endif
 

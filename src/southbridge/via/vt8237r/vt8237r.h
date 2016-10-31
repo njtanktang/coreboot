@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_VIA_VT8237R_VT8237R_H
@@ -94,8 +90,8 @@
 #define CLOCK_SLAVE_ADDRESS		0x69
 
 #if CONFIG_DEBUG_SMBUS
-#define PRINT_DEBUG(x)		print_debug(x)
-#define PRINT_DEBUG_HEX16(x)	print_debug_hex16(x)
+#define PRINT_DEBUG(x)		printk(BIOS_DEBUG, x)
+#define PRINT_DEBUG_HEX16(x)	printk(BIOS_DEBUG, "%04x", x)
 #else
 #define PRINT_DEBUG(x)
 #define PRINT_DEBUG_HEX16(x)

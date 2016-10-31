@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
@@ -37,9 +33,9 @@
 #include "chip.h"
 #include "northbridge.h"
 #include <fsp_util.h>
+#include <cpu/intel/smm/gen1/smi.h>
 
 static int bridge_revision_id = -1;
-static u8 finished_FSP_after_pci = 0;
 
 /* IGD UMA memory */
 static uint64_t uma_memory_base = 0;
@@ -243,9 +239,6 @@ static void pci_domain_set_resources(device_t dev)
 	add_fixed_resources(dev, 6);
 
 	assign_resources(dev->link_list);
-
-	/* Leave some space for the HOB data above CBMem */
-	set_top_of_ram((tomk - 2048) * 1024);
 }
 
 	/* TODO We could determine how many PCIe busses we need in
@@ -322,24 +315,26 @@ static void northbridge_init(struct device *dev)
 	printk(BIOS_DEBUG, "Set BIOS_RESET_CPL\n");
 }
 
-static void northbridge_enable(device_t dev)
+static u32 northbridge_get_base_reg(device_t dev, int reg)
 {
-#if CONFIG_HAVE_ACPI_RESUME
-	switch (pci_read_config32(dev, SKPAD)) {
-	case 0xcafebabe:
-		printk(BIOS_DEBUG, "Normal boot.\n");
-		acpi_slp_type=0;
-		break;
-	case 0xcafed00d:
-		printk(BIOS_DEBUG, "S3 Resume.\n");
-		acpi_slp_type=3;
-		break;
-	default:
-		printk(BIOS_DEBUG, "Unknown boot method, assuming normal.\n");
-		acpi_slp_type=0;
-		break;
-	}
-#endif
+	u32 value;
+
+	value = pci_read_config32(dev, reg);
+	/* Base registers are at 1MiB granularity. */
+	value &= ~((1 << 20) - 1);
+	return value;
+}
+
+u32 northbridge_get_tseg_base(void)
+{
+	const device_t dev = dev_find_slot(0, PCI_DEVFN(0, 0));
+
+	return northbridge_get_base_reg(dev, TSEG);
+}
+
+void northbridge_write_smram(u8 smram)
+{
+	pci_write_config8(dev_find_slot(0, PCI_DEVFN(0, 0)), SMRAM, smram);
 }
 
 static struct pci_operations intel_pci_ops = {
@@ -351,9 +346,9 @@ static struct device_operations mc_ops = {
 	.set_resources    = mc_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = northbridge_init,
-	.enable           = northbridge_enable,
 	.scan_bus         = 0,
 	.ops_pci          = &intel_pci_ops,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 };
 
 static const struct pci_driver mc_driver_0100 __pci_driver = {
@@ -379,15 +374,10 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = 0,
 };
@@ -400,31 +390,9 @@ static void enable_dev(device_t dev)
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops;
 	}
-
-	/*
-	 * Notify FSP for PostPciEnumeration.
-	 * This call needs to be done before resource allocation.
-	 */
-	if (!finished_FSP_after_pci) {
-		finished_FSP_after_pci = 1;
-		printk(BIOS_DEBUG, "FspNotify(EnumInitPhaseAfterPciEnumeration)\n");
-		FspNotify(EnumInitPhaseAfterPciEnumeration);
-		printk(BIOS_DEBUG,
-		       "Returned from FspNotify(EnumInitPhaseAfterPciEnumeration)\n\n");
-	}
-}
-
-static void finalize_chip(void *chip_info)
-{
-	/* Notify FSP for ReadyToBoot */
-	printk(BIOS_DEBUG, "FspNotify(EnumInitPhaseReadyToBoot)\n");
-	print_fsp_info();
-	FspNotify(EnumInitPhaseReadyToBoot);
-	printk(BIOS_DEBUG, "Returned from FspNotify(EnumInitPhaseReadyToBoot)\n");
 }
 
 struct chip_operations northbridge_intel_fsp_sandybridge_ops = {
 	CHIP_NAME("Intel i7 (SandyBridge/IvyBridge) integrated Northbridge")
 	.enable_dev = enable_dev,
-	.final = finalize_chip,
 };

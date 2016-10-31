@@ -1,8 +1,19 @@
 /*
- * Helpers for clock control and gating on Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License  or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Helpers for clock control and gating on Allwinner CPUs
  */
 
 #include "clock.h"
@@ -28,7 +39,7 @@ void a1x_periph_clock_enable(enum a1x_clken periph)
 	addr = (void *)A1X_CCM_BASE + (periph >> 5);
 	reg32 = read32(addr);
 	reg32 |= 1 << (periph & 0x1f);
-	write32(reg32, addr);
+	write32(addr, reg32);
 }
 
 /**
@@ -44,7 +55,7 @@ void a1x_periph_clock_disable(enum a1x_clken periph)
 	addr = (void *)A1X_CCM_BASE + (periph >> 5);
 	reg32 = read32(addr);
 	reg32 &= ~(1 << (periph & 0x1f));
-	write32(reg32, addr);
+	write32(addr, reg32);
 }
 
 /**
@@ -88,7 +99,7 @@ void a1x_pll5_configure(u8 mul_n, u8 mul_k, u8 div_m, u8 exp_div_p)
 	reg32 |= (PLL5_FACTOR_M(div_m) | PLL5_FACTOR_N(mul_n) |
 		  PLL5_FACTOR_K(mul_k) | PLL5_DIV_EXP_P(exp_div_p));
 	reg32 |= PLL5_PLL_ENABLE;
-	write32(reg32, &ccm->pll5_cfg);
+	write32(&ccm->pll5_cfg, reg32);
 }
 
 /**
@@ -130,7 +141,7 @@ void a1x_gate_dram_clock_output(void)
  * Linker doesn't garbage collect and the function below adds about half
  * kilobyte to the bootblock, and log2_ceil is not available in the bootblock.
  */
-#ifndef __BOOT_BLOCK__
+#ifndef __BOOTBLOCK__
 
 #define PLL1_CFG(N, K, M, P_EXP)	\
 	((1 << 31 | 0 << 30 | 8 << 26 | 0 << 25 | 16 << 20 | 2 << 13) | \
@@ -159,11 +170,6 @@ static const struct {
 	{ PLL1_CFG(20, 4, 1, 0), 1944 },
 };
 
-static inline u32 div_ceil(u32 a, u32 b)
-{
-	return (a + b - 1) / b;
-}
-
 static void cpu_clk_src_switch(u32 clksel_bits)
 {
 	u32 reg32;
@@ -171,7 +177,7 @@ static void cpu_clk_src_switch(u32 clksel_bits)
 	reg32 = read32(&ccm->cpu_ahb_apb0_cfg);
 	reg32 &= ~CPU_CLK_SRC_MASK;
 	reg32 |= clksel_bits & CPU_CLK_SRC_MASK;
-	write32(reg32, &ccm->cpu_ahb_apb0_cfg);
+	write32(&ccm->cpu_ahb_apb0_cfg, reg32);
 }
 
 static void change_sys_divisors(u8 axi, u8 ahb_exp, u8 apb0_exp)
@@ -184,7 +190,7 @@ static void change_sys_divisors(u8 axi, u8 ahb_exp, u8 apb0_exp)
 	reg32 |= ((axi - 1) << 0) & AXI_DIV_MASK;
 	reg32 |= (ahb_exp << 4) & AHB_DIV_MASK;
 	reg32 |= (apb0_exp << 8) & APB0_DIV_MASK;
-	write32(reg32, &ccm->cpu_ahb_apb0_cfg);
+	write32(&ccm->cpu_ahb_apb0_cfg, reg32);
 }
 
 static void spin_delay(u32 loops)
@@ -241,8 +247,8 @@ void a1x_set_cpu_clock(u16 cpu_clk_mhz)
 	 * will always be in spec, as long as AHB is in spec, although the max
 	 * AHB0 clock we can get is 125 MHz
 	 */
-	axi = div_ceil(actual_mhz, 450);	/* Max 450 MHz */
-	ahb = div_ceil(actual_mhz/axi, 250);	/* Max 250 MHz */
+	axi = CEIL_DIV(actual_mhz, 450);	/* Max 450 MHz */
+	ahb = CEIL_DIV(actual_mhz/axi, 250);	/* Max 250 MHz */
 	apb0 = 2;				/* Max 150 MHz */
 
 	ahb_exp = log2_ceil(ahb);
@@ -267,7 +273,7 @@ void a1x_set_cpu_clock(u16 cpu_clk_mhz)
 	change_sys_divisors(axi, ahb_exp, apb0_exp);
 
 	/* Configure PLL1 at the desired frequency */
-	write32(pll1_table[i].pll1_cfg, &ccm->pll1_cfg);
+	write32(&ccm->pll1_cfg, pll1_table[i].pll1_cfg);
 	spin_delay(8);
 
 	cpu_clk_src_switch(CPU_CLK_SRC_PLL1);
@@ -275,4 +281,4 @@ void a1x_set_cpu_clock(u16 cpu_clk_mhz)
 	udelay(1);
 }
 
-#endif  /* __BOOT_BLOCK__ */
+#endif  /* __BOOTBLOCK__ */

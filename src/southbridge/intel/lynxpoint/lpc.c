@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -36,6 +32,9 @@
 #include <string.h>
 #include "nvs.h"
 #include "pch.h"
+#include <arch/acpigen.h>
+#include <cbmem.h>
+#include <drivers/intel/gma/i915.h>
 
 #define NMI_OFF	0
 
@@ -55,22 +54,22 @@ static void pch_enable_ioapic(struct device *dev)
 	/* Enable ACPI I/O range decode */
 	pci_write_config8(dev, ACPI_CNTL, ACPI_EN);
 
-	set_ioapic_id(IO_APIC_ADDR, 0x02);
+	set_ioapic_id(VIO_APIC_VADDR, 0x02);
 
 	/* affirm full set of redirection table entries ("write once") */
-	reg32 = io_apic_read(IO_APIC_ADDR, 0x01);
+	reg32 = io_apic_read(VIO_APIC_VADDR, 0x01);
 	if (pch_is_lp()) {
 		/* PCH-LP has 39 redirection entries */
 		reg32 &= ~0x00ff0000;
 		reg32 |= 0x00270000;
 	}
-	io_apic_write(IO_APIC_ADDR, 0x01, reg32);
+	io_apic_write(VIO_APIC_VADDR, 0x01, reg32);
 
 	/*
 	 * Select Boot Configuration register (0x03) and
 	 * use Processor System Bus (0x01) to deliver interrupts.
 	 */
-	io_apic_write(IO_APIC_ADDR, 0x03, 0x01);
+	io_apic_write(VIO_APIC_VADDR, 0x03, 0x01);
 }
 
 static void pch_enable_serial_irqs(struct device *dev)
@@ -125,7 +124,7 @@ static void pch_pirq_init(device_t dev)
 	 * I am not so sure anymore he was right.
 	 */
 
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin=0, int_line=0;
 
 		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
@@ -173,7 +172,7 @@ static void pch_gpi_routing(device_t dev)
 	reg32 |= (config->gpi14_routing & 0x03) << 28;
 	reg32 |= (config->gpi15_routing & 0x03) << 30;
 
-	pci_write_config32(dev, 0xb8, reg32);
+	pci_write_config32(dev, GPIO_ROUT, reg32);
 }
 
 static void pch_power_options(device_t dev)
@@ -195,6 +194,7 @@ static void pch_power_options(device_t dev)
 	 * If the option is not existent (Laptops), use Kconfig setting.
 	 */
 	get_option(&pwr_on, "power_on_after_fail");
+	pwr_on = MAINBOARD_POWER_KEEP;
 
 	reg16 = pci_read_config16(dev, GEN_PMCON_3);
 	reg16 &= 0xfffe;
@@ -298,7 +298,7 @@ static void pch_rtc_init(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "rtc_failed = 0x%x\n", rtc_failed);
 
-	rtc_init(rtc_failed);
+	cmos_init(rtc_failed);
 }
 
 /* LynxPoint PCH Power Management init */
@@ -346,6 +346,7 @@ const struct rcba_config_instruction lpt_lp_pm_rcba[] = {
 	RCBA_RMW_REG_32(0x33b4,  0, 0x00007001),
 	RCBA_RMW_REG_32(0x3350,  0, 0x022ddfff),
 	RCBA_RMW_REG_32(0x3354,  0, 0x00000001),
+#if IS_ENABLED(CONFIG_LYNXPOINT_POWER_OPTIMIZER)
 	RCBA_RMW_REG_32(0x33d4, ~0, 0x08000000),  /* Power Optimizer */
 	RCBA_RMW_REG_32(0x33c8, ~0, 0x08000080),  /* Power Optimizer */
 	RCBA_RMW_REG_32(0x2b10,  0, 0x0000883c),  /* Power Optimizer */
@@ -353,6 +354,7 @@ const struct rcba_config_instruction lpt_lp_pm_rcba[] = {
 	RCBA_RMW_REG_32(0x2b24,  0, 0x40000005),  /* Power Optimizer */
 	RCBA_RMW_REG_32(0x2b20,  0, 0x0005db01),  /* Power Optimizer */
 	RCBA_RMW_REG_32(0x3a80,  0, 0x05145005),
+#endif
 	RCBA_END_CONFIG
 };
 
@@ -605,9 +607,9 @@ static void pch_lpc_add_mmio_resources(device_t dev)
 	res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 
 	/* RCBA */
-	if (DEFAULT_RCBA < default_decode_base) {
+	if ((uintptr_t)DEFAULT_RCBA < default_decode_base) {
 		res = new_resource(dev, RCBA);
-		res->base = DEFAULT_RCBA;
+		res->base = (resource_t)(uintptr_t)DEFAULT_RCBA;
 		res->size = 16 * 1024;
 		res->flags = IORESOURCE_MEM | IORESOURCE_ASSIGNED |
 		             IORESOURCE_FIXED | IORESOURCE_RESERVE;
@@ -740,6 +742,85 @@ static void set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void southbridge_inject_dsdt(device_t dev)
+{
+	global_nvs_t *gnvs;
+
+	gnvs = cbmem_find(CBMEM_ID_ACPI_GNVS);
+	if (!gnvs) {
+		gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
+		if (gnvs)
+			memset(gnvs, 0, sizeof(*gnvs));
+	}
+
+	if (gnvs) {
+		const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+
+		acpi_create_gnvs(gnvs);
+
+		gnvs->apic = 1;
+		gnvs->mpen = 1; /* Enable Multi Processing */
+		gnvs->pcnt = dev_count_cpu();
+
+#if CONFIG_CHROMEOS
+		chromeos_init_vboot(&(gnvs->chromeos));
+#endif
+
+		/* Update the mem console pointer. */
+		gnvs->cbmc = (u32)cbmem_find(CBMEM_ID_CONSOLE);
+
+		gnvs->ndid = gfx->ndid;
+		memcpy(gnvs->did, gfx->did, sizeof(gnvs->did));
+
+		acpi_save_gnvs((unsigned long)gnvs);
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to DSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
+}
+
+static unsigned long southbridge_write_acpi_tables(device_t device,
+						   unsigned long start,
+						   struct acpi_rsdp *rsdp)
+{
+	unsigned long current;
+	acpi_hpet_t *hpet;
+	acpi_header_t *ssdt;
+
+	current = start;
+
+	/* Align ACPI tables to 16byte */
+	current = acpi_align_current(current);
+
+	/*
+	 * We explicitly add these tables later on:
+	 */
+	printk(BIOS_DEBUG, "ACPI:    * HPET\n");
+
+	hpet = (acpi_hpet_t *) current;
+	current += sizeof(acpi_hpet_t);
+	current = acpi_align_current(current);
+	acpi_create_intel_hpet(hpet);
+	acpi_add_table(rsdp, hpet);
+
+	current = acpi_align_current(current);
+
+	printk(BIOS_DEBUG, "ACPI:     * SSDT2\n");
+	ssdt = (acpi_header_t *)current;
+	acpi_create_serialio_ssdt(ssdt);
+	current += ssdt->length;
+	acpi_add_table(rsdp, ssdt);
+	current = acpi_align_current(current);
+
+	printk(BIOS_DEBUG, "current = %lx\n", current);
+	return current;
+}
+
+
 static struct pci_operations pci_ops = {
 	.set_subsystem = set_subsystem,
 };
@@ -748,9 +829,11 @@ static struct device_operations device_ops = {
 	.read_resources		= pch_lpc_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
+	.write_acpi_tables      = southbridge_write_acpi_tables,
 	.init			= lpc_init,
 	.enable			= pch_lpc_enable,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &pci_ops,
 };
 
@@ -778,5 +861,3 @@ static const struct pci_driver pch_lpc __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-
-

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -23,15 +19,15 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
 #include <lib.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/lxdef.h>
 #include <cpu/amd/car.h>
-#include "southbridge/amd/cs5536/cs5536.h"
-#include "northbridge/amd/lx/raminit.h"
+#include <southbridge/amd/cs5536/cs5536.h>
+#include <northbridge/amd/lx/raminit.h>
 
 #define SERIAL_DEV PNP_DEV(0x2e, W83627HF_SP1)
 
@@ -82,19 +78,15 @@ static const u8 spdbytes[] = {
 
 int spd_read_byte(unsigned int device, unsigned int address)
 {
-	print_debug("spd_read_byte dev ");
-	print_debug_hex8(device);
+	printk(BIOS_DEBUG, "spd_read_byte dev %02x", device);
 
 	if (device != DIMM0) {
-		print_debug(" returns 0xff\n");
+		printk(BIOS_DEBUG, " returns 0xff\n");
 		return 0xff;
 	}
 
-	print_debug(" addr ");
-	print_debug_hex8(address);
-	print_debug(" returns ");
-	print_debug_hex8(spdbytes[address]);
-	print_debug("\n");
+	printk(BIOS_DEBUG, " addr %02x returns %02x\n",
+		address, spdbytes[address]);
 
 	return spdbytes[address];
 }
@@ -179,9 +171,9 @@ void main(unsigned long bist)
 	 * We use method 1 on Norwich and on this board too.
 	 */
 	post_code(0x02);
-	print_err("POST 02\n");
+	printk(BIOS_ERR, "POST 02\n");
 	__asm__("wbinvd\n");
-	print_err("Past wbinvd\n");
+	printk(BIOS_ERR, "Past wbinvd\n");
 
 	/* We are finding the return does not work on this board. Explicitly
 	 * call the label that is after the call to us. This is gross, but

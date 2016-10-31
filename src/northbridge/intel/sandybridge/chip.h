@@ -11,11 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef NORTHBRIDGE_INTEL_SANDYBRIDGE_CHIP_H
+#define NORTHBRIDGE_INTEL_SANDYBRIDGE_CHIP_H
+
+#include <drivers/intel/gma/i915.h>
 
 /*
  * Digital Port Hotplug Enable:
@@ -38,5 +39,19 @@ struct northbridge_intel_sandybridge_config {
 
 	u32 gpu_cpu_backlight;	/* CPU Backlight PWM value */
 	u32 gpu_pch_backlight;	/* PCH Backlight PWM value */
+
+	/*
+	 * Maximum memory clock.
+	 * For example 666 for DDR3-1333, or 800 for DDR3-1600
+	 */
+	u16 max_mem_clock_mhz;
+
+	struct i915_gpu_controller_info gfx;
+
+	/*
+	 * Maximum PCI mmio size in MiB.
+	 */
+	u16 pci_mmio_size;
 };
 
+#endif /* NORTHBRIDGE_INTEL_SANDYBRIDGE_CHIP_H */

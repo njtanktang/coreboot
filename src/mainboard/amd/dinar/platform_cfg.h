@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _PLATFORM_CFG_H_
@@ -31,13 +27,13 @@
  *  Enable check for PCIe endpoint to be ready for PCI enumeration.
  *
  */
-//#define  EPREADY_WORKAROUND_DISABLED
+//#define EPREADY_WORKAROUND_DISABLED
 
 /**
  *  Enable IOMMU support. Initialize IOMMU subsystem, generate IVRS ACPI table.
  *
  */
-#define  IOMMU_SUPPORT_DISABLE //TODO: enable it
+#define IOMMU_SUPPORT_DISABLE //TODO: enable it
 
 /**
  *  Disable server PCIe hotplug support.

@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <string.h>
@@ -82,11 +78,11 @@ void acpi_create_fadt(acpi_fadt_t *fadt, acpi_facs_t *facs, void *dsdt)
 	fadt->cst_cnt = 0; /* smi command to indicate c state changed notification */
 	fadt->p_lvl2_lat = 101; /* >100 means c2 not supported */
 	fadt->p_lvl3_lat = 1001; /* >1000 means c3 not supported */
-	fadt->flush_size = 0; /* only needed if cpu wbinvd is broken */
+	fadt->flush_size = 0; /* only needed if CPU wbinvd is broken */
 	fadt->flush_stride = 0;
 	fadt->duty_offset = 1; /* bit 1:3 in PCNTRL reg (pmbase+0x10) */
 	fadt->duty_width = 3; /* this width is in bits */
-	fadt->day_alrm = 0x0d; /* rtc cmos ram offset */
+	fadt->day_alrm = 0x0d; /* rtc cmos RAM offset */
 	fadt->mon_alrm = 0x0; /* not supported */
 	fadt->century = 0x0; /* not supported */
 	/*

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* The devicetree parser expects chip.h to reside directly in the path
@@ -26,10 +22,18 @@
 #include <stdint.h>
 
 struct soc_intel_baytrail_config {
-        uint8_t sata_port_map;
-        uint8_t sata_ahci;
-        uint8_t ide_legacy_combined;
+	uint8_t enable_xdp_tap;
+	uint8_t sata_port_map;
+	uint8_t sata_ahci;
+	uint8_t ide_legacy_combined;
 	uint8_t clkreq_enable;
+
+	/* VR low power settings -- enable PS2 mode for gfx and core */
+	int vnn_ps2_enable;
+	int vcc_ps2_enable;
+
+	/* Disable SLP_X stretching after SUS power well loss. */
+	int disable_slp_x_stretch_sus_fail;
 
 	/* USB Port Disable mask */
 	uint16_t usb2_port_disable_mask;
@@ -47,6 +51,7 @@ struct soc_intel_baytrail_config {
 	uint32_t usb2_per_port_rcomp_hs_pullup2;
 	uint32_t usb2_per_port_lane3;
 	uint32_t usb2_per_port_rcomp_hs_pullup3;
+	uint32_t usb2_comp_bg;
 
 	/* LPE Audio Clock configuration. */
 	int lpe_codec_clk_freq; /* 19 or 25 are valid. */
@@ -61,30 +66,25 @@ struct soc_intel_baytrail_config {
 	int scc_acpi_mode;
 	int lpe_acpi_mode;
 
-	/*
-	 * Digital Port Hotplug Enable:
-	 *  0x04 = Enabled, 2ms short pulse
-	 *  0x05 = Enabled, 4.5ms short pulse
-	 *  0x06 = Enabled, 6ms short pulse
-	 *  0x07 = Enabled, 100ms short pulse
-	 */
-	int gpu_pipea_hotplug;
+	/* Allow PCIe devices to wake system from suspend. */
+	int pcie_wake_enable;
+
 	int gpu_pipea_port_select;	/* Port select: 1=DP_B 2=DP_C */
 	uint16_t gpu_pipea_power_on_delay;
 	uint16_t gpu_pipea_light_on_delay;
 	uint16_t gpu_pipea_power_off_delay;
 	uint16_t gpu_pipea_light_off_delay;
 	uint16_t gpu_pipea_power_cycle_delay;
-	uint32_t gpu_pipea_backlight_pwm;
+	int gpu_pipea_pwm_freq_hz;
 
-	int gpu_pipeb_hotplug;
 	int gpu_pipeb_port_select;	/* Port select: 1=DP_B 2=DP_C */
 	uint16_t gpu_pipeb_power_on_delay;
 	uint16_t gpu_pipeb_light_on_delay;
 	uint16_t gpu_pipeb_power_off_delay;
 	uint16_t gpu_pipeb_light_off_delay;
 	uint16_t gpu_pipeb_power_cycle_delay;
-	uint32_t gpu_pipeb_backlight_pwm;
+	int gpu_pipeb_pwm_freq_hz;
+	int disable_ddr_2x_refresh_rate;
 };
 
 extern struct chip_operations soc_intel_baytrail_ops;

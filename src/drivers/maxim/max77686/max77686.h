@@ -2,9 +2,6 @@
  *  Copyright (C) 2012 Samsung Electronics
  *  Alim Akhtar <alim.akhtar@samsung.com>
  *
- * See file CREDITS for list of people who contributed to this
- * project.
- *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
  * published by the Free Software Foundation; either version 2 of
@@ -14,11 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
- * MA 02111-1307 USA
  */
 
 #ifndef __MAX77686_H_
@@ -135,4 +127,4 @@ int max77686_volsetting(unsigned int bus, enum max77686_regnum reg,
  */
 int max77686_disable_backup_batt(unsigned int bus);
 
-#endif /* __MAX77686_PMIC_H_ */
+#endif /* __MAX77686_H_ */

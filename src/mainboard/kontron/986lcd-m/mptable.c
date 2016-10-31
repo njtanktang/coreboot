@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -27,24 +23,24 @@
 
 static void *smp_write_config_table(void *v)
 {
-        struct mp_config_table *mc;
+	struct mp_config_table *mc;
 	struct device *riser = NULL, *firewire = NULL;
 	int firewire_bus = 0, riser_bus = 0, isa_bus;
 	int ioapic_id;
 
-        mc = (void *)(((char *)v) + SMP_FLOATING_TABLE_LEN);
+	mc = (void *)(((char *)v) + SMP_FLOATING_TABLE_LEN);
 
 	mptable_init(mc, LOCAL_APIC_ADDR);
 
-        smp_write_processors(mc);
+	smp_write_processors(mc);
 
 	firewire = dev_find_device(0x104c, 0x8023, 0);
 	if (firewire) {
 		firewire_bus = firewire->bus->secondary;
 	}
 
-	// If a riser card is used, this riser is detected on bus 4, so its secondary bus is the
-	// highest bus number on the pci bus.
+	/* If a riser card is used, this riser is detected on bus 4, so its secondary bus is the */
+	/* highest bus number on the pci bus. */
 	riser = dev_find_device(0x3388, 0x0021, 0);
 	if (!riser)
 		riser = dev_find_device(0x3388, 0x0022, 0);
@@ -56,7 +52,7 @@ static void *smp_write_config_table(void *v)
 
 	/* I/O APICs:	APIC ID	Version	State		Address */
 	ioapic_id = 2;
-	smp_write_ioapic(mc, ioapic_id, 0x20, IO_APIC_ADDR);
+	smp_write_ioapic(mc, ioapic_id, 0x20, VIO_APIC_VADDR);
 
 	/* Legacy Interrupts */
 	mptable_add_isa_interrupts(mc, isa_bus, ioapic_id, 0);
@@ -81,11 +77,11 @@ static void *smp_write_config_table(void *v)
 
 	if (riser) {
 		/* Old riser card */
-		// riser slot top 5:8.0
+		/* riser slot top 5:8.0 */
 		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, riser_bus, 0x20, ioapic_id, 0x14);
-		// riser slot middle 5:9.0
+		/* riser slot middle 5:9.0 */
 		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, riser_bus, 0x24, ioapic_id, 0x15);
-		// riser slot bottom 5:a.0
+		/* riser slot bottom 5:a.0 */
 		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, riser_bus, 0x28, ioapic_id, 0x16);
 
 		/* New Riser Card */

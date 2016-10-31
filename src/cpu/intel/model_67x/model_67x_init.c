@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,7 +25,7 @@
 #include <cpu/x86/msr.h>
 #include <cpu/intel/l2_cache.h>
 
-static void model_67x_init(device_t cpu)
+static void model_67x_init(struct device *cpu)
 {
 	/* Update the microcode */
 	intel_update_microcode_from_cbfs();
@@ -44,7 +40,7 @@ static void model_67x_init(device_t cpu)
 	x86_setup_mtrrs();
 	x86_mtrr_check();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 }
 

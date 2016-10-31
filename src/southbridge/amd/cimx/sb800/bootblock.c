@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -23,7 +19,7 @@ static void enable_rom(void)
 {
 	u16 word;
 	u32 dword;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = PCI_DEV(0, 0x14, 0x03);
 	/* SB800 LPC Bridge 0:20:3:44h.
@@ -32,7 +28,7 @@ static void enable_rom(void)
 	 * BIT30: Port Enable for ACPI Micro-Controller port 0x66 and 0x62
 	 */
 	dword = pci_io_read_config32(dev, 0x44);
-	//dword |= (1<<6) | (1<<29) | (1<<30) ;
+	//dword |= (1<<6) | (1<<29) | (1<<30);
 	/* Turn on all of LPC IO Port decode enable */
 	dword = 0xffffffff;
 	pci_io_write_config32(dev, 0x44, dword);
@@ -48,7 +44,7 @@ static void enable_rom(void)
 	dword |= (1 << 0) | (1 << 1) | (1 << 4) | (1 << 6) | (1 << 21);
 	pci_io_write_config32(dev, 0x48, dword);
 
-	/* Enable rom access */
+	/* Enable ROM access */
 	word = pci_io_read_config16(dev, 0x6c);
 	word = 0x10000 - (CONFIG_COREBOOT_ROMSIZE_KB >> 6);
 	pci_io_write_config16(dev, 0x6c, word);
@@ -57,7 +53,7 @@ static void enable_rom(void)
 static void enable_prefetch(void)
 {
 	u32 dword;
-	device_t dev = PCI_DEV(0, 0x14, 0x03);
+	pci_devfn_t dev = PCI_DEV(0, 0x14, 0x03);
 
 	/* Enable PrefetchEnSPIFromHost */
 	dword = pci_io_read_config32(dev, 0xb8);
@@ -67,7 +63,7 @@ static void enable_prefetch(void)
 static void enable_spi_fast_mode(void)
 {
 	u32 dword;
-	device_t dev = PCI_DEV(0, 0x14, 0x03);
+	pci_devfn_t dev = PCI_DEV(0, 0x14, 0x03);
 
 	// set temp MMIO base
 	volatile u32 *spi_base = (void *)0xa0000000;
@@ -111,7 +107,7 @@ static void enable_clocks(void)
 
 static void bootblock_southbridge_init(void)
 {
-	/* Setup the rom access for 2M */
+	/* Setup the ROM access for 2M */
 	enable_rom();
 	enable_prefetch();
 	enable_spi_fast_mode();

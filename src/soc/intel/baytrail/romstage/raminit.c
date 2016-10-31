@@ -11,34 +11,31 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stddef.h>
-#include <arch/hlt.h>
+#include <arch/acpi.h>
 #include <arch/io.h>
-#include <bootmode.h>
 #include <cbfs.h>
 #include <cbmem.h>
 #include <console/console.h>
 #include <device/pci_def.h>
-#include <baytrail/gpio.h>
-#include <baytrail/mrc_cache.h>
-#include <baytrail/iomap.h>
-#include <baytrail/iosf.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/reset.h>
-#include <baytrail/romstage.h>
+#include <halt.h>
+#include <soc/gpio.h>
+#include <soc/intel/common/mrc_cache.h>
+#include <soc/iomap.h>
+#include <soc/iosf.h>
+#include <soc/pci_devs.h>
+#include <soc/reset.h>
+#include <soc/romstage.h>
 #include <ec/google/chromeec/ec.h>
 #include <ec/google/chromeec/ec_commands.h>
+#include <vboot/vboot_common.h>
 
 static void reset_system(void)
 {
 	warm_reset();
-	while(1) { hlt(); }
+	halt();
 }
 
 static void enable_smbus(void)
@@ -121,12 +118,17 @@ void raminit(struct mrc_params *mp, int prev_sleep_state)
 	mp->console_out = &send_to_console;
 	mp->prev_sleep_state = prev_sleep_state;
 	mp->rmt_enabled = IS_ENABLED(CONFIG_MRC_RMT);
-	if (recovery_mode_enabled()) {
+
+	/* Default to 2GiB IO hole. */
+	if (!mp->io_hole_mb)
+		mp->io_hole_mb = 2048;
+
+	if (vboot_recovery_mode_enabled()) {
 		printk(BIOS_DEBUG, "Recovery mode: not using MRC cache.\n");
 	} else if (!mrc_cache_get_current(&cache)) {
 		mp->saved_data_size = cache->size;
 		mp->saved_data = &cache->data[0];
-	} else if (prev_sleep_state == 3) {
+	} else if (prev_sleep_state == ACPI_S3) {
 		/* If waking from S3 and no cache then. */
 		printk(BIOS_DEBUG, "No MRC cache found in S3 resume path.\n");
 		post_code(POST_RESUME_FAILURE);
@@ -134,20 +136,26 @@ void raminit(struct mrc_params *mp, int prev_sleep_state)
 	} else {
 		printk(BIOS_DEBUG, "No MRC cache found.\n");
 #if CONFIG_EC_GOOGLE_CHROMEEC
-		if (prev_sleep_state == 0) {
+		if (prev_sleep_state == ACPI_S0) {
 			/* Ensure EC is running RO firmware. */
 			google_chromeec_check_ec_image(EC_IMAGE_RO);
 		}
 #endif
 	}
 
-	mrc_entry = cbfs_get_file_content(CBFS_DEFAULT_MEDIA, "mrc.bin", 0xab,
-					  NULL);
-
-	if (mrc_entry == NULL) {
+	/* Determine if mrc.bin is in the cbfs. */
+	if (cbfs_boot_map_with_leak("mrc.bin", CBFS_TYPE_MRC, NULL) == NULL) {
 		printk(BIOS_DEBUG, "Couldn't find mrc.bin\n");
 		return;
 	}
+
+	/*
+	 * The entry point is currently the first instruction. Handle the
+	 * case of an ELF file being put in the cbfs by setting the entry
+	 * to the CONFIG_MRC_BIN_ADDRESS.
+	 */
+	mrc_entry = (void *)(uintptr_t)CONFIG_MRC_BIN_ADDRESS;
+
 	if (mp->mainboard.dram_info_location == DRAM_INFO_SPD_SMBUS)
 		enable_smbus();
 
@@ -155,7 +163,7 @@ void raminit(struct mrc_params *mp, int prev_sleep_state)
 
 	print_dram_info();
 
-	if (prev_sleep_state != 3) {
+	if (prev_sleep_state != ACPI_S3) {
 		cbmem_initialize_empty();
 	} else if (cbmem_initialize()) {
 	#if CONFIG_HAVE_ACPI_RESUME

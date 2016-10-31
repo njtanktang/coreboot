@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define	GX2_STACK_BASE		CONFIG_DCACHE_RAM_BASE		/* this is where the DCache will be mapped and be used as stack, It would be cool if it was the same base as coreboot normal stack */
@@ -166,7 +162,7 @@ done_cache_as_ram_main:
 	/* We now run over the stack-in-cache, copying it back to itself to invalidate the cache */
 
 	push   %edi
-	mov    $(CONFIG_DCACHE_RAM_SIZE/4),%ecx
+	mov    $(CONFIG_DCACHE_RAM_SIZE >> 2),%ecx
 	push   %esi
 	mov    $(CONFIG_DCACHE_RAM_BASE),%edi
 	mov    %edi,%esi
@@ -175,7 +171,7 @@ done_cache_as_ram_main:
 	pop    %esi
 	pop    %edi
 
-	/* Clear the cache out to ram */
+	/* Clear the cache out to RAM */
 	wbinvd
 	/* re-enable the cache */
 	movl    %cr0, %eax
@@ -185,9 +181,7 @@ done_cache_as_ram_main:
 __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 
-	/* TODO For suspend/resume the cache will have to live between
-	 * CONFIG_RAMBASE and CONFIG_RAMTOP
-	 */
+	/* TODO For suspend/resume low memory needs backup store. */
 
 	cld				/* clear direction flag */
 

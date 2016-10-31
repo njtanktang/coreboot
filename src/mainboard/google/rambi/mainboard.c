@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -36,11 +32,12 @@
 #include <smbios.h>
 #include "ec.h"
 #include "onboard.h"
+#include <soc/gpio.h>
+#include <bootstate.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 void mainboard_suspend_resume(void)
 {
-	/* Call SMM finalize() handlers before resume */
-	outb(0xcb, 0xb2);
 }
 
 #if CONFIG_VGA_ROM_RUN
@@ -68,16 +65,16 @@ static int int15_handler(void)
 		/*
 		 * Boot Display Device Hook:
 		 *  bit 0 = CRT
-		 *  bit 1 = TV (eDP) *
-		 *  bit 2 = EFP *
-		 *  bit 3 = LFP
+		 *  bit 1 = TV
+		 *  bit 2 = EFP (HDMI)
+		 *  bit 3 = LFP (eDP)*
 		 *  bit 4 = CRT2
-		 *  bit 5 = TV2 (eDP) *
-		 *  bit 6 = EFP2 *
+		 *  bit 5 = TV2
+		 *  bit 6 = EFP2
 		 *  bit 7 = LFP2
 		 */
 		X86_AX = 0x005f;
-		X86_CX = 0x0006;
+		X86_CX = 0x0008;
 		res = 1;
 		break;
 	case 0x5f51:
@@ -167,6 +164,7 @@ static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
 	dev->ops->get_smbios_data = mainboard_smbios_data;
+	dev->ops->acpi_inject_dsdt_generator = chromeos_dsdt_generator;
 #if CONFIG_VGA_ROM_RUN
 	/* Install custom int15 handler for VGA OPROM */
 	mainboard_interrupt_handlers(0x15, &int15_handler);
@@ -177,3 +175,9 @@ struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 };
 
+static void edp_vdden_cb(void *unused)
+{
+	ncore_select_func(SOC_DDI1_VDDEN_PAD, PAD_FUNC2);
+}
+
+BOOT_STATE_INIT_ENTRY(BS_DEV_INIT, BS_ON_EXIT, edp_vdden_cb, NULL);

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -29,11 +24,12 @@
 #include <lib.h>
 #include <console/console.h>
 #include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
 #include <northbridge/intel/i5000/raminit.h>
-#include "northbridge/intel/i3100/i3100.h"
-#include "southbridge/intel/i3100/i3100.h"
+#include <northbridge/intel/i3100/i3100.h>
+#include <southbridge/intel/i3100/i3100.h>
 #include <southbridge/intel/i3100/early_smbus.c>
 
 #define DEVPRES_CONFIG  (DEVPRES_D1F0 | DEVPRES_D2F0 | DEVPRES_D3F0)
@@ -49,7 +45,7 @@ static void early_config(void)
 	u32 gcs, rpc, fd;
 
 	/* Enable RCBA */
-	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1F, 0), RCBA, (uintptr_t)DEFAULT_RCBA | 1);
 
 	/* Disable watchdog */
 	gcs = read32(DEFAULT_RCBA + RCBA_GCS);
@@ -79,13 +75,13 @@ static void setup_gpio(void)
 	pci_write_config32(PCI_DEV(0, 31, 0), 0x48, DEFAULT_GPIOBASE | 1);
 	pci_write_config8(PCI_DEV(0, 31, 0), 0x4c, (1 << 4));
 
-        outl(0x1b0ce7c0, DEFAULT_GPIOBASE + 0x00); /* GPIO_USE_SEL */
-        outl(0xec00ffff, DEFAULT_GPIOBASE + 0x04); /* GP_IO_SEL */
-        outl(0xff350000, DEFAULT_GPIOBASE + 0x0c); /* GP_LVL */
-        outl(0x0000e742, DEFAULT_GPIOBASE + 0x2c); /* GPI_INV */
-        outl(0x00000006, DEFAULT_GPIOBASE + 0x30); /* GPIO_USE_SEL2 */
-        outl(0x00000300, DEFAULT_GPIOBASE + 0x34); /* GP_IO_SEL2 */
-        outl(0x00030301, DEFAULT_GPIOBASE + 0x38); /* GPIO_LVL2 */
+	outl(0x1b0ce7c0, DEFAULT_GPIOBASE + 0x00); /* GPIO_USE_SEL */
+	outl(0xec00ffff, DEFAULT_GPIOBASE + 0x04); /* GP_IO_SEL */
+	outl(0xff350000, DEFAULT_GPIOBASE + 0x0c); /* GP_LVL */
+	outl(0x0000e742, DEFAULT_GPIOBASE + 0x2c); /* GPI_INV */
+	outl(0x00000006, DEFAULT_GPIOBASE + 0x30); /* GPIO_USE_SEL2 */
+	outl(0x00000300, DEFAULT_GPIOBASE + 0x34); /* GP_IO_SEL2 */
+	outl(0x00030301, DEFAULT_GPIOBASE + 0x38); /* GPIO_LVL2 */
 
 }
 
@@ -110,7 +106,7 @@ int mainboard_set_fbd_clock(int speed)
 	}
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	if (bist == 0)
 		enable_lapic();
@@ -130,14 +126,14 @@ void main(unsigned long bist)
 
 	enable_smbus();
 
-        smbus_write_byte(0x6f, 0x00, 0x63);
-        smbus_write_byte(0x6f, 0x01, 0x04);
-        smbus_write_byte(0x6f, 0x02, 0x53);
-        smbus_write_byte(0x6f, 0x03, 0x39);
-        smbus_write_byte(0x6f, 0x08, 0x06);
-        smbus_write_byte(0x6f, 0x09, 0x00);
+	smbus_write_byte(0x6f, 0x00, 0x63);
+	smbus_write_byte(0x6f, 0x01, 0x04);
+	smbus_write_byte(0x6f, 0x02, 0x53);
+	smbus_write_byte(0x6f, 0x03, 0x39);
+	smbus_write_byte(0x6f, 0x08, 0x06);
+	smbus_write_byte(0x6f, 0x09, 0x00);
 
-	pci_write_config32(PCI_DEV(0, 0x1f, 0), 0xf0, DEFAULT_RCBA | 1);
+	pci_write_config32(PCI_DEV(0, 0x1f, 0), 0xf0, (uintptr_t)DEFAULT_RCBA | 1);
 	i5000_fbdimm_init();
 	smbus_write_byte(0x69, 0x01, 0x01);
 }

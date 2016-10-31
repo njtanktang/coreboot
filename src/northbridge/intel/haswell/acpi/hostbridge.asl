@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 
@@ -149,7 +144,7 @@ Device (MCHC)
 	}
 
 	/*
-	 * Search CPU0 _PSS looking for control=arg0 and then
+	 * Search CPU0 _PSS looking for control = arg0 and then
 	 * return previous P-state entry number for new _PPC
 	 *
 	 * Format of _PSS:
@@ -157,16 +152,16 @@ Device (MCHC)
 	 *     Package (6) { freq, power, tlat, blat, control, status }
 	 *   }
 	 */
-	External (\_PR.CPU0._PSS)
+	External (\_PR.CP00._PSS)
 	Method (PSSS, 1, NotSerialized)
 	{
 		Store (One, Local0) /* Start at P1 */
-		Store (SizeOf (\_PR.CPU0._PSS), Local1)
+		Store (SizeOf (\_PR.CP00._PSS), Local1)
 
 		While (LLess (Local0, Local1)) {
 			/* Store _PSS entry Control value to Local2 */
 			ShiftRight (DeRefOf (Index (DeRefOf (Index
-			      (\_PR.CPU0._PSS, Local0)), 4)), 8, Local2)
+			      (\_PR.CP00._PSS, Local0)), 4)), 8, Local2)
 			If (LEqual (Local2, Arg0)) {
 				Return (Subtract (Local0, 1))
 			}
@@ -322,127 +317,126 @@ Device (MCHC)
 }
 
 // Current Resource Settings
+Name (MCRS, ResourceTemplate()
+{
+	// Bus Numbers
+	WordBusNumber (ResourceProducer, MinFixed, MaxFixed, PosDecode,
+			0x0000, 0x0000, 0x00ff, 0x0000, 0x0100,,, PB00)
+
+	// IO Region 0
+	DWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
+			0x0000, 0x0000, 0x0cf7, 0x0000, 0x0cf8,,, PI00)
+
+	// PCI Config Space
+	Io (Decode16, 0x0cf8, 0x0cf8, 0x0001, 0x0008)
+
+	// IO Region 1
+	DWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
+			0x0000, 0x0d00, 0xffff, 0x0000, 0xf300,,, PI01)
+
+	// VGA memory (0xa0000-0xbffff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000a0000, 0x000bffff, 0x00000000,
+			0x00020000,,, ASEG)
+
+	// OPROM reserved (0xc0000-0xc3fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000c0000, 0x000c3fff, 0x00000000,
+			0x00004000,,, OPR0)
+
+	// OPROM reserved (0xc4000-0xc7fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000c4000, 0x000c7fff, 0x00000000,
+			0x00004000,,, OPR1)
+
+	// OPROM reserved (0xc8000-0xcbfff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000c8000, 0x000cbfff, 0x00000000,
+			0x00004000,,, OPR2)
+
+	// OPROM reserved (0xcc000-0xcffff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000cc000, 0x000cffff, 0x00000000,
+			0x00004000,,, OPR3)
+
+	// OPROM reserved (0xd0000-0xd3fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000d0000, 0x000d3fff, 0x00000000,
+			0x00004000,,, OPR4)
+
+	// OPROM reserved (0xd4000-0xd7fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000d4000, 0x000d7fff, 0x00000000,
+			0x00004000,,, OPR5)
+
+	// OPROM reserved (0xd8000-0xdbfff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000d8000, 0x000dbfff, 0x00000000,
+			0x00004000,,, OPR6)
+
+	// OPROM reserved (0xdc000-0xdffff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000dc000, 0x000dffff, 0x00000000,
+			0x00004000,,, OPR7)
+
+	// BIOS Extension (0xe0000-0xe3fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000e0000, 0x000e3fff, 0x00000000,
+			0x00004000,,, ESG0)
+
+	// BIOS Extension (0xe4000-0xe7fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000e4000, 0x000e7fff, 0x00000000,
+			0x00004000,,, ESG1)
+
+	// BIOS Extension (0xe8000-0xebfff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000e8000, 0x000ebfff, 0x00000000,
+			0x00004000,,, ESG2)
+
+	// BIOS Extension (0xec000-0xeffff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000ec000, 0x000effff, 0x00000000,
+			0x00004000,,, ESG3)
+
+	// System BIOS (0xf0000-0xfffff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x000f0000, 0x000fffff, 0x00000000,
+			0x00010000,,, FSEG)
+
+	// PCI Memory Region (Top of memory-CONFIG_MMCONF_BASE_ADDRESS)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0x00000000, 0x00000000, 0x00000000,
+			0x00000000,,, PM01)
+
+	// TPM Area (0xfed40000-0xfed44fff)
+	DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
+			Cacheable, ReadWrite,
+			0x00000000, 0xfed40000, 0xfed44fff, 0x00000000,
+			0x00005000,,, TPMR)
+})
 
 Method (_CRS, 0, Serialized)
 {
-	Name (MCRS, ResourceTemplate()
-	{
-		// Bus Numbers
-		WordBusNumber (ResourceProducer, MinFixed, MaxFixed, PosDecode,
-				0x0000, 0x0000, 0x00ff, 0x0000, 0x0100,,, PB00)
-
-		// IO Region 0
-		DWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
-				0x0000, 0x0000, 0x0cf7, 0x0000, 0x0cf8,,, PI00)
-
-		// PCI Config Space
-		Io (Decode16, 0x0cf8, 0x0cf8, 0x0001, 0x0008)
-
-		// IO Region 1
-		DWordIO (ResourceProducer, MinFixed, MaxFixed, PosDecode, EntireRange,
-				0x0000, 0x0d00, 0xffff, 0x0000, 0xf300,,, PI01)
-
-		// VGA memory (0xa0000-0xbffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000a0000, 0x000bffff, 0x00000000,
-				0x00020000,,, ASEG)
-
-		// OPROM reserved (0xc0000-0xc3fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000c0000, 0x000c3fff, 0x00000000,
-				0x00004000,,, OPR0)
-
-		// OPROM reserved (0xc4000-0xc7fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000c4000, 0x000c7fff, 0x00000000,
-				0x00004000,,, OPR1)
-
-		// OPROM reserved (0xc8000-0xcbfff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000c8000, 0x000cbfff, 0x00000000,
-				0x00004000,,, OPR2)
-
-		// OPROM reserved (0xcc000-0xcffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000cc000, 0x000cffff, 0x00000000,
-				0x00004000,,, OPR3)
-
-		// OPROM reserved (0xd0000-0xd3fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000d0000, 0x000d3fff, 0x00000000,
-				0x00004000,,, OPR4)
-
-		// OPROM reserved (0xd4000-0xd7fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000d4000, 0x000d7fff, 0x00000000,
-				0x00004000,,, OPR5)
-
-		// OPROM reserved (0xd8000-0xdbfff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000d8000, 0x000dbfff, 0x00000000,
-				0x00004000,,, OPR6)
-
-		// OPROM reserved (0xdc000-0xdffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000dc000, 0x000dffff, 0x00000000,
-				0x00004000,,, OPR7)
-
-		// BIOS Extension (0xe0000-0xe3fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000e0000, 0x000e3fff, 0x00000000,
-				0x00004000,,, ESG0)
-
-		// BIOS Extension (0xe4000-0xe7fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000e4000, 0x000e7fff, 0x00000000,
-				0x00004000,,, ESG1)
-
-		// BIOS Extension (0xe8000-0xebfff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000e8000, 0x000ebfff, 0x00000000,
-				0x00004000,,, ESG2)
-
-		// BIOS Extension (0xec000-0xeffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000ec000, 0x000effff, 0x00000000,
-				0x00004000,,, ESG3)
-
-		// System BIOS (0xf0000-0xfffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x000f0000, 0x000fffff, 0x00000000,
-				0x00010000,,, FSEG)
-
-		// PCI Memory Region (Top of memory-0xfebfffff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0x00000000, 0xfebfffff, 0x00000000,
-				0xfec00000,,, PM01)
-
-		// TPM Area (0xfed40000-0xfed44fff)
-		DWordMemory (ResourceProducer, PosDecode, MinFixed, MaxFixed,
-				Cacheable, ReadWrite,
-				0x00000000, 0xfed40000, 0xfed44fff, 0x00000000,
-				0x00005000,,, TPMR)
-	})
-
 	// Find PCI resource area in MCRS
-	CreateDwordField(MCRS, PM01._MIN, PMIN)
-	CreateDwordField(MCRS, PM01._MAX, PMAX)
-	CreateDwordField(MCRS, PM01._LEN, PLEN)
+	CreateDwordField(MCRS, ^PM01._MIN, PMIN)
+	CreateDwordField(MCRS, ^PM01._MAX, PMAX)
+	CreateDwordField(MCRS, ^PM01._LEN, PLEN)
 
 	// Fix up PCI memory region
 	// Start with Top of Lower Usable DRAM
@@ -456,6 +450,7 @@ Method (_CRS, 0, Serialized)
 	}
 
 	Store (Local0, PMIN)
+	Store (Subtract(CONFIG_MMCONF_BASE_ADDRESS, 1), PMAX)
 	Add(Subtract(PMAX, PMIN), 1, PLEN)
 
 	Return (MCRS)
@@ -463,5 +458,3 @@ Method (_CRS, 0, Serialized)
 
 /* IRQ assignment is mainboard specific. Get it from mainboard ACPI code */
 #include "acpi/haswell_pci_irqs.asl"
-
-

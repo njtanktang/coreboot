@@ -1,6 +1,20 @@
 /*
- * ACPI - create the Fixed ACPI Description Tables (FADT)
+ * This file is part of the coreboot project.
+ *
  * (C) Copyright 2005 Stefan Reinauer <stepan@openbios.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * ACPI - create the Fixed ACPI Description Tables (FADT)
  */
 
 #include <string.h>
@@ -64,7 +78,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->flush_size = 0;
 	fadt->flush_stride = 0;
 	fadt->duty_offset = 1;
-	fadt->duty_width = 0;
+	fadt->duty_width = 3;
 	fadt->day_alrm = 0x7d;
 	fadt->mon_alrm = 0x7e;
 	fadt->century = 0x32;

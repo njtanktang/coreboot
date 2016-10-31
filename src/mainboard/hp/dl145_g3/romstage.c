@@ -19,10 +19,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -36,13 +32,13 @@
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include "southbridge/broadcom/bcm5785/early_smbus.c"
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include <superio/serverengines/pilot/pilot.h>
-#include "superio/nsc/pc87417/early_serial.c"
-#include "cpu/x86/bist.h"
+#include <superio/nsc/pc87417/pc87417.h>
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/debug.c"
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include "southbridge/broadcom/bcm5785/early_setup.c"
@@ -66,7 +62,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	 return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdk8/f.h"
+#include <northbridge/amd/amdk8/f.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit_f.c"
@@ -83,11 +79,11 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 static void setup_early_ipmi_serial()
 {
 	unsigned char result;
-	char channel_access[]={0x06<<2,0x40,0x04,0x80,0x05};
-	char serialmodem_conf[]={0x0c<<2,0x10,0x04,0x08,0x00,0x0f};
-	char serial_mux1[]={0x0c<<2,0x12,0x04,0x06};
-	char serial_mux2[]={0x0c<<2,0x12,0x04,0x03};
-	char serial_mux3[]={0x0c<<2,0x12,0x04,0x07};
+	char channel_access[]={0x06 << 2,0x40,0x04,0x80,0x05};
+	char serialmodem_conf[]={0x0c << 2,0x10,0x04,0x08,0x00,0x0f};
+	char serial_mux1[]={0x0c << 2,0x12,0x04,0x06};
+	char serial_mux2[]={0x0c << 2,0x12,0x04,0x03};
+	char serial_mux3[]={0x0c << 2,0x12,0x04,0x07};
 
 //	earlydbg(0x0d);
 	//set channel access system only
@@ -95,19 +91,19 @@ static void setup_early_ipmi_serial()
 //	earlydbg(result);
 /*
 	//Set serial/modem config
-	result=ipmi_request(6,serialmodem_conf);
+	result = ipmi_request(6,serialmodem_conf);
 	earlydbg(result);
 
 	//Set serial mux 1
-	result=ipmi_request(4,serial_mux1);
+	result = ipmi_request(4,serial_mux1);
 	earlydbg(result);
 
 	//Set serial mux 2
-	result=ipmi_request(4,serial_mux2);
+	result = ipmi_request(4,serial_mux2);
 	earlydbg(result);
 
 	//Set serial mux 3
-	result=ipmi_request(4,serial_mux3);
+	result = ipmi_request(4,serial_mux3);
 	earlydbg(result);
 */
 //	earlydbg(0x0e);
@@ -174,7 +170,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 #if CONFIG_SET_FIDVID
 	{
 		msr_t msr;
-		msr=rdmsr(0xc0010042);
+		msr = rdmsr(0xc0010042);
 		printk(BIOS_DEBUG, "begin msr fid, vid %08x %08x\n", msr.hi, msr.lo);
 	}
 	enable_fid_change();
@@ -183,7 +179,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	// show final fid and vid
 	{
 		msr_t msr;
-		msr=rdmsr(0xc0010042);
+		msr = rdmsr(0xc0010042);
 		printk(BIOS_DEBUG, "end msr fid, vid %08x %08x\n", msr.hi, msr.lo);
 	}
 #endif
@@ -205,7 +201,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	//do we need apci timer, tsc...., only debug need it for better output
 	/* all ap stopped? */
-	// init_timer(); // Need to use TMICT to synconize FID/VID
+	// init_timer(); // Need to use TMICT to synchronize FID/VID
 
 	sdram_initialize(sysinfo->nodes, sysinfo->ctrl, sysinfo);
 

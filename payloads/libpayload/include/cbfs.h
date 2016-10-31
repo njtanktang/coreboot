@@ -17,10 +17,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  * ---------------------------------------------------------------------------
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -59,7 +55,7 @@ void *cbfs_find_file(const char *name, int type);
 
 int cbfs_execute_stage(struct cbfs_media *media, const char *name);
 void *cbfs_load_optionrom(struct cbfs_media *media, uint16_t vendor,
-			  uint16_t device, void * dest);
+			  uint16_t device);
 void *cbfs_load_payload(struct cbfs_media *media, const char *name);
 void *cbfs_load_stage(struct cbfs_media *media, const char *name);
 
@@ -81,12 +77,7 @@ void *cbfs_simple_buffer_unmap(struct cbfs_simple_buffer *buffer,
 // Utility functions
 int run_address(void *f);
 
-/* Defined in src/lib/selfboot.c */
-struct lb_memory;
-int selfboot(struct lb_memory *mem, struct cbfs_payload *payload);
-
 /* Defined in individual arch / board implementation. */
 int init_default_cbfs_media(struct cbfs_media *media);
 
 #endif
-

@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* These come from the dynamically created CPU SSDT */
@@ -61,6 +56,7 @@ Method(_PTS,1)
 {
 	\_SB.PCI0.LPCB.EC.MUTE(1)
 	\_SB.PCI0.LPCB.EC.USBP(0)
+	\_SB.PCI0.LPCB.EC.RADI(0)
 }
 
 /* The _WAK method is called on system wakeup */
@@ -103,7 +99,7 @@ Scope(\_SB)
 		/* Let's assume we're running at least Windows 2000 */
 		Store (2000, OSYS)
 
-		If (CondRefOf(_OSI, Local0)) {
+		If (CondRefOf(_OSI)) {
 			If (_OSI("Windows 2001")) {
 				Store (2001, OSYS)
 			}
@@ -146,4 +142,3 @@ Scope(\_SB)
 		}
 	}
 }
-

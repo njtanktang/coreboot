@@ -18,10 +18,6 @@ config MAX_CPUS
 	int
 	default 1
 
-config BOOTBLOCK_MAINBOARD_INIT
-	string
-	default "mainboard/cubietech/cubieboard/bootblock.c"
-
 config DRAM_SIZE_MB
 	int
 	default 1024

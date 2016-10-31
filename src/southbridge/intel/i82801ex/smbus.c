@@ -35,7 +35,7 @@ static struct device_operations smbus_ops = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = 0,
-	.scan_bus         = scan_static_bus,
+	.scan_bus         = scan_smbus,
 	.enable           = i82801ex_enable,
 	.ops_pci          = &lops_pci,
 	.ops_smbus_bus    = &lops_smbus_bus,
@@ -46,4 +46,3 @@ static const struct pci_driver smbus_driver __pci_driver = {
 	.vendor = PCI_VENDOR_ID_INTEL,
 	.device = PCI_DEVICE_ID_INTEL_82801ER_SMB,
 };
-

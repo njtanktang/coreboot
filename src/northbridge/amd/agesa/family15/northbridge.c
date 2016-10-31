@@ -11,13 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
 #include <arch/io.h>
 #include <stdint.h>
 #include <device/device.h>
@@ -39,14 +37,10 @@
 #include <Topology.h>
 #include <cpu/amd/amdfam15.h>
 #include <cpuRegisters.h>
-#include "agesawrapper.h"
-#include "northbridge.h"
+#include <northbridge/amd/agesa/agesawrapper.h>
+#include "sb_cimx.h"
 
 #define MAX_NODE_NUMS (MAX_NODES * MAX_DIES)
-
-#if (defined CONFIG_EXT_CONF_SUPPORT) && CONFIG_EXT_CONF_SUPPORT == 1
-#error CONFIG_EXT_CONF_SUPPORT == 1 not support anymore!
-#endif
 
 typedef struct dram_base_mask {
 	u32 base; //[47:27] at [28:8]
@@ -60,7 +54,6 @@ static device_t __f1_dev[MAX_NODE_NUMS];
 static device_t __f2_dev[MAX_NODE_NUMS];
 static device_t __f4_dev[MAX_NODE_NUMS];
 static unsigned fx_devs = 0;
-
 
 static dram_base_mask_t get_dram_base_mask(u32 nodeid)
 {
@@ -87,21 +80,10 @@ static void set_io_addr_reg(device_t dev, u32 nodeid, u32 linkn, u32 reg,
 	u32 tempreg;
 	/* io range allocation */
 	tempreg = (nodeid&0xf) | ((nodeid & 0x30)<<(8-4)) | (linkn<<4) | ((io_max&0xf0)<<(12-4)); //limit
-	for (i=0; i<node_nums; i++)
+	for (i = 0; i < node_nums; i++)
 		pci_write_config32(__f1_dev[i], reg+4, tempreg);
-	tempreg = 3 /*| ( 3<<4)*/ | ((io_min&0xf0)<<(12-4));	      //base :ISA and VGA ?
-#if 0
-	// FIXME: can we use VGA reg instead?
-	if (dev->link[link].bridge_ctrl & PCI_BRIDGE_CTL_VGA) {
-		printk(BIOS_SPEW, "%s, enabling legacy VGA IO forwarding for %s link %s\n",
-				__func__, dev_path(dev), link);
-		tempreg |= PCI_IO_BASE_VGA_EN;
-	}
-	if (dev->link[link].bridge_ctrl & PCI_BRIDGE_CTL_NO_ISA) {
-		tempreg |= PCI_IO_BASE_NO_ISA;
-	}
-#endif
-	for (i=0; i<node_nums; i++)
+	tempreg = 3 /*| (3<<4)*/ | ((io_min&0xf0)<<(12-4));	      //base :ISA and VGA ?
+	for (i = 0; i < node_nums; i++)
 		pci_write_config32(__f1_dev[i], reg, tempreg);
 }
 
@@ -111,10 +93,10 @@ static void set_mmio_addr_reg(u32 nodeid, u32 linkn, u32 reg, u32 index, u32 mmi
 	u32 tempreg;
 	/* io range allocation */
 	tempreg = (nodeid&0xf) | (linkn<<4) |	 (mmio_max&0xffffff00); //limit
-	for (i=0; i<nodes; i++)
+	for (i = 0; i < nodes; i++)
 		pci_write_config32(__f1_dev[i], reg+4, tempreg);
 	tempreg = 3 | (nodeid & 0x30) | (mmio_min&0xffffff00);
-	for (i=0; i<node_nums; i++)
+	for (i = 0; i < node_nums; i++)
 		pci_write_config32(__f1_dev[i], reg, tempreg);
 }
 
@@ -145,7 +127,7 @@ static void get_fx_devs(void)
 	if (__f1_dev[0] == NULL || __f0_dev[0] == NULL || fx_devs == 0) {
 		die("Cannot find 0:0x18.[0|1]\n");
 	}
-	printk(BIOS_DEBUG, "fx_devs=0x%x\n", fx_devs);
+	printk(BIOS_DEBUG, "fx_devs = 0x%x\n", fx_devs);
 }
 
 static u32 f1_read_config32(unsigned reg)
@@ -160,7 +142,7 @@ static void f1_write_config32(unsigned reg, u32 value)
 	int i;
 	if (fx_devs == 0)
 		get_fx_devs();
-	for(i = 0; i < fx_devs; i++) {
+	for (i = 0; i < fx_devs; i++) {
 		device_t dev;
 		dev = __f1_dev[i];
 		if (dev && dev->enabled) {
@@ -200,8 +182,8 @@ static void set_vga_enable_reg(u32 nodeid, u32 linkn)
 
 /**
  * @return
- *  @retval 2  resoure not exist, usable
- *  @retval 0  resource exist, not usable
+ *  @retval 2  resoure does not exist, usable
+ *  @retval 0  resource exists, not usable
  *  @retval 1  resource exist, resource has been allocated before
  */
 static int reg_useable(unsigned reg, device_t goal_dev, unsigned goal_nodeid,
@@ -285,7 +267,6 @@ static struct resource *amdfam15_find_mempair(device_t dev, u32 nodeid, u32 link
 	return resource;
 }
 
-
 static void amdfam15_link_read_bases(device_t dev, u32 nodeid, u32 link)
 {
 	struct resource *resource;
@@ -315,7 +296,6 @@ static void amdfam15_link_read_bases(device_t dev, u32 nodeid, u32 link)
 		resource->flags |= IORESOURCE_BRIDGE;
 	}
 
-
 	/* Initialize the memory constraints on the current bus */
 	resource = amdfam15_find_mempair(dev, nodeid, link);
 	if (resource) {
@@ -328,7 +308,6 @@ static void amdfam15_link_read_bases(device_t dev, u32 nodeid, u32 link)
 	}
 
 }
-
 
 static void nb_read_resources(device_t dev)
 {
@@ -354,16 +333,13 @@ static void nb_read_resources(device_t dev)
 	resource->flags = IORESOURCE_MEM | IORESOURCE_RESERVE |
 	    IORESOURCE_FIXED | IORESOURCE_STORED | IORESOURCE_ASSIGNED;
 #endif
-
 }
-
 
 static void set_resource(device_t dev, struct resource *resource, u32 nodeid)
 {
 	resource_t rbase, rend;
 	unsigned reg, link_num;
 	char buf[50];
-
 
 	/* Make certain the resource has actually been set */
 	if (!(resource->flags & IORESOURCE_ASSIGNED)) {
@@ -397,10 +373,10 @@ static void set_resource(device_t dev, struct resource *resource, u32 nodeid)
 		set_io_addr_reg(dev, nodeid, link_num, reg, rbase>>8, rend>>8);
 	}
 	else if (resource->flags & IORESOURCE_MEM) {
-		set_mmio_addr_reg(nodeid, link_num, reg, (resource->index >>24), rbase>>8, rend>>8, node_nums) ;// [39:8]
+		set_mmio_addr_reg(nodeid, link_num, reg, (resource->index >>24), rbase>>8, rend>>8, node_nums);// [39:8]
 	}
 	resource->flags |= IORESOURCE_STORED;
-	snprintf(buf, sizeof (buf), " <node %x link %x>",
+	snprintf(buf, sizeof(buf), " <node %x link %x>",
 			nodeid, link_num);
 	report_resource_stored(dev, resource, buf);
 }
@@ -414,7 +390,6 @@ static void create_vga_resource(device_t dev, unsigned nodeid)
 {
 	struct bus *link;
 
-
 	/* find out which link the VGA card is connected,
 	 * we only deal with the 'first' vga card */
 	for (link = dev->link_list; link; link = link->next) {
@@ -424,9 +399,8 @@ static void create_vga_resource(device_t dev, unsigned nodeid)
 			printk(BIOS_DEBUG, "VGA: vga_pri bus num = %d bus range [%d,%d]\n", vga_pri->bus->secondary,
 					link->secondary,link->subordinate);
 			/* We need to make sure the vga_pri is under the link */
-			if((vga_pri->bus->secondary >= link->secondary ) &&
-					(vga_pri->bus->secondary <= link->subordinate )
-			  )
+			if ((vga_pri->bus->secondary >= link->secondary) &&
+			    (vga_pri->bus->secondary <= link->subordinate))
 #endif
 				break;
 		}
@@ -439,7 +413,6 @@ static void create_vga_resource(device_t dev, unsigned nodeid)
 	printk(BIOS_DEBUG, "VGA: %s (aka node %d) link %d has VGA device\n", dev_path(dev), nodeid, sblink);
 	set_vga_enable_reg(nodeid, sblink);
 }
-
 
 static void nb_set_resources(device_t dev)
 {
@@ -470,38 +443,148 @@ static void nb_set_resources(device_t dev)
 	}
 }
 
-static void northbridge_init(struct device *dev)
-{
-}
-
-static unsigned scan_chains(device_t dev, unsigned max)
+static void scan_chains(device_t dev)
 {
 	unsigned nodeid;
 	struct bus *link;
 	device_t io_hub = NULL;
 	u32 next_unitid = 0x18;
+
 	nodeid = amdfam15_nodeid(dev);
 	if (nodeid == 0) {
+		ASSERT(dev->bus->secondary == 0);
 		for (link = dev->link_list; link; link = link->next) {
-			//if (link->link_num == sblink) { /* devicetree put IO Hub on link_lsit[sblink] */
 			if (link->link_num == 0) { /* devicetree put IO Hub on link_lsit[0] */
 				io_hub = link->children;
 				if (!io_hub || !io_hub->enabled) {
 					die("I can't find the IO Hub, or IO Hub not enabled, please check the device tree.\n");
 				}
 				/* Now that nothing is overlapping it is safe to scan the children. */
-				max = pci_scan_bus(link, 0x00, ((next_unitid - 1) << 3) | 7, 0);
+				pci_scan_bus(link, 0x00, ((next_unitid - 1) << 3) | 7);
 			}
 		}
 	}
-	return max;
 }
+
+
+static unsigned long acpi_fill_hest(acpi_hest_t *hest)
+{
+	void *addr, *current;
+
+	/* Skip the HEST header. */
+	current = (void *)(hest + 1);
+
+	addr = agesawrapper_getlateinitptr(PICK_WHEA_MCE);
+	if (addr != NULL)
+		current += acpi_create_hest_error_source(hest, current, 0,
+				addr + 2, *(UINT16 *)addr - 2);
+
+	addr = agesawrapper_getlateinitptr(PICK_WHEA_CMC);
+	if (addr != NULL)
+		current += acpi_create_hest_error_source(hest, current, 1,
+				addr + 2, *(UINT16 *)addr - 2);
+
+	return (unsigned long)current;
+}
+
+static void northbridge_fill_ssdt_generator(device_t device)
+{
+	msr_t msr;
+	char pscope[] = "\\_SB.PCI0";
+
+	acpigen_write_scope(pscope);
+	msr = rdmsr(TOP_MEM);
+	acpigen_write_name_dword("TOM1", msr.lo);
+	msr = rdmsr(TOP_MEM2);
+	/*
+	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
+	 * here.
+	 * See http://www.acpi.info/presentations/S01USMOBS169_OS%2520new.ppt
+	 * slide 22ff.
+	 * Shift value right by 20 bit to make it fit into 32bit,
+	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
+	 */
+	acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
+	acpigen_pop_len();
+}
+
+static unsigned long agesa_write_acpi_tables(device_t device,
+					     unsigned long current,
+					     acpi_rsdp_t *rsdp)
+{
+	acpi_srat_t *srat;
+	acpi_slit_t *slit;
+	acpi_header_t *ssdt;
+	acpi_header_t *alib;
+	acpi_hest_t *hest;
+
+	/* HEST */
+	current = ALIGN(current, 8);
+	hest = (acpi_hest_t *)current;
+	acpi_write_hest((void *)current, acpi_fill_hest);
+	acpi_add_table(rsdp, (void *)current);
+	current += ((acpi_header_t *)current)->length;
+
+	/* SRAT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:    * SRAT at %lx\n", current);
+	srat = (acpi_srat_t *) agesawrapper_getlateinitptr (PICK_SRAT);
+	if (srat != NULL) {
+		memcpy((void *)current, srat, srat->header.length);
+		srat = (acpi_srat_t *) current;
+		current += srat->header.length;
+		acpi_add_table(rsdp, srat);
+	}
+
+	/* SLIT */
+	current = ALIGN(current, 8);
+	printk(BIOS_DEBUG, "ACPI:   * SLIT at %lx\n", current);
+	slit = (acpi_slit_t *) agesawrapper_getlateinitptr (PICK_SLIT);
+	if (slit != NULL) {
+		memcpy((void *)current, slit, slit->header.length);
+		slit = (acpi_slit_t *) current;
+		current += slit->header.length;
+		acpi_add_table(rsdp, slit);
+	}
+
+	/* SSDT */
+	current = ALIGN(current, 16);
+	printk(BIOS_DEBUG, "ACPI:  * AGESA ALIB SSDT at %lx\n", current);
+	alib = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_ALIB);
+	if (alib != NULL) {
+		memcpy((void *)current, alib, alib->length);
+		alib = (acpi_header_t *) current;
+		current += alib->length;
+		acpi_add_table(rsdp, (void *)alib);
+	} else {
+		printk(BIOS_DEBUG, "	AGESA ALIB SSDT table NULL. Skipping.\n");
+	}
+
+	/* The DSDT needs additional work for the AGESA SSDT Pstate table */
+	/* Keep the comment for a while. */
+	current = ALIGN(current, 16);
+	printk(BIOS_DEBUG, "ACPI:  * AGESA SSDT Pstate at %lx\n", current);
+	ssdt = (acpi_header_t *)agesawrapper_getlateinitptr (PICK_PSTATE);
+	if (ssdt != NULL) {
+		memcpy((void *)current, ssdt, ssdt->length);
+		ssdt = (acpi_header_t *) current;
+		current += ssdt->length;
+		acpi_add_table(rsdp,ssdt);
+	} else {
+		printk(BIOS_DEBUG, "  AGESA SSDT Pstate table NULL. Skipping.\n");
+	}
+
+	return current;
+}
+
 
 static struct device_operations northbridge_operations = {
 	.read_resources	  = nb_read_resources,
 	.set_resources	  = nb_set_resources,
 	.enable_resources = pci_dev_enable_resources,
-	.init		  = northbridge_init,
+	.init		  = DEVICE_NOOP,
+	.acpi_fill_ssdt_generator = northbridge_fill_ssdt_generator,
+	.write_acpi_tables = agesa_write_acpi_tables,
 	.scan_bus	  = scan_chains,
 	.enable		  = 0,
 	.ops_pci	  = 0,
@@ -528,7 +611,6 @@ static void domain_read_resources(device_t dev)
 {
 	unsigned reg;
 
-
 	/* Find the already assigned resource pairs */
 	get_fx_devs();
 	for (reg = 0x80; reg <= 0xd8; reg+= 0x08) {
@@ -539,7 +621,7 @@ static void domain_read_resources(device_t dev)
 		if ((base & 3) != 0) {
 			unsigned nodeid, reg_link;
 			device_t reg_dev;
-			if (reg<0xc0) { // mmio
+			if (reg < 0xc0) { // mmio
 				nodeid = (limit & 0xf) + (base&0x30);
 			} else { // io
 				nodeid =  (limit & 0xf) + ((base>>4)&0x30);
@@ -559,45 +641,23 @@ static void domain_read_resources(device_t dev)
 	/* FIXME: do we need to check extend conf space?
 	   I don't believe that much preset value */
 
-#if !CONFIG_PCI_64BIT_PREF_MEM
 	pci_domain_read_resources(dev);
-
-
-#else
-	struct bus *link;
-	struct resource *resource;
-	for (link=dev->link_list; link; link = link->next) {
-		/* Initialize the system wide io space constraints */
-		resource = new_resource(dev, 0|(link->link_num<<2));
-		resource->base	= 0x400;
-		resource->limit = 0xffffUL;
-		resource->flags = IORESOURCE_IO;
-
-		/* Initialize the system wide prefetchable memory resources constraints */
-		resource = new_resource(dev, 1|(link->link_num<<2));
-		resource->limit = 0xfcffffffffULL;
-		resource->flags = IORESOURCE_MEM | IORESOURCE_PREFETCH;
-
-		/* Initialize the system wide memory resources constraints */
-		resource = new_resource(dev, 2|(link->link_num<<2));
-		resource->limit = 0xfcffffffffULL;
-		resource->flags = IORESOURCE_MEM;
-	}
-#endif
 }
 
 static void domain_enable_resources(device_t dev)
 {
-	u32 val;
 	/* Must be called after PCI enumeration and resource allocation */
 	printk(BIOS_DEBUG, "\nFam15 - %s: AmdInitMid.\n", __func__);
-	val = agesawrapper_amdinitmid();
-	if (val) {
-		printk(BIOS_DEBUG, "agesawrapper_amdinitmid failed: %x \n", val);
-	}
+
+#if CONFIG_AMD_SB_CIMX
+	sb_After_Pci_Init();
+#endif
+	/* Enable MMIO on AMD CPU Address Map Controller */
+	amd_initcpuio();
+
+	agesawrapper_amdinitmid();
 	printk(BIOS_DEBUG, "  Fam15 - leaving %s.\n", __func__);
 }
-
 
 #if CONFIG_HW_MEM_HOLE_SIZEK != 0
 struct hw_mem_hole_info {
@@ -628,7 +688,7 @@ static struct hw_mem_hole_info get_hw_mem_hole_info(void)
 	 */
 	if (mem_hole.node_id == -1) {
 		resource_t limitk_pri = 0;
-		for (i=0; i<node_nums; i++) {
+		for (i = 0; i < node_nums; i++) {
 			dram_base_mask_t d;
 			resource_t base_k, limit_k;
 			d = get_dram_base_mask(i);
@@ -679,12 +739,9 @@ static void setup_uma_memory(void)
 #endif
 }
 
+
 static void domain_set_resources(device_t dev)
 {
-#if CONFIG_PCI_64BIT_PREF_MEM
-	struct resource *io, *mem1, *mem2;
-	struct resource *res;
-#endif
 	unsigned long mmio_basek;
 	u32 pci_tolm;
 	u64 ramtop = 0;
@@ -693,56 +750,6 @@ static void domain_set_resources(device_t dev)
 #if CONFIG_HW_MEM_HOLE_SIZEK != 0
 	struct hw_mem_hole_info mem_hole;
 	u32 reset_memhole = 1;
-#endif
-
-#if CONFIG_PCI_64BIT_PREF_MEM
-
-	for (link = dev->link_list; link; link = link->next) {
-		/* Now reallocate the pci resources memory with the
-		 * highest addresses I can manage.
-		 */
-		mem1 = find_resource(dev, 1|(link->link_num<<2));
-		mem2 = find_resource(dev, 2|(link->link_num<<2));
-
-		printk(BIOS_DEBUG, "base1: 0x%08Lx limit1: 0x%08Lx size: 0x%08Lx align: %d\n",
-				mem1->base, mem1->limit, mem1->size, mem1->align);
-		printk(BIOS_DEBUG, "base2: 0x%08Lx limit2: 0x%08Lx size: 0x%08Lx align: %d\n",
-				mem2->base, mem2->limit, mem2->size, mem2->align);
-
-		/* See if both resources have roughly the same limits */
-		if (((mem1->limit <= 0xffffffff) && (mem2->limit <= 0xffffffff)) ||
-				((mem1->limit > 0xffffffff) && (mem2->limit > 0xffffffff)))
-		{
-			/* If so place the one with the most stringent alignment first */
-			if (mem2->align > mem1->align) {
-				struct resource *tmp;
-				tmp = mem1;
-				mem1 = mem2;
-				mem2 = tmp;
-			}
-			/* Now place the memory as high up as it will go */
-			mem2->base = resource_max(mem2);
-			mem1->limit = mem2->base - 1;
-			mem1->base = resource_max(mem1);
-		}
-		else {
-			/* Place the resources as high up as they will go */
-			mem2->base = resource_max(mem2);
-			mem1->base = resource_max(mem1);
-		}
-
-		printk(BIOS_DEBUG, "base1: 0x%08Lx limit1: 0x%08Lx size: 0x%08Lx align: %d\n",
-				mem1->base, mem1->limit, mem1->size, mem1->align);
-		printk(BIOS_DEBUG, "base2: 0x%08Lx limit2: 0x%08Lx size: 0x%08Lx align: %d\n",
-				mem2->base, mem2->limit, mem2->size, mem2->align);
-	}
-
-	for (res = &dev->resource_list; res; res = res->next)
-	{
-		res->flags |= IORESOURCE_ASSIGNED;
-		res->flags |= IORESOURCE_STORED;
-		report_resource_stored(dev, res, "");
-	}
 #endif
 
 	pci_tolm = 0xffffffffUL;
@@ -790,7 +797,6 @@ static void domain_set_resources(device_t dev)
 
 		sizek = limitk - basek;
 
-
 		/* see if we need a hole from 0xa0000 to 0xbffff */
 		if ((basek < ((8*64)+(8*16))) && (sizek > ((8*64)+(16*16)))) {
 			ram_resource(dev, (idx | i), basek, ((8*64)+(8*16)) - basek);
@@ -800,14 +806,12 @@ static void domain_set_resources(device_t dev)
 
 		}
 
-		//printk(BIOS_DEBUG, "node %d : mmio_basek=%08lx, basek=%08llx, limitk=%08llx\n", i, mmio_basek, basek, limitk);
-
 		/* split the region to accommodate pci memory space */
-		if ((basek < 4*1024*1024 ) && (limitk > mmio_basek)) {
+		if ((basek < 4*1024*1024) && (limitk > mmio_basek)) {
 			if (basek <= mmio_basek) {
 				unsigned pre_sizek;
 				pre_sizek = mmio_basek - basek;
-				if (pre_sizek>0) {
+				if (pre_sizek > 0) {
 					ram_resource(dev, (idx | i), basek, pre_sizek);
 					idx += 0x10;
 					sizek -= pre_sizek;
@@ -840,23 +844,28 @@ static void domain_set_resources(device_t dev)
 	set_top_of_ram(ramtop);
 #endif
 
-	for(link = dev->link_list; link; link = link->next) {
+	for (link = dev->link_list; link; link = link->next) {
 		if (link->children) {
 			assign_resources(link);
 		}
 	}
 }
 
+/* all family15's pci devices are under 0x18.0, so we search from dev 0x18 fun 0 */
+static void f15_pci_domain_scan_bus(device_t dev)
+{
+	struct bus *link = dev->link_list;
+	pci_scan_bus(link, PCI_DEVFN(0x18, 0), 0xff);
+}
 
 static struct device_operations pci_domain_ops = {
 	.read_resources	  = domain_read_resources,
 	.set_resources	  = domain_set_resources,
 	.enable_resources = domain_enable_resources,
-	.init		  = NULL,
+	.init		  = DEVICE_NOOP,
 	.scan_bus	  = f15_pci_domain_scan_bus,
 	.ops_pci_bus	  = pci_bus_default_ops,
 };
-
 
 static void sysconf_init(device_t dev) // first node
 {
@@ -900,7 +909,7 @@ static void add_more_links(device_t dev, unsigned total_links)
 	last->next = NULL;
 }
 
-static u32 cpu_bus_scan(device_t dev, u32 max)
+static void cpu_bus_scan(device_t dev)
 {
 	struct bus *cpu_bus;
 	device_t dev_mc;
@@ -958,7 +967,7 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 	}
 	sysconf_init(dev_mc);
 #if CONFIG_CBB && (MAX_NODE_NUMS > 32)
-	if (node_nums>32) { // need to put node 32 to node 63 to bus 0xfe
+	if (node_nums > 32) { // need to put node 32 to node 63 to bus 0xfe
 		if (pci_domain->link_list && !pci_domain->link_list->next) {
 			struct bus *new_link = new_link(pci_domain);
 			pci_domain->link_list->next = new_link;
@@ -1007,7 +1016,7 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 			 * ensure all of the cpu's pci devices are found.
 			 */
 			int fn;
-			for(fn = 0; fn <= 5; fn++) { //FBDIMM?
+			for (fn = 0; fn <= 5; fn++) { //FBDIMM?
 				cdb_dev = pci_probe_dev(NULL, pbus,
 							PCI_DEVFN(devn, fn));
 			}
@@ -1016,13 +1025,7 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 			/* Ok, We need to set the links for that device.
 			 * otherwise the device under it will not be scanned
 			 */
-			int linknum;
-#if CONFIG_HT3_SUPPORT
-			linknum = 8;
-#else
-			linknum = 4;
-#endif
-			add_more_links(cdb_dev, linknum);
+			add_more_links(cdb_dev, 8);
 		}
 
 		family = cpuid_eax(1);
@@ -1042,10 +1045,10 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 			siblings = 0; //default one core
 		}
 		int enable_node = cdb_dev && cdb_dev->enabled;
-		printk(BIOS_SPEW, "%s family%xh, core_max=0x%x, core_nums=0x%x, siblings=0x%x\n",
+		printk(BIOS_SPEW, "%s family%xh, core_max = 0x%x, core_nums = 0x%x, siblings = 0x%x\n",
 				dev_path(cdb_dev), 0x0f + family, core_max, core_nums, siblings);
 
-		for (j = 0; j <= siblings; j++ ) {
+		for (j = 0; j <= siblings; j++) {
 			u32 lapicid_start = 0;
 
 			/*
@@ -1060,21 +1063,21 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 			 *
 			 * This is needed because many IO-APIC devices only have 4 bits
 			 * for their APIC id and therefore must reside at 0..15
-                         */
-#ifndef CFG_PLAT_NUM_IO_APICS /* defined in mainboard buildOpts.c */
-#define CFG_PLAT_NUM_IO_APICS 3
-#endif
-			if ((node_nums * core_max) + CFG_PLAT_NUM_IO_APICS >= 0x10) {
-				lapicid_start = (CFG_PLAT_NUM_IO_APICS - 1) / core_max;
+			 */
+
+			u8 plat_num_io_apics = 3; /* FIXME */
+
+			if ((node_nums * core_max) + plat_num_io_apics >= 0x10) {
+				lapicid_start = (plat_num_io_apics - 1) / core_max;
 				lapicid_start = (lapicid_start + 1) * core_max;
-				printk(BIOS_SPEW, "lpaicid_start=0x%x ", lapicid_start);
+				printk(BIOS_SPEW, "lpaicid_start = 0x%x ", lapicid_start);
 			}
 #if CONFIG_CPU_AMD_SOCKET_G34
 			u32 apic_id = (i / 2 * core_max) + j + lapicid_start + (i % 2 ? siblings + 1 : 0);
 #else
 			u32 apic_id = (i  * core_max) + j + lapicid_start;
 #endif
-			printk(BIOS_SPEW, "node 0x%x core 0x%x apicid=0x%x\n",
+			printk(BIOS_SPEW, "node 0x%x core 0x%x apicid = 0x%x\n",
 					i, j, apic_id);
 
 			device_t cpu = add_cpu_device(cpu_bus, apic_id, enable_node);
@@ -1082,7 +1085,6 @@ static u32 cpu_bus_scan(device_t dev, u32 max)
 				amd_cpu_topology(cpu, i, j);
 		} //j
 	}
-	return max;
 }
 
 static void cpu_bus_init(device_t dev)
@@ -1090,26 +1092,13 @@ static void cpu_bus_init(device_t dev)
 	initialize_cpus(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
-static void cpu_bus_read_resources(device_t dev)
-{
-}
-
-static void cpu_bus_set_resources(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources	  = cpu_bus_read_resources,
-	.set_resources	  = cpu_bus_set_resources,
-	.enable_resources = cpu_bus_noop,
+	.read_resources	  = DEVICE_NOOP,
+	.set_resources	  = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init		  = cpu_bus_init,
 	.scan_bus	  = cpu_bus_scan,
 };
-
 
 static void root_complex_enable_dev(struct device *dev)
 {
@@ -1131,15 +1120,7 @@ static void root_complex_enable_dev(struct device *dev)
 	}
 }
 
-
 struct chip_operations northbridge_amd_agesa_family15_root_complex_ops = {
 	CHIP_NAME("AMD FAM15 Root Complex")
 	.enable_dev = root_complex_enable_dev,
 };
-
-/* all family15's pci devices are under 0x18.0, so we search from dev 0x18 fun 0 */
-static unsigned int f15_pci_domain_scan_bus(device_t dev, unsigned int max)
-{
-	max = pci_scan_bus(dev->link_list, PCI_DEVFN(0x18, 0), 0xff, max);
-	return max;
-}

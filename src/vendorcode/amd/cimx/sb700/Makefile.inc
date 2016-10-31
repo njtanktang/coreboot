@@ -32,6 +32,11 @@ CPPFLAGS_x86_32 += -I$(src)/southbridge/amd/cimx/sb700
 CPPFLAGS_x86_32 += -I$(src)/include/cpu/amd/common
 CPPFLAGS_x86_32 += -I$(src)/vendorcode/amd/cimx/sb700
 
+CPPFLAGS_x86_64 += -I$(src)/mainboard/$(MAINBOARDDIR)
+CPPFLAGS_x86_64 += -I$(src)/southbridge/amd/cimx/sb700
+CPPFLAGS_x86_64 += -I$(src)/include/cpu/amd/common
+CPPFLAGS_x86_64 += -I$(src)/vendorcode/amd/cimx/sb700
+
 romstage-y += ACPILIB.c
 romstage-y += AMDLIB.c
 romstage-y += AMDSBLIB.c
@@ -44,7 +49,7 @@ romstage-y += SATA.c
 romstage-y += SBCMN.c
 romstage-y += SBCMNLIB.c
 romstage-y += SBMAIN.c
-romstage-y += SBPOR.c
+romstage-y += SBPort.c
 romstage-y += SMM.c
 romstage-y += USB.c
 
@@ -60,7 +65,7 @@ ramstage-y += SATA.c
 ramstage-y += SBCMN.c
 ramstage-y += SBCMNLIB.c
 ramstage-y += SBMAIN.c
-ramstage-y += SBPOR.c
+ramstage-y += SBPort.c
 ramstage-y += SMM.c
 ramstage-y += USB.c
 ramstage-y += LEGACY.c

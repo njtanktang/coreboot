@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 - 2016 Raptor Engineering, LLC
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,16 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _SB700_EARLY_SETUP_C_
 #define _SB700_EARLY_SETUP_C_
 
 #include <stdint.h>
+#include <option.h>
 #include <arch/acpi.h>
 #include <arch/cpu.h>
 #include <arch/io.h>
@@ -56,7 +54,7 @@ static void sb700_acpi_init(void)
 	pmio_write(0x28, ACPI_GPE0_BLK & 0xFF);
 	pmio_write(0x29, ACPI_GPE0_BLK >> 8);
 
-	/* CpuControl is in \_PR.CPU0, 6 bytes */
+	/* CpuControl is in \_PR.CP00, 6 bytes */
 	pmio_write(0x26, ACPI_CPU_CONTROL & 0xFF);
 	pmio_write(0x27, ACPI_CPU_CONTROL >> 8);
 
@@ -79,7 +77,7 @@ static void sb700_acpi_init(void)
 /* RPR 2.28: Get SB ASIC Revision. */
 static u8 set_sb700_revision(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 rev_id, enable_14Mhz, byte;
 	u8 rev = 0;
 
@@ -136,7 +134,7 @@ void sb7xx_51xx_lpc_init(void)
 {
 	u8 reg8;
 	u32 reg32;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_locate_device(PCI_ID(0x1002, 0x4385), 0);	/* SMBUS controller */
 	/* NOTE: Set BootTimerDisable, otherwise it would keep rebooting!!
@@ -195,7 +193,7 @@ void sb7xx_51xx_lpc_init(void)
 void sb7xx_51xx_enable_wideio(u8 wio_index, u16 base)
 {
 	/* TODO: Now assume wio_index=0 */
-	device_t dev;
+	pci_devfn_t dev;
 	u8 reg8;
 
 	dev = pci_locate_device(PCI_ID(0x1002, 0x439d), 0);	/* LPC Controller */
@@ -208,7 +206,7 @@ void sb7xx_51xx_enable_wideio(u8 wio_index, u16 base)
 void sb7xx_51xx_disable_wideio(u8 wio_index)
 {
 	/* TODO: Now assume wio_index=0 */
-	device_t dev;
+	pci_devfn_t dev;
 	u8 reg8;
 
 	dev = pci_locate_device(PCI_ID(0x1002, 0x439d), 0);	/* LPC Controller */
@@ -219,9 +217,9 @@ void sb7xx_51xx_disable_wideio(u8 wio_index)
 }
 
 /* what is its usage? */
-u32 __attribute__ ((weak)) get_sbdn(u32 bus)
+u32 get_sbdn(u32 bus)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Find the device. */
 	dev = pci_locate_device_on_bus(PCI_ID(0x1002, 0x4385), bus);
@@ -236,7 +234,7 @@ static u8 dual_core(void)
 /*
  * RPR 2.4 C-state and VID/FID change for the K8 platform.
  */
-void __attribute__((weak)) enable_fid_change_on_sb(u32 sbbusn, u32 sbdn)
+void enable_fid_change_on_sb(u32 sbbusn, u32 sbdn)
 {
 	u8 byte;
 	byte = pmio_read(0x9a);
@@ -252,7 +250,7 @@ void __attribute__((weak)) enable_fid_change_on_sb(u32 sbbusn, u32 sbdn)
 	byte |= 0x20;
 	pmio_write(0x8f, byte);
 
-	pmio_write(0x8b, 0x01);	/* TODO: if the HT Link is 200 MHz, it is 0x0A. It doesnt often happen. */
+	pmio_write(0x8b, 0x01);	/* TODO: if the HT Link is 200 MHz, it is 0x0A. It doesn't often happen. */
 	pmio_write(0x8a, 0x90);
 
 	pmio_write(0x88, 0x10);
@@ -270,10 +268,6 @@ void __attribute__((weak)) enable_fid_change_on_sb(u32 sbbusn, u32 sbdn)
 	byte &= ~(1<<6);
 	pmio_write(0x8d, byte);
 
-	byte = pmio_read(0x61);
-	byte &= ~0x04;
-	pmio_write(0x61, byte);
-
 	byte = pmio_read(0x42);
 	byte &= ~0x04;
 	pmio_write(0x42, byte);
@@ -290,7 +284,7 @@ void __attribute__((weak)) enable_fid_change_on_sb(u32 sbbusn, u32 sbdn)
 void sb7xx_51xx_pci_port80(void)
 {
 	u8 byte;
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* P2P Bridge */
 	dev = pci_locate_device(PCI_ID(0x1002, 0x4384), 0);
@@ -335,7 +329,7 @@ void sb7xx_51xx_pci_port80(void)
 void sb7xx_51xx_lpc_port80(void)
 {
 	u8 byte;
-	device_t dev;
+	pci_devfn_t dev;
 	u32 reg32;
 
 	/* Enable LPC controller */
@@ -354,11 +348,15 @@ void sb7xx_51xx_lpc_port80(void)
 /* sbDevicesPorInitTable */
 static void sb700_devices_por_init(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 byte;
-#if CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100
-	u32 dword;
-#endif
+	uint32_t dword;
+	uint8_t nvram;
+	uint8_t sata_ahci_mode;
+
+	sata_ahci_mode = 0;
+	if (get_option(&nvram, "sata_ahci_mode") == CB_SUCCESS)
+		sata_ahci_mode = !!nvram;
 
 	printk(BIOS_INFO, "sb700_devices_por_init()\n");
 	/* SMBus Device, BDF:0-20-0 */
@@ -374,7 +372,7 @@ static void sb700_devices_por_init(void)
 
 	/* sbPorAtStartOfTblCfg */
 	/* Set A-Link bridge access address. This address is set at device 14h, function 0, register 0xf0.
-	 * This is an I/O address. The I/O address must be on 16-byte boundry.  */
+	 * This is an I/O address. The I/O address must be on 16-byte boundary.  */
 	pci_write_config32(dev, 0xf0, AB_INDX);
 
 	/* To enable AB/BIF DMA access, a specific register inside the BIF register space needs to be configured first. */
@@ -395,6 +393,22 @@ static void sb700_devices_por_init(void)
 	byte |= (1 << 0);
 	pci_write_config8(dev, 0xd2, byte);
 
+	/* set auxiliary smbus iobase and enable controller */
+	pci_write_config32(dev, 0x58, SMBUS_AUX_IO_BASE | 1);
+
+	if (inb(SMBUS_IO_BASE) == 0xff)
+		printk(BIOS_INFO, "%s: Primary SMBUS controller I/O not found\n", __func__);
+
+	if (inb(SMBUS_AUX_IO_BASE) == 0xff) {
+		printk(BIOS_INFO, "%s: Secondary SMBUS controller I/O not found\n", __func__);
+	}
+	else {
+		if (IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100)) {
+			/* Disable legacy sensor support / reset ASF Slave state machine per RPR 2.27 step 3 */
+			outb(0x40, SMBUS_AUX_IO_BASE + SMBSLVMISC);
+		}
+	}
+
 	/* KB2RstEnable */
 	pci_write_config8(dev, 0x40, 0x44);
 
@@ -413,6 +427,11 @@ static void sb700_devices_por_init(void)
 	/* Legacy DMA Prefetch Enhancement, CIM masked it. */
 	/* pci_write_config8(dev, 0x43, 0x1); */
 
+	/* Enable DMA verify bugfix */
+	byte = pci_read_config8(dev, 0x67);
+	byte |= 0x1 << 1;
+	pci_write_config8(dev, 0x67, byte);
+
 	/* Disabling Legacy USB Fast SMI# */
 	byte = pci_read_config8(dev, 0x62);
 	byte |= 0x24;
@@ -420,10 +439,10 @@ static void sb700_devices_por_init(void)
 
 	/* Configure HPET Counter CLK period */
 	byte = pci_read_config8(dev, 0x43);
-	byte &= 0xF7;	/* unhide HPET regs */
+	byte &= 0xF7;						/* Unhide HPET regs */
 	pci_write_config8(dev, 0x43, byte);
-	pci_write_config32(dev, 0x34, 0x0429B17E ); /* Counter CLK period */
-	byte |= 0x08;	/* hide HPET regs */
+	pci_write_config32(dev, 0x34, 0x0429b17e);		/* Counter CLK period */
+	byte |= 0x08;						/* Hide HPET regs */
 	pci_write_config8(dev, 0x43, byte);
 
 	/* Features Enable */
@@ -438,6 +457,14 @@ static void sb700_devices_por_init(void)
 	/* IO Address Enable, CIM set 0x78 only and masked 0x79. */
 	/*pci_write_config8(dev, 0x79, 0x4F); */
 	pci_write_config8(dev, 0x78, 0xFF);
+
+	if (IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SB700_DISABLE_ISA_DMA)) {
+		printk(BIOS_DEBUG, "%s: Disabling ISA DMA support\n", __func__);
+		/* Disable LPC ISA DMA Capability */
+		byte = pci_read_config8(dev, 0x78);
+		byte &= ~(1 << 0);
+		pci_write_config8(dev, 0x78, byte);
+	}
 
 	/* Set smbus iospace enable, I don't know why write 0x04 into reg5 that is reserved */
 	pci_write_config16(dev, 0x4, 0x0407);
@@ -456,8 +483,10 @@ static void sb700_devices_por_init(void)
 	/* LPC Device, BDF:0-20-3 */
 	printk(BIOS_INFO, "sb700_devices_por_init(): LPC Device, BDF:0-20-3\n");
 	dev = pci_locate_device(PCI_ID(0x1002, 0x439D), 0);
-	/* DMA enable */
-	pci_write_config8(dev, 0x40, 0x04);
+	if (!IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SB700_DISABLE_ISA_DMA)) {
+		/* DMA enable */
+		pci_write_config8(dev, 0x40, 0x04);
+	}
 
 	/* IO Port Decode Enable */
 	pci_write_config8(dev, 0x44, 0xFF);
@@ -476,7 +505,7 @@ static void sb700_devices_por_init(void)
 	pci_write_config8(dev, 0x49, 0xFF);
 	/* Enable 0x480-0x4bf, 0x4700-0x470B */
 	byte = pci_read_config8(dev, 0x4A);
-	byte |= ((1 << 1) + (1 << 6));	/*0x42, save the configuraion for port 0x80. */
+	byte |= ((1 << 1) + (1 << 6));	/*0x42, save the configuration for port 0x80. */
 	pci_write_config8(dev, 0x4A, byte);
 
 	/* Enable Tpm12_en and Tpm_legacy. I don't know what is its usage and copied from CIM. */
@@ -490,8 +519,8 @@ static void sb700_devices_por_init(void)
 	/* Arbiter enable. */
 	pci_write_config8(dev, 0x43, 0xff);
 
-	/* Set PCDMA request into hight priority list. */
-	/* pci_write_config8(dev, 0x49, 0x1) */ ;
+	/* Set PCDMA request into height priority list. */
+	/* pci_write_config8(dev, 0x49, 0x1); */
 
 	pci_write_config8(dev, 0x40, 0x26);
 
@@ -500,34 +529,58 @@ static void sb700_devices_por_init(void)
 	/* Enable PCIB_DUAL_EN_UP will fix potential problem with PCI cards. */
 	pci_write_config8(dev, 0x50, 0x01);
 
+	if (!sata_ahci_mode){
 #if CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100
-	/* SP5100 default SATA mode is RAID5 MODE */
-	dev = pci_locate_device(PCI_ID(0x1002, 0x4393), 0);
-	/* Set SATA Operation Mode, Set to IDE mode */
-	byte = pci_read_config8(dev, 0x40);
-	byte |= (1 << 0);
-	pci_write_config8(dev, 0x40, byte);
+		/* SP5100 default SATA mode is RAID5 MODE */
+		dev = pci_locate_device(PCI_ID(0x1002, 0x4392), 0);
 
-	dword = 0x01018f00;
-	pci_write_config32(dev, 0x8, dword);
+		if (dev != PCI_DEV_INVALID) {
+			/* Set SATA Operation Mode, Set to IDE mode */
+			byte = pci_read_config8(dev, 0x40);
+			byte |= (1 << 0);
+			pci_write_config8(dev, 0x40, byte);
 
-	/* set SATA Device ID writable */
-	dword = pci_read_config32(dev, 0x40);
-	dword &= ~(1 << 24);
-	pci_write_config32(dev, 0x40, dword);
+			dword = 0x01018f00;
+			pci_write_config32(dev, 0x8, dword);
 
-	/* set Device ID accommodate with IDE emulation mode configuration*/
-	pci_write_config32(dev, 0x0, 0x43901002);
+			/* set SATA Device ID writable */
+			dword = pci_read_config32(dev, 0x40);
+			dword &= ~(1 << 24);
+			pci_write_config32(dev, 0x40, dword);
+
+			/* set Device ID consistent with IDE emulation mode configuration */
+			pci_write_config32(dev, 0x0, 0x43901002);
+		}
+#endif
+	}
 
 	/* rpr v2.13 4.17 Reset CPU on Sync Flood */
 	abcfg_reg(0x10050, 1 << 2, 1 << 2);
-#endif
 
 	/* SATA Device, BDF:0-17-0, Non-Raid-5 SATA controller */
-	printk(BIOS_INFO, "sb700_devices_por_init(): SATA Device, BDF:0-18-0\n");
+	printk(BIOS_INFO, "sb700_devices_por_init(): SATA Device, BDF:0-17-0\n");
 	dev = pci_locate_device(PCI_ID(0x1002, 0x4390), 0);
 
-	/*PHY Global Control*/
+	if (sata_ahci_mode) {
+		/* Switch to AHCI mode (AMD inbox) */
+		dword = pci_read_config32(dev, 0x40);
+		dword |= (0x1 << 24);		/* Lock Flash Device ID = 1 */
+		pci_write_config32(dev, 0x40, dword);
+
+		/* Deactivate Sub-Class Code write protection */
+		byte = pci_read_config8(dev, 0x40);
+		byte |= (1 << 0);
+		pci_write_config8(dev, 0x40, byte);
+
+		dword = pci_read_config32(dev, 0x08);
+		dword &= ~(0xff << 16);		/* Sub-Class Code = 0x6 */
+		dword |= (0x6 << 16);
+		dword &= ~(0xff << 8);		/* Operating Mode Selection = 0x1 */
+		dword |= (0x1 << 8);
+		pci_write_config32(dev, 0x08, dword);
+	}
+
+	/* PHY Global Control */
 	pci_write_config16(dev, 0x86, 0x2C00);
 }
 
@@ -540,6 +593,13 @@ static void sb700_devices_por_init(void)
 static void sb700_pmio_por_init(void)
 {
 	u8 byte;
+	uint8_t enable_c_states;
+
+	enable_c_states = 0;
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	if (get_option(&byte, "cpu_c_states") == CB_SUCCESS)
+		enable_c_states = !!byte;
+#endif
 
 	printk(BIOS_INFO, "sb700_pmio_por_init()\n");
 	/* K8KbRstEn, KB_RST# control for K8 system. */
@@ -547,40 +607,50 @@ static void sb700_pmio_por_init(void)
 	byte |= 0x20;
 	pmio_write(0x66, byte);
 
-	/* RPR2.31 PM_TURN_OFF_MSG during ASF Shutdown. */
-	if (get_sb700_revision(pci_locate_device(PCI_ID(0x1002, 0x4385), 0)) <= 0x12) {
+	if (IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100)) {
+		/* RPR 2.11 Sx State Settings */
 		byte = pmio_read(0x65);
-		byte &= ~(1 << 7);
+		byte &= ~(1 << 7);		/* SpecialFunc = 0 */
 		pmio_write(0x65, byte);
 
-		byte = pmio_read(0x75);
-		byte &= 0xc0;
-		byte |= 0x05;
-		pmio_write(0x75, byte);
-
-		byte = pmio_read(0x52);
-		byte &= 0xc0;
-		byte |= 0x08;
-		pmio_write(0x52, byte);
+		byte = pmio_read(0x68);
+		byte |= 1 << 2;			/* MaskApicEn = 1 */
+		pmio_write(0x68, byte);
 	} else {
-		byte = pmio_read(0xD7);
-		byte |= 1 << 0;
-		pmio_write(0xD7, byte);
+		/* RPR2.31 PM_TURN_OFF_MSG during ASF Shutdown. */
+		if (get_sb700_revision(pci_locate_device(PCI_ID(0x1002, 0x4385), 0)) <= 0x12) {
+			byte = pmio_read(0x65);
+			byte &= ~(1 << 7);
+			pmio_write(0x65, byte);
 
-		byte = pmio_read(0x65);
-		byte |= 1 << 7;
-		pmio_write(0x65, byte);
+			byte = pmio_read(0x75);
+			byte &= 0xc0;
+			byte |= 0x05;
+			pmio_write(0x75, byte);
 
-		byte = pmio_read(0x75);
-		byte &= 0xc0;
-		byte |= 0x01;
-		pmio_write(0x75, byte);
+			byte = pmio_read(0x52);
+			byte &= 0xc0;
+			byte |= 0x08;
+			pmio_write(0x52, byte);
+		} else {
+			byte = pmio_read(0xD7);
+			byte |= 1 << 0;
+			pmio_write(0xD7, byte);
 
-		byte = pmio_read(0x52);
-		byte &= 0xc0;
-		byte |= 0x02;
-		pmio_write(0x52, byte);
+			byte = pmio_read(0x65);
+			byte |= 1 << 7;
+			pmio_write(0x65, byte);
 
+			byte = pmio_read(0x75);
+			byte &= 0xc0;
+			byte |= 0x01;
+			pmio_write(0x75, byte);
+
+			byte = pmio_read(0x52);
+			byte &= 0xc0;
+			byte |= 0x02;
+			pmio_write(0x52, byte);
+		}
 	}
 
 	/* Watch Dog Timer Control
@@ -600,6 +670,34 @@ static void sb700_pmio_por_init(void)
 	byte = pmio_read(0xB2);
 	byte |= 1 << 0;
 	pmio_write(0xB2, byte);
+
+	/* Set up IOAPIC and BM_STS monitoring */
+	byte = pmio_read(0x61);
+	if (enable_c_states)
+		byte |= 0x4;
+	else
+		byte &= ~0x04;
+	pmio_write(0x61, byte);
+
+	/* NOTE: Enabling automatic C1e state switch caused failures when initializing processors */
+
+	/* Enable precision HPET clock and automatic C state switch */
+	byte = pmio_read(0xbb);
+	byte |= 0xc0;
+	pmio_write(0xbb, byte);
+
+#if CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100
+	/* RPR 2.26 Alter CPU reset timing */
+	byte = pmio_read(0xb2);
+	byte |= 0x1 << 2;	/* Enable CPU reset timing option */
+	pmio_write(0xb2, byte);
+
+	/* Work around system clock drift issues */
+	byte = pmio_read(0xd4);
+	byte |= 0x1 << 6;	/* Enable alternate 14MHz clock source */
+	byte |= 0x1 << 7;	/* Disable 25MHz oscillator buffer */
+	pmio_write(0xd4, byte);
+#endif
 }
 
 /*
@@ -607,12 +705,14 @@ static void sb700_pmio_por_init(void)
 */
 static void sb700_pci_cfg(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 byte;
+	uint8_t acpi_s1_supported = 1;
 
 	/* SMBus Device, BDF:0-20-0 */
 	dev = pci_locate_device(PCI_ID(0x1002, 0x4385), 0);
-	/* Enable watchdog decode timer */
+
+	/* Enable watchdog timer decode */
 	byte = pci_read_config8(dev, 0x41);
 	byte |= (1 << 3);
 	pci_write_config8(dev, 0x41, byte);
@@ -635,10 +735,12 @@ static void sb700_pci_cfg(void)
 	 * mentioned in RPR. But I keep them. The registers and the
 	 * comments are compatible. */
 	dev = pci_locate_device(PCI_ID(0x1002, 0x439D), 0);
-	/* Enabling LPC DMA function. */
-	byte = pci_read_config8(dev, 0x40);
-	byte |= (1 << 2);
-	pci_write_config8(dev, 0x40, byte);
+	if (!IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SB700_DISABLE_ISA_DMA)) {
+		/* Enabling LPC DMA function. */
+		byte = pci_read_config8(dev, 0x40);
+		byte |= (1 << 2);
+		pci_write_config8(dev, 0x40, byte);
+	}
 	/* Disabling LPC TimeOut. 0x48[7] clear. */
 	byte = pci_read_config8(dev, 0x48);
 	byte &= 0x7f;
@@ -650,14 +752,19 @@ static void sb700_pci_cfg(void)
 
 	/* SATA Device, BDF:0-17-0, Non-Raid-5 SATA controller */
 	dev = pci_locate_device(PCI_ID(0x1002, 0x4390), 0);
+	if (dev == PCI_DEV_INVALID)
+		dev = pci_locate_device(PCI_ID(0x1002, 0x4391), 0);
+	if (dev == PCI_DEV_INVALID)
+		dev = pci_locate_device(PCI_ID(0x1002, 0x4394), 0);
+
 	/* rpr7.12 SATA MSI and D3 Power State Capability. */
 	byte = pci_read_config8(dev, 0x40);
 	byte |= 1 << 0;
 	pci_write_config8(dev, 0x40, byte);
-	if (get_sb700_revision(pci_locate_device(PCI_ID(0x1002, 0x4385), 0)) <= 0x12)
-		pci_write_config8(dev, 0x34, 0x70); /* set 0x61 to 0x70 if S1 is not supported. */
+	if (acpi_s1_supported)
+		pci_write_config8(dev, 0x34, 0x70);	/* Hide D3 power state and MSI capabilities */
 	else
-		pci_write_config8(dev, 0x34, 0x50); /* set 0x61 to 0x50 if S1 is not supported. */
+		pci_write_config8(dev, 0x61, 0x70);	/* Hide MSI capability */
 	byte &= ~(1 << 0);
 	pci_write_config8(dev, 0x40, byte);
 }
@@ -671,6 +778,17 @@ static void sb700_por_init(void)
 
 	/* sbPmioPorInitTable + sbK8PmioPorInitTable */
 	sb700_pmio_por_init();
+}
+
+uint16_t sb7xx_51xx_decode_last_reset(void) {
+	uint16_t reset_status = 0;
+	reset_status |= pmio_read(0x44);
+	reset_status |= (pmio_read(0x45) << 8);
+	printk(BIOS_INFO, "sb700 reset flags: %04x\n", reset_status);
+	if (reset_status & (0x1 << 10))
+		printk(BIOS_WARNING, "WARNING: Last reset was caused by fatal error / sync flood!\n");
+
+	return reset_status;
 }
 
 /*
@@ -696,7 +814,7 @@ int s3_save_nvram_early(u32 dword, int size, int  nvram_pos)
 	int i;
 	printk(BIOS_DEBUG, "Writing %x of size %d to nvram pos: %d\n", dword, size, nvram_pos);
 
-	for (i = 0; i<size; i++) {
+	for (i = 0; i < size; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		outb((dword >>(8 * i)) & 0xff , BIOSRAM_DATA);
 		nvram_pos++;
@@ -709,7 +827,7 @@ int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos)
 {
 	u32 data = *old_dword;
 	int i;
-	for (i = 0; i<size; i++) {
+	for (i = 0; i < size; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		data &= ~(0xff << (i * 8));
 		data |= inb(BIOSRAM_DATA) << (i *8);
@@ -721,22 +839,33 @@ int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos)
 	return nvram_pos;
 }
 
-#if CONFIG_HAVE_ACPI_RESUME
-int acpi_is_wakeup_early(void)
+int acpi_get_sleep_type(void)
 {
 	u16 tmp;
 	tmp = inw(ACPI_PM1_CNT_BLK);
-	printk(BIOS_DEBUG, "IN TEST WAKEUP %x\n", tmp);
-	return (((tmp & (7 << 10)) >> 10) == 3);
+	return ((tmp & (7 << 10)) >> 10);
 }
 
+void set_lpc_sticky_ctl(bool enable)
+{
+	uint8_t byte;
+
+	byte = pmio_read(0xbb);
+	if (enable)
+		byte |= 0x20;
+	else
+		byte &= ~0x20;
+	pmio_write(0xbb, byte);
+}
+
+#if IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
 unsigned long get_top_of_ram(void)
 {
 	uint32_t xdata = 0;
 	int xnvram_pos = 0xfc, xi;
-	if (!acpi_is_wakeup_early())
+	if (acpi_get_sleep_type() != 3)
 		return 0;
-	for (xi = 0; xi<4; xi++) {
+	for (xi = 0; xi < 4; xi++) {
 		outb(xnvram_pos, BIOSRAM_INDEX);
 		xdata &= ~(0xff << (xi * 8));
 		xdata |= inb(BIOSRAM_DATA) << (xi *8);

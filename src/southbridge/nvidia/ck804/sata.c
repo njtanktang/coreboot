@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,7 +20,7 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
-#include "ck804.h"
+#include "chip.h"
 
 #ifndef CK804_SATA_RESET_FOR_ATAPI
 #define CK804_SATA_RESET_FOR_ATAPI 0
@@ -54,13 +50,6 @@ static void sata_com_reset(struct device *dev, unsigned reset)
 
 	*(base + 8) = dword;
 	*(base + 0x48) = dword;
-
-#if 0
-	udelay(1000);
-	dword &= ~(0xf);
-	*(base + 8) = dword;
-	*(base + 0x48) = dword;
-#endif
 
 	if (reset)
 		return;
@@ -106,24 +95,13 @@ static void sata_init(struct device *dev)
 	if (conf->sata1_enable) {
 		/* Enable secondary SATA interface. */
 		dword |= (1 << 0);
-		printk(BIOS_DEBUG, "SATA S \t");
+		printk(BIOS_DEBUG, "SATA S\t");
 	}
 	if (conf->sata0_enable) {
 		/* Enable primary SATA interface. */
 		dword |= (1 << 1);
-		printk(BIOS_DEBUG, "SATA P \n");
+		printk(BIOS_DEBUG, "SATA P\n");
 	}
-#if 0
-	/* Write back */
-	dword |= (1 << 12);
-	dword |= (1 << 14);
-#endif
-
-#if 0
-	/* ADMA */
-	dword |= (1 << 16);
-	dword |= (1 << 17);
-#endif
 
 #if 1
 	/* DO NOT relay OK and PAGE_FRNDLY_DTXFR_CNT. */
@@ -131,23 +109,6 @@ static void sata_init(struct device *dev)
 	dword |= (0x15 << 24);
 #endif
 	pci_write_config32(dev, 0x50, dword);
-
-#if 0
-	/* SLUMBER_DURING_D3 */
-	dword = pci_read_config32(dev, 0x7c);
-	dword &= ~(1 << 4);
-	pci_write_config32(dev, 0x7c, dword);
-
-	dword = pci_read_config32(dev, 0xd0);
-	dword &= ~(0xff << 24);
-	dword |= (0x68 << 24);
-	pci_write_config32(dev, 0xd0, dword);
-
-	dword = pci_read_config32(dev, 0xe0);
-	dword &= ~(0xff << 24);
-	dword |= (0x68 << 24);
-	pci_write_config32(dev, 0xe0, dword);
-#endif
 
 	dword = pci_read_config32(dev, 0xf8);
 	dword |= 2;
@@ -167,7 +128,6 @@ static struct device_operations sata_ops = {
 	.read_resources   = pci_dev_read_resources,
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
-	// .enable        = ck804_enable,
 	.init             = sata_init,
 	.scan_bus         = 0,
 	.ops_pci          = &ck804_pci_ops,

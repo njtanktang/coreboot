@@ -11,6 +11,8 @@
 #define IORESOURCE_IRQ		0x00000400
 #define IORESOURCE_DRQ		0x00000800
 
+#define IORESOURCE_TYPE_MASK	(IORESOURCE_IO | IORESOURCE_MEM | IORESOURCE_IRQ | IORESOURCE_DRQ)
+
 #define IORESOURCE_PREFETCH	0x00001000	/* No side effects */
 #define IORESOURCE_READONLY	0x00002000
 #define IORESOURCE_CACHEABLE	0x00004000
@@ -73,5 +75,11 @@ extern void search_global_resources(
 
 #define RESOURCE_TYPE_MAX 20
 extern const char *resource_type(struct resource *resource);
+
+static inline void *res2mmio(struct resource *res, unsigned long offset,
+			     unsigned long mask)
+{
+	return (void *)(uintptr_t)((res->base + offset) & ~mask);
+}
 
 #endif /* DEVICE_RESOURCE_H */

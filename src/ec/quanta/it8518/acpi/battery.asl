@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Scope (EC0)
@@ -167,8 +163,8 @@ Device (BATX)
 		//  Design capacity of High (5%)
 		//  Design capacity of Low (1%)
 		//
-		Divide (Local0,  20, Local1, Index (PBIF, 5))
-		Divide (Local0, 100, Local1, Index (PBIF, 6))
+		Divide (Local0,  20, , Index (PBIF, 5))
+		Divide (Local0, 100, , Index (PBIF, 6))
 
 		//
 		//  Design voltage
@@ -305,7 +301,7 @@ Device (BATX)
 		If (Local6)
 		{
 			Multiply (ECVO, Local1, Local1)
-			Divide (Local1, 1000, Local7, Local1)
+			Divide (Local1, 1000, , Local1)
 		}
 		Store (Local1, Index (PBST, One))
 

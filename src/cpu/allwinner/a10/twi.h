@@ -1,8 +1,19 @@
 /*
- * Definitions Two Wire Interface (TWI) (I²C) Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Definitions Two Wire Interface (TWI) (I2C) Allwinner CPUs
  */
 
 #ifndef CPU_ALLWINNER_A10_TWI_H
@@ -39,7 +50,7 @@ enum twi_status {
 #define TWI_CLK_M_MASK		(0xf << 3)
 #define TWI_CLK_M(m)		(((m - 1) << 3) & TWI_CLK_M_MASK)
 #define TWI_CLK_N_MASK		(0x7 << 0)
-#define TWI_CLK_N(n)		(((n) << 3) & TWI_CLK_N_MASK)
+#define TWI_CLK_N(n)		((n) & TWI_CLK_N_MASK)
 
 struct a1x_twi {
 	u32 addr;	/**< 0x00: Slave address */

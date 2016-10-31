@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 $
  */
 
 #include <arch/io.h>
@@ -44,7 +40,7 @@
  * Warning: The kernel will need to be adjusted since it assumes
  * a 1.8462 MHz clock.
  */
-static void set_uart_clock_source(device_t dev, u8 uart_clock)
+static void set_uart_clock_source(struct device *dev, u8 uart_clock)
 {
 	u8 value;
 
@@ -57,7 +53,7 @@ static void set_uart_clock_source(device_t dev, u8 uart_clock)
 	pnp_exit_conf_mode(dev);
 }
 
-static void w83627uhg_init(device_t dev)
+static void w83627uhg_init(struct device *dev)
 {
 
 	if (!dev->enabled)
@@ -83,7 +79,7 @@ static void w83627uhg_init(device_t dev)
 		set_uart_clock_source(dev, 0);
 		break;
 	case W83627UHG_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	}
 }
@@ -115,7 +111,7 @@ static struct pnp_info pnp_dev_info[] = {
 	{ &ops, W83627UHG_SP6,  PNP_IO0 | PNP_IRQ0, {0x07f8, 0}, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }

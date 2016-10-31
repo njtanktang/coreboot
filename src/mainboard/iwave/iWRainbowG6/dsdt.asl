@@ -11,17 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 DefinitionBlock(
 	"dsdt.aml",
 	"DSDT",
 	0x02,		// DSDT revision: ACPI v2.0
-	"COREv2",	// OEM id
+	"COREv4",	// OEM id
 	"COREBOOT",	// OEM table id
 	0x20090419	// OEM revision
 )
@@ -30,7 +26,7 @@ DefinitionBlock(
 	#include "acpi/platform.asl"
 
 	// global NVS and variables
-	#include <southbridge/intel/sch/acpi/globalnvs.asl>
+	#include <soc/intel/sch/acpi/globalnvs.asl>
 
 	// General Purpose Events
 	//#include "acpi/gpe.asl"
@@ -40,11 +36,10 @@ DefinitionBlock(
 	Scope (\_SB) {
 		Device (PCI0)
 		{
-			#include <northbridge/intel/sch/acpi/sch.asl>
-			#include <southbridge/intel/sch/acpi/sch.asl>
+			#include <soc/intel/sch/acpi/sch.asl>
 		}
 	}
 
 	/* Chipset specific sleep states */
-	#include <southbridge/intel/sch/acpi/sleepstates.asl>
+	#include <soc/intel/sch/acpi/sleepstates.asl>
 }

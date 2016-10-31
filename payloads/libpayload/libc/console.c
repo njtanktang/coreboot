@@ -33,67 +33,118 @@
 
 struct console_output_driver *console_out;
 struct console_input_driver *console_in;
+static console_input_type last_getchar_input_type;
+
+static int output_driver_exists(struct console_output_driver *out)
+{
+	struct console_output_driver *head = console_out;
+
+	while (head) {
+		if (head == out)
+			return 1;
+		head = head->next;
+	}
+
+	return 0;
+}
+
+static int input_driver_exists(struct console_input_driver *in)
+{
+	struct console_input_driver *head = console_in;
+
+	while (head) {
+		if (head == in)
+			return 1;
+		head = head->next;
+	}
+
+	return 0;
+}
 
 void console_add_output_driver(struct console_output_driver *out)
 {
+	die_if(!out->putchar && !out->write, "Need at least one output func\n");
+	/* Check if this driver was already added to the console list */
+	if (output_driver_exists(out))
+		return;
 	out->next = console_out;
 	console_out = out;
 }
 
 void console_add_input_driver(struct console_input_driver *in)
 {
+	/* Check if this driver was already added to the console list */
+	if (input_driver_exists(in))
+		return;
 	in->next = console_in;
 	console_in = in;
 }
 
+/*
+ * For when you really need to silence an output driver (e.g. to avoid ugly
+ * recursions). Takes the pointer of either of the two output functions, since
+ * the struct console_output_driver itself is often static and inaccessible.
+ */
+int console_remove_output_driver(void *function)
+{
+	struct console_output_driver **out;
+	for (out = &console_out; *out; out = &(*out)->next)
+		if ((*out)->putchar == function || (*out)->write == function) {
+			*out = (*out)->next;
+			return 1;
+		}
+
+	return 0;
+}
+
 void console_init(void)
 {
-#ifdef CONFIG_VIDEO_CONSOLE
+#if IS_ENABLED(CONFIG_LP_VIDEO_CONSOLE)
 	video_console_init();
 #endif
-#ifdef CONFIG_SERIAL_CONSOLE
-	serial_init();
+#if IS_ENABLED(CONFIG_LP_SERIAL_CONSOLE)
+	serial_console_init();
 #endif
-#ifdef CONFIG_PC_KEYBOARD
+#if IS_ENABLED(CONFIG_LP_PC_KEYBOARD)
 	keyboard_init();
 #endif
-#ifdef CONFIG_CBMEM_CONSOLE
+#if IS_ENABLED(CONFIG_LP_CBMEM_CONSOLE)
 	cbmem_console_init();
 #endif
 }
 
-static void device_putchar(unsigned char c)
+void console_write(const void *buffer, size_t count)
 {
+	const char *ptr;
 	struct console_output_driver *out;
 	for (out = console_out; out != 0; out = out->next)
-		out->putchar(c);
+		if (out->write)
+			out->write(buffer, count);
+		else
+			for (ptr = buffer; (void *)ptr < buffer + count; ptr++)
+				out->putchar(*ptr);
 }
 
-int putchar(unsigned int c)
+int putchar(unsigned int i)
 {
-	c &= 0xff;
-	if (c == '\n')
-		device_putchar('\r');
-	device_putchar(c);
-	return c;
+	unsigned char c = (unsigned char)i;
+	console_write(&c, 1);
+	return (int)c;
 }
 
 int puts(const char *s)
 {
-	int n = 0;
+	size_t size = strlen(s);
 
-	while (*s) {
-		putchar(*s++);
-		n++;
-	}
+	console_write(s, size);
 
 	putchar('\n');
-	return n + 1;
+	return size + 1;
 }
 
 int havekey(void)
 {
-#ifdef CONFIG_USB
+#if IS_ENABLED(CONFIG_LP_USB)
 	usb_poll();
 #endif
 	struct console_input_driver *in;
@@ -110,13 +161,15 @@ int havekey(void)
 int getchar(void)
 {
 	while (1) {
-#ifdef CONFIG_USB
+#if IS_ENABLED(CONFIG_LP_USB)
 		usb_poll();
 #endif
 		struct console_input_driver *in;
 		for (in = console_in; in != 0; in = in->next)
-			if (in->havechar())
+			if (in->havechar()) {
+				last_getchar_input_type = in->input_type;
 				return in->getchar();
+			}
 	}
 }
 
@@ -134,4 +187,9 @@ int getchar_timeout(int *ms)
 		*ms = 0;
 
 	return 0;
+}
+
+console_input_type last_key_input_type(void)
+{
+	return last_getchar_input_type;
 }

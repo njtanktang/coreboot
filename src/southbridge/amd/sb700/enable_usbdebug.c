@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Use simple device model for this file even in ramstage
@@ -31,7 +27,7 @@
 
 pci_devfn_t pci_ehci_dbg_dev(unsigned int hcd_idx)
 {
-	if (hcd_idx==2)
+	if (hcd_idx == 2)
 		return PCI_DEV(0, 0x13, 2);
 	else
 		return PCI_DEV(0, 0x12, 2);
@@ -39,7 +35,7 @@ pci_devfn_t pci_ehci_dbg_dev(unsigned int hcd_idx)
 
 void pci_ehci_dbg_set_port(pci_devfn_t dev, unsigned int port)
 {
-	u32 base_regs = pci_ehci_base_regs(dev);
+	u8 *base_regs = pci_ehci_base_regs(dev);
 	u32 reg32;
 
 	/* Write the port number to DEBUGPORT_MISC_CONTROL[31:28]. */

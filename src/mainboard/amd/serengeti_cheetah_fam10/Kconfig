@@ -8,17 +8,16 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select NORTHBRIDGE_AMD_AMDFAM10
 	select SOUTHBRIDGE_AMD_AMD8111
 	select SOUTHBRIDGE_AMD_AMD8132
+	select HT_CHAIN_DISTRIBUTE
 	select SUPERIO_WINBOND_W83627HF
 	select HAVE_OPTION_TABLE
 	select HAVE_PIRQ_TABLE
 	select HAVE_MP_TABLE
 	select SB_HT_CHAIN_UNITID_OFFSET_ONLY
-	select AMDMCT
 	select HAVE_ACPI_TABLES
 	select BOARD_ROMSIZE_KB_1024
 	select ENABLE_APIC_EXT_ID
 	select LIFT_BSP_APIC_ID
-	select QRANK_DIMM_SUPPORT
 	select DRIVERS_I2C_I2CMUX2
 
 config MAINBOARD_DIR
@@ -42,10 +41,6 @@ config MAX_PHYSICAL_CPUS
 	int
 	default 8
 
-config SB_HT_CHAIN_ON_BUS0
-	int
-	default 2
-
 config HT_CHAIN_END_UNITID_BASE
 	hex
 	default 0x6
@@ -57,25 +52,5 @@ config HT_CHAIN_UNITID_BASE
 config IRQ_SLOT_COUNT
 	int
 	default 11
-
-config AMD_UCODE_PATCH_FILE
-	string
-	default "mc_patch_01000095.h"
-
-config RAMTOP
-	hex
-	default 0x1000000
-
-config HEAP_SIZE
-	hex
-	default 0xc0000
-
-config ACPI_SSDTX_NUM
-	int
-	default 5
-
-config RAMBASE
-	hex
-	default 0x200000
 
 endif # BOARD_AMD_SERENGETI_CHEETAH_FAM10

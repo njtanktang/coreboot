@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 #
 # For a description of the syntax of this configuration file,
@@ -102,17 +98,16 @@ config MODULE_RAMDUMP
 	bool "Enable the RAM dump module"
 	default y
 
-config MODULE_LAR
-	bool "Enable the coreboot v3 LAR module"
-	help
-	  LAR support must also be enabled in libpayload.
-	default n
-
 config MODULE_CBFS
 	bool "Enable the coreboot CBFS module"
 	default y
 	help
 	  This option will increase the ELF file size by ca. 1440 bytes.
 
-endmenu
+config MODULE_TIMESTAMPS
+	bool "Enable the coreboot timestamps module"
+	default y
+	help
+	  This option will increase the ELF file size by ca. 4200 bytes.
 
+endmenu

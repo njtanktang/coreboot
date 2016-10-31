@@ -1,8 +1,27 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #ifndef _ASM_IO_H
 #define _ASM_IO_H
 
+#include <endian.h>
 #include <stdint.h>
 #include <rules.h>
+
+/* FIXME: Sources for romstage still use device_t. */
+/* Use pci_devfn_t or pnp_devfn_t instead */
+typedef u32 pci_devfn_t;
+typedef u32 pnp_devfn_t;
 
 /*
  * This file contains the definitions for the x86 IO instructions
@@ -137,63 +156,61 @@ static inline void insl(uint16_t port, void *addr, unsigned long count)
 		);
 }
 
-static inline __attribute__((always_inline)) uint8_t read8(unsigned long addr)
+static inline __attribute__((always_inline)) uint8_t read8(const volatile void *addr)
 {
 	return *((volatile uint8_t *)(addr));
 }
 
-static inline __attribute__((always_inline)) uint16_t read16(unsigned long addr)
+static inline __attribute__((always_inline)) uint16_t read16(const volatile void *addr)
 {
 	return *((volatile uint16_t *)(addr));
 }
 
-static inline __attribute__((always_inline)) uint32_t read32(unsigned long addr)
+static inline __attribute__((always_inline)) uint32_t read32(const volatile void *addr)
 {
 	return *((volatile uint32_t *)(addr));
 }
 
-static inline __attribute__((always_inline)) void write8(unsigned long addr, uint8_t value)
+static inline __attribute__((always_inline)) void write8(volatile void *addr, uint8_t value)
 {
 	*((volatile uint8_t *)(addr)) = value;
 }
 
-static inline __attribute__((always_inline)) void write16(unsigned long addr, uint16_t value)
+static inline __attribute__((always_inline)) void write16(volatile void *addr, uint16_t value)
 {
 	*((volatile uint16_t *)(addr)) = value;
 }
 
-static inline __attribute__((always_inline)) void write32(unsigned long addr, uint32_t value)
+static inline __attribute__((always_inline)) void write32(volatile void *addr, uint32_t value)
 {
 	*((volatile uint32_t *)(addr)) = value;
 }
 
 /* Conflicts with definition in lib.h */
-#if defined(__ROMCC__) || defined(__SMM__)
-static inline int log2(int value)
+#if defined(__ROMCC__)
+static inline int log2(u32 value)
 {
-        unsigned int r = 0;
-        __asm__ volatile (
-                "bsrl %1, %0\n\t"
-                "jnz 1f\n\t"
-                "movl $-1, %0\n\t"
-                "1:\n\t"
-                : "=r" (r) : "r" (value));
-        return r;
+	unsigned int r = 0;
+	__asm__ volatile (
+		"bsrl %1, %0\n\t"
+		"jnz 1f\n\t"
+		"movl $-1, %0\n\t"
+		"1:\n\t"
+		: "=r" (r) : "r" (value));
+	return r;
 
 }
-#endif
 
-#if defined(__PRE_RAM__) || defined(__SMM__)
-static inline int log2f(int value)
+static inline int __ffs(u32 value)
 {
-        unsigned int r = 0;
-        __asm__ volatile (
-                "bsfl %1, %0\n\t"
-                "jnz 1f\n\t"
-                "movl $-1, %0\n\t"
-                "1:\n\t"
-                : "=r" (r) : "r" (value));
-        return r;
+	unsigned int r = 0;
+	__asm__ volatile (
+		"bsfl %1, %0\n\t"
+		"jnz 1f\n\t"
+		"movl $-1, %0\n\t"
+		"1:\n\t"
+		: "=r" (r) : "r" (value));
+	return r;
 
 }
 #endif
@@ -201,15 +218,15 @@ static inline int log2f(int value)
 #ifdef __SIMPLE_DEVICE__
 
 #define PCI_ADDR(SEGBUS, DEV, FN, WHERE) ( \
-        (((SEGBUS) & 0xFFF) << 20) | \
-        (((DEV) & 0x1F) << 15) | \
-        (((FN) & 0x07) << 12) | \
-        ((WHERE) & 0xFFF))
+	(((SEGBUS) & 0xFFF) << 20) | \
+	(((DEV) & 0x1F) << 15) | \
+	(((FN) & 0x07) << 12) | \
+	((WHERE) & 0xFFF))
 
 #define PCI_DEV(SEGBUS, DEV, FN) ( \
-        (((SEGBUS) & 0xFFF) << 20) | \
-        (((DEV) & 0x1F) << 15) | \
-        (((FN)  & 0x07) << 12))
+	(((SEGBUS) & 0xFFF) << 20) | \
+	(((DEV) & 0x1F) << 15) | \
+	(((FN)  & 0x07) << 12))
 
 #define PCI_ID(VENDOR_ID, DEVICE_ID) \
 	((((DEVICE_ID) & 0xFFFF) << 16) | ((VENDOR_ID) & 0xFFFF))
@@ -218,10 +235,8 @@ static inline int log2f(int value)
 #define PNP_DEV(PORT, FUNC) (((PORT) << 8) | (FUNC))
 
 /* FIXME: Sources for romstage still use device_t. */
+/* Use pci_devfn_t or pnp_devfn_t instead */
 typedef u32 device_t;
-
-typedef u32 pci_devfn_t;
-typedef u32 pnp_devfn_t;
 
 /* FIXME: We need to make the coreboot to run at 64bit mode, So when read/write memory above 4G,
  * We don't need to set %fs, and %gs anymore
@@ -252,19 +267,19 @@ void pci_or_config32(pci_devfn_t dev, unsigned where, uint32_t value)
 #define PCI_DEV_INVALID (0xffffffffU)
 static inline pci_devfn_t pci_io_locate_device(unsigned pci_id, pci_devfn_t dev)
 {
-        for(; dev <= PCI_DEV(255, 31, 7); dev += PCI_DEV(0,0,1)) {
-                unsigned int id;
-                id = pci_io_read_config32(dev, 0);
-                if (id == pci_id) {
-                        return dev;
-                }
-        }
-        return PCI_DEV_INVALID;
+	for (; dev <= PCI_DEV(255, 31, 7); dev += PCI_DEV(0,0,1)) {
+		unsigned int id;
+		id = pci_io_read_config32(dev, 0);
+		if (id == pci_id) {
+			return dev;
+		}
+	}
+	return PCI_DEV_INVALID;
 }
 
 static inline pci_devfn_t pci_locate_device(unsigned pci_id, pci_devfn_t dev)
 {
-	for(; dev <= PCI_DEV(255|(((1<<CONFIG_PCI_BUS_SEGN_BITS)-1)<<8), 31, 7); dev += PCI_DEV(0,0,1)) {
+	for (; dev <= PCI_DEV(255, 31, 7); dev += PCI_DEV(0,0,1)) {
 		unsigned int id;
 		id = pci_read_config32(dev, 0);
 		if (id == pci_id) {
@@ -278,17 +293,17 @@ static inline pci_devfn_t pci_locate_device_on_bus(unsigned pci_id, unsigned bus
 {
 	pci_devfn_t dev, last;
 
-        dev = PCI_DEV(bus, 0, 0);
-        last = PCI_DEV(bus, 31, 7);
+	dev = PCI_DEV(bus, 0, 0);
+	last = PCI_DEV(bus, 31, 7);
 
-        for(; dev <=last; dev += PCI_DEV(0,0,1)) {
-                unsigned int id;
-                id = pci_read_config32(dev, 0);
-                if (id == pci_id) {
-                        return dev;
-                }
-        }
-        return PCI_DEV_INVALID;
+	for (; dev <=last; dev += PCI_DEV(0,0,1)) {
+		unsigned int id;
+		id = pci_read_config32(dev, 0);
+		if (id == pci_id) {
+			return dev;
+		}
+	}
+	return PCI_DEV_INVALID;
 }
 
 /* Generic functions for pnp devices */
@@ -353,4 +368,3 @@ void pnp_set_drq(pnp_devfn_t dev, unsigned index, unsigned drq)
 #endif /* __SIMPLE_DEVICE__ */
 
 #endif
-

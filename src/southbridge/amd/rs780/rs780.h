@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __RS780_H__
@@ -78,7 +74,7 @@ typedef struct _ATOM_INTEGRATED_SYSTEM_INFO_V2
 	ULONG				ulSystemConfig;
 //[0]=1: PowerExpress mode
 //   =0 Non-PowerExpress mode;
-//[1]=1: system boots up at AMD overdrived state or user customized mode. In this case, driver will disable other power state in VBIOS table.
+//[1]=1: system boots up at AMD overdriven state or user customized mode. In this case, driver will disable other power state in VBIOS table.
 //   =0: system boots up at driver control state. Power state depends on VBIOS PP table.
 //[2]=1: PWM method is used on NB voltage control.
 //   =0: GPIO method is used.
@@ -90,7 +86,7 @@ typedef struct _ATOM_INTEGRATED_SYSTEM_INFO_V2
 //   =0: CDLW is disabled. If CLMC is enabled case, Min HT width will be set equal to Max HT width. If CLMC disabled case, Max HT width will be applied.
 //[6]=1: High Voltage requested for all power states. In this case, voltage will be forced at 1.1v and VBIOS PP table voltage drop/throttling request will be ignored.
 //   =0: Voltage settings is determined by VBIOS PP table.
-//[7]=1: Enable CLMC Hybird Mode. CDLD and CILR will be disabled in this case and we're using legacy C1E. This is workaround for CPU(Griffin) performance issue.
+//[7]=1: Enable CLMC Hybrid Mode. CDLD and CILR will be disabled in this case and we're using legacy C1E. This is workaround for CPU(Griffin) performance issue.
 //   =0: Enable regular CLMC mode, CDLD and CILR will be enabled.
 //[8]=1: CDLF is supported and enabled by fuse   //CHP 914
 //   =0: CDLF is not supported and not enabled by fuses
@@ -105,7 +101,7 @@ typedef struct _ATOM_INTEGRATED_SYSTEM_INFO_V2
 	ULONG                      ulDockingPinCFGInfo;
 	ULONG                      ulCPUCapInfo;
 	USHORT                     usNumberOfCyclesInPeriod; //usNumberOfCyclesInPeriod[15] = 0 - invert waveform
-                                                       //                               1 - non inverted waveform
+	                                                     //                               1 - non inverted waveform
 	USHORT                     usMaxNBVoltage;
 	USHORT                     usMinNBVoltage;
 	USHORT                     usBootUpNBVoltage;
@@ -174,7 +170,7 @@ typedef struct _ATOM_INTEGRATED_SYSTEM_INFO_V2
 * ------------------------------------------------- */
 extern PCIE_CFG AtiPcieCfg;
 
-/* ----------------- export funtions ----------------- */
+/* ----------------- export functions ----------------- */
 u32 nbmisc_read_index(device_t nb_dev, u32 index);
 void nbmisc_write_index(device_t nb_dev, u32 index, u32 data);
 u32 nbpcie_p_read_index(device_t dev, u32 index);
@@ -214,4 +210,4 @@ int cpuidFamily(void);
 int is_family0Fh(void);
 int is_family10h(void);
 void pcie_hide_unused_ports(device_t nb_dev);
-#endif				/* RS780_H */
+#endif /* __RS780_H__ */

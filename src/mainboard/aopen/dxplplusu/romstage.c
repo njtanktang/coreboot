@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -24,13 +20,13 @@
 #include <stdlib.h>
 #include <console/console.h>
 #include <cpu/x86/bist.h>
+#include <cpu/intel/romstage.h>
 
-#include "southbridge/intel/i82801dx/i82801dx.h"
-#include "northbridge/intel/e7505/raminit.h"
+#include <southbridge/intel/i82801dx/i82801dx.h>
+#include <northbridge/intel/e7505/raminit.h>
 
 #include <device/pnp_def.h>
-#include "superio/smsc/lpc47m10x/early_serial.c"
-
+#include <superio/smsc/lpc47m10x/lpc47m10x.h>
 
 #define SERIAL_DEV PNP_DEV(0x2e, LPC47M10X2_SP1)
 
@@ -39,7 +35,7 @@ int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	static const struct mem_controller memctrl[] = {
 		{
@@ -50,14 +46,14 @@ void main(unsigned long bist)
 		},
 	};
 
-	// Get the serial port running and print a welcome banner
+	/* Get the serial port running and print a welcome banner */
 	lpc47m10x_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
 	console_init();
 
-	// Halt if there was a built in self test failure
+	/* Halt if there was a built in self test failure */
 	report_bist_failure(bist);
 
-	// If this is a warm boot, some initialization can be skipped
+	/* If this is a warm boot, some initialization can be skipped */
 	if (!e7505_mch_is_ready()) {
 		enable_smbus();
 

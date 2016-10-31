@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _NB_PLATFORM_H_
@@ -48,13 +44,13 @@
 		#define ASSERT CIMX_ASSERT
 	#endif
 	#ifdef CIMX_TRACE_SUPPORT
-		#define CIMX_ASSERT(x)  if(!(x)) {\
+		#define CIMX_ASSERT(x)  if (!(x)) {\
 			LibAmdTraceDebug (CIMX_TRACE_ALL, (CHAR8 *)"ASSERT !!! "__FILE__" - line %d\n", __LINE__); \
 			/*__asm {jmp $}; */\
 		}
 	//#define IDS_HDT_CONSOLE(s, args...) do_printk(BIOS_DEBUG, s, ##args)
 	#else
-		#define CIMX_ASSERT(x) if(!(x)) {\
+		#define CIMX_ASSERT(x) if (!(x)) {\
 			/*__asm {jmp $}; */\
 		}
 	#endif
@@ -70,20 +66,11 @@
 //#define STALL(Ptr, TimeUs, Flag) LibAmdSbStall(TimeUs)
 #define STALL(Ptr, TimeUs, Flag) LibAmdSbStall(TimeUs, Ptr)
 
-#ifdef  B2_IMAGE
-#define REPORT_EVENT(Class, Info, Param1, Param2, Param3, Param4, CfgPtr) LibNbEventLog(Class, Info, Param1, Param2, Param3, Param4, CfgPtr)
-#else
 #define REPORT_EVENT(Class, Info, Param1, Param2, Param3, Param4, CfgPtr)
-#endif
-
-
 
 // CIMX configuration parameters
-//#define CIMX_B2_IMAGE_BASE_ADDRESS      0xFFF40000
-/**
- * PCIEX_BASE_ADDRESS - Define PCIE base address
- *
- * @param[Option]     MOVE_PCIEBAR_TO_F0000000 Set PCIe base address to 0xF7000000
+/*
+ * PCIEX_BASE_ADDRESS  - Define PCIE base address
  */
 #ifdef  MOVE_PCIEBAR_TO_F0000000
 #define PCIEX_BASE_ADDRESS           0xF7000000
@@ -144,4 +131,3 @@
 #define CIMX_NBPCIE_MISC  0xFFFFFFFF
 
 #endif
-

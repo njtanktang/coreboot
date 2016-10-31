@@ -30,6 +30,8 @@
 #ifndef _STRINGS_H
 #define _STRINGS_H
 
-int ffs(int i);
+#include <libpayload.h>
+
+static inline int ffs(int i) { return __ffs(i) + 1; }
 
 #endif

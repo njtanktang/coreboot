@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 /*
@@ -176,7 +172,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "LXBIOS", "LXB-DSDT", 1)
 			Notify (\_SB.PWRB, 0x02)
 		}
 	}
-	OperationRegion (KSB0, SystemIO, 0x72, 0x02) // CMOS ram (?)
+	OperationRegion (KSB0, SystemIO, 0x72, 0x02) // CMOS RAM (?)
 	Field (KSB0, ByteAcc, NoLock, Preserve) {
 		KSBI,   8, // Index
 		KSBD,   8  // Data
@@ -254,11 +250,16 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "LXBIOS", "LXB-DSDT", 1)
 				Notify (\_SB.PWRB, 0x02)
 			}
 		}
-		Store (\_SB.PCI0.GSTS, \_SB.PCI0.GSTS)
-		Store (\_SB.PCI0.STMC, \_SB.PCI0.STMC)
-		Store (\_SB.PCI0.STC0, \_SB.PCI0.STC0)
-		Store (\_SB.PCI0.STC1, \_SB.PCI0.STC1)
-		Store (\_SB.PCI0.STHW, \_SB.PCI0.STHW)
+		Store (\_SB.PCI0.GSTS, Local0)
+		Store (Local0, \_SB.PCI0.GSTS)
+		Store (\_SB.PCI0.STMC, Local0)
+		Store (Local0, \_SB.PCI0.STMC)
+		Store (\_SB.PCI0.STC0, Local0)
+		Store (Local0, \_SB.PCI0.STC0)
+		Store (\_SB.PCI0.STC1, Local0)
+		Store (Local0, \_SB.PCI0.STC1)
+		Store (\_SB.PCI0.STHW, Local0)
+		Store (Local0, \_SB.PCI0.STHW)
 		If (LEqual (Arg0, 0x03)) { // Wake from S3 state
 			Notify (\_SB.PCI0.TP2P.USB0, 0x01)
 		}

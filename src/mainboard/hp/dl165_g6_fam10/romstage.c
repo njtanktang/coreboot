@@ -19,10 +19,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define FAM10_SCAN_PCI_BUS 0
@@ -37,20 +33,20 @@
 #include <cpu/x86/lapic.h>
 #include "option_table.h"
 #include <console/console.h>
+#include <timestamp.h>
 #include <cpu/amd/model_10xxx_rev.h>
 #include "southbridge/broadcom/bcm5785/early_smbus.c"
-#include "northbridge/amd/amdfam10/raminit.h"
-#include "northbridge/amd/amdfam10/amdfam10.h"
+#include <northbridge/amd/amdfam10/raminit.h>
+#include <northbridge/amd/amdfam10/amdfam10.h>
 #include <lib.h>
 #include <spd.h>
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdfam10/reset_test.c"
 #include <superio/serverengines/pilot/pilot.h>
-#include "superio/nsc/pc87417/early_serial.c"
-#include "cpu/x86/bist.h"
+#include <superio/nsc/pc87417/pc87417.h>
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdfam10/debug.c"
-//#include "northbridge/amd/amdfam10/setup_resource_map.c"
 #include "southbridge/broadcom/bcm5785/early_setup.c"
 
 #define SERIAL_DEV PNP_DEV(0x2e, PILOT_SP1)
@@ -72,13 +68,13 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdfam10/amdfam10.h"
+#include <northbridge/amd/amdfam10/amdfam10.h>
 #include "northbridge/amd/amdfam10/raminit_sysinfo_in_ram.c"
 #include "northbridge/amd/amdfam10/pci.c"
 #include "cpu/amd/quadcore/quadcore.c"
-#include "cpu/amd/microcode.h"
+#include <cpu/amd/microcode.h>
 
-#include "cpu/amd/model_10xxx/init_cpus.c"
+#include "cpu/amd/family_10h-family_15h/init_cpus.c"
 #include "northbridge/amd/amdfam10/early_ht.c"
 
 static const u8 spd_addr[] = {
@@ -96,6 +92,9 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	struct sys_info *sysinfo = &sysinfo_car;
 	u32 bsp_apicid = 0, val;
 	msr_t msr;
+
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_START_ROMSTAGE);
 
 	if (!cpu_init_detectedx && boot_cpu()) {
 		/* Nothing special needs to be done to find bus 0 */
@@ -134,7 +133,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	post_code(0x33);
 
-	cpuSetAMDMSR();
+	cpuSetAMDMSR(0);
 	post_code(0x34);
 
 	amd_ht_init(sysinfo);
@@ -157,7 +156,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 #if CONFIG_LOGICAL_CPUS
 	/* Core0 on each node is configured. Now setup any additional cores. */
 	printk(BIOS_DEBUG, "start_other_cores()\n");
-	start_other_cores();
+	start_other_cores(bsp_apicid);
 	post_code(0x37);
 	wait_all_other_cores_started(bsp_apicid);
 #endif
@@ -182,7 +181,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	post_code(0x3A);
 
 	/* show final fid and vid */
-	msr=rdmsr(0xc0010071);
+	msr = rdmsr(0xc0010071);
 	printk(BIOS_DEBUG, "End FIDVIDMSR 0xc0010071 0x%08x 0x%08x\n", msr.hi, msr.lo);
 #endif
 
@@ -190,7 +189,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	/* Reset for HT, FIDVID, PLL and errata changes to take affect. */
 	if (!warm_reset_detect(0)) {
-		print_info("...WARM RESET...\n\n\n");
+		printk(BIOS_INFO, "...WARM RESET...\n\n\n");
 		soft_reset();
 		die("After soft_reset_x - shouldn't see this message!!!\n");
 	}
@@ -201,11 +200,17 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	//do we need apci timer, tsc...., only debug need it for better output
 	/* all ap stopped? */
-//	init_timer(); // Need to use TMICT to synconize FID/VID
+//	init_timer(); // Need to use TMICT to synchronize FID/VID
 
+	timestamp_add_now(TS_BEFORE_INITRAM);
 	printk(BIOS_DEBUG, "raminit_amdmct()\n");
 	raminit_amdmct(sysinfo);
+	timestamp_add_now(TS_AFTER_INITRAM);
+
+	cbmem_initialize_empty();
 	post_code(0x41);
+
+	amdmct_cbmem_store_info(sysinfo);
 
 	bcm5785_early_setup();
 
@@ -225,11 +230,9 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
  *	based on each device's unit count.
  *
  * Parameters:
- *	@param[in]  u8  node    = The node on which this chain is located
- *	@param[in]  u8  link    = The link on the host for this chain
- *	@param[out] u8** list   = supply a pointer to a list
- *	@param[out] BOOL result = true to use a manual list
- *				  false to initialize the link automatically
+ *	@param[in]  node   = The node on which this chain is located
+ *	@param[in]  link   = The link on the host for this chain
+ *	@param[out] List   = supply a pointer to a list
  */
 BOOL AMD_CB_ManualBUIDSwapList (u8 node, u8 link, const u8 **List)
 {

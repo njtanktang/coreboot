@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef __PRE_RAM__
@@ -35,7 +30,7 @@
 static int kbc_input_buffer_empty(void)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(KBD_STATUS) & KBD_IBF);
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(KBD_STATUS) & KBD_IBF);
 	    timeout--) {
 		mdelay(1);
 	}
@@ -51,7 +46,7 @@ static int kbc_input_buffer_empty(void)
 static int kbc_output_buffer_full(void)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(KBD_STATUS)
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && ((inb(KBD_STATUS)
 	    & KBD_OBF) == 0); timeout--) {
 		mdelay(1);
 	}
@@ -65,7 +60,7 @@ static int kbc_output_buffer_full(void)
 int kbc_cleanup_buffers(void)
 {
 	u32 timeout;
-	for(timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(KBD_STATUS)
+	for (timeout = KBC_TIMEOUT_IN_MS; timeout && (inb(KBD_STATUS)
 	    & (KBD_OBF | KBD_IBF)); timeout--) {
 		mdelay(1);
 		inb(KBD_DATA);
@@ -132,39 +127,27 @@ static u8 ec_io_read(u16 addr)
 */
 
 #ifndef __SMM__
-static void ene932_init(device_t dev)
+static void ene932_init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
 
 	printk(BIOS_DEBUG, "Compal ENE932: Initializing keyboard.\n");
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
-}
-
-
-static void ene932_read_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
-}
-
-
-static void ene932_enable_resources(device_t dev)
-{
-	/* This function avoids an error on serial console. */
 }
 
 static struct device_operations ops = {
 	.init             = ene932_init,
-	.read_resources   = ene932_read_resources,
-	.enable_resources = ene932_enable_resources
+	.read_resources   = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 };
 
 static struct pnp_info pnp_dev_info[] = {
-        { &ops, 0, 0, { 0, 0 }, }
+	{ &ops, 0, 0, { 0, 0 }, }
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info),
 			   pnp_dev_info);

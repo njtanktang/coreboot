@@ -1,8 +1,20 @@
 /*
- * Timer control and delays for Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Timer control and delays for Allwinner CPUs
+ *
  */
 
 #include "timer.h"
@@ -24,13 +36,13 @@ void init_timer(void)
 {
 	u32 reg32;
 	/* Load the timer rollover value */
-	write32(0xffffffff, &tmr0->interval);
+	write32(&tmr0->interval, 0xffffffff);
 	/* Configure the timer to run from 24MHz oscillator, no prescaler */
 	reg32 = TIMER_CTRL_PRESC_DIV_EXP(0);
 	reg32 |= TIMER_CTRL_CLK_SRC_OSC24M;
 	reg32 |= TIMER_CTRL_RELOAD;
 	reg32 |= TIMER_CTRL_TMR_EN;
-	write32(reg32, &tmr0->ctrl);
+	write32(&tmr0->ctrl, reg32);
 }
 
 void udelay(unsigned usec)
@@ -61,6 +73,6 @@ void udelay(unsigned usec)
  */
 u8 a1x_get_cpu_chip_revision(void)
 {
-	write32(0, &timer_module->cpu_cfg);
+	write32(&timer_module->cpu_cfg, 0);
 	return (read32(&timer_module->cpu_cfg) >> 6) & 0x3;
 }

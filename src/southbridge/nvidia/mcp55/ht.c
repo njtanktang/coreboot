@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -26,7 +22,16 @@
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
+#include <arch/acpi.h>
 #include "mcp55.h"
+
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Not implemented */
+	return current;
+}
+#endif
 
 static struct device_operations ht_ops = {
 	.read_resources   = pci_dev_read_resources,

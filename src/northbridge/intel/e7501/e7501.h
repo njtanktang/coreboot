@@ -12,15 +12,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
  */
 
 /*
  * e7501.h: PCI configuration space for the Intel E7501 memory controller
  */
+
+#ifndef NORTHBRIDGE_INTEL_E7501_E7501_H
+#define NORTHBRIDGE_INTEL_E7501_E7501_H
 
 /************  D0:F0 ************/
 // Register offsets
@@ -77,3 +76,5 @@
 #define NERR_GLOBAL			0x44	/* Next global error register, 32 bits */
 #define DRAM_FERR			0x80	/* DRAM first error register, 8 bits */
 #define DRAM_NERR			0x82	/* DRAM next error register, 8 bits */
+
+#endif /* NORTHBRIDGE_INTEL_E7501_E7501_H */

@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <device/pci_ids.h>
@@ -48,7 +45,8 @@ static void smbus_delays(int delays)
 /**
  * Read a byte from the SMBus.
  *
- * @param dimm The address location of the DIMM on the SMBus.
+ * @param smbus_dev The PCI address of the SMBus device .
+ * @param addr The address location of the DIMM on the SMBus.
  * @param offset The offset the data is located at.
  */
 u8 smbus_read_byte(u32 smbus_dev, u8 addr, u8 offset)
@@ -182,13 +180,13 @@ void dump_spd_data(spd_raw_data spd)
 	 * I originally saw this way to present SPD data in code from VIA. I
 	 * really liked the idea, so here it goes.
 	 */
-	print_debug("     00 01 02 03 04 05 06 07 07 09 0A 0B 0C 0D 0E 0F\n");
-	print_debug("---+------------------------------------------------");
+	printk(BIOS_DEBUG, "     00 01 02 03 04 05 06 07 07 09 0A 0B 0C 0D 0E 0F\n");
+	printk(BIOS_DEBUG, "---+------------------------------------------------");
 	for (i = 0; i < len; i++) {
 		reg = spd[i];
 		if ((i & 0x0f) == 0)
 			printk(BIOS_DEBUG, "\n%.2x |", i);
 		printk(BIOS_DEBUG, " %.2x", reg);
 	}
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 }

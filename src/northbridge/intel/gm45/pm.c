@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -144,7 +139,7 @@ static void init_freq_scaling(const gmch_gfx_t sku, const int low_power_mode)
 	MCHBAR16(0x11b8 + 2) = 0x4000;
 }
 
-void init_pm(const sysinfo_t *const sysinfo)
+void init_pm(const sysinfo_t *const sysinfo, int do_freq_scaling_cfg)
 {
 	const stepping_t stepping = sysinfo->stepping;
 	const fsb_clock_t fsb = sysinfo->selected_timings.fsb_clock;
@@ -283,7 +278,7 @@ void init_pm(const sysinfo_t *const sysinfo)
 		MCHBAR32(0x44) &= ~(1 << 31); /* Was set above. */
 	}
 
-	if ((sysinfo->gfx_type != GMCH_PM45) &&
+	if ((sysinfo->gfx_type != GMCH_PM45) && do_freq_scaling_cfg &&
 			(sysinfo->gfx_type != GMCH_UNKNOWN))
 		init_freq_scaling(sysinfo->gfx_type,
 				  sysinfo->gs45_low_power_mode);

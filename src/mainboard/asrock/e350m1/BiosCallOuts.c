@@ -11,35 +11,22 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include "heapManager.h"
 #include "SB800.h"
-#include <northbridge/amd/agesa/family14/dimmSpd.h>
 #include <stdlib.h>
 
-/* Should AGESA_GNB_PCIE_SLOT_RESET use agesa_NoopSuccess?
- *
- * Board is known to have some issues with integrated NIC and
- * might need implementation to drive some GPIOs.
- */
 
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr);
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,			agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,		agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,			agesa_LocateBuffer },
 	{AGESA_DO_RESET,			agesa_Reset },
-	{AGESA_READ_SPD,			BiosReadSpd },
+	{AGESA_READ_SPD,			agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,		agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,			agesa_RunFuncOnAp },
 	{AGESA_HOOKBEFORE_DQS_TRAINING,		agesa_NoopSuccess },
@@ -50,7 +37,7 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
 
 /*  Call the host environment interface to provide a user hook opportunity. */
-static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
+static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINTN Data, VOID *ConfigPtr)
 {
   AGESA_STATUS      Status;
   UINTN             FcnData;
@@ -68,7 +55,7 @@ static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *Config
   /* Get SB800 MMIO Base (AcpiMmioAddr) */
   WriteIo8 (0xCD6, 0x27);
   Data8   = ReadIo8(0xCD7);
-  Data16  = Data8<<8;
+  Data16  = Data8 << 8;
   WriteIo8 (0xCD6, 0x26);
   Data8   = ReadIo8(0xCD7);
   Data16  |= Data8;
@@ -101,6 +88,9 @@ static AGESA_STATUS board_BeforeDramInit (UINT32 Func, UINT32 Data, VOID *Config
   TempData8 |= Data8;
   Write64Mem8(GpioMmioAddr+SB_GPIO_REG179, TempData8);
 
+  /* this seems to be just copy-pasted from the AMD reference boards and needs
+   * some investigation
+   */
   switch(MemData->ParameterListPtr->DDR3Voltage){
     case VOLT1_35:
       Data8 =  Read64Mem8 (GpioMmioAddr+SB_GPIO_REG178);

@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -30,11 +26,6 @@
 #include <device/smbus.h>
 #include "i82371eb.h"
 #include "smbus.h"
-
-#if CONFIG_HAVE_ACPI_RESUME
-extern u8 acpi_slp_type;
-int acpi_get_sleep_type(void);
-#endif
 
 static void pwrmgt_enable(struct device *dev)
 {
@@ -92,12 +83,6 @@ static void pwrmgt_enable(struct device *dev)
 	outw(0xffff,     DEFAULT_PMBASE + GLBSTS);
 	outl(0xffffffff, DEFAULT_PMBASE + DEVSTS);
 
-#if CONFIG_HAVE_ACPI_RESUME
-	/* this reads PMCNTRL, so we have to call it before writing the
-	 * default value */
-	acpi_slp_type = acpi_get_sleep_type();
-#endif
-
 	/* set PMCNTRL default */
 	outw(SUS_TYP_S0|SCI_EN, DEFAULT_PMBASE + PMCNTRL);
 }
@@ -132,7 +117,7 @@ static const struct device_operations smbus_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= 0,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_smbus,
 	.enable			= pwrmgt_enable,
 	.ops_pci		= 0, /* No subsystem IDs on 82371EB! */
 	.ops_smbus_bus		= &lops_smbus_bus,

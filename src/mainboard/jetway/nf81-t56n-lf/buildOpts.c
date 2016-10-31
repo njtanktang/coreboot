@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
@@ -27,17 +23,14 @@
  *
  * For Information about this file, see @ref platforminstall.
  *
- * @xrefitem bom "File Content Label" "Release Content"
- * @e project:			AGESA
- * @e sub-project:	Core
- * @e \$Revision: 23714 $	 @e \$Date: 2009-12-09 17:28:37 -0600 (Wed, 09 Dec 2009) $
  */
+
+#include <stdlib.h>
 
 #include <vendorcode/amd/agesa/f14/AGESA.h>
 
 /* Include the files that instantiate the configuration definitions. */
 #include <vendorcode/amd/agesa/f14/Include/AdvancedApi.h>
-#include <vendorcode/amd/agesa/f14/Include/CommonReturns.h>
 #include <vendorcode/amd/agesa/f14/Proc/CPU/cpuFamilyTranslation.h>
 #include <vendorcode/amd/agesa/f14/Proc/CPU/Feature/cpuFeatures.h>
 #include <vendorcode/amd/agesa/f14/Proc/CPU/heapManager.h>
@@ -50,13 +43,13 @@
 
 #define FILECODE PLATFORM_SPECIFIC_OPTIONS_FILECODE
 
-/* Select the cpu family. */
+/* Select the CPU family. */
 #define INSTALL_FAMILY_10_SUPPORT FALSE
 #define INSTALL_FAMILY_12_SUPPORT FALSE
 #define INSTALL_FAMILY_14_SUPPORT TRUE
 #define INSTALL_FAMILY_15_SUPPORT FALSE
 
-/* Select the cpu socket type. */
+/* Select the CPU socket type. */
 #define INSTALL_G34_SOCKET_SUPPORT	FALSE
 #define INSTALL_C32_SOCKET_SUPPORT	FALSE
 #define INSTALL_S1G3_SOCKET_SUPPORT FALSE
@@ -121,20 +114,6 @@
 #define BLDOPT_REMOVE_GFX_RECOVERY				TRUE
 #define BLDOPT_REMOVE_EARLY_SAMPLES				TRUE
 
-/*
- * AGESA entry points used in this implementation.
- */
-#define AGESA_ENTRY_INIT_RESET					TRUE
-#define AGESA_ENTRY_INIT_RECOVERY				FALSE
-#define AGESA_ENTRY_INIT_EARLY					TRUE
-#define AGESA_ENTRY_INIT_POST					TRUE
-#define AGESA_ENTRY_INIT_ENV					TRUE
-#define AGESA_ENTRY_INIT_MID					TRUE
-#define AGESA_ENTRY_INIT_LATE					TRUE
-#define AGESA_ENTRY_INIT_S3SAVE					TRUE
-#define AGESA_ENTRY_INIT_RESUME					TRUE
-#define AGESA_ENTRY_INIT_LATE_RESTORE				TRUE
-#define AGESA_ENTRY_INIT_GENERAL_SERVICES			TRUE
 
 #define BLDCFG_PCI_MMIO_BASE					CONFIG_MMCONF_BASE_ADDRESS
 #define BLDCFG_PCI_MMIO_SIZE					CONFIG_MMCONF_BUS_NUMBER
@@ -320,26 +299,3 @@ const AP_MTRR_SETTINGS ROMDATA OntarioApMtrrSettingsList[] =
 /* AGESA nonsense: this header depends on the definitions above */
 /* Instantiate all solution relevant data. */
 #include <vendorcode/amd/agesa/f14/Include/PlatformInstall.h>
-
-/**
- * @brief Customer Overides Memory Table
- *
- * Platform Specific Overriding Table allows IBV/OEM to pass in platform
- * information to AGESA
- * (e.g. MemClk routing, the number of DIMM slots per channel,...).
- * If PlatformSpecificTable is populated, AGESA will base its settings on the
- * data from the table. Otherwise, it will use its default conservative settings.
- */
-const PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {
-	NUMBER_OF_DIMMS_SUPPORTED (ANY_SOCKET, ANY_CHANNEL, 2),
-	NUMBER_OF_CHANNELS_SUPPORTED (ANY_SOCKET, 1),
-	PSO_END
-};
-
-
-/* DA Customer table */
-const uint8_t AGESA_MEM_TABLE_ON[][sizeof (MEM_TABLE_ALIAS)] =
-{
-	NBACCESS (MTEnd, 0,	0, 0, 0, 0), /* End of Table */
-};
-const uint8_t SizeOfTableON = sizeof (AGESA_MEM_TABLE_ON) / sizeof (AGESA_MEM_TABLE_ON[0]);

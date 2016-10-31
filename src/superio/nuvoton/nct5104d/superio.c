@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -25,15 +21,9 @@
 #include "nct5104d.h"
 #include "chip.h"
 
-static void nct5104d_init(device_t dev)
+static void set_irq_trigger_type(struct device *dev, bool trig_level)
 {
-	struct superio_nuvoton_nct5104d_config *conf = dev->chip_info;
 	u8 reg10, reg11, reg26;
-
-	if (!dev->enabled)
-		return;
-
-	pnp_enter_conf_mode(dev);
 
 	//Before accessing CR10 OR CR11 Bit 4 in CR26 must be set to 1
 	reg26 = pnp_read_config(dev, GLOBAL_OPTION_CR26);
@@ -44,7 +34,7 @@ static void nct5104d_init(device_t dev)
 	//SP1 (UARTA) IRQ type selection (1:level,0:edge) is controlled by CR 10, bit 5
 	case NCT5104D_SP1:
 		reg10 = pnp_read_config(dev, IRQ_TYPE_SEL_CR10);
-		if (conf->irq_trigger_type)
+		if (trig_level)
 			reg10 |= (1 << 5);
 		else
 			reg10 &= ~(1 << 5);
@@ -53,7 +43,7 @@ static void nct5104d_init(device_t dev)
 	//SP2 (UARTB) IRQ type selection (1:level,0:edge) is controlled by CR 10, bit 4
 	case NCT5104D_SP2:
 		reg10 = pnp_read_config(dev, IRQ_TYPE_SEL_CR10);
-		if (conf->irq_trigger_type)
+		if (trig_level)
 			reg10 |= (1 << 4);
 		else
 			reg10 &= ~(1 << 4);
@@ -62,7 +52,7 @@ static void nct5104d_init(device_t dev)
 	//SP3 (UARTC) IRQ type selection (1:level,0:edge) is controlled by CR 11, bit 5
 	case NCT5104D_SP3:
 		reg11 = pnp_read_config(dev,IRQ_TYPE_SEL_CR11);
-		if (conf->irq_trigger_type)
+		if (trig_level)
 			reg11 |= (1 << 5);
 		else
 			reg11 &= ~(1 << 5);
@@ -71,7 +61,7 @@ static void nct5104d_init(device_t dev)
 	//SP4 (UARTD) IRQ type selection (1:level,0:edge) is controlled by CR 11, bit 4
 	case NCT5104D_SP4:
 		reg11 = pnp_read_config(dev,IRQ_TYPE_SEL_CR11);
-		if (conf->irq_trigger_type)
+		if (trig_level)
 			reg11 |= (1 << 4);
 		else
 			reg11 &= ~(1 << 4);
@@ -85,6 +75,65 @@ static void nct5104d_init(device_t dev)
 	reg26 = pnp_read_config(dev, GLOBAL_OPTION_CR26);
 	reg26 &= ~CR26_LOCK_REG;
 	pnp_write_config(dev, GLOBAL_OPTION_CR26, reg26);
+}
+
+static void route_pins_to_uart(struct device *dev, bool to_uart)
+{
+	u8 reg;
+
+	reg = pnp_read_config(dev, 0x1c);
+
+	switch (dev->path.pnp.device) {
+	case NCT5104D_SP3:
+	case NCT5104D_GPIO0:
+		/* Route pins 33 - 40. */
+		if (to_uart)
+			reg |= (1 << 3);
+		else
+			reg &= ~(1 << 3);
+		break;
+	case NCT5104D_SP4:
+	case NCT5104D_GPIO1:
+		/* Route pins 41 - 48. */
+		if (to_uart)
+			reg |= (1 << 2);
+		else
+			reg &= ~(1 << 2);
+		break;
+	default:
+		break;
+	}
+
+	pnp_write_config(dev, 0x1c, reg);
+}
+
+static void nct5104d_init(struct device *dev)
+{
+	struct superio_nuvoton_nct5104d_config *conf = dev->chip_info;
+
+	if (!dev->enabled)
+		return;
+
+	pnp_enter_conf_mode(dev);
+
+	switch(dev->path.pnp.device) {
+	case NCT5104D_SP1:
+	case NCT5104D_SP2:
+		set_irq_trigger_type(dev, conf->irq_trigger_type != 0);
+		break;
+	case NCT5104D_SP3:
+	case NCT5104D_SP4:
+		route_pins_to_uart(dev, true);
+		set_irq_trigger_type(dev, conf->irq_trigger_type != 0);
+		break;
+	case NCT5104D_GPIO0:
+	case NCT5104D_GPIO1:
+		route_pins_to_uart(dev, false);
+		break;
+	default:
+		break;
+	}
+
 	pnp_exit_conf_mode(dev);
 }
 
@@ -117,6 +166,6 @@ static void enable_dev(struct device *dev)
 }
 
 struct chip_operations superio_nuvoton_nct5104d_ops = {
-	CHIP_NAME("NUVOTON NCT5104D Super I/O")
+	CHIP_NAME("Nuvoton NCT5104D Super I/O")
 	.enable_dev = enable_dev,
 };

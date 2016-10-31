@@ -11,16 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <stdlib.h>
+
 #include "AGESA.h"
-#include "CommonReturns.h"
 #include "AdvancedApi.h"
-#include <PlatformMemoryConfiguration.h>
 #include "Filecode.h"
 #define FILECODE PLATFORM_SPECIFIC_OPTIONS_FILECODE
 
@@ -28,15 +24,15 @@
  * coreboot enable -Wundef option, so we should make sure we have all contanstand defined
  */
 /* MEMORY_BUS_SPEED */
-#define  DDR400_FREQUENCY		200	///< DDR 400
-#define  DDR533_FREQUENCY		266	///< DDR 533
-#define  DDR667_FREQUENCY		333	///< DDR 667
-#define  DDR800_FREQUENCY		400	///< DDR 800
-#define  DDR1066_FREQUENCY		533	///< DDR 1066
-#define  DDR1333_FREQUENCY		667	///< DDR 1333
-#define  DDR1600_FREQUENCY		800	///< DDR 1600
-#define  DDR1866_FREQUENCY		933	///< DDR 1866
-#define  UNSUPPORTED_DDR_FREQUENCY	934	///< Highest limit of DDR frequency
+#define DDR400_FREQUENCY		200	///< DDR 400
+#define DDR533_FREQUENCY		266	///< DDR 533
+#define DDR667_FREQUENCY		333	///< DDR 667
+#define DDR800_FREQUENCY		400	///< DDR 800
+#define DDR1066_FREQUENCY		533	///< DDR 1066
+#define DDR1333_FREQUENCY		667	///< DDR 1333
+#define DDR1600_FREQUENCY		800	///< DDR 1600
+#define DDR1866_FREQUENCY		933	///< DDR 1866
+#define UNSUPPORTED_DDR_FREQUENCY	934	///< Highest limit of DDR frequency
 
 /* QUANDRANK_TYPE*/
 #define QUADRANK_REGISTERED		0	///< Quadrank registered DIMM
@@ -202,7 +198,9 @@ CONST MANUAL_BUID_SWAP_LIST ROMDATA s8226_manual_swaplist[2] =
 	}
 };
 
-#if CONFIG_HT3_SUPPORT
+#define HYPERTRANSPORT_V31_SUPPORT 1
+
+#if HYPERTRANSPORT_V31_SUPPORT
 /**
  * The socket and link match values are platform specific
  *
@@ -238,7 +236,7 @@ CONST IO_PCB_LIMITS ROMDATA s8226_io_limit_list[2] =
 		HT_LIST_TERMINAL,
 	}
 };
-#else //CONFIG_HT3_SUPPORT == 0
+#else /* HYPERTRANSPORT_V31_SUPPORT == 0 */
 CONST CPU_TO_CPU_PCB_LIMITS ROMDATA s8226_cpu2cpu_limit_list[2] =
 {
 	{
@@ -270,7 +268,7 @@ CONST IO_PCB_LIMITS ROMDATA s8226_io_limit_list[2] =
 		HT_LIST_TERMINAL
 	}
 };
-#endif //CONFIG_HT3_SUPPORT == 0
+#endif /* HYPERTRANSPORT_V31_SUPPORT == 0 */
 
 /**
  * HyperTransport links will typically require an equalization at high frequencies.
@@ -426,17 +424,6 @@ CONST AP_MTRR_SETTINGS ROMDATA s8226_ap_mtrr_list[] =
 /*  Process the options...
  * This file include MUST occur AFTER the user option selection settings
  */
-#define AGESA_ENTRY_INIT_RESET                    TRUE//FALSE
-#define AGESA_ENTRY_INIT_RECOVERY                 FALSE
-#define AGESA_ENTRY_INIT_EARLY                    TRUE
-#define AGESA_ENTRY_INIT_POST                     TRUE
-#define AGESA_ENTRY_INIT_ENV                      TRUE
-#define AGESA_ENTRY_INIT_MID                      TRUE
-#define AGESA_ENTRY_INIT_LATE                     TRUE
-#define AGESA_ENTRY_INIT_S3SAVE                   TRUE
-#define AGESA_ENTRY_INIT_RESUME                   TRUE
-#define AGESA_ENTRY_INIT_LATE_RESTORE             TRUE
-#define AGESA_ENTRY_INIT_GENERAL_SERVICES         TRUE
 
 /*
 #if CONFIG_CPU_AMD_AGESA_FAMILY15
@@ -447,170 +434,4 @@ CONST AP_MTRR_SETTINGS ROMDATA s8226_ap_mtrr_list[] =
 #endif
 */
 
-//#include "GnbInterface.h"     /*prototype for GnbInterfaceStub*/
 #include "SanMarinoInstall.h"
-
-/*----------------------------------------------------------------------------------------
- *                        CUSTOMER OVERIDES MEMORY TABLE
- *----------------------------------------------------------------------------------------
- */
-
-//reference BKDG Table87: works
-#define F15_WL_SEED 0x3B //family15 BKDG recommand 3B RDIMM, 1A UDIMM.
-#define SEED_A 0x54
-#define SEED_B 0x4D
-#define SEED_C 0x45
-#define SEED_D 0x40
-
-#define F10_WL_SEED 0x3B //family10 BKDG recommand 3B RDIMM, 1A UDIMM.
-//4B 41 51
-
-/*
- *  Platform Specific Overriding Table allows IBV/OEM to pass in platform information to AGESA
- *  (e.g. MemClk routing, the number of DIMM slots per channel,...). If PlatformSpecificTable
- *  is populated, AGESA will base its settings on the data from the table. Otherwise, it will
- *  use its default conservative settings.
- */
-CONST PSO_ENTRY ROMDATA DefaultPlatformMemoryConfiguration[] = {
-	//
-	// The following macros are supported (use comma to separate macros):
-	//
-	// MEMCLK_DIS_MAP(SocketID, ChannelID, MemClkDisBit0CSMap,..., MemClkDisBit7CSMap)
-	//      The MemClk pins are identified based on BKDG definition of Fn2x88[MemClkDis] bitmap.
-	//      AGESA will base on this value to disable unused MemClk to save power.
-	//      Example:
-	//      BKDG definition of Fn2x88[MemClkDis] bitmap for AM3 package is like below:
-	//           Bit AM3/S1g3 pin name
-	//           0   M[B,A]_CLK_H/L[0]
-	//           1   M[B,A]_CLK_H/L[1]
-	//           2   M[B,A]_CLK_H/L[2]
-	//           3   M[B,A]_CLK_H/L[3]
-	//           4   M[B,A]_CLK_H/L[4]
-	//           5   M[B,A]_CLK_H/L[5]
-	//           6   M[B,A]_CLK_H/L[6]
-	//           7   M[B,A]_CLK_H/L[7]
-	//      And platform has the following routing:
-	//           CS0   M[B,A]_CLK_H/L[4]
-	//           CS1   M[B,A]_CLK_H/L[2]
-	//           CS2   M[B,A]_CLK_H/L[3]
-	//           CS3   M[B,A]_CLK_H/L[5]
-	//      Then platform can specify the following macro:
-	//      MEMCLK_DIS_MAP(ANY_SOCKET, ANY_CHANNEL, 0x00, 0x00, 0x02, 0x04, 0x01, 0x08, 0x00, 0x00)
-	//
-	// CKE_TRI_MAP(SocketID, ChannelID, CKETriBit0CSMap, CKETriBit1CSMap)
-	//      The CKE pins are identified based on BKDG definition of Fn2x9C_0C[CKETri] bitmap.
-	//      AGESA will base on this value to tristate unused CKE to save power.
-	//
-	// ODT_TRI_MAP(SocketID, ChannelID, ODTTriBit0CSMap,..., ODTTriBit3CSMap)
-	//      The ODT pins are identified based on BKDG definition of Fn2x9C_0C[ODTTri] bitmap.
-	//      AGESA will base on this value to tristate unused ODT pins to save power.
-	//
-	// CS_TRI_MAP(SocketID, ChannelID, CSTriBit0CSMap,..., CSTriBit7CSMap)
-	//      The Chip select pins are identified based on BKDG definition of Fn2x9C_0C[ChipSelTri] bitmap.
-	//      AGESA will base on this value to tristate unused Chip select to save power.
-	//
-	// NUMBER_OF_DIMMS_SUPPORTED(SocketID, ChannelID, NumberOfDimmSlotsPerChannel)
-	//      Specifies the number of DIMM slots per channel.
-	//
-	// NUMBER_OF_CHIP_SELECTS_SUPPORTED(SocketID, ChannelID, NumberOfChipSelectsPerChannel)
-	//      Specifies the number of Chip selects per channel.
-	//
-	// NUMBER_OF_CHANNELS_SUPPORTED(SocketID, NumberOfChannelsPerSocket)
-	//      Specifies the number of channels per socket.
-	//
-	// OVERRIDE_DDR_BUS_SPEED(SocketID, ChannelID, USER_MEMORY_TIMING_MODE, MEMORY_BUS_SPEED)
-	//      Specifies DDR bus speed of channel ChannelID on socket SocketID.
-	//
-	// DRAM_TECHNOLOGY(SocketID, TECHNOLOGY_TYPE)
-	//      Specifies the DRAM technology type of socket SocketID (DDR2, DDR3,...)
-	//
-	// WRITE_LEVELING_SEED(SocketID, ChannelID, Byte0Seed, Byte1Seed, Byte2Seed, Byte3Seed, Byte4Seed, Byte5Seed,
-	//      Byte6Seed, Byte7Seed, ByteEccSeed)
-	//      Specifies the write leveling seed for a channel of a socket.
-	//
-
-	/* Specifies the write leveling seed for a channel of a socket.
-	 * WRITE_LEVELING_SEED(SocketID, ChannelID, DimmID,
-	 *                     Byte0Seed, Byte1Seed, Byte2Seed, Byte3Seed,
-	 *                     Byte4Seed, Byte5Seed, Byte6Seed, Byte7Seed,
-	 *                     ByteEccSeed)
-	 */
-	WRITE_LEVELING_SEED(
-			ANY_SOCKET, ANY_CHANNEL, ALL_DIMMS,
-			F15_WL_SEED, F15_WL_SEED, F15_WL_SEED, F15_WL_SEED,
-			F15_WL_SEED, F15_WL_SEED, F15_WL_SEED, F15_WL_SEED,
-			F15_WL_SEED),
-
-	/* HW_RXEN_SEED(SocketID, ChannelID, DimmID,
-	 *              Byte0Seed, Byte1Seed, Byte2Seed, Byte3Seed,
-	 *              Byte4Seed, Byte5Seed, Byte6Seed, Byte7Seed, ByteEccSeed)
-	 */
-	HW_RXEN_SEED(
-		ANY_SOCKET, CHANNEL_A, ALL_DIMMS,
-		SEED_A, SEED_A, SEED_A, SEED_A, SEED_A, SEED_A, SEED_A, SEED_A,
-		SEED_A),
-	HW_RXEN_SEED(
-		ANY_SOCKET, CHANNEL_B, ALL_DIMMS,
-		SEED_B, SEED_B, SEED_B, SEED_B, SEED_B, SEED_B, SEED_B, SEED_B,
-		SEED_B),
-	HW_RXEN_SEED(
-		ANY_SOCKET, CHANNEL_C, ALL_DIMMS,
-		SEED_C, SEED_C, SEED_C, SEED_C, SEED_C, SEED_C, SEED_C, SEED_C,
-		SEED_C),
-	HW_RXEN_SEED(
-		ANY_SOCKET, CHANNEL_D, ALL_DIMMS,
-		SEED_D, SEED_D, SEED_D, SEED_D, SEED_D, SEED_D, SEED_D, SEED_D,
-		SEED_D),
-
-	NUMBER_OF_DIMMS_SUPPORTED (ANY_SOCKET, ANY_CHANNEL, 3), //max 3
-	PSO_END
-};
-
-/*
- * These tables are optional and may be used to adjust memory timing settings
- */
-//HY Customer table
-UINT8 AGESA_MEM_TABLE_HY[][sizeof (MEM_TABLE_ALIAS)] =
-{
-	// Hardcoded Memory Training Values
-
-	// The following macro should be used to override training values for your platform
-	//
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNodes, MTDcts, MTDIMMs, BFRdDqsDly, MTOverride, 0x00, 0x04, 0x08, 0x0c, 0x10, 0x14, 0x18, 0x1c, 0x20),
-	//
-	//   NOTE:
-	//   The following training hardcode values are example values that were taken from a tilapia motherboard
-	//   with a particular DIMM configuration.  To hardcode your own values, uncomment the appropriate line in
-	//   the table and replace the byte lane values with your own.
-	//
-	//                                                                               ------------------ BYTE LANES ----------------------
-	//                                                                                BL0   BL1   BL2   BL3   BL4   BL5   BL6   Bl7   ECC
-	// Write Data Timing
-	// DQSACCESS(MTAfterHwWLTrnP2, MTNode0, MTDct0, MTDIMM0, BFWrDatDly, MTOverride, 0x1D, 0x20, 0x26, 0x2B, 0x37, 0x3A, 0x3e, 0x3F, 0x30),// DCT0, DIMM0
-	// DQSACCESS(MTAfterHwWLTrnP2, MTNode0, MTDct0, MTDIMM1, BFWrDatDly, MTOverride, 0x1D, 0x00, 0x06, 0x0B, 0x17, 0x1A, 0x1E, 0x1F, 0x10),// DCT0, DIMM1
-	// DQSACCESS(MTAfterHwWLTrnP2, MTNode0, MTDct1, MTDIMM0, BFWrDatDly, MTOverride, 0x18, 0x1D, 0x27, 0x2B, 0x3B, 0x3B, 0x3E, 0x3E, 0x30),// DCT1, DIMM0
-	// DQSACCESS(MTAfterHwWLTrnP2, MTNode0, MTDct1, MTDIMM1, BFWrDatDly, MTOverride, 0x18, 0x1D, 0x1C, 0x0B, 0x17, 0x1A, 0x1D, 0x1C, 0x10),// DCT1, DIMM1
-
-	// DQS Receiver Enable
-	// DQSACCESS(MTAfterSwRxEnTrn, MTNode0, MTDct0, MTDIMM0, BFRcvEnDly, MTOverride, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),// DCT0, DIMM0
-	// DQSACCESS(MTAfterSwRxEnTrn, MTNode0, MTDct0, MTDIMM1, BFRcvEnDly, MTOverride, 0x7C, 0x7D, 0x7E, 0x81, 0x88, 0x8F, 0x96, 0x9F, 0x84),// DCT0, DIMM1
-	// DQSACCESS(MTAfterSwRxEnTrn, MTNode0, MTDct1, MTDIMM0, BFRcvEnDly, MTOverride, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),// DCT1, DIMM0
-	// DQSACCESS(MTAfterSwRxEnTrn, MTNode0, MTDct1, MTDIMM1, BFRcvEnDly, MTOverride, 0x1C, 0x1D, 0x1E, 0x01, 0x08, 0x0F, 0x16, 0x1F, 0x04),// DCT1, DIMM1
-
-	// Write DQS Delays
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct0, MTDIMM0, BFWrDqsDly, MTOverride, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),// DCT0, DIMM0
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct0, MTDIMM1, BFWrDqsDly, MTOverride, 0x06, 0x0D, 0x12, 0x1A, 0x25, 0x28, 0x2C, 0x2C, 0x44),// DCT0, DIMM1
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct1, MTDIMM0, BFWrDqsDly, MTOverride, 0x07, 0x0E, 0x14, 0x1B, 0x24, 0x29, 0x2B, 0x2C, 0x1F),// DCT1, DIMM0
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct1, MTDIMM1, BFWrDqsDly, MTOverride, 0x07, 0x0C, 0x14, 0x19, 0x25, 0x28, 0x2B, 0x2B, 0x1A),// DCT1, DIMM1
-
-	// Read DQS Delays
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct0, MTDIMM0, BFRdDqsDly, MTOverride, 0x10, 0x10, 0x0E, 0x10, 0x10, 0x10, 0x10, 0x0E, 0x10),// DCT0, DIMM0
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct0, MTDIMM1, BFRdDqsDly, MTOverride, 0x10, 0x10, 0x0E, 0x10, 0x10, 0x10, 0x10, 0x1E, 0x10),// DCT0, DIMM1
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct1, MTDIMM0, BFRdDqsDly, MTOverride, 0x10, 0x10, 0x0E, 0x10, 0x10, 0x10, 0x10, 0x1E, 0x10),// DCT1, DIMM0
-	// DQSACCESS(MTAfterDqsRwPosTrn, MTNode0, MTDct1, MTDIMM1, BFRdDqsDly, MTOverride, 0x10, 0x10, 0x0E, 0x10, 0x10, 0x10, 0x10, 0x1E, 0x10),// DCT1, DIMM1
-	//--------------------------------------------------------------------------------------------------------------------------------------------------
-	// TABLE END
-	NBACCESS (MTEnd, 0,  0, 0, 0, 0),      // End of Table
-};
-UINT8 SizeOfTableHy = sizeof (AGESA_MEM_TABLE_HY) / sizeof (AGESA_MEM_TABLE_HY[0]);
-

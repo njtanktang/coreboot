@@ -12,19 +12,27 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_NVIDIA_CK804_CK804_H
 #define SOUTHBRIDGE_NVIDIA_CK804_CK804_H
 
-#include "chip.h"
+#if CONFIG_HT_CHAIN_END_UNITID_BASE < CONFIG_HT_CHAIN_UNITID_BASE
+#define CK804_DEVN_BASE CONFIG_HT_CHAIN_END_UNITID_BASE
+#else
+#define CK804_DEVN_BASE CONFIG_HT_CHAIN_UNITID_BASE
+#endif
 
-void ck804_enable(device_t dev);
+#define CK804B_BUSN 0x80
+#define CK804B_DEVN_BASE (!CONFIG_SB_HT_CHAIN_UNITID_OFFSET_ONLY ? CK804_DEVN_BASE : 1)
 
-extern struct pci_operations ck804_pci_ops;
+#if CONFIG_CK804_NUM > 1
+#define CK804B_ANACTRL_IO_BASE (ANACTRL_IO_BASE + 0x8000)
+#define CK804B_SYSCTRL_IO_BASE (SYSCTRL_IO_BASE + 0x8000)
+#endif
+
+#ifdef __PRE_RAM__
+void enable_fid_change_on_sb(unsigned sbbusn, unsigned sbdn);
+#endif
 
 #endif

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801GX_CHIP_H
@@ -71,6 +67,9 @@ struct southbridge_intel_i82801gx_config {
 	uint32_t sata_ports_implemented;
 
 	int c4onc3_enable:1;
+	int docking_supported:1;
+	int p_cnt_throttling_supported:1;
+	int c3_latency;
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_I82801GX_CHIP_H */

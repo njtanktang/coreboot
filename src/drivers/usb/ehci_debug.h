@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #ifndef _EHCI_DEBUG_H_
@@ -36,6 +32,13 @@ void ehci_debug_select_port(unsigned int port);
 #define DBGP_EP_ENABLED		(1<<1)
 #define DBGP_EP_BUSY		(1<<2)
 #define DBGP_EP_STATMASK	(DBGP_EP_VALID | DBGP_EP_ENABLED)
+
+#define DBGP_MAX_ENDPOINTS	4
+#define DBGP_SETUP_EP0		0	/* Compulsory endpoint 0. */
+#define DBGP_CONSOLE_EPOUT	1
+#define DBGP_CONSOLE_EPIN	2
+
+struct ehci_dbg_port;
 
 struct dbgp_pipe
 {
@@ -58,5 +61,11 @@ struct dbgp_pipe *dbgp_console_input(void);
 int dbgp_ep_is_active(struct dbgp_pipe *pipe);
 int dbgp_bulk_write_x(struct dbgp_pipe *pipe, const char *bytes, int size);
 int dbgp_bulk_read_x(struct dbgp_pipe *pipe, void *data, int size);
+
+int dbgp_control_msg(struct ehci_dbg_port *ehci_debug, unsigned devnum,
+	int requesttype, int request, int value, int index, void *data, int size);
+void dbgp_mdelay(int ms);
+
+int dbgp_probe_gadget(struct ehci_dbg_port *ehci_debug, struct dbgp_pipe *pipe);
 
 #endif /* _EHCI_DEBUG_H_ */

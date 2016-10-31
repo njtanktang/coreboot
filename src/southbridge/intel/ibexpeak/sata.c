@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -26,6 +22,7 @@
 #include <device/pci_ids.h>
 #include "pch.h"
 #include <pc80/mc146818rtc.h>
+#include <acpi/sata.h>
 
 typedef struct southbridge_intel_ibexpeak_config config_t;
 
@@ -67,7 +64,7 @@ static void sata_init(struct device *dev)
 
 	if (sata_mode == 0) {
 		/* AHCI */
-		u32 abar;
+		u32 *abar;
 
 		printk(BIOS_DEBUG, "SATA: Controller in AHCI mode.\n");
 
@@ -103,8 +100,8 @@ static void sata_init(struct device *dev)
 		pci_write_config32(dev, 0x98, 0x00590200);
 
 		/* Initialize AHCI memory-mapped space */
-		abar = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
-		printk(BIOS_DEBUG, "ABAR: %08X\n", abar);
+		abar = (u32 *)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+		printk(BIOS_DEBUG, "ABAR: %p\n", abar);
 		/* CAP (HBA Capabilities) : enable power management */
 		reg32 = read32(abar + 0x00);
 		reg32 |= 0x0c006000;	// set PSC+SSC+SALP+SSS
@@ -117,19 +114,19 @@ static void sata_init(struct device *dev)
 		}
 		write32(abar + 0x00, reg32);
 		/* PI (Ports implemented) */
-		write32(abar + 0x0c, config->sata_port_map);
-		(void)read32(abar + 0x0c);	/* Read back 1 */
-		(void)read32(abar + 0x0c);	/* Read back 2 */
+		write32(abar + 0x03, config->sata_port_map);
+		(void)read32(abar + 0x03);	/* Read back 1 */
+		(void)read32(abar + 0x03);	/* Read back 2 */
 		/* CAP2 (HBA Capabilities Extended) */
-		reg32 = read32(abar + 0x24);
+		reg32 = read32(abar + 0x09);
 		reg32 &= ~0x00000002;
-		write32(abar + 0x24, reg32);
+		write32(abar + 0x09, reg32);
 		/* VSP (Vendor Specific Register */
-		reg32 = read32(abar + 0xa0);
+		reg32 = read32(abar + 0x28);
 		reg32 &= ~0x00000005;
-		write32(abar + 0xa0, reg32);
+		write32(abar + 0x28, reg32);
 	} else {
-                /* IDE */
+		/* IDE */
 		printk(BIOS_DEBUG, "SATA: Controller in plain mode.\n");
 
 		/* No AHCI: clear AHCI base */
@@ -249,6 +246,12 @@ static void sata_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void sata_fill_ssdt(device_t dev)
+{
+	config_t *config = dev->chip_info;
+	generate_sata_ssdt_ports("\\_SB_.PCI0.SATA", config->sata_port_map);
+}
+
 static struct pci_operations sata_pci_ops = {
 	.set_subsystem = sata_set_subsystem,
 };
@@ -259,6 +262,7 @@ static struct device_operations sata_ops = {
 	.enable_resources = pci_dev_enable_resources,
 	.init = sata_init,
 	.enable = sata_enable,
+	.acpi_fill_ssdt_generator = sata_fill_ssdt,
 	.scan_bus = 0,
 	.ops_pci = &sata_pci_ops,
 };

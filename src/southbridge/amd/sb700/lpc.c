@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -11,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,10 +21,15 @@
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <pc80/mc146818rtc.h>
+#include <pc80/i8254.h>
+#include <pc80/i8259.h>
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
 #include <pc80/isa-dma.h>
 #include <arch/io.h>
 #include <arch/ioapic.h>
 #include <cbmem.h>
+#include <cpu/amd/powernow.h>
 #include "sb700.h"
 
 static void lpc_init(device_t dev)
@@ -35,6 +37,8 @@ static void lpc_init(device_t dev)
 	u8 byte;
 	u32 dword;
 	device_t sm_dev;
+
+	printk(BIOS_SPEW, "%s\n", __func__);
 
 	/* Enable the LPC Controller */
 	sm_dev = dev_find_slot(0, PCI_DEVFN(0x14, 0));
@@ -49,10 +53,12 @@ static void lpc_init(device_t dev)
 	isa_dma_init();
 #endif
 
-	/* Enable DMA transaction on the LPC bus */
-	byte = pci_read_config8(dev, 0x40);
-	byte |= (1 << 2);
-	pci_write_config8(dev, 0x40, byte);
+	if (!IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SB700_DISABLE_ISA_DMA)) {
+		/* Enable DMA transaction on the LPC bus */
+		byte = pci_read_config8(dev, 0x40);
+		byte |= (1 << 2);
+		pci_write_config8(dev, 0x40, byte);
+	}
 
 	/* Disable the timeout mechanism on LPC */
 	byte = pci_read_config8(dev, 0x48);
@@ -70,30 +76,30 @@ static void lpc_init(device_t dev)
 #endif
 	pci_write_config8(dev, 0x78, byte);
 
-	/* hack, but the whole sb700 startup lacks any device which
-	   is doing the acpi init */
-#if CONFIG_HAVE_ACPI_RESUME
-	{
-	extern u8 acpi_slp_type;
-	u16 tmp = inw(ACPI_PM1_CNT_BLK);
-	acpi_slp_type = ((tmp & (7 << 10)) >> 10);
-	printk(BIOS_DEBUG, "SLP_TYP type was %x\n", acpi_slp_type);
-	}
-#endif
+	cmos_check_update_date();
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	setup_i8259(); /* Initialize i8259 pic */
+	setup_i8254(); /* Initialize i8254 timers */
+}
+
+#if IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
+int acpi_get_sleep_type(void)
+{
+	u16 tmp = inw(ACPI_PM1_CNT_BLK);
+	return ((tmp & (7 << 10)) >> 10);
 }
 
 void backup_top_of_ram(uint64_t ramtop)
 {
 	u32 dword = (u32) ramtop;
 	int nvram_pos = 0xfc, i;
-	for (i = 0; i<4; i++) {
+	for (i = 0; i < 4; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		outb((dword >>(8 * i)) & 0xff , BIOSRAM_DATA);
 		nvram_pos++;
 	}
 }
+#endif
 
 static void sb700_lpc_read_resources(device_t dev)
 {
@@ -131,7 +137,7 @@ static void sb700_lpc_set_resources(struct device *dev)
 
 	pci_dev_set_resources(dev);
 
-	/* Specical case. SPI Base Address. The SpiRomEnable should be set. */
+	/* Special case. SPI Base Address. The SpiRomEnable should be set. */
 	res = find_resource(dev, 0xA0);
 	pci_write_config32(dev, 0xA0, res->base | 1 << 1);
 }
@@ -259,6 +265,15 @@ static void sb700_lpc_enable_resources(device_t dev)
 	sb700_lpc_enable_childrens_resources(dev);
 }
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+
+static void southbridge_acpi_fill_ssdt_generator(device_t device) {
+	amd_generate_powernow(ACPI_CPU_CONTROL, 6, 1);
+}
+
+#endif
+
+
 static struct pci_operations lops_pci = {
 	.set_subsystem = pci_dev_set_subsystem,
 };
@@ -267,8 +282,12 @@ static struct device_operations lpc_ops = {
 	.read_resources = sb700_lpc_read_resources,
 	.set_resources = sb700_lpc_set_resources,
 	.enable_resources = sb700_lpc_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_fill_ssdt_generator = southbridge_acpi_fill_ssdt_generator,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 	.ops_pci = &lops_pci,
 };
 static const struct pci_driver lpc_driver __pci_driver = {

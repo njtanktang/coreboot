@@ -7,6 +7,7 @@
 #include <cpu/x86/cache.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
+#include <lib.h>
 #include <stdlib.h>
 #include <arch/acpi.h>
 #include <reset.h>
@@ -16,15 +17,11 @@
 #include "option_table.h"
 #endif
 
-#include <arch/early_variables.h>
-struct sys_info sysinfo_car CAR_GLOBAL;
-
 void setup_resource_map(const unsigned int *register_values, int max)
 {
 	int i;
-//	printk(BIOS_DEBUG, "setting up resource map....");
 	for (i = 0; i < max; i += 3) {
-		device_t dev;
+		pci_devfn_t dev;
 		unsigned where;
 		unsigned long reg;
 		dev = register_values[i] & ~0xfff;
@@ -34,7 +31,6 @@ void setup_resource_map(const unsigned int *register_values, int max)
 		reg |= register_values[i+2];
 		pci_write_config32(dev, where, reg);
 	}
-//	printk(BIOS_DEBUG, "done.\n");
 }
 
 static int controller_present(const struct mem_controller *ctrl)
@@ -284,14 +280,14 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 	 *	   111 = reserved
 	 * [ 7: 7] Reserved
 	 * [12: 8] Tref (Refresh Rate)
-	 *	   00000 = 100Mhz 4K rows
-	 *	   00001 = 133Mhz 4K rows
-	 *	   00010 = 166Mhz 4K rows
-	 *	   00011 = 200Mhz 4K rows
-	 *	   01000 = 100Mhz 8K/16K rows
-	 *	   01001 = 133Mhz 8K/16K rows
-	 *	   01010 = 166Mhz 8K/16K rows
-	 *	   01011 = 200Mhz 8K/16K rows
+	 *	   00000 = 100MHz 4K rows
+	 *	   00001 = 133MHz 4K rows
+	 *	   00010 = 166MHz 4K rows
+	 *	   00011 = 200MHz 4K rows
+	 *	   01000 = 100MHz 8K/16K rows
+	 *	   01001 = 133MHz 8K/16K rows
+	 *	   01010 = 166MHz 8K/16K rows
+	 *	   01011 = 200MHz 8K/16K rows
 	 * [19:13] Reserved
 	 * [22:20] Twcl (Write CAS Latency)
 	 *	   000 = 1 Mem clock after CAS# (Unbuffered Dimms)
@@ -414,12 +410,12 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 	 *	   0 = Use Idle Cycle Limit
 	 *	   1 = Generate a dynamic Idle cycle limit
 	 * [22:20] DRAM MEMCLK Frequency
-	 *	   000 = 100Mhz
+	 *	   000 = 100MHz
 	 *	   001 = reserved
-	 *	   010 = 133Mhz
+	 *	   010 = 133MHz
 	 *	   011 = reserved
 	 *	   100 = reserved
-	 *	   101 = 166Mhz
+	 *	   101 = 166MHz
 	 *	   110 = reserved
 	 *	   111 = reserved
 	 * [24:23] Reserved
@@ -521,13 +517,12 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 	int max;
 
 	if (!controller_present(ctrl)) {
-//		printk(BIOS_DEBUG, "No memory controller present\n");
 		return;
 	}
 	printk(BIOS_SPEW, "setting up CPU%02x northbridge registers\n", ctrl->node_id);
 	max = ARRAY_SIZE(register_values);
 	for (i = 0; i < max; i += 3) {
-		device_t dev;
+		pci_devfn_t dev;
 		unsigned where;
 		unsigned long reg;
 		dev = (register_values[i] & ~0xfff) - PCI_DEV(0, 0x18, 0) + ctrl->f0;
@@ -647,7 +642,7 @@ static struct dimm_size spd_get_dimm_size(unsigned device)
 	value = spd_read_byte(device, 5);	/* number of physical banks */
 	if (value < 0) goto hw_err;
 	if (value == 1) goto out;
-	if ((value != 2) && (value != 4 )) {
+	if ((value != 2) && (value != 4)) {
 		goto val_err;
 	}
 #if CONFIG_QRANK_DIMM_SUPPORT
@@ -762,7 +757,7 @@ static void set_dimm_map(const struct mem_controller *ctrl, struct dimm_size sz,
 	map &= ~(0xf << (index * 4));
 #if CONFIG_QRANK_DIMM_SUPPORT
 	if (sz.rank == 4) {
-		map &= ~(0xf << ( (index + 2) * 4));
+		map &= ~(0xf << ((index + 2) * 4));
 	}
 #endif
 
@@ -773,7 +768,7 @@ static void set_dimm_map(const struct mem_controller *ctrl, struct dimm_size sz,
 			map |= (sz.side1 - (25 + 3)) << (index *4);
 #if CONFIG_QRANK_DIMM_SUPPORT
 			if (sz.rank == 4) {
-	 			map |= (sz.side1 - (25 + 3)) << ( (index + 2) * 4);
+				map |= (sz.side1 - (25 + 3)) << ((index + 2) * 4);
 			}
 #endif
 		}
@@ -781,7 +776,7 @@ static void set_dimm_map(const struct mem_controller *ctrl, struct dimm_size sz,
 			map |= cs_map_aa[(sz.rows - 12) * 5 + (sz.col - 8) ] << (index*4);
 #if CONFIG_QRANK_DIMM_SUPPORT
 			if (sz.rank == 4) {
-				map |=  cs_map_aa[(sz.rows - 12) * 5 + (sz.col - 8) ] << ( (index + 2) * 4);
+				map |=  cs_map_aa[(sz.rows - 12) * 5 + (sz.col - 8) ] << ((index + 2) * 4);
 			}
 #endif
 		}
@@ -819,14 +814,14 @@ static void route_dram_accesses(const struct mem_controller *ctrl,
 	unsigned base;
 	unsigned index;
 	unsigned limit_reg, base_reg;
-	device_t device;
+	pci_devfn_t device;
 
 	node_id = ctrl->node_id;
 	index = (node_id << 3);
 	limit = (limit_k << 2);
 	limit &= 0xffff0000;
 	limit -= 0x00010000;
-	limit |= ( 0 << 8) | (node_id << 0);
+	limit |= (0 << 8) | (node_id << 0);
 	base = (base_k << 2);
 	base &= 0xffff0000;
 	base |= (0 << 8) | (1<<1) | (1<<0);
@@ -861,7 +856,7 @@ static void set_top_mem(unsigned tom_k, unsigned hole_startk)
 	}
 
 	/* Leave a 64M hole between TOP_MEM and TOP_MEM2
-	 * so I can see my rom chip and other I/O devices.
+	 * so I can see my ROM chip and other I/O devices.
 	 */
 	if (tom_k >= 0x003f0000) {
 #if CONFIG_HW_MEM_HOLE_SIZEK != 0
@@ -942,8 +937,8 @@ static unsigned long interleave_chip_selects(const struct mem_controller *ctrl)
 		}
 
 		value = pci_read_config32(ctrl->f2, DRAM_BANK_ADDR_MAP);
-		cs_mode =( value >> ((index>>1)*4)) & 0xf;
-		if (cs_mode == 0 ) continue;
+		cs_mode =(value >> ((index>>1)*4)) & 0xf;
+		if (cs_mode == 0) continue;
 		if (common_cs_mode == 0) {
 			common_cs_mode = cs_mode;
 		}
@@ -962,12 +957,11 @@ static unsigned long interleave_chip_selects(const struct mem_controller *ctrl)
 	}
 
 	/* Find the bits of csbase that we need to interleave on */
-	if (is_cpu_pre_d0()){
+	if (is_cpu_pre_d0()) {
 		csbase_inc = 1 << csbase_low_shift[common_cs_mode];
 		if (is_dual_channel(ctrl)) {
 		/* Also we run out of address mask bits if we try and interleave 8 4GB dimms */
 			if ((bits == 3) && (common_size == (1 << (32 - 3)))) {
-//     				printk(BIOS_DEBUG, "8 4GB chip selects cannot be interleaved\n");
 				return 0;
 			}
 			csbase_inc <<=1;
@@ -976,8 +970,7 @@ static unsigned long interleave_chip_selects(const struct mem_controller *ctrl)
 	else {
 		csbase_inc = 1 << csbase_low_d0_shift[common_cs_mode];
 		if (is_dual_channel(ctrl)) {
-			if ( (bits==3) && (common_cs_mode > 8)) {
-//				printk(BIOS_DEBUG, "8 cs_mode>8 chip selects cannot be interleaved\n");
+			if ((bits == 3) && (common_cs_mode > 8)) {
 				return 0;
 			}
 			csbase_inc <<=1;
@@ -1225,7 +1218,7 @@ static long spd_enable_2channels(const struct mem_controller *ctrl, long dimm_ma
 		5,	/* *Physical Banks */
 		6,	/* *Module Data Width low */
 		7,	/* *Module Data Width high */
-		9,	/* *Cycle time at highest CAS Latency CL=X */
+		9,	/* *Cycle time at highest CAS Latency CL = X */
 		11,	/* *SDRAM Type */
 		13,	/* *SDRAM Width */
 		17,	/* *Logical Banks */
@@ -1245,7 +1238,7 @@ static long spd_enable_2channels(const struct mem_controller *ctrl, long dimm_ma
 		((dimm_mask >> DIMM_SOCKETS) & ((1 << DIMM_SOCKETS) - 1))) {
 		goto single_channel;
 	}
-	/* If the cpu is not capable of doing dual channels don't do dual channels */
+	/* If the CPU is not capable of doing dual channels don't do dual channels */
 	nbcap = pci_read_config32(ctrl->f3, NORTHBRIDGE_CAP);
 	if (!(nbcap & NBCAP_128Bit)) {
 		goto single_channel;
@@ -1392,7 +1385,7 @@ static int spd_dimm_loading_socket(const struct mem_controller *ctrl, long dimm_
 
 /*
 	Following table comes directly from BKDG (unbuffered DIMM support)
-	[Y][X] Y = ch0_0, ch1_0, ch0_1, ch1_1 1=present 0=empty
+	[Y][X] Y = ch0_0, ch1_0, ch0_1, ch1_1 1 = present 0 = empty
 	  X uses same layout but 1 means double rank 0 is single rank/empty
 
 	Following tables come from BKDG the ch{0_0,1_0,0_1,1_1} maps to
@@ -1471,9 +1464,7 @@ static int spd_dimm_loading_socket(const struct mem_controller *ctrl, long dimm_
 	}
 	/* now the lookup, decode the max speed DDR400_2T etc */
 	dloading = dimm_loading_config[dpos][rpos] & DDR_MASK;
-#if 0
-	printk(BIOS_DEBUG, "XXX %x %x dload %x 2T %x\n", dpos,rpos, dloading, dimm_loading_config[dpos][rpos] & DDR_2T);
-#endif
+
 hw_error:
 	if (dloading != 0) {
 		/* we have valid combination check the restrictions */
@@ -1655,7 +1646,7 @@ static struct spd_set_memclk_result spd_set_memclk(const struct mem_controller *
 	/* if the next lower frequency gives a CL at least one whole cycle
 	 * shorter, select that (see end of BKDG 4.1.1.1) */
 	if (freq < sizeof(cl_at_freq)-1 && cl_at_freq[freq+1] &&
-		log2f(cl_at_freq[freq]) - log2f(cl_at_freq[freq+1]) >= 2)
+		__ffs(cl_at_freq[freq]) - __ffs(cl_at_freq[freq+1]) >= 2)
 			freq++;
 
 	if (freq == sizeof(cl_at_freq))
@@ -1673,14 +1664,6 @@ static struct spd_set_memclk_result spd_set_memclk(const struct mem_controller *
 	/* Update DRAM Config High with our selected memory speed */
 	value = pci_read_config32(ctrl->f2, DRAM_CONFIG_HIGH);
 	value &= ~(DCH_MEMCLK_MASK << DCH_MEMCLK_SHIFT);
-#if 0
-	/* Improves DQS centering by correcting for case when core speed multiplier and MEMCLK speed result in odd clock divisor, by selecting the next lowest memory speed, required only at DDR400 and higher speeds with certain DIMM loadings ---- cheating???*/
-	if (!is_cpu_pre_e0()) {
-		if (min_cycle_time==0x50) {
-			value |= 1<<31;
-		}
-	}
-#endif
 
 	value |= result.param->dch_memclk;
 	pci_write_config32(ctrl->f2, DRAM_CONFIG_HIGH, value);
@@ -1690,7 +1673,7 @@ static struct spd_set_memclk_result spd_set_memclk(const struct mem_controller *
 	/* Update DRAM Timing Low with our selected cas latency */
 	value = pci_read_config32(ctrl->f2, DRAM_TIMING_LOW);
 	value &= ~(DTL_TCL_MASK << DTL_TCL_SHIFT);
-	value |= latencies[log2f(cl_at_freq[freq]) - 2] << DTL_TCL_SHIFT;
+	value |= latencies[__ffs(cl_at_freq[freq]) - 2] << DTL_TCL_SHIFT;
 	pci_write_config32(ctrl->f2, DRAM_TIMING_LOW, value);
 
 	result.dimm_mask = dimm_mask;
@@ -1712,7 +1695,7 @@ static int update_dimm_Trc(const struct mem_controller *ctrl, const struct mem_p
 	if ((value == 0) || (value == 0xff)) {
 		value = param->tRC;
 	}
-	clocks = ((value << 1) + param->divisor - 1)/param->divisor;
+	clocks = CEIL_DIV((value << 1), param->divisor);
 	if (clocks < DTL_TRC_MIN) {
 		clocks = DTL_TRC_MIN;
 	}
@@ -1741,7 +1724,7 @@ static int update_dimm_Trfc(const struct mem_controller *ctrl, const struct mem_
 	if ((value == 0) || (value == 0xff)) {
 		value = param->tRFC;
 	}
-	clocks = ((value << 1) + param->divisor - 1)/param->divisor;
+	clocks = CEIL_DIV((value << 1), param->divisor);
 	if (clocks < DTL_TRFC_MIN) {
 		clocks = DTL_TRFC_MIN;
 	}
@@ -1767,7 +1750,7 @@ static int update_dimm_Trcd(const struct mem_controller *ctrl, const struct mem_
 	int value;
 	value = spd_read_byte(ctrl->channel0[i], 29);
 	if (value < 0) return -1;
-	clocks = (value + (param->divisor << 1) -1)/(param->divisor << 1);
+	clocks = CEIL_DIV(value, (param->divisor << 1));
 	if (clocks < DTL_TRCD_MIN) {
 		clocks = DTL_TRCD_MIN;
 	}
@@ -1792,7 +1775,7 @@ static int update_dimm_Trrd(const struct mem_controller *ctrl, const struct mem_
 	int value;
 	value = spd_read_byte(ctrl->channel0[i], 28);
 	if (value < 0) return -1;
-	clocks = (value + (param->divisor << 1) -1)/(param->divisor << 1);
+	clocks = CEIL_DIV(value, (param->divisor << 1));
 	if (clocks < DTL_TRRD_MIN) {
 		clocks = DTL_TRRD_MIN;
 	}
@@ -1817,7 +1800,7 @@ static int update_dimm_Tras(const struct mem_controller *ctrl, const struct mem_
 	int value;
 	value = spd_read_byte(ctrl->channel0[i], 30);
 	if (value < 0) return -1;
-	clocks = ((value << 1) + param->divisor - 1)/param->divisor;
+	clocks = CEIL_DIV((value << 1), param->divisor);
 	if (clocks < DTL_TRAS_MIN) {
 		clocks = DTL_TRAS_MIN;
 	}
@@ -1842,7 +1825,7 @@ static int update_dimm_Trp(const struct mem_controller *ctrl, const struct mem_p
 	int value;
 	value = spd_read_byte(ctrl->channel0[i], 27);
 	if (value < 0) return -1;
-	clocks = (value + (param->divisor << 1) - 1)/(param->divisor << 1);
+	clocks = CEIL_DIV(value, (param->divisor << 1));
 	if (clocks < DTL_TRP_MIN) {
 		clocks = DTL_TRP_MIN;
 	}
@@ -1929,7 +1912,7 @@ static int update_dimm_x4(const struct mem_controller *ctrl, const struct mem_pa
 
 	dimm = 1<<(DCL_x4DIMM_SHIFT+i);
 #if CONFIG_QRANK_DIMM_SUPPORT
-	if (rank==4) {
+	if (rank == 4) {
 		dimm |= 1<<(DCL_x4DIMM_SHIFT+i+2);
 	}
 #endif
@@ -2191,7 +2174,6 @@ static void sdram_set_spd_registers(const struct mem_controller *ctrl)
 	long dimm_mask;
 #if 1
 	if (!controller_present(ctrl)) {
-//		printk(BIOS_DEBUG, "No memory controller present\n");
 		return;
 	}
 #endif
@@ -2233,7 +2215,7 @@ static uint32_t hoist_memory(int controllers, const struct mem_controller *ctrl,
 {
 	int ii;
 	uint32_t carry_over;
-	device_t dev;
+	pci_devfn_t dev;
 	uint32_t base, limit;
 	uint32_t basek;
 	uint32_t hoist;
@@ -2241,7 +2223,7 @@ static uint32_t hoist_memory(int controllers, const struct mem_controller *ctrl,
 
 	carry_over = (4*1024*1024) - hole_startk;
 
-	for (ii=controllers - 1;ii>i;ii--) {
+	for (ii = controllers - 1; ii > i; ii--) {
 		base  = pci_read_config32(ctrl[0].f1, 0x40 + (ii << 3));
 		if ((base & ((1<<1)|(1<<0))) != ((1<<1)|(1<<0))) {
 			continue;
@@ -2296,7 +2278,7 @@ static void set_hw_mem_hole(int controllers, const struct mem_controller *ctrl)
 	 * we need to decrease it.
 	 */
 	uint32_t basek_pri;
-	for (i=0; i<controllers; i++) {
+	for (i = 0; i < controllers; i++) {
 			uint32_t base;
 			unsigned base_k;
 			base  = pci_read_config32(ctrl[0].f1, 0x40 + (i << 3));
@@ -2317,7 +2299,7 @@ static void set_hw_mem_hole(int controllers, const struct mem_controller *ctrl)
 	printk(BIOS_SPEW, "Handling memory hole at 0x%08x (adjusted)\n", hole_startk);
 #endif
 	/* Find node number that needs the memory hole configured */
-	for (i=0; i<controllers; i++) {
+	for (i = 0; i < controllers; i++) {
 			uint32_t base, limit;
 			unsigned base_k, limit_k;
 			base  = pci_read_config32(ctrl[0].f1, 0x40 + (i << 3));
@@ -2349,11 +2331,7 @@ static void sdram_enable(int controllers, const struct mem_controller *ctrl)
 {
 	int i;
 	u32 whatWait = 0;
-#if CONFIG_HAVE_ACPI_RESUME
-	int suspend = acpi_is_wakeup_early();
-#else
-	int suspend = 0;
-#endif
+	int suspend = acpi_is_wakeup_s3();
 
 	/* Error if I don't have memory */
 	if (memory_end_k(ctrl, controllers) == 0) {
@@ -2451,7 +2429,7 @@ static void sdram_enable(int controllers, const struct mem_controller *ctrl)
 			if ((loops & 1023) == 0) {
 				printk(BIOS_DEBUG, ".");
 			}
-		} while(((dcl & whatWait) != 0) && (loops < TIMEOUT_LOOPS));
+		} while (((dcl & whatWait) != 0) && (loops < TIMEOUT_LOOPS));
 		if (loops >= TIMEOUT_LOOPS) {
 			printk(BIOS_DEBUG, " failed\n");
 			continue;
@@ -2459,14 +2437,9 @@ static void sdram_enable(int controllers, const struct mem_controller *ctrl)
 
 		if (!is_cpu_pre_c0()) {
 			/* Wait until it is safe to touch memory */
-#if 0
-			/* the registers are marked read-only but code zeros them */
-			dcl &= ~(DCL_MemClrStatus | DCL_DramEnable);
-			pci_write_config32(ctrl[i].f2, DRAM_CONFIG_LOW, dcl);
-#endif
 			do {
 				dcl = pci_read_config32(ctrl[i].f2, DRAM_CONFIG_LOW);
-			} while(((dcl & DCL_MemClrStatus) == 0) || ((dcl & DCL_DramEnable) == 0) ||
+			} while (((dcl & DCL_MemClrStatus) == 0) || ((dcl & DCL_DramEnable) == 0) ||
 					((dcl & DCL_SRS)));
 		}
 
@@ -2482,11 +2455,11 @@ static void sdram_enable(int controllers, const struct mem_controller *ctrl)
 
 	//FIXME add enable node interleaving here -- yhlu
 	/*needed?
-		1. check how many nodes we have , if not all has ram installed get out
+		1. check how many nodes we have , if not all has RAM installed get out
 		2. check cs_base lo is 0, node 0 f2 0x40,,,,, if any one is not using lo is CS_BASE, get out
 		3. check if other node is the same as node 0 about f2 0x40,,,,, otherwise get out
 		4. if all ready enable node_interleaving in f1 0x40..... of every node
-		5. for node interleaving we need to set mem hole to every node ( need recalcute hole offset in f0 for every node)
+		5. for node interleaving we need to set mem hole to every node (need recalcute hole offset in f0 for every node)
 	*/
 
 }
@@ -2501,7 +2474,7 @@ void fill_mem_ctrl(int controllers, struct mem_controller *ctrl_a,
 	int i;
 	int j;
 	struct mem_controller *ctrl;
-	for (i=0;i<controllers; i++) {
+	for (i = 0; i < controllers; i++) {
 		ctrl = &ctrl_a[i];
 		ctrl->node_id = i;
 		ctrl->f0 = PCI_DEV(0, 0x18+i, 0);
@@ -2511,7 +2484,7 @@ void fill_mem_ctrl(int controllers, struct mem_controller *ctrl_a,
 
 		if (spd_addr == (void *)0) continue;
 
-		for (j=0;j<DIMM_SOCKETS;j++) {
+		for (j = 0; j < DIMM_SOCKETS; j++) {
 			ctrl->channel0[j] = spd_addr[(i*2+0)*DIMM_SOCKETS + j];
 			ctrl->channel1[j] = spd_addr[(i*2+1)*DIMM_SOCKETS + j];
 		}

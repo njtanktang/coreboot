@@ -2,6 +2,7 @@ if BOARD_RODA_RK9
 
 config BOARD_SPECIFIC_OPTIONS # dummy
 	def_bool y
+	select SYSTEM_TYPE_LAPTOP
 	select CPU_INTEL_SOCKET_BGA956
 	select NORTHBRIDGE_INTEL_GM45
 	select SOUTHBRIDGE_INTEL_I82801IX
@@ -11,8 +12,10 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select HAVE_MP_TABLE
 	select CARDBUS_PLUGIN_SUPPORT
 	select HAVE_ACPI_TABLES
+	select HAVE_ACPI_RESUME
 	select EC_ACPI
 	select HAVE_OPTION_TABLE
+	select INTEL_INT15
 
 config MAINBOARD_DIR
 	string
@@ -26,12 +29,12 @@ config MMCONF_BASE_ADDRESS
 	hex
 	default 0xf0000000
 
-config IRQ_SLOT_COUNT
-	int
-	default 18
-
 config MAX_CPUS
 	int
 	default 2
+
+config CBFS_SIZE
+	hex
+	default ROM_SIZE
 
 endif # BOARD_RODA_RK9

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -149,6 +144,47 @@ static acpi_cstate_t cstate_map[NUM_C_STATES] = {
 		.resource = MWAIT_RES(6, 0),
 	},
 };
+
+static void enable_vmx(void)
+{
+	struct cpuid_result regs;
+	msr_t msr;
+	int enable = IS_ENABLED(CONFIG_ENABLE_VMX);
+
+	regs = cpuid(1);
+	/* Check that the VMX is supported before reading or writing the MSR. */
+	if (!((regs.ecx & CPUID_VMX) || (regs.ecx & CPUID_SMX)))
+		return;
+
+	msr = rdmsr(IA32_FEATURE_CONTROL);
+
+	if (msr.lo & (1 << 0)) {
+		printk(BIOS_ERR, "VMX is locked, so %s will do nothing\n", __func__);
+		/* VMX locked. If we set it again we get an illegal
+		 * instruction
+		 */
+		return;
+	}
+
+	/* The IA32_FEATURE_CONTROL MSR may initialize with random values.
+	 * It must be cleared regardless of VMX config setting.
+	 */
+	msr.hi = msr.lo = 0;
+
+	printk(BIOS_DEBUG, "%s VMX\n", enable ? "Enabling" : "Disabling");
+
+	if (enable) {
+		msr.lo |= (1 << 2);
+		if (regs.ecx & CPUID_SMX)
+			msr.lo |= (1 << 1);
+	}
+
+	wrmsr(IA32_FEATURE_CONTROL, msr);
+
+	msr.lo |= (1 << 0); /* Set lock bit */
+
+	wrmsr(IA32_FEATURE_CONTROL, msr);
+}
 
 /* Convert time in seconds to POWER_LIMIT_1_TIME MSR value */
 static const u8 power_limit_time_sec_to_msr[] = {
@@ -422,8 +458,8 @@ void set_power_limits(u8 power_limit_1_time)
 	unsigned tdp, min_power, max_power, max_time;
 	u8 power_limit_1_val;
 
-	if (power_limit_1_time > ARRAY_SIZE(power_limit_time_sec_to_msr))
-		power_limit_1_time = 28;
+	if (power_limit_1_time >= ARRAY_SIZE(power_limit_time_sec_to_msr))
+		power_limit_1_time = ARRAY_SIZE(power_limit_time_sec_to_msr) - 1;
 
 	if (!(msr.lo & PLATFORM_INFO_SET_TDP))
 		return;
@@ -556,7 +592,7 @@ static void configure_c_states(void)
 static void configure_thermal_target(void)
 {
 	struct cpu_intel_haswell_config *conf;
-	device_t lapic;
+	struct device *lapic;
 	msr_t msr;
 
 	/* Find pointer to CPU configuration */
@@ -678,30 +714,18 @@ static void configure_mca(void)
 		wrmsr(IA32_MC0_STATUS + (i * 4), msr);
 }
 
-static void bsp_init_before_ap_bringup(struct bus *cpu_bus)
-{
-	/* Setup MTRRs based on physical address size. */
-	x86_setup_fixed_mtrrs();
-	x86_setup_var_mtrrs(cpuid_eax(0x80000008) & 0xff, 2);
-	x86_mtrr_check();
-
-	initialize_vr_config();
-
-	if (haswell_is_ult()) {
-		calibrate_24mhz_bclk();
-		configure_pch_power_sharing();
-	}
-}
-
 /* All CPUs including BSP will run the following function. */
-static void haswell_init(device_t cpu)
+static void haswell_init(struct device *cpu)
 {
 	/* Clear out pending MCEs */
 	configure_mca();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	enable_lapic_tpr();
 	setup_lapic();
+
+	/* Enable virtualization if Kconfig option is set */
+	enable_vmx();
 
 	/* Configure C States */
 	configure_c_states();
@@ -727,47 +751,27 @@ static void haswell_init(device_t cpu)
 
 /* MP initialization support. */
 static const void *microcode_patch;
-int ht_disabled;
+static int ht_disabled;
 
-static int adjust_apic_id_ht_disabled(int index, int apic_id)
+static void pre_mp_init(void)
 {
-	return 2 * index;
+	/* Setup MTRRs based on physical address size. */
+	x86_setup_mtrrs_with_detect();
+	x86_mtrr_check();
+
+	initialize_vr_config();
+
+	if (haswell_is_ult()) {
+		calibrate_24mhz_bclk();
+		configure_pch_power_sharing();
+	}
 }
 
-static void relocate_and_load_microcode(void *unused)
+static int get_cpu_count(void)
 {
-	/* Relocate the SMM handler. */
-	smm_relocate();
-
-	/* After SMM relocation a 2nd microcode load is required. */
-	intel_microcode_load_unlocked(microcode_patch);
-}
-
-static void enable_smis(void *unused)
-{
-	/* Now that all APs have been relocated as well as the BSP let SMIs
-	 * start flowing. */
-	southbridge_smm_enable_smi();
-
-	/* Lock down the SMRAM space. */
-	smm_lock();
-}
-
-static struct mp_flight_record mp_steps[] = {
-	MP_FR_NOBLOCK_APS(relocate_and_load_microcode, NULL,
-	                  relocate_and_load_microcode, NULL),
-	MP_FR_BLOCK_APS(mp_initialize_cpu, NULL, mp_initialize_cpu, NULL),
-	/* Wait for APs to finish initialization before proceeding. */
-	MP_FR_BLOCK_APS(NULL, NULL, enable_smis, NULL),
-};
-
-void bsp_init_and_start_aps(struct bus *cpu_bus)
-{
-	void *smm_save_area;
+	msr_t msr;
 	int num_threads;
 	int num_cores;
-	msr_t msr;
-	struct mp_params mp_params;
 
 	msr = rdmsr(CORE_THREAD_COUNT_MSR);
 	num_threads = (msr.lo >> 0) & 0xffff;
@@ -777,36 +781,60 @@ void bsp_init_and_start_aps(struct bus *cpu_bus)
 
 	ht_disabled = num_threads == num_cores;
 
-	/* Perform any necessary BSP initialization before APs are brought up.
-	 * This call also allows the BSP to prepare for any secondary effects
-	 * from calling cpu_initialize() such as smm_init(). */
-	bsp_init_before_ap_bringup(cpu_bus);
+	return num_threads;
+}
 
+static void get_microcode_info(const void **microcode, int *parallel)
+{
 	microcode_patch = intel_microcode_find();
+	*microcode = microcode_patch;
+	*parallel = 1;
+}
 
-	/* Save default SMM area before relocation occurs. */
-	smm_save_area = backup_default_smm_area();
-
-	mp_params.num_cpus = num_threads;
-	mp_params.parallel_microcode_load = 1;
+static int adjust_apic_id(int index, int apic_id)
+{
 	if (ht_disabled)
-		mp_params.adjust_apic_id = adjust_apic_id_ht_disabled;
+		return 2 * index;
 	else
-		mp_params.adjust_apic_id = NULL;
-	mp_params.flight_plan = &mp_steps[0];
-	mp_params.num_records = ARRAY_SIZE(mp_steps);
-	mp_params.microcode_pointer = microcode_patch;
+		return index;
+}
 
-	/* Load relocation and permeanent handlers. Then initiate relocation. */
-	if (smm_initialize())
-		printk(BIOS_CRIT, "SMM Initialiazation failed...\n");
+static void per_cpu_smm_trigger(void)
+{
+	/* Relocate the SMM handler. */
+	smm_relocate();
 
-	if (mp_init(cpu_bus, &mp_params)) {
+	/* After SMM relocation a 2nd microcode load is required. */
+	intel_microcode_load_unlocked(microcode_patch);
+}
+
+static void post_mp_init(void)
+{
+	/* Now that all APs have been relocated as well as the BSP let SMIs
+	 * start flowing. */
+	southbridge_smm_enable_smi();
+
+	/* Lock down the SMRAM space. */
+	smm_lock();
+}
+
+static const struct mp_ops mp_ops = {
+	.pre_mp_init = pre_mp_init,
+	.get_cpu_count = get_cpu_count,
+	.get_smm_info = smm_info,
+	.get_microcode_info = get_microcode_info,
+	.adjust_cpu_apic_entry = adjust_apic_id,
+	.pre_mp_smm_init = smm_initialize,
+	.per_cpu_smm_trigger = per_cpu_smm_trigger,
+	.relocation_handler = smm_relocation_handler,
+	.post_mp_init = post_mp_init,
+};
+
+void bsp_init_and_start_aps(struct bus *cpu_bus)
+{
+	if (mp_init_with_smm(cpu_bus, &mp_ops)) {
 		printk(BIOS_ERR, "MP initialization failure.\n");
 	}
-
-	/* Restore the default SMM region. */
-	restore_default_smm_area(smm_save_area);
 }
 
 static struct device_operations cpu_dev_ops = {
@@ -826,4 +854,3 @@ static const struct cpu_driver driver __cpu_driver = {
 	.id_table = cpu_table,
 	.cstates  = cstate_map,
 };
-

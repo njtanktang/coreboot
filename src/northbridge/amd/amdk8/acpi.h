@@ -11,16 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef AMDK8_ACPI_H
 #define AMDK8_ACPI_H
 #include <arch/acpigen.h>
 
-int k8acpi_write_vars(void);
+void k8acpi_write_vars(device_t device);
+unsigned long northbridge_write_acpi_tables(device_t device, unsigned long start, acpi_rsdp_t *rsdp);
 
 #endif

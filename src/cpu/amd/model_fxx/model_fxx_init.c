@@ -1,12 +1,23 @@
-/* Needed so the AMD K8 runs correctly.  */
-/* this should be done by Eric
+/*
+ * This file is part of the coreboot project.
+ *
  * 2004.11 yhlu add d0 e0 support
  * 2004.12 yhlu add dual core support
  * 2005.02 yhlu add e0 memory hole support
-
  * Copyright 2005 AMD
  * 2005.08 yhlu add microcode support
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
+
+/* Needed so the AMD K8 runs correctly.  */
 
 #include <console/console.h>
 #include <cpu/x86/msr.h>
@@ -26,27 +37,30 @@
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/smm.h>
 #include <cpu/amd/multicore.h>
-#include <cpu/amd/model_fxx_msr.h>
+#include <cpu/amd/msr.h>
 
 #if CONFIG_WAIT_BEFORE_CPUS_INIT
 void cpus_ready_for_init(void)
 {
 #if CONFIG_K8_REV_F_SUPPORT
 #if CONFIG_MEM_TRAIN_SEQ == 1
-        struct sys_info *sysinfox = (struct sys_info *)((CONFIG_RAMTOP) - sizeof(*sysinfox));
-        // wait for ap memory to trained
-        wait_all_core0_mem_trained(sysinfox);
+	struct sys_info *sysinfox = (struct sys_info *)((CONFIG_RAMTOP) - sizeof(*sysinfox));
+	// wait for ap memory to trained
+	wait_all_core0_mem_trained(sysinfox);
 #endif
 #endif
 }
 #endif
 
-#if !CONFIG_K8_REV_F_SUPPORT
 int is_e0_later_in_bsp(int nodeid)
 {
 	uint32_t val;
 	uint32_t val_old;
 	int e0_later;
+
+	if (IS_ENABLED(CONFIG_K8_REV_F_SUPPORT))
+		return 1;
+
 	if (nodeid == 0) {	// we don't need to do that for node 0 in core0/node0
 		return !is_cpu_pre_e0();
 	}
@@ -67,18 +81,19 @@ int is_e0_later_in_bsp(int nodeid)
 
 	return e0_later;
 }
-#endif
 
-#if CONFIG_K8_REV_F_SUPPORT
 int is_cpu_f0_in_bsp(int nodeid)
 {
 	uint32_t dword;
 	device_t dev;
+
+	if (!IS_ENABLED(CONFIG_K8_REV_F_SUPPORT))
+		return 0;
+
 	dev = dev_find_slot(0, PCI_DEVFN(0x18 + nodeid, 3));
 	dword = pci_read_config32(dev, 0xfc);
 	return (dword & 0xfff00) == 0x40f00;
 }
-#endif
 
 #define MCI_STATUS 0x401
 
@@ -101,12 +116,12 @@ static void save_mtrr_state(struct mtrr_state *state)
 {
 	int i;
 	for (i = 0; i < MTRR_COUNT; i++) {
-		state->mtrrs[i].base = rdmsr(MTRRphysBase_MSR(i));
-		state->mtrrs[i].mask = rdmsr(MTRRphysMask_MSR(i));
+		state->mtrrs[i].base = rdmsr(MTRR_PHYS_BASE(i));
+		state->mtrrs[i].mask = rdmsr(MTRR_PHYS_MASK(i));
 	}
 	state->top_mem = rdmsr(TOP_MEM);
 	state->top_mem2 = rdmsr(TOP_MEM2);
-	state->def_type = rdmsr(MTRRdefType_MSR);
+	state->def_type = rdmsr(MTRR_DEF_TYPE_MSR);
 }
 
 static void restore_mtrr_state(struct mtrr_state *state)
@@ -115,12 +130,12 @@ static void restore_mtrr_state(struct mtrr_state *state)
 	disable_cache();
 
 	for (i = 0; i < MTRR_COUNT; i++) {
-		wrmsr(MTRRphysBase_MSR(i), state->mtrrs[i].base);
-		wrmsr(MTRRphysMask_MSR(i), state->mtrrs[i].mask);
+		wrmsr(MTRR_PHYS_BASE(i), state->mtrrs[i].base);
+		wrmsr(MTRR_PHYS_MASK(i), state->mtrrs[i].mask);
 	}
 	wrmsr(TOP_MEM, state->top_mem);
 	wrmsr(TOP_MEM2, state->top_mem2);
-	wrmsr(MTRRdefType_MSR, state->def_type);
+	wrmsr(MTRR_DEF_TYPE_MSR, state->def_type);
 
 	enable_cache();
 }
@@ -154,22 +169,22 @@ static void set_init_ecc_mtrrs(void)
 	for (i = 0; i < MTRR_COUNT; i++) {
 		msr_t zero;
 		zero.lo = zero.hi = 0;
-		wrmsr(MTRRphysBase_MSR(i), zero);
-		wrmsr(MTRRphysMask_MSR(i), zero);
+		wrmsr(MTRR_PHYS_BASE(i), zero);
+		wrmsr(MTRR_PHYS_MASK(i), zero);
 	}
 
-	/* Write back cache the first 1MB */
+	/* Write back cache from 0x0 to CACHE_TMP_RAMTOP. */
 	msr.hi = 0x00000000;
 	msr.lo = 0x00000000 | MTRR_TYPE_WRBACK;
-	wrmsr(MTRRphysBase_MSR(0), msr);
+	wrmsr(MTRR_PHYS_BASE(0), msr);
 	msr.hi = 0x000000ff;
-	msr.lo = ~((CONFIG_RAMTOP) - 1) | 0x800;
-	wrmsr(MTRRphysMask_MSR(0), msr);
+	msr.lo = ~((CACHE_TMP_RAMTOP) - 1) | 0x800;
+	wrmsr(MTRR_PHYS_MASK(0), msr);
 
 	/* Set the default type to write combining */
 	msr.hi = 0x00000000;
 	msr.lo = 0xc00 | MTRR_TYPE_WRCOMB;
-	wrmsr(MTRRdefType_MSR, msr);
+	wrmsr(MTRR_DEF_TYPE_MSR, msr);
 
 	/* Set TOP_MEM to 4G */
 	msr.hi = 0x00000001;
@@ -234,21 +249,20 @@ static void init_ecc_memory(unsigned node_id)
 
 	f1_dev = dev_find_slot(0, PCI_DEVFN(0x18 + node_id, 1));
 	if (!f1_dev) {
-		die("Cannot find cpu function 1\n");
+		die("Cannot find CPU function 1\n");
 	}
 	f2_dev = dev_find_slot(0, PCI_DEVFN(0x18 + node_id, 2));
 	if (!f2_dev) {
-		die("Cannot find cpu function 2\n");
+		die("Cannot find CPU function 2\n");
 	}
 	f3_dev = dev_find_slot(0, PCI_DEVFN(0x18 + node_id, 3));
 	if (!f3_dev) {
-		die("Cannot find cpu function 3\n");
+		die("Cannot find CPU function 3\n");
 	}
 
 	/* See if we scrubbing should be enabled */
-	enable_scrubbing = 1;
-	if (get_option(&enable_scrubbing, "hw_scrubber") != CB_SUCCESS)
-		enable_scrubbing = CONFIG_HW_SCRUBBER;
+	enable_scrubbing = CONFIG_HW_SCRUBBER;
+	get_option(&enable_scrubbing, "hw_scrubber");
 
 	/* Enable cache scrubbing at the lowest possible rate */
 	if (enable_scrubbing) {
@@ -278,18 +292,13 @@ static void init_ecc_memory(unsigned node_id)
 #if CONFIG_HW_MEM_HOLE_SIZEK != 0
 	unsigned long hole_startk = 0;
 
-#if !CONFIG_K8_REV_F_SUPPORT
-	if (!is_cpu_pre_e0()) {
-#endif
-
+	if (IS_ENABLED(CONFIG_K8_REV_F_SUPPORT) || !is_cpu_pre_e0()) {
 		uint32_t val;
 		val = pci_read_config32(f1_dev, 0xf0);
 		if (val & 1) {
 			hole_startk = ((val & (0xff << 24)) >> 10);
 		}
-#if !CONFIG_K8_REV_F_SUPPORT
 	}
-#endif
 #endif
 
 	/* Don't start too early */
@@ -347,10 +356,10 @@ static void init_ecc_memory(unsigned node_id)
 	printk(BIOS_DEBUG, " done\n");
 }
 
-static inline void k8_errata(void)
+static void k8_pre_f_errata(void)
 {
 	msr_t msr;
-#if !CONFIG_K8_REV_F_SUPPORT
+
 	if (is_cpu_pre_c0()) {
 		/* Erratum 63... */
 		msr = rdmsr(HWCR_MSR);
@@ -414,18 +423,17 @@ static inline void k8_errata(void)
 		msr.hi |= 1;
 		wrmsr_amd(CPU_ID_EXT_FEATURES_MSR, msr);
 	}
-#endif
+}
 
+static void k8_errata(void)
+{
+	msr_t msr;
 
-#if !CONFIG_K8_REV_F_SUPPORT
 	/* I can't touch this msr on early buggy cpus */
-	if (!is_cpu_pre_b3())
-#endif
-	{
+	if (!is_cpu_pre_b3()) {
 		msr = rdmsr(NB_CFG_MSR);
 
-#if !CONFIG_K8_REV_F_SUPPORT
-		if (!is_cpu_pre_c0() && is_cpu_pre_d0()) {
+		if (is_cpu_pre_d0() && !is_cpu_pre_c0()) {
 			/* D0 later don't need it */
 			/* Erratum 86 Disable data masking on C0 and
 			 * later processor revs.
@@ -433,7 +441,7 @@ static inline void k8_errata(void)
 			 */
 			msr.hi |= 1 << (36 - 32);
 		}
-#endif
+
 		/* Erratum 89 ... */
 		/* Erratum 89 is mistakenly labeled as 88 in AMD pub #25759
 		 * It is correctly labeled as 89 on page 49 of the document
@@ -448,12 +456,11 @@ static inline void k8_errata(void)
 
 		wrmsr(NB_CFG_MSR, msr);
 	}
+
 	/* Erratum 122 */
 	msr = rdmsr(HWCR_MSR);
 	msr.lo |= 1 << 6;
 	wrmsr(HWCR_MSR, msr);
-
-
 }
 
 static void model_fxx_init(device_t dev)
@@ -464,11 +471,23 @@ static void model_fxx_init(device_t dev)
 
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
+
+	/* Initialize all variable MTRRs except the first pair */
+	msr.hi = 0x00000000;
+	msr.lo = 0x00000000;
+
+	disable_cache();
+
+	for (i = 0x2; i < 0x10; i++) {
+		wrmsr(0x00000200 | i, msr);
+	}
+
+	enable_cache();
 	amd_setup_mtrrs();
 	x86_mtrr_check();
 
 	/* Update the microcode */
-	model_fxx_update_microcode(dev->device);
+	update_microcode(dev->device);
 
 	disable_cache();
 
@@ -479,6 +498,9 @@ static void model_fxx_init(device_t dev)
 		wrmsr(MCI_STATUS + (i * 4), msr);
 	}
 
+	if (!IS_ENABLED(CONFIG_K8_REV_F_SUPPORT))
+		k8_pre_f_errata();
+
 	k8_errata();
 
 	enable_cache();
@@ -486,7 +508,7 @@ static void model_fxx_init(device_t dev)
 	/* Set the processor name string */
 	init_processor_name();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
 #if CONFIG_LOGICAL_CPUS
@@ -505,6 +527,7 @@ static void model_fxx_init(device_t dev)
 		msr.hi |= 1 << (33 - 32);
 		wrmsr_amd(CPU_ID_EXT_FEATURES_MSR, msr);
 	}
+	printk(BIOS_DEBUG, "siblings = %02d, ", siblings);
 #endif
 
 	id = get_node_core_id(read_nb_cfg_54());	// pre e0 nb_cfg_54 can not be set

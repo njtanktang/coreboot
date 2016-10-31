@@ -29,7 +29,7 @@
 
 #include <libpayload.h>
 
-void hexdump(void *memory, int length)
+void hexdump(const void *memory, size_t length)
 {
 	int i;
 	uint8_t *m;
@@ -49,7 +49,7 @@ void hexdump(void *memory, int length)
 		}
 
 		if (all_zero < 2) {
-			printf("%08lx:", memory + i);
+			printf("%8p:", memory + i);
 			for (j = 0; j < 16; j++)
 				printf(" %02x", m[i + j]);
 			printf("  ");

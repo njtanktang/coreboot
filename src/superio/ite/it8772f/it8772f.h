@@ -12,14 +12,17 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_ITE_IT8772F_H
 #define SUPERIO_ITE_IT8772F_H
+
+/* Supported thermal mode on TMPINx */
+enum thermal_mode {
+	THERMAL_MODE_DISABLED	= 0,
+	THERMAL_DIODE,
+	THERMAL_RESISTOR,
+};
 
 #define IT8772F_FDC  0x00 /* Floppy disk controller */
 #define IT8772F_SP1  0x01 /* Com1 */
@@ -30,6 +33,7 @@
 #define IT8772F_IR   0x0a /* Consumer IR */
 
 /* Environmental Controller interface */
+#define IT8772F_CONFIGURATION			0x00
 #define IT8772F_INTERFACE_SELECT		0x0a
 #define  IT8772F_INTERFACE_PSEUDO_EOC		(1 << 7)
 #define  IT8772F_INTERFACE_SMB_ENABLE		(1 << 6)
@@ -70,6 +74,7 @@
 #define  IT8772F_FAN_CTL_AUTO_SMOOTHING_DIS	(0 << 7)
 #define  IT8772F_FAN_CTL_AUTO_SMOOTHING_EN	(1 << 7)
 #define IT8772F_EXTEMP_STATUS			0x88
+#define  IT8772F_EXTEMP_STATUS_HOST_BUSY	(1 << 0)
 #define IT8772F_EXTEMP_ADDRESS			0x89
 #define IT8772F_EXTEMP_WRITE_LENGTH		0x8a
 #define IT8772F_EXTEMP_READ_LENGTH		0x8b
@@ -95,18 +100,49 @@
 
 /* GPIO interface */
 #define IT8772F_GPIO_LED_BLINK1_PINMAP		0xf8
+
+#define SIO_GPIO_BLINK_GPIO10 0x08
+#define SIO_GPIO_BLINK_GPIO45 0x25
+
 #define IT8772F_GPIO_LED_BLINK1_CONTROL		0xf9
 
+#define IT8772F_GPIO_BLINK_FREQUENCY_4_HZ   (0<<1)
+#define IT8772F_GPIO_BLINK_FREQUENCY_1_HZ   (1<<1)
+#define IT8772F_GPIO_BLINK_FREQUENCY_1_4_HZ (2<<1)
+#define IT8772F_GPIO_BLINK_FREQUENCY_1_8_HZ (3<<1)
+
 #define GPIO_REG_SELECT(x)   (0x25 + (x))
+
+/* GPIO Polarity Select: 1: Inverting, 0: Non-inverting */
 #define GPIO_REG_POLARITY(x) (0xb0 + (x))
+
+/* GPIO Inernal Pull-up: 1: Enable, 0: Disable */
 #define GPIO_REG_PULLUP(x)   (0xb8 + (x))
+
+/* GPIO Fucntion Select: 1: Simple I/O, 0: Alternate function */
 #define GPIO_REG_ENABLE(x)   (0xc0 + (x))
+
+/* GPIO Mode: 0: input mode, 1: output mode */
 #define GPIO_REG_OUTPUT(x)   (0xc8 + (x))
 
-u8 it8772f_sio_read(u8 index);
-void it8772f_sio_write(u8 index, u8 value);
-void it8772f_ac_resume_southbridge(void);
-void it8772f_gpio_setup(int set, u8 func_select, u8 polarity, u8 pullup,
-			u8 output, u8 enable);
+#include <arch/io.h>
+#include <stdint.h>
+
+u8 it8772f_sio_read(pnp_devfn_t dev, u8 reg);
+void it8772f_sio_write(pnp_devfn_t dev, u8 reg, u8 value);
+void it8772f_ac_resume_southbridge(pnp_devfn_t dev);
+void it8772f_gpio_setup(pnp_devfn_t dev, int set, u8 select, u8 polarity,
+			u8 pullup, u8 output, u8 enable);
+
+/* FIXME: should be static so will be removed later.. */
+/* Global configuration registers. */
+#define IT8772F_CONFIG_REG_CC        0x02 /* Configure Control (write-only). */
+#define IT8772F_CONFIG_REG_LDN       0x07 /* Logical Device Number. */
+
+void it8772f_enter_conf(pnp_devfn_t dev);
+void it8772f_exit_conf(pnp_devfn_t dev);
+void it8772f_gpio_led(pnp_devfn_t dev, int set, u8 select, u8 polarity, u8 pullup,
+			u8 output, u8 enable, u8 led_pin_map, u8 led_freq);
+
 
 #endif /* SUPERIO_ITE_IT8772F_H */

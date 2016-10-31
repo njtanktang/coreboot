@@ -1,6 +1,7 @@
 
 /* Maximum number of CPUs/cores */
 CPUS = 4;
+ENTRY(smm_handler_start);
 
 SECTIONS
 {
@@ -10,6 +11,7 @@ SECTIONS
 	 */
 	. = 0xa0000;
 	.handler (.): {
+		_program = .;
 		/* Assembler stub */
 		*(.handler)
 
@@ -25,15 +27,19 @@ SECTIONS
 		/* C read-write data of the SMM handler */
 		 . = ALIGN(4);
 		*(.data)
+		*(.data.*)
 
 		/* C uninitialized data of the SMM handler */
 		 . = ALIGN(4);
 		*(.bss)
+		*(.bss.*)
 		*(.sbss)
+		*(.sbss.*)
 
-		/* What is this? */
+		/* What is this? (Something we don't need with -fno-common.) */
 		*(COMMON)
 		 . = ALIGN(4);
+		_eprogram = .;
 	}
 
 	/* We are using the ASEG interleaved to stuff the SMM handlers
@@ -42,7 +48,7 @@ SECTIONS
 	 */
 	. = 0xa8000 - (( CPUS - 1) * 0x400);
 	.jumptable : {
-		*(.jumptable)
+		KEEP(*(.jumptable));
 	}
 
 	/DISCARD/ : {

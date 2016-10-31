@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Based on mainboard.c from AMD's DB800 mainboard. */
@@ -35,7 +31,7 @@
 	#define SIO_GP1X_CONFIG 0x20
 #endif
 
-static const u16 ec_init_table[] = {	/* hi=data, lo=index */
+static const u16 ec_init_table[] = {	/* hi = data, lo = index */
 	0x1900,		/* Enable monitoring */
 	0x0351,		/* TMPIN1,2 diode mode, TMPIN3 off */
 	0x805C,		/* Unlock zero adjust */

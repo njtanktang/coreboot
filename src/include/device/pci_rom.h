@@ -1,6 +1,6 @@
 #ifndef PCI_ROM_H
 #define PCI_ROM_H
-#include <arch/byteorder.h>
+#include <endian.h>
 #include <stddef.h>
 
 #define PCI_ROM_HDR 0xAA55
@@ -35,6 +35,6 @@ struct  pci_data {
 
 struct rom_header *pci_rom_probe(struct device *dev);
 struct rom_header *pci_rom_load(struct device *dev, struct rom_header *rom_header);
-u32 __attribute__((weak)) map_oprom_vendev(u32 vendev);
+u32 map_oprom_vendev(u32 vendev);
 
 #endif

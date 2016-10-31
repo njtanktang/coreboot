@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 DefinitionBlock(
@@ -27,6 +23,8 @@ DefinitionBlock(
 	0x20110725	// OEM revision
 )
 {
+	#include <southbridge/intel/bd82x6x/acpi/platform.asl>
+
 	// Some generic macros
 	#include "acpi/platform.asl"
 
@@ -45,10 +43,12 @@ DefinitionBlock(
 		{
 			#include <northbridge/intel/sandybridge/acpi/sandybridge.asl>
 			#include <southbridge/intel/bd82x6x/acpi/pch.asl>
+			#include <southbridge/intel/bd82x6x/acpi/default_irq_route.asl>
+
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
 
-	#include "acpi/chromeos.asl"
 	#include <vendorcode/google/chromeos/acpi/chromeos.asl>
 
 	/* Chipset specific sleep states */

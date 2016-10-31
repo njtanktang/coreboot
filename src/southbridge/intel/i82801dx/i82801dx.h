@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* the problem: we have 82801dbm support in fb1, and 82801er in fb2.
@@ -31,8 +27,10 @@
 #ifndef I82801DX_H
 #define I82801DX_H
 
+#include <arch/acpi.h>
+
 #if !defined(__ASSEMBLER__)
-#if !defined(__PRE_RAM__)
+#if !defined(__SIMPLE_DEVICE__)
 #include "chip.h"
 extern void i82801dx_enable(device_t dev);
 #else
@@ -151,8 +149,6 @@ int smbus_read_byte(unsigned device, unsigned address);
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)

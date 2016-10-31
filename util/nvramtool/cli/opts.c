@@ -22,10 +22,6 @@
  *  WITHOUT ANY WARRANTY; without even the IMPLIED WARRANTY OF
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the terms and
  *  conditions of the GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, write to the Free Software Foundation, Inc.,
- *  51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 \*****************************************************************************/
 
 #include "common.h"
@@ -51,8 +47,7 @@ static const char getopt_string[] = "-ab:B:c::C:dD:e:hH:iL:l::np:r:tvw:xX:y:Y";
 void parse_nvramtool_args(int argc, char *argv[])
 {
 	nvramtool_op_modifier_info_t *mod_info;
-	int i, op_found;
-	char c;
+	int i, op_found, c;
 
 	for (i = 0, mod_info = nvramtool_op_modifiers;
 	     i < NVRAMTOOL_NUM_OP_MODIFIERS; i++, mod_info++) {

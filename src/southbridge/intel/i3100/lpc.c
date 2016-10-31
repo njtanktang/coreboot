@@ -13,10 +13,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
- *
  */
 
 /* This code is based on src/southbridge/intel/esb6300/esb6300_lpc.c */
@@ -31,6 +27,7 @@
 #include <pc80/i8259.h>
 #include <arch/io.h>
 #include <arch/ioapic.h>
+#include <arch/acpi.h>
 #include "i3100.h"
 
 #define ACPI_BAR 0x40
@@ -203,25 +200,25 @@ static void i3100_pirq_init(device_t dev)
 	/* Get the chip configuration */
 	config = dev->chip_info;
 
-	if(config->pirq_a_d)
+	if (config->pirq_a_d)
 		pci_write_config32(dev, 0x60, config->pirq_a_d);
 
-	if(config->pirq_e_h)
+	if (config->pirq_e_h)
 		pci_write_config32(dev, 0x68, config->pirq_e_h);
 
-        for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
-                u8 int_pin=0, int_line=0;
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+		u8 int_pin=0, int_line=0;
 
-                if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
-                        continue;
+		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
+			continue;
 
-                int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
-                switch (int_pin) {
-                case 1: /* INTA# */
+		int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
+		switch (int_pin) {
+		case 1: /* INTA# */
 			int_line = config->pirq_a_d & 0xff;
 			break;
 
-                case 2: /* INTB# */
+		case 2: /* INTB# */
 			int_line = (config->pirq_a_d >> 8) & 0xff;
 			break;
 
@@ -229,17 +226,17 @@ static void i3100_pirq_init(device_t dev)
 			int_line = (config->pirq_a_d >> 16) & 0xff;
 			break;
 
-                case 4: /* INTD# */
+		case 4: /* INTD# */
 			int_line = (config->pirq_a_d >> 24) & 0xff;
 			break;
-                }
+		}
 
-                if (!int_line)
-                        continue;
+		if (!int_line)
+			continue;
 
 		printk(BIOS_DEBUG, "%s: irq pin %d, irq line %d\n", dev_path(irq_dev), int_pin, int_line);
-                pci_write_config8(irq_dev, PCI_INTERRUPT_LINE, int_line);
-        }
+		pci_write_config8(irq_dev, PCI_INTERRUPT_LINE, int_line);
+	}
 
 
 }
@@ -357,7 +354,7 @@ static void lpc_init(struct device *dev)
 	// TODO this code sets int 0 of the IOAPIC in Virtual Wire Mode
 	// (register 0x10/0x11) while the old code used int 1 (register 0x12)
 	// ... Why?
-	setup_ioapic(IO_APIC_ADDR, 0); // Don't rename IOAPIC ID
+	setup_ioapic(VIO_APIC_VADDR, 0); // Don't rename IOAPIC ID
 
 	/* Decode 0xffc00000 - 0xffffffff to fwh idsel 0 */
 	pci_write_config32(dev, 0xd0, 0x00000000);
@@ -374,7 +371,7 @@ static void lpc_init(struct device *dev)
 	i3100_gpio_init(dev);
 
 	/* Initialize the real time clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	/* Initialize isa dma */
 	isa_dma_init();
@@ -453,7 +450,10 @@ static struct device_operations lpc_ops  = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = i3100_lpc_enable_resources,
 	.init             = lpc_init,
-	.scan_bus         = scan_static_bus,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+#endif
+	.scan_bus         = scan_lpc_bus,
 	.enable           = i3100_enable,
 	.ops_pci          = &lops_pci,
 };

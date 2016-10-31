@@ -13,10 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-##
 
 config SOUTHBRIDGE_INTEL_FSP_BD82X6X
 	bool
@@ -25,6 +21,7 @@ if SOUTHBRIDGE_INTEL_FSP_BD82X6X
 
 config SOUTH_BRIDGE_OPTIONS # dummy
 	def_bool y
+	select ACPI_INTEL_HARDWARE_SLEEP_VALUES
 	select IOAPIC
 	select HAVE_HARD_RESET
 	select HAVE_SMI_HANDLER
@@ -32,6 +29,8 @@ config SOUTH_BRIDGE_OPTIONS # dummy
 	select PCIEXP_ASPM
 	select PCIEXP_COMMON_CLOCK
 	select SPI_FLASH
+	select COMMON_FADT
+	select HAVE_INTEL_FIRMWARE
 
 config EHCI_BAR
 	hex
@@ -51,36 +50,5 @@ config SERIRQ_CONTINUOUS_MODE
 config HPET_MIN_TICKS
 	hex
 	default 0x80
-
-if HAVE_FSP_BIN
-
-config INCLUDE_ME
-	bool
-	default n
-	help
-	  Include the me.bin and descriptor.bin for Intel PCH.
-	  This is usually required for the PCH.
-
-config ME_PATH
-	string
-	depends on INCLUDE_ME
-	help
-	  The path of the ME and Descriptor files.
-
-config LOCK_MANAGEMENT_ENGINE
-	bool "Lock Management Engine section"
-	default n
-	depends on INCLUDE_ME
-	help
-	  The Intel Management Engine supports preventing write accesses
-	  from the host to the Management Engine section in the firmware
-	  descriptor. If the ME section is locked, it can only be overwritten
-	  with an external SPI flash programmer. You will want this if you
-	  want to increase security of your ROM image once you are sure
-	  that the ME firmware is no longer going to change.
-
-	  If unsure, say N.
-
-endif # HAVE_FSP_BIN
 
 endif

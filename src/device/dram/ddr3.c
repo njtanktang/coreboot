@@ -12,13 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /**
- * @file ddr3_util.h
+ * @file ddr3.c
  *
  * \brief Utilities for decoding DDR3 SPDs
  */
@@ -26,6 +23,7 @@
 #include <console/console.h>
 #include <device/device.h>
 #include <device/dram/ddr3.h>
+#include <string.h>
 
 /*==============================================================================
  * = DDR3 SPD decoding helpers
@@ -110,7 +108,7 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 {
 	int ret;
 	u16 crc, spd_crc;
-	u8 ftb_divisor, ftb_dividend, capacity_shift, bus_width, sdram_width;
+	u8 ftb_divisor, ftb_dividend, capacity_shift, bus_width;
 	u8 reg8;
 	u32 mtb;		/* medium time base */
 	unsigned int val, param;
@@ -119,6 +117,8 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 
 	/* Don't assume we memset 0 dimm struct. Clear all our flags */
 	dimm->flags.raw = 0;
+	dimm->dimms_per_channel = 3;
+
 	/* Make sure that the SPD dump is indeed from a DDR3 module */
 	if (spd[2] != SPD_MEMORY_TYPE_SDRAM_DDR3) {
 		printram("Not a DDR3 SPD!\n");
@@ -126,19 +126,20 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		return SPD_STATUS_INVALID;
 	}
 	dimm->dram_type = SPD_MEMORY_TYPE_SDRAM_DDR3;
+	dimm->dimm_type = spd[3] & 0xf;
 
-	crc = spd_ddr3_calc_crc(spd, sizeof(spd));
+	crc = spd_ddr3_calc_crc(spd, sizeof(spd_raw_data));
 	/* Compare with the CRC in the SPD */
 	spd_crc = (spd[127] << 8) + spd[126];
 	/* Verify the CRC is correct */
 	if (crc != spd_crc) {
-		printram("ERROR: SPD CRC failed!!!");
+		printram("ERROR: SPD CRC failed!!!\n");
 		ret = SPD_STATUS_CRC_ERROR;
 	};
 
-	printram("  Revision: %x\n", spd[1]);
-	printram("  Type    : %x\n", spd[2]);
-	printram("  Key     : %x\n", spd[3]);
+	printram("  Revision           : %x\n", spd[1]);
+	printram("  Type               : %x\n", spd[2]);
+	printram("  Key                : %x\n", spd[3]);
 
 	reg8 = spd[4];
 	/* Number of memory banks */
@@ -148,7 +149,7 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		ret = SPD_STATUS_INVALID_FIELD;
 	}
 	param = 1 << (val + 3);
-	printram("  Banks   : %u\n", param);
+	printram("  Banks              : %u\n", param);
 	/* SDRAM capacity */
 	capacity_shift = reg8 & 0x0f;
 	if (capacity_shift > 0x06) {
@@ -156,9 +157,9 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		ret = SPD_STATUS_INVALID_FIELD;
 	}
 	if (capacity_shift < 0x02) {
-		printram("  Capacity: %u Mb\n", 256 << capacity_shift);
+		printram("  Capacity           : %u Mb\n", 256 << capacity_shift);
 	} else {
-		printram("  Capacity: %u Gb\n", 1 << (capacity_shift - 2));
+		printram("  Capacity           : %u Gb\n", 1 << (capacity_shift - 2));
 	}
 
 	reg8 = spd[5];
@@ -179,17 +180,20 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 
 	/* Module nominal voltage */
 	reg8 = spd[6];
-	printram("  Supported voltages:");
+	printram("  Supported voltages :");
 	if (reg8 & (1 << 2)) {
 		dimm->flags.operable_1_25V = 1;
+		dimm->voltage = 1250;
 		printram(" 1.25V");
 	}
 	if (reg8 & (1 << 1)) {
 		dimm->flags.operable_1_35V = 1;
+		dimm->voltage = 1300;
 		printram(" 1.35V");
 	}
 	if (!(reg8 & (1 << 0))) {
 		dimm->flags.operable_1_50V = 1;
+		dimm->voltage = 1500;
 		printram(" 1.5V");
 	}
 	printram("\n");
@@ -209,8 +213,8 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		printram("  Invalid SDRAM width\n");
 		ret = SPD_STATUS_INVALID_FIELD;
 	}
-	sdram_width = (4 << val);
-	printram("  SDRAM width       : %u\n", sdram_width);
+	dimm->width = (4 << val);
+	printram("  SDRAM width        : %u\n", dimm->width);
 
 	/* Memory bus width */
 	reg8 = spd[8];
@@ -221,7 +225,7 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		ret = SPD_STATUS_INVALID_FIELD;
 	}
 	dimm->flags.is_ecc = val ? 1 : 0;
-	printram("  Bus extension     : %u bits\n", val ? 8 : 0);
+	printram("  Bus extension      : %u bits\n", val ? 8 : 0);
 	/* Bus width */
 	val = reg8 & 0x07;
 	if (val > 3) {
@@ -229,14 +233,14 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 		ret = SPD_STATUS_INVALID_FIELD;
 	}
 	bus_width = 8 << val;
-	printram("  Bus width         : %u\n", bus_width);
+	printram("  Bus width          : %u\n", bus_width);
 
 	/* We have all the info we need to compute the dimm size */
 	/* Capacity is 256Mbit multiplied by the power of 2 specified in
 	 * capacity_shift
 	 * The rest is the JEDEC formula */
 	dimm->size_mb = ((1 << (capacity_shift + (25 - 20))) * bus_width
-			 * dimm->ranks) / sdram_width;
+			 * dimm->ranks) / dimm->width;
 
 	/* Fine Timebase (FTB) Dividend/Divisor */
 	/* Dividend */
@@ -278,7 +282,7 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 
 	/* SDRAM Optional Features */
 	reg8 = spd[30];
-	printram("  Optional features :");
+	printram("  Optional features  :");
 	if (reg8 & 0x80) {
 		dimm->flags.dll_off_mode = 1;
 		printram(" DLL-Off_mode");
@@ -295,7 +299,7 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 
 	/* SDRAM Thermal and Refresh Options */
 	reg8 = spd[31];
-	printram("  Thermal features  :");
+	printram("  Thermal features   :");
 	if (reg8 & 0x80) {
 		dimm->flags.pasr = 1;
 		printram(" PASR");
@@ -322,17 +326,143 @@ int spd_decode_ddr3(dimm_attr * dimm, spd_raw_data spd)
 	reg8 = spd[32];
 	if (reg8 & 0x80)
 		dimm->flags.therm_sensor = 1;
-	printram("  Thermal sensor    : %s\n",
+	printram("  Thermal sensor     : %s\n",
 		 dimm->flags.therm_sensor ? "yes" : "no");
 
 	/*  SDRAM Device Type */
 	reg8 = spd[33];
-	printram("  Standard SDRAM    : %s\n", (reg8 & 0x80) ? "no" : "yes");
+	printram("  Standard SDRAM     : %s\n", (reg8 & 0x80) ? "no" : "yes");
 
 	if (spd[63] & 0x01) {
 		dimm->flags.pins_mirrored = 1;
-		printram("  DIMM Rank1 Address bits mirrored!!!\n");
 	}
+	printram("  Rank1 Address bits : %s\n",
+			(spd[63] & 0x01) ? "mirrored" : "normal");
+
+	dimm->reference_card = spd[62] & 0x1f;
+	printram("  DIMM Reference card: %c\n", 'A' + dimm->reference_card);
+
+	dimm->manufacturer_id = (spd[118] << 8) | spd[117];
+	printram("  Manufacturer ID    : %x\n", dimm->manufacturer_id);
+
+	dimm->part_number[16] = 0;
+	memcpy(dimm->part_number, &spd[128], 16);
+	printram("  Part number        : %s\n", dimm->part_number);
+
+	return ret;
+}
+
+/**
+ * \brief Decode the raw SPD XMP data
+ *
+ * Decodes a raw SPD XMP data from a DDR3 DIMM, and organizes it into a
+ * @ref dimm_attr structure. The SPD data must first be read in a contiguous
+ * array, and passed to this function.
+ *
+ * @param dimm pointer to @ref dimm_attr structure where the decoded data is to
+ *        be stored
+ * @param spd array of raw data previously read from the SPD.
+ *
+ * @param profile select one of the profiles to load
+ *
+ * @return @ref spd_status enumerator
+ *		SPD_STATUS_OK -- decoding was successful
+ *		SPD_STATUS_INVALID -- invalid SPD or not a DDR3 SPD
+ *		SPD_STATUS_CRC_ERROR -- CRC did not verify
+ *		SPD_STATUS_INVALID_FIELD -- A field with an invalid value was
+ *					    detected.
+ */
+int spd_xmp_decode_ddr3(dimm_attr *dimm,
+		       spd_raw_data spd,
+		       enum ddr3_xmp_profile profile)
+{
+	int ret;
+	u32 mtb;		/* medium time base */
+	u8 *xmp;		/* pointer to XMP profile data */
+
+	/* need a valid SPD */
+	ret = spd_decode_ddr3(dimm, spd);
+	if (ret != SPD_STATUS_OK)
+		return ret;
+
+	/* search for magic header */
+	if (spd[176] != 0x0C || spd[177] != 0x4A) {
+		printram("Not a DDR3 XMP profile!\n");
+		dimm->dram_type = SPD_MEMORY_TYPE_UNDEFINED;
+		return SPD_STATUS_INVALID;
+	}
+
+	if (profile == DDR3_XMP_PROFILE_1) {
+		if (!(spd[178] & 1)) {
+			printram("Selected XMP profile disabled!\n");
+			dimm->dram_type = SPD_MEMORY_TYPE_UNDEFINED;
+			return SPD_STATUS_INVALID;
+		}
+
+		printram("  XMP Profile        : 1\n");
+		xmp = &spd[185];
+
+		/* Medium Timebase =
+		 *   Medium Timebase (MTB) Dividend /
+		 *   Medium Timebase (MTB) Divisor */
+		mtb = (((u32) spd[180]) << 8) / spd[181];
+
+		dimm->dimms_per_channel = ((spd[178] >> 2) & 0x3) + 1;
+	} else {
+		if (!(spd[178] & 2)) {
+			printram("Selected XMP profile disabled!\n");
+			dimm->dram_type = SPD_MEMORY_TYPE_UNDEFINED;
+			return SPD_STATUS_INVALID;
+		}
+		printram("  XMP Profile        : 2\n");
+		xmp = &spd[220];
+
+		/* Medium Timebase =
+		 *   Medium Timebase (MTB) Dividend /
+		 *   Medium Timebase (MTB) Divisor */
+		mtb = (((u32) spd[182]) << 8) / spd[183];
+
+		dimm->dimms_per_channel = ((spd[178] >> 4) & 0x3) + 1;
+	}
+
+	printram("  Max DIMMs/channel  : %u\n",
+			dimm->dimms_per_channel);
+
+	printram("  XMP Revision       : %u.%u\n", spd[179] >> 4, spd[179] & 0xf);
+
+	/* calculate voltage in mV */
+	dimm->voltage = (xmp[0] & 1) * 50;
+	dimm->voltage += ((xmp[0] >> 1) & 0xf) * 100;
+	dimm->voltage += ((xmp[0] >> 5) & 0x3) * 1000;
+
+	printram("  Requested voltage  : %u mV\n", dimm->voltage);
+
+	/* SDRAM Minimum Cycle Time (tCKmin) */
+	dimm->tCK = xmp[1] * mtb;
+	/* CAS Latencies Supported */
+	dimm->cas_supported = (xmp[9] << 8) + xmp[8];
+	/* Minimum CAS Latency Time (tAAmin) */
+	dimm->tAA = xmp[2] * mtb;
+	/* Minimum Write Recovery Time (tWRmin) */
+	dimm->tWR = xmp[8] * mtb;
+	/* Minimum RAS# to CAS# Delay Time (tRCDmin) */
+	dimm->tRCD = xmp[7] * mtb;
+	/* Minimum Row Active to Row Active Delay Time (tRRDmin) */
+	dimm->tRRD = xmp[17] * mtb;
+	/* Minimum Row Precharge Delay Time (tRPmin) */
+	dimm->tRP = xmp[6] * mtb;
+	/* Minimum Active to Precharge Delay Time (tRASmin) */
+	dimm->tRAS = (((xmp[9] & 0x0f) << 8) + xmp[10]) * mtb;
+	/* Minimum Active to Active/Refresh Delay Time (tRCmin) */
+	dimm->tRC = (((xmp[9] & 0xf0) << 4) + xmp[11]) * mtb;
+	/* Minimum Refresh Recovery Delay Time (tRFCmin) */
+	dimm->tRFC = ((xmp[15] << 8) + xmp[14]) * mtb;
+	/* Minimum Internal Write to Read Command Delay Time (tWTRmin) */
+	dimm->tWTR = xmp[20] * mtb;
+	/* Minimum Internal Read to Precharge Command Delay Time (tRTPmin) */
+	dimm->tRTP = xmp[16] * mtb;
+	/* Minimum Four Activate Window Delay Time (tFAWmin) */
+	dimm->tFAW = (((xmp[18] & 0x0f) << 8) + xmp[19]) * mtb;
 
 	return ret;
 }
@@ -448,8 +578,13 @@ static u16 ddr3_cas_to_mr0_map(u8 cas)
  * write_recovery and cas are given in clock cycles. For example, a CAS of 7T
  * should be given as 7.
  *
+ * @param precharge_pd
  * @param write_recovery Write recovery latency, tWR in clock cycles.
+ * @param dll_reset
+ * @param mode
  * @param cas CAS latency in clock cycles.
+ * @param burst_type
+ * @param burst_length
  */
 mrs_cmd_t ddr3_get_mr0(enum ddr3_mr0_precharge precharge_pd,
 		       u8 write_recovery,
@@ -551,8 +686,12 @@ mrs_cmd_t ddr3_get_mr1(enum ddr3_mr1_qoff qoff,
  * cas_cwl is given in clock cycles. For example, a cas_cwl of 7T should be
  * given as 7.
  *
+ * @param rtt_wr
+ * @param extended_temp
+ * @param self_refresh
  * @param cas_cwl CAS write latency in clock cycles.
  */
+
 mrs_cmd_t ddr3_get_mr2(enum ddr3_mr2_rttwr rtt_wr,
 		       enum ddr3_mr2_srt_range extended_temp,
 		       enum ddr3_mr2_asr self_refresh, u8 cas_cwl)

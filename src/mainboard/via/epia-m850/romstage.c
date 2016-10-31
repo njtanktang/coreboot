@@ -1,7 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
-  * Copyright (C) 2011-2012  Alexandru Gagniuc <mr.nuke.me@gmail.com>
+ * Copyright (C) 2011-2012  Alexandru Gagniuc <mr.nuke.me@gmail.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,9 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -26,16 +23,15 @@
 #include <arch/io.h>
 #include <device/pnp_def.h>
 #include <arch/io.h>
-#include <arch/hlt.h>
 #include <console/console.h>
 #include <lib.h>
 #include <cpu/x86/bist.h>
+#include <cpu/amd/car.h>
 #include <string.h>
 #include <timestamp.h>
-#include <console/cbmem_console.h>
 
-#include "northbridge/via/vx900/early_vx900.h"
-#include "northbridge/via/vx900/raminit.h"
+#include <northbridge/via/vx900/early_vx900.h>
+#include <northbridge/via/vx900/raminit.h>
 #include <superio/fintek/common/fintek.h>
 #include <superio/fintek/f81865f/f81865f.h>
 
@@ -46,7 +42,7 @@ void main(unsigned long bist)
 {
 	u32 tolm;
 
-	timestamp_init(rdtsc());
+	timestamp_init(timestamp_get());
 	timestamp_add_now(TS_START_ROMSTAGE);
 
 	/* First thing we need to do on the VX900, before anything else */
@@ -55,7 +51,7 @@ void main(unsigned long bist)
 	/* Serial console is easy to take care of */
 	fintek_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
 	console_init();
-	print_debug("Console initialized. \n");
+	printk(BIOS_DEBUG, "Console initialized.\n");
 
 	vx900_cpu_bus_interface_setup();
 
@@ -91,13 +87,12 @@ void main(unsigned long bist)
 	if (tolm > (2 * (u32) GiB))
 		ram_check(2048 << 20, 0x80);
 
-	print_debug("We passed RAM verify\n");
+	printk(BIOS_DEBUG, "We passed RAM verify\n");
 
 	/* We got RAM working, now we can write the timestamps to RAM */
 #if CONFIG_EARLY_CBMEM_INIT
 	cbmem_recovery(0);
 #endif
-	timestamp_add_now(TS_END_ROMSTAGE);
 	/* FIXME: See if this is needed or take this out please */
 	/* Disable Memcard and SDIO */
 	pci_mod_config8(LPC, 0x51, 0, (1 << 7) | (1 << 4));

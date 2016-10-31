@@ -4,6 +4,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	def_bool y
 	select BOARD_ROMSIZE_KB_8192
 	select MAINBOARD_HAS_CHROMEOS
+	select MAINBOARD_HAS_LPC_TPM
 	select CPU_INTEL_SOCKET_RPGA989
 	select HAVE_ACPI_RESUME
 	select HAVE_ACPI_TABLES
@@ -11,7 +12,14 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select NORTHBRIDGE_INTEL_SANDYBRIDGE
 	select SOUTHBRIDGE_INTEL_BD82X6X
 	select SUPERIO_ITE_IT8772F
-	select HAVE_MRC
+# LPC47N207 selected for external LPC card
+# not on board, should be made selectable.
+	select SUPERIO_SMSC_LPC47N207
+	select INTEL_INT15
+
+config CHROMEOS
+	select PHYSICAL_REC_SWITCH
+	select VBOOT_VBNV_CMOS
 
 config MAINBOARD_DIR
 	string
@@ -23,11 +31,7 @@ config MAINBOARD_PART_NUMBER
 
 config MMCONF_BASE_ADDRESS
 	hex
-	default 0xf0000000
-
-config IRQ_SLOT_COUNT
-	int
-	default 18
+	default 0xf8000000 if USE_NATIVE_RAMINIT
 
 config MAX_CPUS
 	int

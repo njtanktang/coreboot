@@ -11,18 +11,14 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "i915_reg.h"
-#include "drm_dp_helper.h"
+#include <drivers/intel/gma/i915_reg.h>
+#include <drivers/intel/gma/drm_dp_helper.h>
 
 /* things that are, strangely, not defined anywhere? */
 #define PCH_PP_UNLOCK 0xabcd0000
-#define WMx_LP_SR_EN (1<<31)
+#define WMx_LP_SR_EN (1 << 31)
 
 /* Google Link-specific defines */
 /* how many 4096-byte pages do we need for the framebuffer?
@@ -84,4 +80,3 @@ u32 pack_aux(u32 *src, int src_bytes);
 void unpack_aux(u32 src, u32 *dst, int dst_bytes);
 int intel_dp_aux_ch(u32 ch_ctl, u32 ch_data, u32 *send, int send_bytes,
 	u32 *recv, int recv_size);
-

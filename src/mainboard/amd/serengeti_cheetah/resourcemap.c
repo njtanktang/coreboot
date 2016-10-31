@@ -1,5 +1,14 @@
 /*
+ * This file is part of the coreboot project.
  *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
 static void setup_mb_resource_map(void)
@@ -251,8 +260,8 @@ static void setup_mb_resource_map(void)
 		 * [31:24] Bus Number Limit i
 		 *	   This field defines the highest bus number in configuration regin i
 		 */
-		PCI_ADDR(0, 0x18, 1, 0xE0), 0x0000FC88, 0x06000003, // AMD 8111 on link0 of CPU 0
-		PCI_ADDR(0, 0x18, 1, 0xE4), 0x0000FC88, 0x08070013, // AMD 8151 on link0 of CPU 1
+		PCI_ADDR(0, 0x18, 1, 0xE0), 0x0000FC88, 0x06000003, /* AMD 8111 on link0 of CPU 0 */
+		PCI_ADDR(0, 0x18, 1, 0xE4), 0x0000FC88, 0x08070013, /* AMD 8151 on link0 of CPU 1 */
 		PCI_ADDR(0, 0x18, 1, 0xE8), 0x0000FC88, 0x00000000,
 		PCI_ADDR(0, 0x18, 1, 0xEC), 0x0000FC88, 0x00000000,
 	};
@@ -261,4 +270,3 @@ static void setup_mb_resource_map(void)
 	max = ARRAY_SIZE(register_values);
 	setup_resource_map(register_values, max);
 }
-

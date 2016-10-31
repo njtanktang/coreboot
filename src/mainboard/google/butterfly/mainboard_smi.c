@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -29,28 +25,6 @@
 /* Include EC functions */
 #include <ec/quanta/ene_kb3940q/ec.h>
 #include "ec.h"
-
-int mainboard_io_trap_handler(int smif)
-{
-	printk(BIOS_DEBUG, "mainboard_io_trap_handler: %x\n", smif);
-	switch (smif) {
-	case 0x99:
-		printk(BIOS_DEBUG, "Sample\n");
-		smm_get_gnvs()->smif = 0;
-		break;
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 0
-	 * On failure, the IO Trap Handler returns a value != 0
-	 *
-	 * For now, we force the return value to 0 and log all traps to
-	 * see what's going on.
-	 */
-	//gnvs->smif = 0;
-	return 1;
-}
 
 void mainboard_smi_gpi(u32 gpi_sts)
 {
@@ -73,31 +47,13 @@ void mainboard_smi_sleep(u8 slp_typ)
 	}
 }
 
-#define APMC_FINALIZE 0xcb
 #define APMC_ACPI_EN  0xe1
 #define APMC_ACPI_DIS 0x1e
-
-static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 apmc)
 {
 	printk(BIOS_DEBUG, "mainboard_smi_apmc: %x\n", apmc);
 	switch (apmc) {
-	case APMC_FINALIZE:
-		printk(BIOS_DEBUG, "APMC: FINALIZE\n");
-		if (mainboard_finalized) {
-			printk(BIOS_DEBUG, "APMC#: Already finalized\n");
-			return 0;
-		}
-
-		intel_me_finalize_smm();
-		intel_pch_finalize_smm();
-		intel_sandybridge_finalize_smm();
-		intel_model_206ax_finalize_smm();
-
-		mainboard_finalized = 1;
-		break;
-
 	case APMC_ACPI_EN:
 		printk(BIOS_DEBUG, "APMC: ACPI_EN\n");
 		/* Clear all pending events and enable SCI */

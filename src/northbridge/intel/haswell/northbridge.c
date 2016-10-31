@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -35,7 +31,6 @@
 #include <cpu/x86/smm.h>
 #include <boot/tables.h>
 #include <cbmem.h>
-#include <romstage_handoff.h>
 #include "chip.h"
 #include "haswell.h"
 
@@ -106,8 +101,7 @@ static int get_bar(device_t dev, unsigned int index, u32 *base, u32 *len)
 /* There are special BARs that actually are programmed in the MCHBAR. These
  * Intel special features, but they do consume resources that need to be
  * accounted for. */
-static int get_bar_in_mchbar(device_t dev, unsigned int index, u32 *base,
-                             u32 *len)
+static int get_bar_in_mchbar(device_t dev, unsigned int index, u32 *base, u32 *len)
 {
 	u32 bar;
 
@@ -127,7 +121,7 @@ struct fixed_mmio_descriptor {
 	unsigned int index;
 	u32 size;
 	int (*get_resource)(device_t dev, unsigned int index,
-	                    u32 *base, u32 *size);
+			    u32 *base, u32 *size);
 	const char *description;
 };
 
@@ -159,13 +153,13 @@ static void mc_add_fixed_mmio_resources(device_t dev)
 		size = mc_fixed_resources[i].size;
 		index = mc_fixed_resources[i].index;
 		if (!mc_fixed_resources[i].get_resource(dev, index,
-		                                        &base, &size))
+							&base, &size))
 			continue;
 
 		resource = new_resource(dev, mc_fixed_resources[i].index);
 		resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-		                  IORESOURCE_STORED | IORESOURCE_RESERVE |
-		                  IORESOURCE_ASSIGNED;
+				  IORESOURCE_STORED | IORESOURCE_RESERVE |
+				  IORESOURCE_ASSIGNED;
 		resource->base = base;
 		resource->size = size;
 		printk(BIOS_DEBUG, "%s: Adding %s @ %x 0x%08lx-0x%08lx.\n",
@@ -203,8 +197,7 @@ struct map_entry {
 	const char *description;
 };
 
-static void read_map_entry(device_t dev, struct map_entry *entry,
-                           uint64_t *result)
+static void read_map_entry(device_t dev, struct map_entry *entry, uint64_t *result)
 {
 	uint64_t value;
 	uint64_t mask;
@@ -350,16 +343,16 @@ static void mc_add_dram_resources(device_t dev)
 	resource->base = mc_values[TSEG_REG];
 	resource->size = mc_values[BGSM_REG] - resource->base;
 	resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-	                  IORESOURCE_STORED | IORESOURCE_RESERVE |
-	                  IORESOURCE_ASSIGNED | IORESOURCE_CACHEABLE;
+			  IORESOURCE_STORED | IORESOURCE_RESERVE |
+			  IORESOURCE_ASSIGNED | IORESOURCE_CACHEABLE;
 
 	/* BGSM -> TOLUD */
 	resource = new_resource(dev, index++);
 	resource->base = mc_values[BGSM_REG];
 	resource->size = mc_values[TOLUD_REG] - resource->base;
 	resource->flags = IORESOURCE_MEM | IORESOURCE_FIXED |
-	                  IORESOURCE_STORED | IORESOURCE_RESERVE |
-	                  IORESOURCE_ASSIGNED;
+			  IORESOURCE_STORED | IORESOURCE_RESERVE |
+			  IORESOURCE_ASSIGNED;
 
 	/* 4GiB -> TOUUD */
 	base_k = 4096 * 1024; /* 4GiB */
@@ -375,7 +368,7 @@ static void mc_add_dram_resources(device_t dev)
 	 */
 	mmio_resource(dev, index++, (0xa0000 >> 10), (0xc0000 - 0xa0000) >> 10);
 	reserved_ram_resource(dev, index++, (0xc0000 >> 10),
-	                      (0x100000 - 0xc0000) >> 10);
+			      (0x100000 - 0xc0000) >> 10);
 #if CONFIG_CHROMEOS_RAMOOPS
 	reserved_ram_resource(dev, index++,
 			CONFIG_CHROMEOS_RAMOOPS_RAM_START >> 10,
@@ -433,26 +426,6 @@ static void northbridge_init(struct device *dev)
 	MCHBAR32(0x5500) = 0x00100001;
 }
 
-static void northbridge_enable(device_t dev)
-{
-#if CONFIG_HAVE_ACPI_RESUME
-	struct romstage_handoff *handoff;
-
-	handoff = cbmem_find(CBMEM_ID_ROMSTAGE_INFO);
-
-	if (handoff == NULL) {
-		printk(BIOS_DEBUG, "Unknown boot method, assuming normal.\n");
-		acpi_slp_type = 0;
-	} else if (handoff->s3_resume) {
-		printk(BIOS_DEBUG, "S3 Resume.\n");
-		acpi_slp_type = 3;
-	} else {
-		printk(BIOS_DEBUG, "Normal boot.\n");
-		acpi_slp_type = 0;
-	}
-#endif
-}
-
 static struct pci_operations intel_pci_ops = {
 	.set_subsystem    = intel_set_subsystem,
 };
@@ -462,7 +435,7 @@ static struct device_operations mc_ops = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = northbridge_init,
-	.enable           = northbridge_enable,
+	.acpi_fill_ssdt_generator = generate_cpu_entries,
 	.scan_bus         = 0,
 	.ops_pci          = &intel_pci_ops,
 };
@@ -484,14 +457,10 @@ static void cpu_bus_init(device_t dev)
 	bsp_init_and_start_aps(dev->link_list);
 }
 
-static void cpu_bus_noop(device_t dev)
-{
-}
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = cpu_bus_init,
 	.scan_bus         = 0,
 };

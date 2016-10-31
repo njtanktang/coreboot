@@ -44,7 +44,7 @@
 #ifndef _OPTION_L3_FEATURES_INSTALL_H_
 #define _OPTION_L3_FEATURES_INSTALL_H_
 
-#include "cpuL3Features.h"
+#include <Proc/CPU/Feature/cpuL3Features.h>
 
 /*  This option is designed to be included into the platform solution install
  *  file. The platform solution install file will define the options status.
@@ -82,8 +82,6 @@
       #endif
     #endif
 
-    #undef AGESA_ENTRY_LATE_RUN_AP_TASK
-    #define AGESA_ENTRY_LATE_RUN_AP_TASK TRUE
     #undef L3_FEAT_AP_DISABLE_CACHE
     #define L3_FEAT_AP_DISABLE_CACHE {AP_LATE_TASK_DISABLE_CACHE, (IMAGE_ENTRY) DisableAllCaches},
     #undef L3_FEAT_AP_ENABLE_CACHE

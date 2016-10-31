@@ -1,8 +1,8 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright (C) 2008, Jordan Crouse <jordan@cosmicpenguin.net>
- * Copyright (C) 2013 The Chromium OS Authors. All rights reserved.
+ * Copyright (C) 2011 secunet Security Networks AG
+ * Copyright 2015 Google Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,60 +12,121 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
-#ifdef LIBPAYLOAD
-# include <libpayload-config.h>
-# ifdef CONFIG_LZMA
-#  include <lzma.h>
-#  define CBFS_CORE_WITH_LZMA
-# endif
-# define CBFS_MINI_BUILD
-#elif defined(__SMM__)
-# define CBFS_MINI_BUILD
-#elif defined(__BOOT_BLOCK__)
-  /* No LZMA in boot block. */
-#elif defined(__PRE_RAM__) && !CONFIG_COMPRESS_RAMSTAGE
-  /* No LZMA in romstage if ramstage is not compressed. */
-#else
-# define CBFS_CORE_WITH_LZMA
-# include <lib.h>
-#endif
-
-#include <cbfs.h>
+#include <assert.h>
 #include <string.h>
-#include <cbmem.h>
+#include <stdlib.h>
+#include <boot_device.h>
+#include <cbfs.h>
+#include <commonlib/compression.h>
+#include <endian.h>
+#include <lib.h>
+#include <symbols.h>
+#include <timestamp.h>
 
-#ifdef LIBPAYLOAD
-# include <stdio.h>
-# define DEBUG(x...)
-# define LOG(x...) printf(x)
-# define ERROR(x...) printf(x)
+#include "fmap_config.h"
+
+#define ERROR(x...) printk(BIOS_ERR, "CBFS: " x)
+#define LOG(x...) printk(BIOS_INFO, "CBFS: " x)
+#if IS_ENABLED(CONFIG_DEBUG_CBFS)
+#define DEBUG(x...) printk(BIOS_SPEW, "CBFS: " x)
 #else
-# include <console/console.h>
-# define ERROR(x...) printk(BIOS_ERR, "CBFS: " x)
-# define LOG(x...) printk(BIOS_INFO, "CBFS: " x)
-# if CONFIG_DEBUG_CBFS
-#  define DEBUG(x...) printk(BIOS_SPEW, "CBFS: " x)
-# else
-#  define DEBUG(x...)
-# endif
+#define DEBUG(x...)
 #endif
 
-#if defined(CONFIG_CBFS_HEADER_ROM_OFFSET) && (CONFIG_CBFS_HEADER_ROM_OFFSET)
-# define CBFS_HEADER_ROM_ADDRESS (CONFIG_CBFS_HEADER_ROM_OFFSET)
-#else
-// Indirect address: only works on 32bit top-aligned systems.
-# define CBFS_HEADER_ROM_ADDRESS (*(uint32_t *)0xfffffffc)
-#endif
+int cbfs_boot_locate(struct cbfsf *fh, const char *name, uint32_t *type)
+{
+	struct region_device rdev;
+	const struct region_device *boot_dev;
+	struct cbfs_props props;
 
-#include "cbfs_core.c"
+	if (cbfs_boot_region_properties(&props))
+		return -1;
 
-#ifndef __SMM__
+	/* All boot CBFS operations are performed using the RO devie. */
+	boot_dev = boot_device_ro();
+
+	if (boot_dev == NULL)
+		return -1;
+
+	if (rdev_chain(&rdev, boot_dev, props.offset, props.size))
+		return -1;
+
+	return cbfs_locate(fh, &rdev, name, type);
+}
+
+void *cbfs_boot_map_with_leak(const char *name, uint32_t type, size_t *size)
+{
+	struct cbfsf fh;
+	size_t fsize;
+
+	if (cbfs_boot_locate(&fh, name, &type))
+		return NULL;
+
+	fsize = region_device_sz(&fh.data);
+
+	if (size != NULL)
+		*size = fsize;
+
+	return rdev_mmap(&fh.data, 0, fsize);
+}
+
+size_t cbfs_load_and_decompress(const struct region_device *rdev, size_t offset,
+	size_t in_size, void *buffer, size_t buffer_size, uint32_t compression)
+{
+	size_t out_size;
+
+	switch (compression) {
+	case CBFS_COMPRESS_NONE:
+		if (buffer_size < in_size)
+			return 0;
+		if (rdev_readat(rdev, buffer, offset, in_size) != in_size)
+			return 0;
+		return in_size;
+
+	case CBFS_COMPRESS_LZ4:
+		if ((ENV_BOOTBLOCK || ENV_VERSTAGE) &&
+		    !IS_ENABLED(CONFIG_COMPRESS_PRERAM_STAGES))
+			return 0;
+
+		/* Load the compressed image to the end of the available memory
+		 * area for in-place decompression. It is the responsibility of
+		 * the caller to ensure that buffer_size is large enough
+		 * (see compression.h, guaranteed by cbfstool for stages). */
+		void *compr_start = buffer + buffer_size - in_size;
+		if (rdev_readat(rdev, compr_start, offset, in_size) != in_size)
+			return 0;
+
+		timestamp_add_now(TS_START_ULZ4F);
+		out_size = ulz4fn(compr_start, in_size, buffer, buffer_size);
+		timestamp_add_now(TS_END_ULZ4F);
+		return out_size;
+
+	case CBFS_COMPRESS_LZMA:
+		if (ENV_BOOTBLOCK || ENV_VERSTAGE)
+			return 0;
+		if ((ENV_ROMSTAGE || ENV_POSTCAR)
+			&& !IS_ENABLED(CONFIG_COMPRESS_RAMSTAGE))
+			return 0;
+		void *map = rdev_mmap(rdev, offset, in_size);
+		if (map == NULL)
+			return 0;
+
+		/* Note: timestamp not useful for memory-mapped media (x86) */
+		timestamp_add_now(TS_START_ULZMA);
+		out_size = ulzman(map, in_size, buffer, buffer_size);
+		timestamp_add_now(TS_END_ULZMA);
+
+		rdev_munmap(rdev, map);
+
+		return out_size;
+
+	default:
+		return 0;
+	}
+}
+
 static inline int tohex4(unsigned int c)
 {
 	return (c <= 9) ? (c + '0') : (c - 10 + 'a');
@@ -79,131 +140,197 @@ static void tohex16(unsigned int val, char* dest)
 	dest[3] = tohex4(val & 0xf);
 }
 
-void *cbfs_load_optionrom(struct cbfs_media *media, uint16_t vendor,
-			  uint16_t device, void *dest)
+void *cbfs_boot_map_optionrom(uint16_t vendor, uint16_t device)
 {
 	char name[17] = "pciXXXX,XXXX.rom";
-	struct cbfs_optionrom *orom;
-	uint8_t *src;
 
 	tohex16(vendor, name+3);
 	tohex16(device, name+8);
 
-	orom = (struct cbfs_optionrom *)
-	  cbfs_get_file_content(media, name, CBFS_TYPE_OPTIONROM, NULL);
+	return cbfs_boot_map_with_leak(name, CBFS_TYPE_OPTIONROM, NULL);
+}
 
-	if (orom == NULL)
+void *cbfs_boot_load_stage_by_name(const char *name)
+{
+	struct cbfsf fh;
+	struct prog stage = PROG_INIT(PROG_UNKNOWN, name);
+	uint32_t type = CBFS_TYPE_STAGE;
+
+	if (cbfs_boot_locate(&fh, name, &type))
 		return NULL;
 
-	/* They might have specified a dest address. If so, we can decompress.
-	 * If not, there's not much hope of decompressing or relocating the rom.
-	 * in the common case, the expansion rom is uncompressed, we
-	 * pass 0 in for the dest, and all we have to do is find the rom and
-	 * return a pointer to it.
-	 */
+	/* Chain data portion in the prog. */
+	cbfs_file_data(prog_rdev(&stage), &fh);
 
-	/* BUG: the cbfstool is (not yet) including a cbfs_optionrom header */
-	src = (uint8_t *)orom; // + sizeof(struct cbfs_optionrom);
-
-	if (! dest)
-		return src;
-
-	if (!cbfs_decompress(ntohl(orom->compression),
-			     src,
-			     dest,
-			     ntohl(orom->len)))
+	if (cbfs_prog_stage_load(&stage))
 		return NULL;
 
-	return dest;
+	return prog_entry(&stage);
 }
 
-void * cbfs_load_stage(struct cbfs_media *media, const char *name)
+size_t cbfs_boot_load_struct(const char *name, void *buf, size_t buf_size)
 {
-	struct cbfs_stage *stage = (struct cbfs_stage *)
-		cbfs_get_file_content(media, name, CBFS_TYPE_STAGE, NULL);
-	/* this is a mess. There is no ntohll. */
-	/* for now, assume compatible byte order until we solve this. */
-	uint32_t entry;
-	uint32_t final_size;
+	struct cbfsf fh;
+	uint32_t compression_algo;
+	size_t decompressed_size;
+	uint32_t type = CBFS_TYPE_STRUCT;
 
-	if (stage == NULL)
-		return (void *) -1;
+	if (cbfs_boot_locate(&fh, name, &type) < 0)
+		return 0;
 
-	LOG("loading stage %s @ 0x%x (%d bytes), entry @ 0x%llx\n",
-			name,
-			(uint32_t) stage->load, stage->memlen,
-			stage->entry);
+	if (cbfsf_decompression_info(&fh, &compression_algo,
+				     &decompressed_size) < 0
+				     || decompressed_size > buf_size)
+		return 0;
 
-	final_size = cbfs_decompress(stage->compression,
-				     ((unsigned char *) stage) +
-				     sizeof(struct cbfs_stage),
-				     (void *) (uint32_t) stage->load,
-				     stage->len);
-	if (!final_size)
-		return (void *) -1;
-
-	/* Stages rely the below clearing so that the bss is initialized. */
-	memset((void *)((uintptr_t)stage->load + final_size), 0,
-	       stage->memlen - final_size);
-
-	DEBUG("stage loaded.\n");
-
-	entry = stage->entry;
-	// entry = ntohll(stage->entry);
-
-	return (void *) entry;
+	return cbfs_load_and_decompress(&fh.data, 0, region_device_sz(&fh.data),
+					buf, buf_size, compression_algo);
 }
 
-/* Simple buffer */
-
-void *cbfs_simple_buffer_map(struct cbfs_simple_buffer *buffer,
-			     struct cbfs_media *media,
-			     size_t offset, size_t count) {
-	void *address = buffer->buffer + buffer->allocated;
-	DEBUG("simple_buffer_map(offset=%zd, count=%zd): "
-	      "allocated=%zd, size=%zd, last_allocate=%zd\n",
-	    offset, count, buffer->allocated, buffer->size,
-	    buffer->last_allocate);
-	if (buffer->allocated + count >= buffer->size)
-		return CBFS_MEDIA_INVALID_MAP_ADDRESS;
-	if (media->read(media, address, offset, count) != count) {
-		ERROR("simple_buffer: fail to read %zd bytes from 0x%zx\n",
-		      count, offset);
-		return CBFS_MEDIA_INVALID_MAP_ADDRESS;
-	}
-	buffer->allocated += count;
-	buffer->last_allocate = count;
-	return address;
-}
-
-void *cbfs_simple_buffer_unmap(struct cbfs_simple_buffer *buffer,
-			       const void *address) {
-	// TODO Add simple buffer management so we can free more than last
-	// allocated one.
-	DEBUG("simple_buffer_unmap(address=0x%p): "
-	      "allocated=%zd, size=%zd, last_allocate=%zd\n",
-	    address, buffer->allocated, buffer->size,
-	    buffer->last_allocate);
-	if ((buffer->buffer + buffer->allocated - buffer->last_allocate) ==
-	    address) {
-		buffer->allocated -= buffer->last_allocate;
-		buffer->last_allocate = 0;
-	}
-	return NULL;
-}
-
-/**
- * run_address is passed the address of a function taking no parameters and
- * jumps to it, returning the result.
- * @param f the address to call as a function.
- * @return value returned by the function.
- */
-
-int run_address(void *f)
+int cbfs_prog_stage_load(struct prog *pstage)
 {
-	int (*v) (void);
-	v = f;
-	return v();
+	struct cbfs_stage stage;
+	uint8_t *load;
+	void *entry;
+	size_t fsize;
+	size_t foffset;
+	const struct region_device *fh = prog_rdev(pstage);
+
+	if (rdev_readat(fh, &stage, 0, sizeof(stage)) != sizeof(stage))
+		return -1;
+
+	fsize = region_device_sz(fh);
+	fsize -= sizeof(stage);
+	foffset = 0;
+	foffset += sizeof(stage);
+
+	assert(fsize == stage.len);
+
+	/* Note: cbfs_stage fields are currently in the endianness of the
+	 * running processor. */
+	load = (void *)(uintptr_t)stage.load;
+	entry = (void *)(uintptr_t)stage.entry;
+
+	/* Hacky way to not load programs over read only media. The stages
+	 * that would hit this path initialize themselves. */
+	if (ENV_VERSTAGE && !IS_ENABLED(CONFIG_NO_XIP_EARLY_STAGES) &&
+	    IS_ENABLED(CONFIG_BOOT_DEVICE_MEMORY_MAPPED)) {
+		void *mapping = rdev_mmap(fh, foffset, fsize);
+		rdev_munmap(fh, mapping);
+		if (mapping == load)
+			goto out;
+	}
+
+	fsize = cbfs_load_and_decompress(fh, foffset, fsize, load,
+					 stage.memlen, stage.compression);
+	if (!fsize)
+		return -1;
+
+	/* Clear area not covered by file. */
+	memset(&load[fsize], 0, stage.memlen - fsize);
+
+	prog_segment_loaded((uintptr_t)load, stage.memlen, SEG_FINAL);
+
+out:
+	prog_set_area(pstage, load, stage.memlen);
+	prog_set_entry(pstage, entry, NULL);
+
+	return 0;
 }
 
+/* This only supports the "COREBOOT" fmap region. */
+static int cbfs_master_header_props(struct cbfs_props *props)
+{
+	struct cbfs_header header;
+	const struct region_device *bdev;
+	int32_t rel_offset;
+	size_t offset;
+
+	bdev = boot_device_ro();
+
+	if (bdev == NULL)
+		return -1;
+
+	size_t fmap_top = ___FMAP__COREBOOT_BASE + ___FMAP__COREBOOT_SIZE;
+
+	/* Find location of header using signed 32-bit offset from
+	 * end of CBFS region. */
+	offset = fmap_top - sizeof(int32_t);
+	if (rdev_readat(bdev, &rel_offset, offset, sizeof(int32_t)) < 0)
+		return -1;
+
+	offset = fmap_top + rel_offset;
+	if (rdev_readat(bdev, &header, offset, sizeof(header)) < 0)
+		return -1;
+
+	header.magic = ntohl(header.magic);
+	header.romsize = ntohl(header.romsize);
+	header.offset = ntohl(header.offset);
+
+	if (header.magic != CBFS_HEADER_MAGIC)
+		return -1;
+
+	props->offset = header.offset;
+	props->size = header.romsize;
+	props->size -= props->offset;
+
+	printk(BIOS_SPEW, "CBFS @ %zx size %zx\n", props->offset, props->size);
+
+	return 0;
+}
+
+/* This struct is marked as weak to allow a particular platform to
+ * override the master header logic. This implementation should work for most
+ * devices. */
+const struct cbfs_locator __attribute__((weak)) cbfs_master_header_locator = {
+	.name = "Master Header Locator",
+	.locate = cbfs_master_header_props,
+};
+
+extern const struct cbfs_locator vboot_locator;
+
+static const struct cbfs_locator *locators[] = {
+#if CONFIG_VBOOT
+	&vboot_locator,
 #endif
+	&cbfs_master_header_locator,
+};
+
+int cbfs_boot_region_properties(struct cbfs_props *props)
+{
+	int i;
+
+	boot_device_init();
+
+	for (i = 0; i < ARRAY_SIZE(locators); i++) {
+		const struct cbfs_locator *ops;
+
+		ops = locators[i];
+
+		if (ops->locate == NULL)
+			continue;
+
+		if (ops->locate(props))
+			continue;
+
+		LOG("'%s' located CBFS at [%zx:%zx)\n",
+			ops->name, props->offset, props->offset + props->size);
+
+		return 0;
+	}
+
+	return -1;
+}
+
+void cbfs_prepare_program_locate(void)
+{
+	int i;
+
+	boot_device_init();
+
+	for (i = 0; i < ARRAY_SIZE(locators); i++) {
+		if (locators[i]->prepare == NULL)
+			continue;
+		locators[i]->prepare();
+	}
+}

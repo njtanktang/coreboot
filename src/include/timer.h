@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef TIMER_H
 #define TIMER_H
@@ -31,10 +27,6 @@
  * outside of the core timer code is not supported. */
 
 struct mono_time {
-	long microseconds;
-};
-
-struct rela_time {
 	long microseconds;
 };
 
@@ -67,6 +59,18 @@ int timers_run(void);
  * 0 returned on success, < 0 on error. */
 int timer_sched_callback(struct timeout_callback *tocb, unsigned long us);
 
+/* Set an absolute time to a number of microseconds. */
+static inline void mono_time_set_usecs(struct mono_time *mt, long us)
+{
+	mt->microseconds = us;
+}
+
+/* Set an absolute time to a number of milliseconds. */
+static inline void mono_time_set_msecs(struct mono_time *mt, long ms)
+{
+	mt->microseconds = ms * USECS_PER_MSEC;
+}
+
 /* Add microseconds to an absolute time. */
 static inline void mono_time_add_usecs(struct mono_time *mt, long us)
 {
@@ -77,12 +81,6 @@ static inline void mono_time_add_usecs(struct mono_time *mt, long us)
 static inline void mono_time_add_msecs(struct mono_time *mt, long ms)
 {
 	mono_time_add_usecs(mt, ms * USECS_PER_MSEC);
-}
-
-static inline void mono_time_add_rela_time(struct mono_time *mt,
-                                           const struct rela_time *t)
-{
-	mono_time_add_usecs(mt, t->microseconds);
 }
 
 /* Compare two absolute times: Return -1, 0, or 1 if t1 is <, =, or > t2,
@@ -99,33 +97,6 @@ static inline int mono_time_cmp(const struct mono_time *t1,
 	return 1;
 }
 
-static inline int rela_time_cmp(const struct rela_time *t1,
-                                const struct rela_time *t2)
-{
-	if (t1->microseconds == t2->microseconds)
-		return 0;
-
-	if (t1->microseconds < t2->microseconds)
-		return -1;
-
-	return 1;
-}
-
-/* Initialize a rela_time structure. */
-static inline struct rela_time rela_time_init_usecs(long us)
-{
-	struct rela_time t;
-	t.microseconds = us;
-	return t;
-}
-
-/* Return time difference between t1 and t2. i.e. t2 - t1. */
-static struct rela_time mono_time_diff(const struct mono_time *t1,
-                                       const struct mono_time *t2)
-{
-	return rela_time_init_usecs(t2->microseconds - t1->microseconds);
-}
-
 /* Return true if t1 after t2  */
 static inline int mono_time_after(const struct mono_time *t1,
                                   const struct mono_time *t2)
@@ -140,27 +111,78 @@ static inline int mono_time_before(const struct mono_time *t1,
 	return mono_time_cmp(t1, t2) < 0;
 }
 
-/* Return the difference between now and t. */
-static inline struct rela_time current_time_from(const struct mono_time *t)
-{
-	struct mono_time now;
-
-	timer_monotonic_get(&now);
-	return mono_time_diff(t, &now);
-
-}
-
-static inline long rela_time_in_microseconds(const struct rela_time *rt)
-{
-	return rt->microseconds;
-}
-
+/* Return time difference between t1 and t2. i.e. t2 - t1. */
 static inline long mono_time_diff_microseconds(const struct mono_time *t1,
 					       const struct mono_time *t2)
 {
-	struct rela_time rt;
-	rt = mono_time_diff(t1, t2);
-	return rela_time_in_microseconds(&rt);
+	return t2->microseconds - t1->microseconds;
+}
+
+struct stopwatch {
+	struct mono_time start;
+	struct mono_time current;
+	struct mono_time expires;
+};
+
+static inline void stopwatch_init(struct stopwatch *sw)
+{
+	if (IS_ENABLED(CONFIG_HAVE_MONOTONIC_TIMER))
+		timer_monotonic_get(&sw->start);
+	else
+		sw->start.microseconds = 0;
+
+	sw->current = sw->expires = sw->start;
+}
+
+static inline void stopwatch_init_usecs_expire(struct stopwatch *sw, long us)
+{
+	stopwatch_init(sw);
+	mono_time_add_usecs(&sw->expires, us);
+}
+
+static inline void stopwatch_init_msecs_expire(struct stopwatch *sw, long ms)
+{
+	stopwatch_init_usecs_expire(sw, USECS_PER_MSEC * ms);
+}
+
+/*
+ * Tick the stopwatch to collect the current time.
+ */
+static inline void stopwatch_tick(struct stopwatch *sw)
+{
+	if (IS_ENABLED(CONFIG_HAVE_MONOTONIC_TIMER))
+		timer_monotonic_get(&sw->current);
+	else
+		sw->current.microseconds = 0;
+}
+
+/*
+ * Tick and check the stopwatch for expiration. Returns non-zero on exipration.
+ */
+static inline int stopwatch_expired(struct stopwatch *sw)
+{
+	stopwatch_tick(sw);
+	return !mono_time_before(&sw->current, &sw->expires);
+}
+
+/*
+ * Return number of microseconds since starting the stopwatch.
+ */
+static inline long stopwatch_duration_usecs(struct stopwatch *sw)
+{
+	/*
+	 * If the stopwatch hasn't been ticked (current == start) tick
+	 * the stopwatch to gather the accumulated time.
+	 */
+	if (!mono_time_cmp(&sw->start, &sw->current))
+		stopwatch_tick(sw);
+
+	return mono_time_diff_microseconds(&sw->start, &sw->current);
+}
+
+static inline long stopwatch_duration_msecs(struct stopwatch *sw)
+{
+	return stopwatch_duration_usecs(sw) / USECS_PER_MSEC;
 }
 
 #endif /* TIMER_H */

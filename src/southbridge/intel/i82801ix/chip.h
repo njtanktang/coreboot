@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801IX_CHIP_H
@@ -70,8 +66,6 @@ struct southbridge_intel_i82801ix_config {
 	uint16_t alt_gp_smi_en;
 
 	/* IDE configuration */
-	uint32_t ide_legacy_combined;
-	uint32_t sata_ahci; /* If enabled, keep bit 2 of sata_enabled unset. */
 	uint8_t sata_port_map : 6;
 	int sata_clock_request : 1;
 	int sata_traffic_monitor : 1;
@@ -90,6 +84,8 @@ struct southbridge_intel_i82801ix_config {
 		uint8_t value : 8;
 		uint8_t scale : 2;
 	} pcie_power_limits[6];
+
+	uint8_t pcie_hotplug_map[8];
 };
 
 #endif				/* SOUTHBRIDGE_INTEL_I82801IX_CHIP_H */

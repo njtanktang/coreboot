@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -130,13 +126,13 @@ static void vt8237s_vlink_init(struct device *dev)
 	/* No pairing NB was found. */
 	if (!devfun7)
 	{
-		print_debug("vt8237s_vlink_init: No pairing NB was found.\n");
+		printk(BIOS_DEBUG, "vt8237s_vlink_init: No pairing NB was found.\n");
 		return;
 	}
 
 	/*
 	 * This init code is valid only for the VT8237S! For different
-	 * sounthbridges (e.g. VT8237A, VT8237S, VT8237R (without plus R)
+	 * southbridges (e.g. VT8237A, VT8237S, VT8237R (without plus R)
 	 * and VT8251) a different init code is required.
 	 */
 
@@ -205,13 +201,13 @@ static void vt8237a_vlink_init(struct device *dev)
 	/* No pairing NB was found. */
 	if (!devfun7)
 	{
-		print_debug("vt8237a_vlink_init: No pairing NB was found.\n");
+		printk(BIOS_DEBUG, "vt8237a_vlink_init: No pairing NB was found.\n");
 		return;
 	}
 
 	/*
 	 * This init code is valid only for the VT8237A! For different
-	 * sounthbridges (e.g. VT8237S, VT8237R and VT8251) a different
+	 * southbridges (e.g. VT8237S, VT8237R and VT8251) a different
 	 * init code is required.
 	 *
 	 * FIXME: This is based on vt8237r_vlink_init() in

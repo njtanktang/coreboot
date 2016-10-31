@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 ramstage-y += ec.c
 
@@ -35,10 +31,15 @@ SPD_SOURCES += micron_4Gb_1600_1.35v_x16
 
 SPD_DEPS := $(foreach f, $(SPD_SOURCES), src/mainboard/$(MAINBOARDDIR)/$(f).spd.hex)
 
-# Include spd rom data
+# Include spd ROM data
 $(SPD_BIN): $(SPD_DEPS)
-	for f in $^; do for c in $$(cat $$f); do echo -e -n "\\x$$c"; done; done > $@
+	for f in $+; \
+	  do for c in $$(cat $$f | grep -v ^#); \
+	    do printf $$(printf '\%o' 0x$$c); \
+	  done; \
+	done > $@
 
 cbfs-files-y += spd.bin
 spd.bin-file := $(SPD_BIN)
-spd.bin-type := 0xab
+spd.bin-type := spd
+romstage-y += gpio.c

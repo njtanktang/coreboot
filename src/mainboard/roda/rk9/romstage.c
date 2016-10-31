@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // __PRE_RAM__ means: use "unsigned" for device, not a struct.
@@ -27,6 +22,7 @@
 #include <cpu/x86/lapic.h>
 #include <cpu/x86/msr.h>
 #include <cpu/x86/tsc.h>
+#include <cpu/intel/romstage.h>
 #include <arch/acpi.h>
 #include <cbmem.h>
 #include <lib.h>
@@ -34,7 +30,7 @@
 #include <console/console.h>
 #include <southbridge/intel/i82801ix/i82801ix.h>
 #include <northbridge/intel/gm45/gm45.h>
-#include <superio/smsc/lpc47n227/early_serial.c>
+#include <superio/smsc/lpc47n227/lpc47n227.h>
 
 #define LPC_DEV PCI_DEV(0, 0x1f, 0)
 #define SERIAL_DEV PNP_DEV(0x2e, LPC47N227_SP1)
@@ -120,7 +116,7 @@ static void default_superio_gpio_setup(void)
 	outb(0x10, 0x600 + 0xb + 4); /* GP40 - GP47 */
 }
 
-void main(unsigned long bist)
+void mainboard_romstage_entry(unsigned long bist)
 {
 	sysinfo_t sysinfo;
 	int s3resume = 0;
@@ -170,12 +166,17 @@ void main(unsigned long bist)
 
 	/* RAM initialization */
 	enter_raminit_or_reset();
+	memset(&sysinfo, 0, sizeof(sysinfo));
 	get_gmch_info(&sysinfo);
+	sysinfo.spd_map[0] = 0x50;
+	sysinfo.spd_map[1] = 0;
+	sysinfo.spd_map[2] = 0x52;
+	sysinfo.spd_map[3] = 0;
+	sysinfo.enable_igd = 1;
+	sysinfo.enable_peg = 0;
 	raminit(&sysinfo, s3resume);
 
-	raminit_thermal(&sysinfo);
-	init_igd(&sysinfo, 0, 1); /* Enable IGD, disable PEG. */
-	init_pm(&sysinfo);
+	init_pm(&sysinfo, 1);
 
 	i82801ix_dmi_setup();
 	gm45_late_init(sysinfo.stepping);
@@ -185,26 +186,20 @@ void main(unsigned long bist)
 
 	init_iommu();
 
-	cbmem_initted = !cbmem_recovery(0);
+	cbmem_initted = !cbmem_recovery(s3resume);
 #if CONFIG_HAVE_ACPI_RESUME
 	/* If there is no high memory area, we didn't boot before, so
 	 * this is not a resume. In that case we just create the cbmem toc.
 	 */
 	if (s3resume && cbmem_initted) {
-		void *resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
-
-		/* copy 1MB - 64K to high tables ram_base to prevent memory corruption
-		 * through stage 2. We could keep stuff like stack and heap in high tables
-		 * memory completely, but that's a wonderful clean up task for another
-		 * day.
-		 */
-		if (resume_backup_memory)
-			memcpy(resume_backup_memory, (void *)CONFIG_RAMBASE, HIGH_MEMORY_SAVE);
+		acpi_prepare_for_resume();
 
 		/* Magic for S3 resume */
 		pci_write_config32(PCI_DEV(0, 0, 0), D0F0_SKPD, SKPAD_ACPI_S3_MAGIC);
+	} else {
+		/* Magic for S3 resume */
+		pci_write_config32(PCI_DEV(0, 0, 0), D0F0_SKPD, SKPAD_NORMAL_BOOT_MAGIC);
 	}
 #endif
 	printk(BIOS_SPEW, "exit main()\n");
 }
-

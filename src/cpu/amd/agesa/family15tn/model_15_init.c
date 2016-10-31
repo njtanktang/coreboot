@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -43,7 +39,7 @@ static void model_15_init(device_t dev)
 	msr_t msr;
 	int msrno;
 	unsigned int cpu_idx;
-#if CONFIG_LOGICAL_CPUS
+#if IS_ENABLED(CONFIG_LOGICAL_CPUS)
 	u32 siblings;
 #endif
 
@@ -84,11 +80,10 @@ static void model_15_init(device_t dev)
 		wrmsr(MCI_STATUS + (i * 4), msr);
 	}
 
-
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 
-#if CONFIG_LOGICAL_CPUS
+#if IS_ENABLED(CONFIG_LOGICAL_CPUS)
 	siblings = cpuid_ecx(0x80000008) & 0xff;
 
 	if (siblings > 0) {
@@ -135,6 +130,7 @@ static struct device_operations cpu_dev_ops = {
 
 static struct cpu_device_id cpu_table[] = {
 	{ X86_VENDOR_AMD, 0x610f00 },	  /* TN-A0 */
+	{ X86_VENDOR_AMD, 0x610f31 },     /* RL-A1 (Richland) */
 	{ 0, 0 },
 };
 

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #ifndef CPU_INTEL_SPEEDSTEP_H
@@ -29,7 +24,7 @@
 #define SPEEDSTEP_APIC_MAGIC 0xACAC
 
 /* MWAIT coordination I/O base address. This must match
- * the \_PR_.CPU0 PM base address.
+ * the \_PR_.CP00 PM base address.
  */
 #define PMB0_BASE 0x510
 

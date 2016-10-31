@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef THERMAL_H
@@ -26,12 +22,12 @@
 #define EC_THROTTLE_POWER_LIMIT		12	/* 12W */
 
 /* Temperature which OS will shutdown at */
-#define CRITICAL_TEMPERATURE		104
+#define CRITICAL_TEMPERATURE		99
 
 /* Temperature which OS will throttle CPU */
-#define PASSIVE_TEMPERATURE		100
+#define PASSIVE_TEMPERATURE		95
 
 /* Tj_max value for calculating PECI CPU temperature */
-#define MAX_TEMPERATURE			105
+#define MAX_TEMPERATURE			100
 
 #endif

@@ -12,17 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
 #include <stdint.h>
 #include <cpu/x86/msr.h>
 #include <arch/acpigen.h>
-#include <cpu/amd/model_fxx_powernow.h>
+#include <cpu/amd/powernow.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <cpu/x86/msr.h>
@@ -30,23 +26,23 @@
 #include <cpu/amd/amdk8_sysconf.h>
 #include <arch/cpu.h>
 
-static int write_pstates_for_core(u8 pstate_num, u16 *pstate_feq, u8 *pstate_vid,
-				u8 *pstate_fid, u32 *pstate_power, int coreID,
-				u32 pcontrol_blk, u8 plen, u8 onlyBSP, u32 control)
+static void write_pstates_for_core(u8 pstate_num, u16 *pstate_feq, u8 *pstate_vid,
+				   u8 *pstate_fid, u32 *pstate_power, int coreID,
+				   u32 pcontrol_blk, u8 plen, u8 onlyBSP, u32 control)
 {
-	int lenp, lenpr, i;
+	int i;
 
 	if ((onlyBSP) && (coreID != 0)) {
 	    plen = 0;
 	    pcontrol_blk = 0;
 	}
 
-	lenpr = acpigen_write_processor(coreID, pcontrol_blk, plen);
-	lenpr += acpigen_write_empty_PCT();
-	lenpr += acpigen_write_name("_PSS");
+	acpigen_write_processor(coreID, pcontrol_blk, plen);
+	acpigen_write_empty_PCT();
+	acpigen_write_name("_PSS");
 
 	/* add later to total sum */
-	lenp = acpigen_write_package(pstate_num);
+	acpigen_write_package(pstate_num);
 
 	for (i = 0;i < pstate_num;i++) {
 		u32 status, c2;
@@ -56,21 +52,19 @@ static int write_pstates_for_core(u8 pstate_num, u16 *pstate_feq, u8 *pstate_vid
 			    (pstate_vid[i] << 6) |
 			    pstate_fid[i];
 
-		lenp += acpigen_write_PSS_package(pstate_feq[i],
-						pstate_power[i],
-						0x64,
-						0x7,
-						c2,
-						status);
+		acpigen_write_PSS_package(pstate_feq[i],
+					  pstate_power[i],
+					  0x64,
+					  0x7,
+					  c2,
+					  status);
 	}
 	/* update the package  size */
-	acpigen_patch_len(lenp - 1);
+	acpigen_pop_len();
 
-	lenpr += lenp;
-	lenpr += acpigen_write_PPC(pstate_num);
+	acpigen_write_PPC(pstate_num);
 	/* patch the whole Processor token length */
-	acpigen_patch_len(lenpr - 2);
-	return lenpr;
+	acpigen_pop_len();
 }
 
 #if CONFIG_K8_REV_F_SUPPORT
@@ -79,9 +73,8 @@ static int write_pstates_for_core(u8 pstate_num, u16 *pstate_feq, u8 *pstate_vid
 * Two parts are included, the another is the DSDT reconstruction process
 */
 
-static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
+static void pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 {
-	int len;
 	u8 processor_brand[49];
 	u32 *v, control;
 	struct cpuid_result cpuid1;
@@ -107,9 +100,18 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 	u8 cmp_cap, pwr_lmt;
 	u32 power_limit = 0;
 	u8 index;
+	uint8_t node_count;
+	uint8_t cores_per_node;
+	uint32_t total_core_count;
+	uint32_t dword;
 	msr_t msr;
 	u32 fid_multiplier;
-	static struct power_limit_encoding TDP[20] = {
+	static const struct power_limit_encoding TDP[] = {
+		{0x10, 0x1, 0x2, 45}, /* Opteron EE */
+		{0x10, 0x1, 0x6, 68}, /* Opteron HE */
+		{0x10, 0x1, 0xa, 95}, /* Opteron */
+		{0x10, 0x1, 0xc, 119}, /* Opteron SE */
+		{0x10, 0x1, 0xe, 125}, /* Athlon 64 FX-7x */
 		{0x11, 0x0, 0x8, 62},
 		{0x11, 0x1, 0x8, 89},
 		{0x11, 0x1, 0xa, 103},
@@ -154,16 +156,25 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 
 	/*
 	 * Based on the CPU socket type,cmp_cap and pwr_lmt , get the power limit.
-	 * socket_type : 0x10 SocketF; 0x11 AM2/ASB1 ; 0x12 S1G1
-	 * cmp_cap : 0x0 SingleCore ; 0x1 DualCore
+	 * socket_type : 0x10 SocketF; 0x11 AM2/ASB1; 0x12 S1G1
+	 * cmp_cap : 0x0 SingleCore; 0x1 DualCore
 	 */
 	printk(BIOS_INFO, "Pstates Algorithm ...\n");
-	cmp_cap =
-	    (pci_read_config16(dev_find_slot(0, PCI_DEVFN(0x18, 3)), 0xE8) &
-	     0x3000) >> 12;
+
+	/* Get number of cores */
+	dword = pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x18, 3)), 0xe8);
+	cmp_cap = (dword & 0x3000) >> 12;
+	/* Get number of nodes */
+	dword = pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x18, 0)), 0x60);
+	node_count = ((dword & 0x70) >> 4) + 1;
+	cores_per_node = cmp_cap + 1;
+
+	/* Compute total number of cores installed in system */
+	total_core_count = cores_per_node * node_count;
+
 	cpuid1 = cpuid(0x80000001);
 	pwr_lmt = ((cpuid1.ebx & 0x1C0) >> 5) | ((cpuid1.ebx & 0x4000) >> 14);
-	for (index = 0; index <= sizeof(TDP) / sizeof(TDP[0]); index++)
+	for (index = 0; index < ARRAY_SIZE(TDP); index++)
 		if (TDP[index].socket_type == CONFIG_CPU_SOCKET_TYPE &&
 		    TDP[index].cmp_cap == cmp_cap &&
 		    TDP[index].pwr_lmt == pwr_lmt) {
@@ -196,11 +207,6 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 		PstateStep_coef = 1;
 	else
 		PstateStep_coef = 2;
-
-	if (IntPstateSup == 0) {
-		printk(BIOS_INFO, "No intermediate P-states are supported\n");
-		goto write_pstates;
-	}
 
 	/* Get the multiplier of the fid frequency */
 	/*
@@ -236,6 +242,11 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 		Pstate_num++;
 	}
 
+	if (IntPstateSup == 0) {
+		printk(BIOS_SPEW, "No intermediate P-states are supported\n");
+		goto nointpstatesup;
+	}
+
 	Cur_feq = Max_feq;
 	Cur_fid = Max_fid;
 	/* Construct P1 state */
@@ -248,17 +259,17 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 			Pstate_vid[1] = Pstate_vid[0] + 0x1;
 			Pstate_volt[1] = 1550 - Pstate_vid[1] * 25;
 			Pstate_power[1] =
-			    (unsigned long long)Pstate_power[0] *
-			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1] /
-			    (Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
+			    ((unsigned long long)Pstate_power[0] *
+			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1]) /
+			    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		}
 		if (((Pstate_vid[0] & 0x1) == 0) && ((Pstate_vid[0] - 0x1) < Min_vid)) {	/* even value */
 			Pstate_vid[1] = Pstate_vid[0] + PstateStep_coef;
 			Pstate_volt[1] = 1550 - Pstate_vid[1] * 25;
 			Pstate_power[1] =
-			    (unsigned long long)Pstate_power[0] *
-			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1] /
-			    (Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
+			    ((unsigned long long)Pstate_power[0] *
+			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1]) /
+			    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		}
 		Pstate_num++;
 	}
@@ -272,17 +283,17 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 			Pstate_vid[1] = Pstate_vid[0] + 0x1;
 			Pstate_volt[1] = 1550 - Pstate_vid[1] * 25;
 			Pstate_power[1] =
-			    (unsigned long long)Pstate_power[0] *
-			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1] /
-			    (Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
+			    ((unsigned long long)Pstate_power[0] *
+			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1]) /
+			    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		}
 		if (((Pstate_vid[0] & 0x1) == 0) && ((Pstate_vid[0] - 0x1) < Min_vid)) {	/* even value */
 			Pstate_vid[1] = Pstate_vid[0] + PstateStep_coef;
 			Pstate_volt[1] = 1550 - Pstate_vid[1] * 25;
 			Pstate_power[1] =
-			    (unsigned long long)Pstate_power[0] *
-			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1] /
-			    (Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
+			    ((unsigned long long)Pstate_power[0] *
+			    Pstate_feq[1] * Pstate_volt[1] * Pstate_volt[1]) /
+			    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		}
 
 		Pstate_num++;
@@ -307,15 +318,14 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 			Pstate_volt[Pstate_num] =
 			    1550 - Pstate_vid[Pstate_num] * 25;
 			Pstate_power[Pstate_num] =
-			    (unsigned long long)Pstate_power[0] *
-			    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] *
-			    Pstate_volt[Pstate_num] / (Pstate_feq[0] *
-						       Pstate_volt[0] *
-						       Pstate_volt[0]);
+			    ((unsigned long long)Pstate_power[0] *
+			    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] * Pstate_volt[Pstate_num]) /
+			    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		}
 		Pstate_num++;
 	}
 
+nointpstatesup:
 	/* Construct P[Min] State */
 	if (Max_fid == 0x2A && Max_vid != 0x0) {
 		Pstate_fid[Pstate_num] = 0x2;
@@ -324,10 +334,9 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 		Pstate_vid[Pstate_num] = Min_vid;
 		Pstate_volt[Pstate_num] = 1550 - Pstate_vid[Pstate_num] * 25;
 		Pstate_power[Pstate_num] =
-		    (unsigned long long)Pstate_power[0] *
-		    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] *
-		    Pstate_volt[Pstate_num] / (Pstate_feq[0] * Pstate_volt[0] *
-					       Pstate_volt[0]);
+		    ((unsigned long long)Pstate_power[0] *
+		    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] * Pstate_volt[Pstate_num]) /
+		    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		Pstate_num++;
 	} else {
 		Pstate_fid[Pstate_num] = Start_fid;
@@ -336,10 +345,9 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 		Pstate_vid[Pstate_num] = Min_vid;
 		Pstate_volt[Pstate_num] = 1550 - Pstate_vid[Pstate_num] * 25;
 		Pstate_power[Pstate_num] =
-		    (unsigned long long)Pstate_power[0] *
-		    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] *
-		    Pstate_volt[Pstate_num] / (Pstate_feq[0] * Pstate_volt[0] *
-					       Pstate_volt[0]);
+		    ((unsigned long long)Pstate_power[0] *
+		    Pstate_feq[Pstate_num] * Pstate_volt[Pstate_num] * Pstate_volt[Pstate_num]) /
+		    ((unsigned long long)Pstate_feq[0] * Pstate_volt[0] * Pstate_volt[0]);
 		Pstate_num++;
 	}
 
@@ -358,8 +366,6 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 
 write_pstates:
 
-	len = 0;
-
 	control = (0x3 << 30) | /* IRT */
 		  (0x2 << 28) | /* RVO */
 		  (0x1 << 27) | /* ExtType */
@@ -367,13 +373,11 @@ write_pstates:
 		  (0x0 << 18) | /* MVS */
 		  (0x5 << 11); /* VST */
 
-	for (index = 0; index < (cmp_cap + 1); index++) {
-		len += write_pstates_for_core(Pstate_num, Pstate_feq, Pstate_vid,
+	for (index = 0; index < total_core_count; index++) {
+		write_pstates_for_core(Pstate_num, Pstate_feq, Pstate_vid,
 				Pstate_fid, Pstate_power, index,
 				pcontrol_blk, plen, onlyBSP, control);
 	}
-
-	return len;
 }
 
 #else
@@ -754,13 +758,13 @@ struct cpuentry entr[] = {
 	 {{2200, 1300, 1056}, {2000, 1250, 891}, {1800, 1200, 748}, {1000, 1100, 466}}},
 };
 
-static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
+static void pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 {
 
 	u8 cmp_cap;
 	struct cpuentry *data = NULL;
 	uint32_t control;
-	int i = 0, index = 0, len = 0, Pstate_num = 0, dev = 0;
+	int i = 0, index = 0, Pstate_num = 0, dev = 0;
 	msr_t msr;
 	u8 Pstate_fid[MAXP+1];
 	u16 Pstate_feq[MAXP+1];
@@ -771,9 +775,9 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 
 	/* See if the CPUID(0x80000007) returned EDX[2:1]==11b */
 	cpuid1 = cpuid(0x80000007);
-	if((cpuid1.edx & 0x6)!=0x6) {
+	if ((cpuid1.edx & 0x6)!=0x6) {
 		printk(BIOS_INFO, "Processor not capable of performing P-state transitions\n");
-		return 0;
+		return;
 	}
 
 	cpuid1 = cpuid(0x80000001);
@@ -803,7 +807,7 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 
 	if (data == NULL) {
 		printk(BIOS_WARNING, "Unknown CPU, please update the powernow_acpi.c\n");
-		return 0;
+		return;
 	}
 
 #if CONFIG_MAX_PHYSICAL_CPUS
@@ -836,14 +840,12 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 	 *   time = value*1uS (often seen value: 2uS)
 	 */
 
-	len = 0;
-
 	Pstate_fid[0] = Max_fid;
 	Pstate_feq[0] = fid_to_freq(Max_fid);
 	Pstate_vid[0] = Max_vid;
 	Pstate_power[0] = data->pwr * 100;
 
-	for(Pstate_num = 1;
+	for (Pstate_num = 1;
 	    (Pstate_num <= MAXP) && (data->pstates[Pstate_num - 1].freqMhz != 0);
 	    Pstate_num++) {
 		Pstate_fid[Pstate_num] = freq_to_fid(data->pstates[Pstate_num - 1].freqMhz) & 0x3f;
@@ -860,33 +862,27 @@ static int pstates_algorithm(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 
 	/* Loop over all CPU's */
 	for (dev = 0x18; dev < 0x1c; dev++) {
-		if(dev_find_slot(0, PCI_DEVFN(dev, 0)) == NULL)
+		if (dev_find_slot(0, PCI_DEVFN(dev, 0)) == NULL)
 			continue;
 
 		for (i = 0; i < (cmp_cap + 1); i++) {
-			len += write_pstates_for_core(Pstate_num, Pstate_feq, Pstate_vid,
+			write_pstates_for_core(Pstate_num, Pstate_feq, Pstate_vid,
 					Pstate_fid, Pstate_power, index+i,
 					pcontrol_blk, plen, onlyBSP, control);
 		}
 		index += i;
 	}
 	printk(BIOS_DEBUG,"%d Processor objects emitted to SSDT\n",index);
-
-	return len;
 }
 
 #endif
 
 
-int amd_model_fxx_generate_powernow(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
+void amd_generate_powernow(u32 pcontrol_blk, u8 plen, u8 onlyBSP)
 {
-	int lens;
 	char pscope[] = "\\_PR";
 
-	lens = acpigen_write_scope(pscope);
-	lens += pstates_algorithm(pcontrol_blk, plen, onlyBSP);
-	//minus opcode
-	acpigen_patch_len(lens - 1);
-	return lens;
+	acpigen_write_scope(pscope);
+	pstates_algorithm(pcontrol_blk, plen, onlyBSP);
+	acpigen_pop_len();
 }
-

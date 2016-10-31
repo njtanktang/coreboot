@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdio.h>
@@ -50,8 +46,25 @@ void xdr_segs(struct buffer *output,
 		xdr_be.put32(&outheader, segs[i].mem_len);
 	}
 }
-int parse_elf_to_payload(const struct buffer *input,
-			 struct buffer *output, uint32_t arch, comp_algo algo)
+
+void xdr_get_seg(struct cbfs_payload_segment *out,
+		struct cbfs_payload_segment *in)
+{
+	struct buffer inheader;
+
+	inheader.data = (void *)in;
+	inheader.size = sizeof(*in);
+
+	out->type = xdr_be.get32(&inheader);
+	out->compression = xdr_be.get32(&inheader);
+	out->offset = xdr_be.get32(&inheader);
+	out->load_addr = xdr_be.get64(&inheader);
+	out->len = xdr_be.get32(&inheader);
+	out->mem_len = xdr_be.get32(&inheader);
+}
+
+int parse_elf_to_payload(const struct buffer *input, struct buffer *output,
+			 enum comp_algo algo)
 {
 	Elf64_Phdr *phdr;
 	Elf64_Ehdr ehdr;
@@ -62,14 +75,15 @@ int parse_elf_to_payload(const struct buffer *input,
 	int segments = 1;
 	int isize = 0, osize = 0;
 	int doffset = 0;
-	struct cbfs_payload_segment *segs;
+	struct cbfs_payload_segment *segs = NULL;
 	int i;
+	int ret = 0;
 
 	comp_func_ptr compress = compression_function(algo);
 	if (!compress)
 		return -1;
 
-	if (elf_headers(input, arch, &ehdr, &phdr, &shdr) < 0)
+	if (elf_headers(input, &ehdr, &phdr, &shdr) < 0)
 		return -1;
 
 	DEBUG("start: parse_elf_to_payload\n");
@@ -116,12 +130,16 @@ int parse_elf_to_payload(const struct buffer *input,
 	}
 	/* allocate the segment header array */
 	segs = calloc(segments, sizeof(*segs));
-	if (segs == NULL)
-		return -1;
+	if (segs == NULL) {
+		ret = -1;
+		goto out;
+	}
 	/* Allocate a block of memory to store the data in */
 	if (buffer_create(output, (segments * sizeof(*segs)) + isize,
-			  input->name) != 0)
-		return -1;
+			  input->name) != 0) {
+		ret = -1;
+		goto out;
+	}
 	memset(output->data, 0, output->size);
 
 	doffset = (segments * sizeof(*segs));
@@ -184,22 +202,24 @@ int parse_elf_to_payload(const struct buffer *input,
 			segs[segments].type = PAYLOAD_SEGMENT_DATA;
 		segs[segments].load_addr = phdr[i].p_paddr;
 		segs[segments].mem_len = phdr[i].p_memsz;
-		segs[segments].compression = algo;
 		segs[segments].offset = doffset;
 
+		/* If the compression failed or made the section is larger,
+		   use the original stuff */
+
 		int len;
-		compress((char *)&header[phdr[i].p_offset],
-			 phdr[i].p_filesz, output->data + doffset, &len);
-		segs[segments].len = len;
-
-		/* If the compressed section is larger, then use the
-		   original stuff */
-
-		if ((unsigned int)len > phdr[i].p_filesz) {
+		if (compress((char *)&header[phdr[i].p_offset],
+			     phdr[i].p_filesz, output->data + doffset, &len) ||
+		    (unsigned int)len > phdr[i].p_filesz) {
+			WARN("Compression failed or would make the data bigger "
+			     "- disabled.\n");
 			segs[segments].compression = 0;
 			segs[segments].len = phdr[i].p_filesz;
 			memcpy(output->data + doffset,
 			       &header[phdr[i].p_offset], phdr[i].p_filesz);
+		} else {
+			segs[segments].compression = algo;
+			segs[segments].len = len;
 		}
 
 		doffset += segs[segments].len;
@@ -213,14 +233,19 @@ int parse_elf_to_payload(const struct buffer *input,
 
 	output->size = (segments * sizeof(*segs)) + osize;
 	xdr_segs(output, segs, segments);
-	return 0;
+
+out:
+	if (segs) free(segs);
+	if (shdr) free(shdr);
+	if (phdr) free(phdr);
+	return ret;
 }
 
 int parse_flat_binary_to_payload(const struct buffer *input,
 				 struct buffer *output,
 				 uint32_t loadaddress,
 				 uint32_t entrypoint,
-				 comp_algo algo)
+				 enum comp_algo algo)
 {
 	comp_func_ptr compress;
 	struct cbfs_payload_segment segs[2];
@@ -244,12 +269,13 @@ int parse_flat_binary_to_payload(const struct buffer *input,
 	segs[0].mem_len = input->size;
 	segs[0].offset = doffset;
 
-	compress(input->data, input->size, output->data + doffset, &len);
-	segs[0].compression = algo;
-	segs[0].len = len;
-
-	if ((unsigned int)len >= input->size) {
-		WARN("Compressing data would make it bigger - disabled.\n");
+	if (!compress(input->data, input->size, output->data + doffset, &len) &&
+	    (unsigned int)len < input->size) {
+		segs[0].compression = algo;
+		segs[0].len = len;
+	} else {
+		WARN("Compression failed or would make the data bigger "
+		     "- disabled.\n");
 		segs[0].compression = 0;
 		segs[0].len = input->size;
 		memcpy(output->data + doffset, input->data, input->size);
@@ -263,8 +289,8 @@ int parse_flat_binary_to_payload(const struct buffer *input,
 	return 0;
 }
 
-int parse_fv_to_payload(const struct buffer *input,
-			 struct buffer *output, comp_algo algo)
+int parse_fv_to_payload(const struct buffer *input, struct buffer *output,
+			enum comp_algo algo)
 {
 	comp_func_ptr compress;
 	struct cbfs_payload_segment segs[2];
@@ -295,7 +321,7 @@ int parse_fv_to_payload(const struct buffer *input,
 	while (fh->file_type == FILETYPE_PAD) {
 		unsigned long offset = (fh->size[2] << 16) | (fh->size[1] << 8) | fh->size[0];
 		ERROR("skipping %lu bytes of FV padding\n", offset);
-		fh = (ffs_file_header_t *)(((void*)fh) + offset);
+		fh = (ffs_file_header_t *)(((uintptr_t)fh) + offset);
 	}
 	if (fh->file_type != FILETYPE_SEC) {
 		ERROR("Not a usable UEFI firmware volume.\n");
@@ -307,7 +333,7 @@ int parse_fv_to_payload(const struct buffer *input,
 	while (cs->section_type == SECTION_RAW) {
 		unsigned long offset = (cs->size[2] << 16) | (cs->size[1] << 8) | cs->size[0];
 		ERROR("skipping %lu bytes of section padding\n", offset);
-		cs = (common_section_header_t *)(((void*)cs) + offset);
+		cs = (common_section_header_t *)(((uintptr_t)cs) + offset);
 	}
 	if (cs->section_type != SECTION_PE32) {
 		ERROR("Not a usable UEFI firmware volume.\n");
@@ -325,7 +351,7 @@ int parse_fv_to_payload(const struct buffer *input,
 	dh_offset = (unsigned long)dh - (unsigned long)input->data;
 	DEBUG("dos header offset = %x\n", dh_offset);
 
-	ch = (coff_header_t *)(((void *)dh)+dh->e_lfanew);
+	ch = (coff_header_t *)(((uintptr_t)dh)+dh->e_lfanew);
 
 	if (ch->machine == MACHINE_TYPE_X86) {
 		pe_opt_header_32_t *ph;
@@ -370,12 +396,13 @@ int parse_fv_to_payload(const struct buffer *input,
 	segs[0].mem_len = input->size;
 	segs[0].offset = doffset;
 
-	compress(input->data, input->size, output->data + doffset, &len);
-	segs[0].compression = algo;
-	segs[0].len = len;
-
-	if ((unsigned int)len >= input->size) {
-		WARN("Compressing data would make it bigger - disabled.\n");
+	if (!compress(input->data, input->size, output->data + doffset, &len) &&
+	    (unsigned int)len < input->size) {
+		segs[0].compression = algo;
+		segs[0].len = len;
+	} else {
+		WARN("Compression failed or would make the data bigger "
+		     "- disabled.\n");
 		segs[0].compression = 0;
 		segs[0].len = input->size;
 		memcpy(output->data + doffset, input->data, input->size);
@@ -389,4 +416,3 @@ int parse_fv_to_payload(const struct buffer *input,
 	return 0;
 
 }
-

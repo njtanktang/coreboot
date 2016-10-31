@@ -12,17 +12,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <arch/acpi.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <southbridge/intel/lynxpoint/nvs.h>
 #include <southbridge/intel/lynxpoint/pch.h>
+#include <southbridge/intel/common/gpio.h>
 #include <southbridge/intel/lynxpoint/me.h>
 #include <northbridge/intel/haswell/haswell.h>
 #include <cpu/intel/haswell/haswell.h>
@@ -36,27 +34,6 @@
 #define GPIO_PP3300_CODEC_EN 45
 /* WLAN / BT enable: GPIO46 */
 #define GPIO_WLAN_DISABLE_L  46
-
-int mainboard_io_trap_handler(int smif)
-{
-	switch (smif) {
-	case 0x99:
-		printk(BIOS_DEBUG, "Sample\n");
-		smm_get_gnvs()->smif = 0;
-		break;
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 0
-	 * On failure, the IO Trap Handler returns a value != 0
-	 *
-	 * For now, we force the return value to 0 and log all traps to
-	 * see what's going on.
-	 */
-	//gnvs->smif = 0;
-	return 1;
-}
 
 static u8 mainboard_smi_ec(void)
 {
@@ -96,7 +73,7 @@ void mainboard_smi_sleep(u8 slp_typ)
 {
 	/* Disable USB charging if required */
 	switch (slp_typ) {
-	case 3:
+	case ACPI_S3:
 		if (smm_get_gnvs()->s3u0 == 0)
 			google_chromeec_set_usb_charge_mode(
 				0, USB_CHARGE_MODE_DISABLED);
@@ -110,7 +87,7 @@ void mainboard_smi_sleep(u8 slp_typ)
 		/* Enable wake events */
 		google_chromeec_set_wake_mask(MAINBOARD_EC_S3_WAKE_EVENTS);
 		break;
-	case 5:
+	case ACPI_S5:
 		if (smm_get_gnvs()->s5u0 == 0)
 			google_chromeec_set_usb_charge_mode(
 				0, USB_CHARGE_MODE_DISABLED);
@@ -134,14 +111,13 @@ void mainboard_smi_sleep(u8 slp_typ)
 	while (google_chromeec_get_event() != 0);
 }
 
-#define APMC_FINALIZE 0xcb
 
 static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 apmc)
 {
 	switch (apmc) {
-	case APMC_FINALIZE:
+	case APM_CNT_FINALIZE:
 		if (mainboard_finalized) {
 			printk(BIOS_DEBUG, "SMI#: Already finalized\n");
 			return 0;

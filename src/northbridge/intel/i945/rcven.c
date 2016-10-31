@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "raminit.h"
@@ -42,8 +38,8 @@ static u32 sample_strobes(int channel_offset, struct sys_info *sysinfo)
 	}
 
 	for (i = 0; i < 28; i++) {
-		read32(addr);
-		read32(addr + 0x80);
+		read32((void *)addr);
+		read32((void *)(addr + 0x80));
 	}
 
 	reg32 = MCHBAR32(RCVENMT);
@@ -277,7 +273,7 @@ static int find_strobes_edge(int channel_offset, u8 * mediumcoarse, u8 * fine,
 /**
  * Here we use a trick. The RCVEN channel 0 registers are all at an
  * offset of 0x80 to the channel 0 registers. We don't want to waste
- * a lot of if()s so let's just pass 0 or 0x80 for the channel offset.
+ * a lot of if ()s so let's just pass 0 or 0x80 for the channel offset.
  */
 
 static int receive_enable_autoconfig(int channel_offset,
@@ -335,4 +331,3 @@ void receive_enable_adjust(struct sys_info *sysinfo)
 		if (receive_enable_autoconfig(0x80, sysinfo))
 			return;
 }
-

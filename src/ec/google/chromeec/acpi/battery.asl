@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 // Scope (EC0)
@@ -111,11 +106,11 @@ Device (BAT0)
 		Store (Local0, Index (PBIF, 1))
 
 		// Design Capacity of Warning
-		Divide (Multiply (Local0, DWRN), 100, Local1, Local2)
+		Divide (Multiply (Local0, DWRN), 100, , Local2)
 		Store (Local2, Index (PBIF, 5))
 
 		// Design Capacity of Low
-		Divide (Multiply (Local0, DLOW), 100, Local1, Local2)
+		Divide (Multiply (Local0, DLOW), 100, , Local2)
 		Store (Local2, Index (PBIF, 6))
 
 		// Get battery info from mainboard
@@ -126,9 +121,7 @@ Device (BAT0)
 		Return (PBIF)
 	}
 
-	// Extended Battery info method is disabled for now due to
-	// a bug in the Linux kernel: http://crosbug.com/28747
-	Method (XBIX, 0, Serialized)
+	Method (_BIX, 0, Serialized)
 	{
 		// Last Full Charge Capacity
 		Store (BTDF, Index (PBIX, 3))
@@ -141,11 +134,11 @@ Device (BAT0)
 		Store (Local0, Index (PBIX, 2))
 
 		// Design Capacity of Warning
-		Divide (Multiply (Local0, DWRN), 100, Local1, Local2)
+		Divide (Multiply (Local0, DWRN), 100, , Local2)
 		Store (Local2, Index (PBIX, 6))
 
 		// Design Capacity of Low
-		Divide (Multiply (Local0, DLOW), 100, Local1, Local2)
+		Divide (Multiply (Local0, DLOW), 100, , Local2)
 		Store (Local2, Index (PBIX, 7))
 
 		// Cycle Count
@@ -210,8 +203,8 @@ Device (BAT0)
 			// https://bugzilla.kernel.org/show_bug.cgi?id=12632
 			Store (BTDF, Local2)
 
-			// See if within ~3% of full
-			ShiftRight (Local2, 5, Local3)
+			// See if within ~6% of full
+			ShiftRight (Local2, 4, Local3)
 			If (LAnd (LGreater (Local1, Subtract (Local2, Local3)),
 			          LLess (Local1, Add (Local2, Local3))))
 			{

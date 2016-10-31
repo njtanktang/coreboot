@@ -1,11 +1,32 @@
 /******************************************************************************
  * Copyright (c) 2004, 2008 IBM Corporation
  * Copyright (c) 2008, 2009 Pattrick Hueper <phueper@hueper.net>
+ *
  * All rights reserved.
- * This program and the accompanying materials
- * are made available under the terms of the BSD License
- * which accompanies this distribution, and is available at
- * http://www.opensource.org/licenses/bsd-license.php
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ * Redistributions of source code must retain the above copyright
+ *   notice, this list of conditions and the following disclaimer.
+ *
+ * Redistributions in binary form must reproduce the above copyright
+ *   notice, this list of conditions and the following disclaimer
+ *   in the documentation and/or other materials provided with the
+ *   distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Contributors:
  *     IBM Corporation - initial implementation
@@ -15,7 +36,7 @@
 #define DEVICE_LIB_H
 
 #include <types.h>
-#include <arch/byteorder.h>
+#include <endian.h>
 #include "compat/of.h"
 #include "debug.h"
 
@@ -62,7 +83,7 @@ typedef struct {
 typedef struct {
 	u8 bus;
 	u8 devfn;
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL
+#if IS_ENABLED(CONFIG_PCI_OPTION_ROM_RUN_YABEL)
 	struct device* dev;
 #else
 	u64 puid;
@@ -128,7 +149,7 @@ u8 biosemu_dev_translate_address(int type, unsigned long * addr);
 static inline void
 out32le(void *addr, u32 val)
 {
-#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARMV7
+#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARM
 	*((u32*) addr) = cpu_to_le32(val);
 #else
 	asm volatile ("stwbrx  %0, 0, %1"::"r" (val), "r"(addr));
@@ -139,7 +160,7 @@ static inline u32
 in32le(void *addr)
 {
 	u32 val;
-#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARMV7
+#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARM
 	val = cpu_to_le32(*((u32 *) addr));
 #else
 	asm volatile ("lwbrx  %0, 0, %1":"=r" (val):"r"(addr));
@@ -150,7 +171,7 @@ in32le(void *addr)
 static inline void
 out16le(void *addr, u16 val)
 {
-#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARMV7
+#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARM
 	*((u16*) addr) = cpu_to_le16(val);
 #else
 	asm volatile ("sthbrx  %0, 0, %1"::"r" (val), "r"(addr));
@@ -161,7 +182,7 @@ static inline u16
 in16le(void *addr)
 {
 	u16 val;
-#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARMV7
+#if CONFIG_ARCH_X86 || CONFIG_ARCH_ARM
 	val = cpu_to_le16(*((u16*) addr));
 #else
 	asm volatile ("lhbrx %0, 0, %1":"=r" (val):"r"(addr));
@@ -176,10 +197,10 @@ dumpHID(void)
 	u64 hid;
 	//HID1 = 1009
 	__asm__ __volatile__("mfspr %0, 1009":"=r"(hid));
-	printf("HID1: %016llx\n", hid);
+	printf("HID1: %016llx\n", (unsigned long long)hid);
 	//HID4 = 1012
 	__asm__ __volatile__("mfspr %0, 1012":"=r"(hid));
-	printf("HID4: %016llx\n", hid);
+	printf("HID4: %016llx\n", (unsigned long long)hid);
 }
 
 #endif

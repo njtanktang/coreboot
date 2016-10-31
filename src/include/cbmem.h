@@ -12,75 +12,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #ifndef _CBMEM_H_
 #define _CBMEM_H_
 
-#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME) && \
-	! IS_ENABLED(CONFIG_RELOCATABLE_RAMSTAGE)
-#define HIGH_MEMORY_SAVE	(CONFIG_RAMTOP - CONFIG_RAMBASE)
-#else
-#define HIGH_MEMORY_SAVE	0
-#endif
-
-#if IS_ENABLED(CONFIG_HAVE_ACPI_RESUME) && \
-	defined(CONFIG_HIGH_SCRATCH_MEMORY_SIZE)
-#define HIGH_MEMORY_SCRATCH	CONFIG_HIGH_SCRATCH_MEMORY_SIZE
-#else
-#define HIGH_MEMORY_SCRATCH	0
-#endif
-
-/* Delegation of resume backup memory so we don't have to
- * (slowly) handle backing up OS memory in romstage.c
- */
-#define CBMEM_BOOT_MODE		0x610
-#define CBMEM_RESUME_BACKUP	0x614
-
-#define CBMEM_ID_FREESPACE	0x46524545
-#define CBMEM_ID_GDT		0x4c474454
-#define CBMEM_ID_ACPI		0x41435049
-#define CBMEM_ID_ACPI_GNVS	0x474e5653
-#define CBMEM_ID_ACPI_GNVS_PTR	0x474e5650
-#define CBMEM_ID_CBTABLE	0x43425442
-#define CBMEM_ID_PIRQ		0x49525154
-#define CBMEM_ID_MPTABLE	0x534d5054
-#define CBMEM_ID_RESUME		0x5245534d
-#define CBMEM_ID_RESUME_SCRATCH	0x52455343
-#define CBMEM_ID_SMBIOS         0x534d4254
-#define CBMEM_ID_TIMESTAMP	0x54494d45
-#define CBMEM_ID_MRCDATA	0x4d524344
-#define CBMEM_ID_CONSOLE	0x434f4e53
-#define CBMEM_ID_ELOG		0x454c4f47
-#define CBMEM_ID_COVERAGE	0x47434f56
-#define CBMEM_ID_ROMSTAGE_INFO	0x47545352
-#define CBMEM_ID_ROMSTAGE_RAM_STACK 0x90357ac4
-#define CBMEM_ID_RAMSTAGE	0x9a357a9e
-#define CBMEM_ID_RAMSTAGE_CACHE	0x9a3ca54e
-#define CBMEM_ID_ROOT		0xff4007ff
-#define CBMEM_ID_VBOOT_HANDOFF	0x780074f0
-#define CBMEM_ID_CAR_GLOBALS	0xcac4e6a3
-#define CBMEM_ID_EHCI_DEBUG	0xe4c1deb9
-#define CBMEM_ID_REFCODE	0x04efc0de
-#define CBMEM_ID_REFCODE_CACHE	0x4efc0de5
-#define CBMEM_ID_POWER_STATE	0x50535454
-#define CBMEM_ID_SMM_SAVE_SPACE	0x07e9acee
-#define CBMEM_ID_RAM_OOPS	0x05430095
-#define CBMEM_ID_NONE		0x00000000
-#define CBMEM_ID_AGESA_RUNTIME	0x41474553
-#define CBMEM_ID_HOB_POINTER		0x484f4221
-
-#ifndef __ASSEMBLER__
+#include <commonlib/cbmem_id.h>
+#include <rules.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <boot/coreboot_tables.h>
+
+#define CBMEM_FSP_HOB_PTR	0x614
 
 struct cbmem_entry;
-
-#if CONFIG_DYNAMIC_CBMEM
 
 /*
  * The dynamic cbmem infrastructure allows for growing cbmem dynamically as
@@ -91,26 +36,39 @@ struct cbmem_entry;
  * dynamic cbmem infrastructure allocates new regions below the last allocated
  * region. Regions are defined by a cbmem_entry struct that is opaque. Regions
  * may be removed, but the last one added is the only that can be removed.
- *
- * Dynamic cbmem has two allocators within it. All allocators use a top down
- * allocation scheme. However, there are 2 modes for each allocation depending
- * on the requested size. There are large allocations and small allocations.
- * An allocation is considered to be small when it is less than or equal to
- * DYN_CBMEM_ALIGN_SIZE / 2. The smaller allocations are fit into a larger
- * allocation region.
  */
 
 #define DYN_CBMEM_ALIGN_SIZE (4096)
+#define CBMEM_ROOT_SIZE      DYN_CBMEM_ALIGN_SIZE
+
+/* The root region is at least DYN_CBMEM_ALIGN_SIZE . */
+#define CBMEM_ROOT_MIN_SIZE DYN_CBMEM_ALIGN_SIZE
+#define CBMEM_LG_ALIGN CBMEM_ROOT_MIN_SIZE
+
+/* Small allocation parameters. */
+#define CBMEM_SM_ROOT_SIZE 1024
+#define CBMEM_SM_ALIGN 32
+
+/* Determine the size for CBMEM root and the small allocations */
+static inline size_t cbmem_overhead_size(void)
+{
+   return 2 * CBMEM_ROOT_MIN_SIZE;
+}
 
 /* By default cbmem is attempted to be recovered. Returns 0 if cbmem was
  * recovered or 1 if cbmem had to be reinitialized. */
 int cbmem_initialize(void);
+int cbmem_initialize_id_size(u32 id, u64 size);
+
 /* Initialize cbmem to be empty. */
 void cbmem_initialize_empty(void);
+void cbmem_initialize_empty_id_size(u32 id, u64 size);
 
 /* Return the top address for dynamic cbmem. The address returned needs to
  * be consistent across romstage and ramstage, and it is required to be
- * below 4GiB. */
+ * below 4GiB.
+ * x86 boards or chipsets must return NULL before the cbmem backing store has
+ * been initialized. */
 void *cbmem_top(void);
 
 /* Add a cbmem entry of a given size and id. These return NULL on failure. The
@@ -130,41 +88,6 @@ int cbmem_entry_remove(const struct cbmem_entry *entry);
 void *cbmem_entry_start(const struct cbmem_entry *entry);
 u64 cbmem_entry_size(const struct cbmem_entry *entry);
 
-
-#else /* !CONFIG_DYNAMIC_CBMEM */
-
-/* Allocation with static CBMEM is resolved at build time. We start
- * with 128kB and conditionally add some of the most greedy CBMEM
- * table entries.
- */
-#define _CBMEM_SZ_MINIMAL	( 128 * 1024 )
-
-#define _CBMEM_SZ_TOTAL	\
-	(_CBMEM_SZ_MINIMAL + CONFIG_CONSOLE_CBMEM_BUFFER_SIZE + \
-	HIGH_MEMORY_SAVE + HIGH_MEMORY_SCRATCH)
-
-#define HIGH_MEMORY_SIZE	ALIGN_UP(_CBMEM_SZ_TOTAL, 0x10000)
-
-
-#ifndef __PRE_RAM__
-void set_top_of_ram(uint64_t ramtop);
-void backup_top_of_ram(uint64_t ramtop);
-void cbmem_late_set_table(uint64_t base, uint64_t size);
-#endif
-
-void get_cbmem_table(uint64_t *base, uint64_t *size);
-struct cbmem_entry *get_cbmem_toc(void);
-
-static inline const struct cbmem_entry *cbmem_entry_find(uint32_t id)
-{
-	return NULL;
-}
-#endif /* CONFIG_DYNAMIC_CBMEM */
-
-/* Common API between cbmem and dynamic cbmem. */
-
-unsigned long get_top_of_ram(void);
-
 /* Returns 0 if old cbmem was recovered. Recovery is only attempted if
  * s3resume is non-zero. */
 int cbmem_recovery(int s3resume);
@@ -174,21 +97,65 @@ int cbmem_recovery(int s3resume);
 void *cbmem_add(u32 id, u64 size);
 /* Find a cbmem entry of a given id. These return NULL on failure. */
 void *cbmem_find(u32 id);
+/* Get location and size of CBMEM region in memory */
+void cbmem_region_used(uintptr_t *base, size_t *size);
 
-#ifndef __PRE_RAM__
+/* Indicate to each hook if cbmem is being recovered or not. */
+typedef void (* const cbmem_init_hook_t)(int is_recovery);
+void cbmem_run_init_hooks(int is_recovery);
+void cbmem_fail_resume(void);
+
 /* Ramstage only functions. */
 /* Add the cbmem memory used to the memory map at boot. */
 void cbmem_add_bootmem(void);
 void cbmem_list(void);
-void cbmem_arch_init(void);
-void cbmem_print_entry(int n, u32 id, u64 start, u64 size);
-void cbmem_fail_resume(void);
+void cbmem_add_records_to_cbtable(struct lb_header *header);
+
+#if ENV_RAMSTAGE
+#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused_ __attribute__((unused)) = init_fn_;
+#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) \
+	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
+	section(".rodata.cbmem_init_hooks"))) = init_fn_;
+#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused2_ __attribute__((unused)) = init_fn_;
+#elif ENV_ROMSTAGE
+#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) \
+	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
+	section(".rodata.cbmem_init_hooks"))) = init_fn_;
+#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused_ __attribute__((unused)) = init_fn_;
+#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused2_ __attribute__((unused)) = init_fn_;
+#elif ENV_POSTCAR
+#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused2_ __attribute__((unused)) = init_fn_;
+#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused_ __attribute__((unused)) = init_fn_;
+#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) \
+	static cbmem_init_hook_t init_fn_ ## _ptr_ __attribute__((used, \
+	section(".rodata.cbmem_init_hooks"))) = init_fn_;
 #else
-static inline void cbmem_arch_init(void) {}
-static inline void cbmem_fail_resume(void) {}
-#endif /* __PRE_RAM__ */
+#define ROMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused_ __attribute__((unused)) = init_fn_;
+#define RAMSTAGE_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused2_ __attribute__((unused)) = init_fn_;
+#define POSTCAR_CBMEM_INIT_HOOK(init_fn_) static cbmem_init_hook_t \
+	init_fn_ ## _unused3_ __attribute__((unused)) = init_fn_;
+#endif /* ENV_RAMSTAGE */
 
-#endif /* __ASSEMBLER__ */
 
+/* These are for compatibility with old boards only. Any new chipset and board
+ * must implement cbmem_top() for both romstage and ramstage to support
+ * early features like COLLECT_TIMESTAMPS and CBMEM_CONSOLE.
+ */
+#if IS_ENABLED(CONFIG_ARCH_X86) && IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
+/* Note that many of the current providers of get_top_of_ram() conditionally
+ * return 0 when the sleep type is non S3. i.e. cold and warm boots would
+ * return 0 from get_top_of_ram(). */
+unsigned long get_top_of_ram(void);
+void set_top_of_ram(uint64_t ramtop);
+void backup_top_of_ram(uint64_t ramtop);
+#endif
 
 #endif /* _CBMEM_H_ */

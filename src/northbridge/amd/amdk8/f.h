@@ -486,10 +486,10 @@ struct mem_info { // pernode
 } __attribute__((packed));
 
 struct link_pair_st {
-	device_t udev;
+	pci_devfn_t udev;
 	uint32_t upos;
 	uint32_t uoffs;
-	device_t dev;
+	pci_devfn_t dev;
 	uint32_t pos;
 	uint32_t offs;
 
@@ -519,7 +519,8 @@ struct sys_info {
 } __attribute__((packed));
 
 #ifdef __PRE_RAM__
-extern struct sys_info sysinfo_car;
+#include <arch/early_variables.h>
+struct sys_info sysinfo_car CAR_GLOBAL;
 #endif
 
 #include <reset.h>
@@ -534,41 +535,32 @@ static inline void wait_all_core0_mem_trained(struct sys_info *sysinfo)
 	unsigned needs_reset = 0;
 
 
-	if(sysinfo->nodes == 1) return; // in case only one cpu installed
+	if (sysinfo->nodes == 1) return; // in case only one CPU installed
 
-	for(i=1; i<sysinfo->nodes; i++) {
+	for (i = 1; i < sysinfo->nodes; i++) {
 		/* Skip everything if I don't have any memory on this controller */
-		if(sysinfo->mem_trained[i]==0x00) continue;
+		if (sysinfo->mem_trained[i]== 0x00) continue;
 
 		mask |= (1<<i);
 
 	}
 
 	i = 1;
-	while(1) {
-		if(mask & (1<<i)) {
-			if((sysinfo->mem_trained[i])!=0x80) {
+	while (1) {
+		if (mask & (1<<i)) {
+			if ((sysinfo->mem_trained[i])!=0x80) {
 				mask &= ~(1<<i);
 			}
 		}
 
-		if(!mask) break;
-
-#if 0
-		/* cpu_relax */
-		__asm__ __volatile__("rep;nop": : :"memory");
-#endif
+		if (!mask) break;
 
 		i++;
 		i%=sysinfo->nodes;
 	}
 
-	for(i=0; i<sysinfo->nodes; i++) {
-#ifdef __PRE_RAM__
-		print_debug("mem_trained["); print_debug_hex8(i); print_debug("]="); print_debug_hex8(sysinfo->mem_trained[i]); print_debug("\n");
-#else
+	for (i = 0; i < sysinfo->nodes; i++) {
 		printk(BIOS_DEBUG, "mem_trained[%02x]=%02x\n", i, sysinfo->mem_trained[i]);
-#endif
 		switch(sysinfo->mem_trained[i]) {
 		case 0: //don't need train
 		case 1: //trained
@@ -580,12 +572,11 @@ static inline void wait_all_core0_mem_trained(struct sys_info *sysinfo)
 			break;
 		}
 	}
-	if(needs_reset) {
+	if (needs_reset) {
+		printk(BIOS_DEBUG, "mem trained failed\n");
 #ifdef __PRE_RAM__
-		print_debug("mem trained failed\n");
 		soft_reset();
 #else
-		printk(BIOS_DEBUG, "mem trained failed\n");
 		hard_reset();
 #endif
 	}

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -33,17 +29,13 @@ static inline void print_debug_addr(const char *str, void *val)
 
 static void print_debug_pci_dev(u32 dev)
 {
-#if !CONFIG_PCI_BUS_SEGN_BITS
 	printk(BIOS_DEBUG, "PCI: %02x:%02x.%02x", (dev>>20) & 0xff, (dev>>15) & 0x1f, (dev>>12) & 0x7);
-#else
-	printk(BIOS_DEBUG, "PCI: %04x:%02x:%02x.%02x", (dev>>28) & 0x0f, (dev>>20) & 0xff, (dev>>15) & 0x1f, (dev>>12) & 0x7);
-#endif
 }
 
 static inline void print_pci_devices(void)
 {
-	device_t dev;
-	for(dev = PCI_DEV(0, 0, 0);
+	pci_devfn_t dev;
+	for (dev = PCI_DEV(0, 0, 0);
 		dev <= PCI_DEV(0xff, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
 		u32 id;
@@ -55,10 +47,10 @@ static inline void print_pci_devices(void)
 		}
 		print_debug_pci_dev(dev);
 		printk(BIOS_DEBUG, " %04x:%04x\n", (id & 0xffff), (id>>16));
-		if(((dev>>12) & 0x07) == 0) {
+		if (((dev>>12) & 0x07) == 0) {
 			u8 hdr_type;
 			hdr_type = pci_read_config8(dev, PCI_HEADER_TYPE);
-			if((hdr_type & 0x80) != 0x80) {
+			if ((hdr_type & 0x80) != 0x80) {
 				dev += PCI_DEV(0,0,7);
 			}
 		}
@@ -67,8 +59,8 @@ static inline void print_pci_devices(void)
 
 static inline void print_pci_devices_on_bus(u32 busn)
 {
-	device_t dev;
-	for(dev = PCI_DEV(busn, 0, 0);
+	pci_devfn_t dev;
+	for (dev = PCI_DEV(busn, 0, 0);
 		dev <= PCI_DEV(busn, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
 		u32 id;
@@ -80,10 +72,10 @@ static inline void print_pci_devices_on_bus(u32 busn)
 		}
 		print_debug_pci_dev(dev);
 		printk(BIOS_DEBUG, " %04x:%04x\n", (id & 0xffff), (id>>16));
-		if(((dev>>12) & 0x07) == 0) {
+		if (((dev>>12) & 0x07) == 0) {
 			u8 hdr_type;
 			hdr_type = pci_read_config8(dev, PCI_HEADER_TYPE);
-			if((hdr_type & 0x80) != 0x80) {
+			if ((hdr_type & 0x80) != 0x80) {
 				 dev += PCI_DEV(0,0,7);
 			}
 		}
@@ -97,18 +89,18 @@ static void dump_pci_device_range(u32 dev, u32 start_reg, u32 size)
 	int j;
 	int end = start_reg + size;
 
-	for(i = start_reg; i < end; i+=4) {
+	for (i = start_reg; i < end; i+=4) {
 		u32 val;
 		if ((i & 0x0f) == 0) {
 			printk(BIOS_DEBUG, "\n%04x:",i);
 		}
 		val = pci_read_config32(dev, i);
-		for(j=0;j<4;j++) {
+		for (j = 0; j < 4; j++) {
 			printk(BIOS_DEBUG, " %02x", val & 0xff);
 			val >>= 8;
 		}
 	}
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 }
 
 static void dump_pci_device(u32 dev)
@@ -122,28 +114,26 @@ static void dump_pci_device_index_wait_range(u32 dev, u32 index_reg, u32 start,
 	int i;
 	int end = start + size;
 	print_debug_pci_dev(dev);
-	print_debug(" -- index_reg="); print_debug_hex32(index_reg);
+	printk(BIOS_DEBUG, " -- index_reg=%08x", index_reg);
 
-	for(i = start; i < end; i++) {
+	for (i = start; i < end; i++) {
 		u32 val;
 		int j;
 		printk(BIOS_DEBUG, "\n%02x:",i);
 		val = pci_read_config32_index_wait(dev, index_reg, i);
-		for(j=0;j<4;j++) {
+		for (j = 0; j < 4; j++) {
 			printk(BIOS_DEBUG, " %02x", val & 0xff);
 			val >>= 8;
 		}
 
 	}
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 }
 
 static inline void dump_pci_device_index_wait(u32 dev, u32 index_reg)
 {
 	dump_pci_device_index_wait_range(dev, index_reg, 0, 0x54);
 	dump_pci_device_index_wait_range(dev, index_reg, 0x100, 0x08); //DIMM1 when memclk > 400Hz
-//	dump_pci_device_index_wait_range(dev, index_reg, 0x200, 0x08); //DIMM2
-//	dump_pci_device_index_wait_range(dev, index_reg, 0x300, 0x08); //DIMM3
 }
 
 static inline void dump_pci_device_index(u32 dev, u32 index_reg, u32 type, u32 length)
@@ -151,11 +141,11 @@ static inline void dump_pci_device_index(u32 dev, u32 index_reg, u32 type, u32 l
 	int i;
 	print_debug_pci_dev(dev);
 
-	print_debug(" index reg: "); print_debug_hex16(index_reg); print_debug(" type: "); print_debug_hex8(type);
+	printk(BIOS_DEBUG, " index reg: %04x type: %02x", index_reg, type);
 
 	type<<=28;
 
-	for(i = 0; i < length; i++) {
+	for (i = 0; i < length; i++) {
 		u32 val;
 		if ((i & 0x0f) == 0) {
 			printk(BIOS_DEBUG, "\n%02x:",i);
@@ -163,13 +153,13 @@ static inline void dump_pci_device_index(u32 dev, u32 index_reg, u32 type, u32 l
 		val = pci_read_config32_index(dev, index_reg, i|type);
 		printk(BIOS_DEBUG, " %08x", val);
 	}
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 }
 
 static inline void dump_pci_devices(void)
 {
-	device_t dev;
-	for(dev = PCI_DEV(0, 0, 0);
+	pci_devfn_t dev;
+	for (dev = PCI_DEV(0, 0, 0);
 		dev <= PCI_DEV(0xff, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
 		u32 id;
@@ -181,10 +171,10 @@ static inline void dump_pci_devices(void)
 		}
 		dump_pci_device(dev);
 
-		if(((dev>>12) & 0x07) == 0) {
+		if (((dev>>12) & 0x07) == 0) {
 			u8 hdr_type;
 			hdr_type = pci_read_config8(dev, PCI_HEADER_TYPE);
-			if((hdr_type & 0x80) != 0x80) {
+			if ((hdr_type & 0x80) != 0x80) {
 				dev += PCI_DEV(0,0,7);
 			}
 		}
@@ -193,8 +183,8 @@ static inline void dump_pci_devices(void)
 
 static inline void dump_pci_devices_on_bus(u32 busn)
 {
-	device_t dev;
-	for(dev = PCI_DEV(busn, 0, 0);
+	pci_devfn_t dev;
+	for (dev = PCI_DEV(busn, 0, 0);
 		dev <= PCI_DEV(busn, 0x1f, 0x7);
 		dev += PCI_DEV(0,0,1)) {
 		u32 id;
@@ -206,10 +196,10 @@ static inline void dump_pci_devices_on_bus(u32 busn)
 		}
 		dump_pci_device(dev);
 
-		if(((dev>>12) & 0x07) == 0) {
+		if (((dev>>12) & 0x07) == 0) {
 			u8 hdr_type;
 			hdr_type = pci_read_config8(dev, PCI_HEADER_TYPE);
-			if((hdr_type & 0x80) != 0x80) {
+			if ((hdr_type & 0x80) != 0x80) {
 				dev += PCI_DEV(0,0,7);
 			}
 		}
@@ -221,14 +211,14 @@ static inline void dump_pci_devices_on_bus(u32 busn)
 static void dump_spd_registers(const struct mem_controller *ctrl)
 {
 	int i;
-	print_debug("\n");
-	for(i = 0; i < DIMM_SOCKETS; i++) {
+	printk(BIOS_DEBUG, "\n");
+	for (i = 0; i < DIMM_SOCKETS; i++) {
 		u32 device;
 		device = ctrl->spd_addr[i];
 		if (device) {
 			int j;
 			printk(BIOS_DEBUG, "dimm: %02x.0: %02x", i, device);
-			for(j = 0; j < 128; j++) {
+			for (j = 0; j < 128; j++) {
 				int status;
 				u8 byte;
 				if ((j & 0xf) == 0) {
@@ -241,13 +231,13 @@ static void dump_spd_registers(const struct mem_controller *ctrl)
 				byte = status & 0xff;
 				printk(BIOS_DEBUG, "%02x ", byte);
 			}
-			print_debug("\n");
+			printk(BIOS_DEBUG, "\n");
 		}
 		device = ctrl->spd_addr[i+DIMM_SOCKETS];
 		if (device) {
 			int j;
 			printk(BIOS_DEBUG, "dimm: %02x.1: %02x", i, device);
-			for(j = 0; j < 128; j++) {
+			for (j = 0; j < 128; j++) {
 				int status;
 				u8 byte;
 				if ((j & 0xf) == 0) {
@@ -260,19 +250,19 @@ static void dump_spd_registers(const struct mem_controller *ctrl)
 				byte = status & 0xff;
 				printk(BIOS_DEBUG, "%02x ", byte);
 			}
-			print_debug("\n");
+			printk(BIOS_DEBUG, "\n");
 		}
 	}
 }
 static void dump_smbus_registers(void)
 {
 	u32 device;
-	print_debug("\n");
-	for(device = 1; device < 0x80; device++) {
+	printk(BIOS_DEBUG, "\n");
+	for (device = 1; device < 0x80; device++) {
 		int j;
-		if( smbus_read_byte(device, 0) < 0 ) continue;
+		if (smbus_read_byte(device, 0) < 0) continue;
 		printk(BIOS_DEBUG, "smbus: %02x", device);
-		for(j = 0; j < 256; j++) {
+		for (j = 0; j < 256; j++) {
 			int status;
 			u8 byte;
 			status = smbus_read_byte(device, j);
@@ -285,7 +275,7 @@ static void dump_smbus_registers(void)
 			byte = status & 0xff;
 			printk(BIOS_DEBUG, "%02x ", byte);
 		}
-		print_debug("\n");
+		printk(BIOS_DEBUG, "\n");
 	}
 }
 #endif
@@ -295,7 +285,7 @@ static inline void dump_io_resources(u32 port)
 	int i;
 	udelay(2000);
 	printk(BIOS_DEBUG, "%04x:\n", port);
-	for(i=0;i<256;i++) {
+	for (i = 0; i < 256; i++) {
 		u8 val;
 		if ((i & 0x0f) == 0) {
 			printk(BIOS_DEBUG, "%02x:", i);
@@ -303,7 +293,7 @@ static inline void dump_io_resources(u32 port)
 		val = inb(port);
 		printk(BIOS_DEBUG, " %02x",val);
 		if ((i & 0x0f) == 0x0f) {
-			print_debug("\n");
+			printk(BIOS_DEBUG, "\n");
 		}
 		port++;
 	}
@@ -312,12 +302,12 @@ static inline void dump_io_resources(u32 port)
 static inline void dump_mem(u32 start, u32 end)
 {
 	u32 i;
-	print_debug("dump_mem:");
-	for(i=start;i<end;i++) {
-		if((i & 0xf)==0) {
+	printk(BIOS_DEBUG, "dump_mem:");
+	for (i = start; i < end; i++) {
+		if ((i & 0xf) == 0) {
 			printk(BIOS_DEBUG, "\n%08x:", i);
 		}
 		printk(BIOS_DEBUG, " %02x", (u8)*((u8 *)i));
 	}
-	print_debug("\n");
+	printk(BIOS_DEBUG, "\n");
 }

@@ -36,17 +36,13 @@ config APIC_ID_OFFSET
 	hex
 	default 0x10
 
-config SB_HT_CHAIN_ON_BUS0
-	int
-	default 1
-
 config MAINBOARD_PART_NUMBER
 	string
 	default "M2V"
 
 config HW_MEM_HOLE_SIZEK
 	hex
-	default 0
+	default 0x0
 
 config MAX_CPUS
 	int
@@ -55,10 +51,6 @@ config MAX_CPUS
 config MAX_PHYSICAL_CPUS
 	int
 	default 1
-
-config HEAP_SIZE
-	hex
-	default 0x40000
 
 config HT_CHAIN_END_UNITID_BASE
 	hex

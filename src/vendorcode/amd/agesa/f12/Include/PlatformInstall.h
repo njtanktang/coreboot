@@ -17,7 +17,7 @@
  *
  * Copyright (c) 2011, Advanced Micro Devices, Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *     * Redistributions of source code must retain the above copyright
@@ -25,10 +25,10 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of Advanced Micro Devices, Inc. nor the names of 
- *       its contributors may be used to endorse or promote products derived 
+ *     * Neither the name of Advanced Micro Devices, Inc. nor the names of
+ *       its contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
  * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -52,30 +52,6 @@
  *
  ****************************************************************************/
 
-/* Available options for image builds.
- *
- * As part of the image build for each image, define the options below to select the
- * AGESA entry points included in that image.  Turn these on in your option c file, not
- * here.
- */
-// #define AGESA_ENTRY_INIT_RESET                    TRUE
-// #define AGESA_ENTRY_INIT_RECOVERY                 TRUE
-// #define AGESA_ENTRY_INIT_EARLY                    TRUE
-// #define AGESA_ENTRY_INIT_POST                     TRUE
-// #define AGESA_ENTRY_INIT_ENV                      TRUE
-// #define AGESA_ENTRY_INIT_MID                      TRUE
-// #define AGESA_ENTRY_INIT_LATE                     TRUE
-// #define AGESA_ENTRY_INIT_S3SAVE                   TRUE
-// #define AGESA_ENTRY_INIT_RESUME                   TRUE
-// #define AGESA_ENTRY_INIT_LATE_RESTORE             TRUE
-// #define AGESA_ENTRY_INIT_GENERAL_SERVICES         TRUE
-
-/*  Defaults for private/internal build control settings  */
-/* Available options for image builds.
- *
- * As part of the image build for each image, define the options below to select the
- * AGESA entry points included in that image.
- */
 
 VOLATILE  AMD_MODULE_HEADER mCpuModuleID = {
   //ModuleHeaderSignature
@@ -90,61 +66,6 @@ VOLATILE  AMD_MODULE_HEADER mCpuModuleID = {
   //NextBlock
   NULL
 };
-
-/*  Process user desired AGESA entry points  */
-#ifndef AGESA_ENTRY_INIT_RESET
-  #define AGESA_ENTRY_INIT_RESET                     FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_RECOVERY
-  #define AGESA_ENTRY_INIT_RECOVERY                  FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_EARLY
-  #define AGESA_ENTRY_INIT_EARLY                     FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_POST
-  #define AGESA_ENTRY_INIT_POST                      FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_ENV
-  #define AGESA_ENTRY_INIT_ENV                       FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_MID
-  #define AGESA_ENTRY_INIT_MID                       FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_LATE
-  #define AGESA_ENTRY_INIT_LATE                      FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_S3SAVE
-  #define AGESA_ENTRY_INIT_S3SAVE                    FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_RESUME
-  #define AGESA_ENTRY_INIT_RESUME                    FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_LATE_RESTORE
-  #define AGESA_ENTRY_INIT_LATE_RESTORE              FALSE
-#endif
-
-#ifndef AGESA_ENTRY_INIT_GENERAL_SERVICES
-  #define AGESA_ENTRY_INIT_GENERAL_SERVICES          FALSE
-#endif
-
-/*  Default the late AP entry point to off.  It can be enabled
-    by any family that may need the late AP functionality, or
-    by any feature code that may need it.  The IBVs no longer
-    have control over this entry point.  */
-#ifdef AGESA_ENTRY_LATE_RUN_AP_TASK
-  #undef AGESA_ENTRY_LATE_RUN_AP_TASK
-#endif
-#define AGESA_ENTRY_LATE_RUN_AP_TASK    FALSE
-
 
 
 /* Process solution defined socket / family installations
@@ -2087,6 +2008,31 @@ CONST UINT32 ROMDATA AmdPlatformTypeCgf = CFG_AMD_PLATFORM_TYPE;
 #else
   #define CFG_LVDS_24BBP_PANEL_MODE                 0
 #endif
+
+#ifdef BLDCFG_PLATFORM_POWER_POLICY_MODE
+  #define CFG_PLATFORM_POWER_POLICY_MODE  (BLDCFG_PLATFORM_POWER_POLICY_MODE)
+#else
+  #define CFG_PLATFORM_POWER_POLICY_MODE  (Performance)
+#endif
+
+#ifdef BLDCFG_PCI_MMIO_BASE
+  #define CFG_PCI_MMIO_BASE               (BLDCFG_PCI_MMIO_BASE)
+#else
+  #define CFG_PCI_MMIO_BASE               (0)
+#endif
+
+#ifdef BLDCFG_PCI_MMIO_SIZE
+  #define CFG_PCI_MMIO_SIZE               (BLDCFG_PCI_MMIO_SIZE)
+#else
+  #define CFG_PCI_MMIO_SIZE               (0)
+#endif
+
+#ifdef BLDCFG_AP_MTRR_SETTINGS_LIST
+  #define CFG_AP_MTRR_SETTINGS_LIST           (BLDCFG_AP_MTRR_SETTINGS_LIST)
+#else
+  #define CFG_AP_MTRR_SETTINGS_LIST           (NULL)
+#endif
+
 /*---------------------------------------------------------------------------
  *       Processing the options:  Third, perform the option cross checks
  *--------------------------------------------------------------------------*/
@@ -2268,12 +2214,13 @@ CONST UINT32 ROMDATA AmdPlatformTypeCgf = CFG_AMD_PLATFORM_TYPE;
  * Include the structure definitions for the defaults table structures
  *
  ****************************************************************************/
+#include <CommonReturns.h>
+#include <agesa-entry-cfg.h>
 #include  "Options.h"
 #include  "OptionCpuFamiliesInstall.h"
 #include  "OptionsHt.h"
 #include  "OptionHtInstall.h"
 #include  "OptionMemory.h"
-#include  "PlatformMemoryConfiguration.h"
 #include  "OptionMemoryInstall.h"
 #include  "OptionMemoryRecovery.h"
 #include  "OptionMemoryRecoveryInstall.h"
@@ -2482,171 +2429,6 @@ BUILD_OPT_CFG UserOptions = {
   CFG_LVDS_24BBP_PANEL_MODE,            // CfgLvds24bbpPanelMode
   CFG_PCIE_REFCLK_SPREAD_SPECTRUM,      // CfgPcieRefClkSpreadSpectrum
   0,                                    //reserved...
-};
-
-CONST FUNCTION_PARAMS_INFO ROMDATA FuncParamsInfo[] =
-{
-  #if AGESA_ENTRY_INIT_RESET == TRUE
-    { AMD_INIT_RESET,
-      sizeof (AMD_RESET_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitResetConstructor,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_INIT_RESET_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_RECOVERY == TRUE
-    { AMD_INIT_RECOVERY,
-      sizeof (AMD_RECOVERY_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitRecoveryInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_INIT_POST_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_EARLY == TRUE
-    { AMD_INIT_EARLY,
-      sizeof (AMD_EARLY_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitEarlyInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_INIT_EARLY_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_ENV == TRUE
-    { AMD_INIT_ENV,
-      sizeof (AMD_ENV_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitEnvInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_INIT_ENV_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_LATE == TRUE
-    { AMD_INIT_LATE,
-      sizeof (AMD_LATE_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitLateInitializer,
-      (PF_AGESA_DESTRUCTOR) AmdInitLateDestructor,
-      AMD_INIT_LATE_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_MID == TRUE
-    { AMD_INIT_MID,
-      sizeof (AMD_MID_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitMidInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_INIT_MID_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_POST == TRUE
-    { AMD_INIT_POST,
-      sizeof (AMD_POST_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitPostInitializer,
-      (PF_AGESA_DESTRUCTOR) AmdInitPostDestructor,
-      AMD_INIT_POST_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_RESUME == TRUE
-    { AMD_INIT_RESUME,
-      sizeof (AMD_RESUME_PARAMS),
-      (PF_AGESA_FUNCTION) AmdInitResumeInitializer,
-      (PF_AGESA_DESTRUCTOR) AmdInitResumeDestructor,
-      AMD_INIT_RESUME_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_LATE_RESTORE == TRUE
-    { AMD_S3LATE_RESTORE,
-      sizeof (AMD_S3LATE_PARAMS),
-      (PF_AGESA_FUNCTION) AmdS3LateRestoreInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_S3_LATE_RESTORE_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_INIT_S3SAVE == TRUE
-    { AMD_S3_SAVE,
-      sizeof (AMD_S3SAVE_PARAMS),
-      (PF_AGESA_FUNCTION) AmdS3SaveInitializer,
-      (PF_AGESA_DESTRUCTOR) AmdS3SaveDestructor,
-      AMD_S3_SAVE_HANDLE
-    },
-  #endif
-
-  #if AGESA_ENTRY_LATE_RUN_AP_TASK == TRUE
-    { AMD_LATE_RUN_AP_TASK,
-      sizeof (AP_EXE_PARAMS),
-      (PF_AGESA_FUNCTION) AmdLateRunApTaskInitializer,
-      (PF_AGESA_DESTRUCTOR) CommonReturnAgesaSuccess,
-      AMD_LATE_RUN_AP_TASK_HANDLE
-    },
-  #endif
-  { 0, 0, NULL }
-};
-
-CONST UINTN InitializerCount = ((sizeof (FuncParamsInfo)) / (sizeof (FuncParamsInfo[0])));
-
-CONST DISPATCH_TABLE ROMDATA DispatchTable[] =
-{
-  { AMD_CREATE_STRUCT, (IMAGE_ENTRY)AmdCreateStruct },
-  { AMD_RELEASE_STRUCT, (IMAGE_ENTRY)AmdReleaseStruct },
-
-  #if AGESA_ENTRY_INIT_RESET == TRUE
-    { AMD_INIT_RESET, (IMAGE_ENTRY)AmdInitReset },
-  #endif
-
-  #if AGESA_ENTRY_INIT_RECOVERY == TRUE
-    { AMD_INIT_RECOVERY, (IMAGE_ENTRY)AmdInitRecovery },
-  #endif
-
-  #if AGESA_ENTRY_INIT_EARLY == TRUE
-    { AMD_INIT_EARLY, (IMAGE_ENTRY)AmdInitEarly },
-  #endif
-
-  #if AGESA_ENTRY_INIT_POST == TRUE
-    { AMD_INIT_POST, (IMAGE_ENTRY)AmdInitPost },
-  #endif
-
-  #if AGESA_ENTRY_INIT_ENV == TRUE
-    { AMD_INIT_ENV, (IMAGE_ENTRY)AmdInitEnv },
-  #endif
-
-  #if AGESA_ENTRY_INIT_MID == TRUE
-    { AMD_INIT_MID, (IMAGE_ENTRY)AmdInitMid },
-  #endif
-
-  #if AGESA_ENTRY_INIT_LATE == TRUE
-    { AMD_INIT_LATE, (IMAGE_ENTRY)AmdInitLate },
-  #endif
-
-  #if AGESA_ENTRY_INIT_S3SAVE == TRUE
-    { AMD_S3_SAVE, (IMAGE_ENTRY)AmdS3Save },
-  #endif
-
-  #if AGESA_ENTRY_INIT_RESUME == TRUE
-    { AMD_INIT_RESUME, (IMAGE_ENTRY)AmdInitResume },
-  #endif
-
-  #if AGESA_ENTRY_INIT_LATE_RESTORE == TRUE
-    { AMD_S3LATE_RESTORE, (IMAGE_ENTRY)AmdS3LateRestore },
-  #endif
-
-  #if AGESA_ENTRY_INIT_GENERAL_SERVICES == TRUE
-    { AMD_GET_APIC_ID, (IMAGE_ENTRY)AmdGetApicId },
-    { AMD_GET_PCI_ADDRESS, (IMAGE_ENTRY)AmdGetPciAddress },
-    { AMD_IDENTIFY_CORE, (IMAGE_ENTRY)AmdIdentifyCore },
-    { AMD_READ_EVENT_LOG, (IMAGE_ENTRY)AmdReadEventLog },
-    { AMD_IDENTIFY_DIMMS, (IMAGE_ENTRY)AmdIdentifyDimm },
-    { AMD_GET_EXECACHE_SIZE, (IMAGE_ENTRY)AmdGetAvailableExeCacheSize },
-  #endif
-
-  #if AGESA_ENTRY_LATE_RUN_AP_TASK == TRUE
-    { AMD_LATE_RUN_AP_TASK, (IMAGE_ENTRY)AmdLateRunApTask },
-  #endif
-  { 0, NULL }
 };
 
 CONST DISPATCH_TABLE ROMDATA ApDispatchTable[] =

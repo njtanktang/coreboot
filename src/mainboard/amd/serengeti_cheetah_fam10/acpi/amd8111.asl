@@ -12,10 +12,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-//
 
 //AMD8111
 	Name (APIC, Package (0x04)
@@ -57,7 +53,7 @@
 
 	Device (SBC3)
 	{
-		// acpi smbus it should be 0x00040003 if 8131 present
+		// ACPI smbus it should be 0x00040003 if 8131 present
 		Method (_ADR, 0, NotSerialized)
 		{
 			Return (DADD(\_SB.PCI0.SBDN, 0x00010003))
@@ -111,7 +107,7 @@
 
 		Method (_PRW, 0, NotSerialized)
 		{
-			If (CondRefOf (\_S3, Local0)) { Return (Package (0x02) { 0x08, 0x03 }) }
+			If (CondRefOf (\_S3)) { Return (Package (0x02) { 0x08, 0x03 }) }
 			Else { Return (Package (0x02) { 0x08, 0x01 }) }
 		}
 
@@ -120,7 +116,7 @@
 			Name (_ADR, 0x00000000)
 			Method (_PRW, 0, NotSerialized)
 			{
-				If (CondRefOf (\_S3, Local0)) { Return (Package (0x02) { 0x0F, 0x03 }) }
+				If (CondRefOf (\_S3)) { Return (Package (0x02) { 0x0F, 0x03 }) }
 				Else { Return (Package (0x02) { 0x0F, 0x01 }) }
 			}
 		}
@@ -130,7 +126,7 @@
 			Name (_ADR, 0x00000001)
 			Method (_PRW, 0, NotSerialized)
 			{
-				If (CondRefOf (\_S3, Local0)) { Return (Package (0x02) { 0x0F, 0x03 }) }
+				If (CondRefOf (\_S3)) { Return (Package (0x02) { 0x0F, 0x03 }) }
 				Else { Return (Package (0x02) { 0x0F, 0x01 }) }
 			}
 		}
@@ -177,4 +173,3 @@
 			Else { Return (APIC) }
 		}
 	}
-

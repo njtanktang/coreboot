@@ -13,10 +13,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 menu "Devices"
 
@@ -24,6 +20,12 @@ menu "Devices"
 config MAINBOARD_HAS_NATIVE_VGA_INIT
 	bool
 	default n
+
+# FIXME Ugly hack to allow Z9s driver native framebuffer configuration
+config NATIVE_VGA_INIT_USE_EDID
+	bool
+	default n if DRIVERS_XGI_Z9S
+	default y if !DRIVERS_XGI_Z9S
 
 config MAINBOARD_HAS_NATIVE_VGA_INIT_TEXTMODECFG
 	bool
@@ -45,7 +47,7 @@ config VGA_ROM_RUN
 	bool "Run VGA Option ROMs"
 	default n if PAYLOAD_SEABIOS
 	default y if !PAYLOAD_SEABIOS
-	depends on PCI && !PAYLOAD_SEABIOS && !MAINBOARD_DO_NATIVE_VGA_INIT || EXPERT
+	depends on PCI && !MAINBOARD_DO_NATIVE_VGA_INIT
 	help
 	  Execute VGA Option ROMs in coreboot if found. This is required
 	  to enable PCI/AGP/PCI-E video cards when not using a SeaBIOS
@@ -74,21 +76,21 @@ config ALWAYS_LOAD_OPROM
 	def_bool n
 	depends on VGA_ROM_RUN
 	help
-	  Always load option roms if any are found. The decision to run
-	  the rom is still determined at runtime, but the distinction
+	  Always load option ROMs if any are found. The decision to run
+	  the ROM is still determined at runtime, but the distinction
 	  between loading and not running comes into play for CHROMEOS.
 
-	  An example where this is required is that VBT (video bios tables)
+	  An example where this is required is that VBT (Video BIOS Tables)
 	  are needed for the kernel's display driver to know how a piece of
 	  hardware is configured to be used.
 
-config ON_DEVICE_ROM_RUN
-	bool "Run Option ROMs on PCI devices"
+config ON_DEVICE_ROM_LOAD
+	bool "Load Option ROMs on PCI devices"
 	default n if PAYLOAD_SEABIOS
 	default y if !PAYLOAD_SEABIOS
-	depends on PCI && !PAYLOAD_SEABIOS || EXPERT
+	depends on PCI
 	help
-	  Execute Option ROMs stored on PCI/PCIe/AGP devices in coreboot.
+	  Load Option ROMs stored on PCI/PCIe/AGP devices in coreboot.
 
 	  If disabled, only Option ROMs stored in CBFS will be executed by
 	  coreboot. If you are concerned about security, you might want to
@@ -159,16 +161,11 @@ config YABEL_PCI_FAKE_WRITING_OTHER_DEVICES_CONFIG
 config YABEL_VIRTMEM_LOCATION
 	prompt "Location of YABEL's virtual memory"
 	hex
-	depends on PCI_OPTION_ROM_RUN_YABEL && EXPERT
+	depends on PCI_OPTION_ROM_RUN_YABEL
 	default 0x1000000
 	help
 	  YABEL requires 1MB memory for its CPU emulation. This memory is
 	  normally located at 16MB.
-
-config YABEL_VIRTMEM_LOCATION
-	hex
-	depends on PCI_OPTION_ROM_RUN_YABEL && !EXPERT
-	default 0x1000000
 
 config YABEL_DIRECTHW
 	prompt "Direct hardware access"
@@ -191,13 +188,16 @@ config MULTIPLE_VGA_ADAPTERS
 	bool
 	default n
 
-config PCI
+config SMBUS_HAS_AUX_CHANNELS
 	bool
 	default n
 
-config PCI_64BIT_PREF_MEM
+config SPD_CACHE
 	bool
-	depends on PCI
+	default n
+
+config PCI
+	bool
 	default n
 
 config HYPERTRANSPORT_PLUGIN_SUPPORT
@@ -211,11 +211,6 @@ config PCIX_PLUGIN_SUPPORT
 	default y
 
 config PCIEXP_PLUGIN_SUPPORT
-	bool
-	depends on PCI
-	default y
-
-config AGP_PLUGIN_SUPPORT
 	bool
 	depends on PCI
 	default y
@@ -246,9 +241,13 @@ config PCIEXP_ASPM
 	help
 	  Detect and enable ASPM on PCIe links.
 
-config PCI_BUS_SEGN_BITS
-	int
-	default 0
+config PCIEXP_CLK_PM
+	prompt "Enable PCIe Clock Power Management"
+	bool
+	depends on PCIEXP_PLUGIN_SUPPORT
+	default n
+	help
+	  Detect and enable Clock Power Management on PCIe.
 
 config EARLY_PCI_BRIDGE
 	bool "Early PCI bridge"
@@ -261,6 +260,14 @@ config EARLY_PCI_BRIDGE
 
 	  This option enables static configuration for a single pre-defined
 	  PCI bridge function on bus 0.
+
+config PCIEXP_L1_SUB_STATE
+	prompt "Enable PCIe ASPM L1 SubState"
+	bool
+	depends on PCIEXP_PLUGIN_SUPPORT && MMCONF_SUPPORT
+	default n
+	help
+	  Detect and enable ASPM on PCIe links.
 
 if EARLY_PCI_BRIDGE
 
@@ -278,12 +285,25 @@ config EARLY_PCI_MMIO_BASE
 
 endif # EARLY_PCI_BRIDGE
 
-endmenu
+config SUBSYSTEM_VENDOR_ID
+	hex "Override PCI Subsystem Vendor ID"
+	depends on PCI
+	default 0x0000
+	help
+	  This config option will override the devicetree settings for
+	  PCI Subsystem Vendor ID.
 
-menu "VGA BIOS"
+config SUBSYSTEM_DEVICE_ID
+	hex "Override PCI Subsystem Device ID"
+	depends on PCI
+	default 0x0000
+	help
+	  This config option will override the devicetree settings for
+	  PCI Subsystem Device ID.
 
 config VGA_BIOS
 	bool "Add a VGA BIOS image"
+	depends on ARCH_X86
 	help
 	  Select this option if you have a VGA BIOS image that you would
 	  like to add to your ROM.
@@ -312,6 +332,8 @@ config VGA_BIOS_ID
 	  the "0x" prefix) and 3230 specifies the PCI device ID of the
 	  video card (also in hex, without "0x" prefix).
 
+	  Under GNU/Linux you can run `lspci -nn` to list the IDs of your PCI devices.
+
 config INTEL_MBI
 	bool "Add an MBI image"
 	depends on NORTHBRIDGE_INTEL_I82830
@@ -328,6 +350,16 @@ config MBI_FILE
 	default "mbi.bin"
 	help
 	  The path and filename of the file to use as VGA BIOS.
+
+config SOFTWARE_I2C
+	bool "Enable I2C controller emulation in software"
+	default n
+	help
+	  This config option will enable code to override the i2c_transfer
+	  routine with a (simple) software emulation of the protocol. This may
+	  be useful for debugging or on platforms where a driver for the real
+	  I2C controller is not (yet) available. The platform code needs to
+	  provide bindings to manually toggle I2C lines.
 
 endmenu
 
@@ -365,7 +397,7 @@ config FRAMEBUFFER_VESA_MODE_104
 	bool "1024x768 16-color"
 
 config FRAMEBUFFER_VESA_MODE_105
-	bool "1024x7686 256-color"
+	bool "1024x768 256-color"
 
 config FRAMEBUFFER_VESA_MODE_106
 	bool "1280x1024 16-color"
@@ -489,61 +521,11 @@ config BOOTSPLASH
 	bool
 	depends on FRAMEBUFFER_SET_VESA_MODE
 	help
-	  This option shows a graphical bootsplash screen. The grapics are
+	  This option shows a graphical bootsplash screen. The graphics are
 	  loaded from the CBFS file bootsplash.jpg.
 
-config BOOTSPLASH_FILE
-	string "Bootsplash path and filename"
-	depends on BOOTSPLASH
-	default "bootsplash.jpg"
-	help
-	  The path and filename of the file to use as graphical bootsplash
-	  screen. The file format has to be jpg.
+	  You can either specify the location and file name of the
+	  image in the 'General' section or add it manually to CBFS, using,
+	  for example, cbfstool.
+
 endmenu
-
-menu "PXE ROM"
-config PXE_ROM
-	bool "Add a PXE ROM image"
-	help
-	  Select this option if you have a PXE ROM image that you would
-	  like to add to your ROM.
-
-config PXE_ROM_FILE
-	string "PXE ROM filename"
-	depends on PXE_ROM
-	default "pxe.rom"
-	help
-	  The path and filename of the file to use as PXE ROM.
-
-config PXE_ROM_ID
-	string "network card PCI IDs"
-	depends on PXE_ROM
-	default "10ec,8168"
-	help
-	  The comma-separated PCI vendor and device ID that would associate
-	  your PXE ROM to your network card.
-
-	  Example: 10ec,8168
-
-	  In the above example 10ec is the PCI vendor ID (in hex, but without
-	  the "0x" prefix) and 8168 specifies the PCI device ID of the
-	  network card (also in hex, without "0x" prefix).
-
-	  Under GNU/Linux you can run `lspci -nn` to list the IDs of your PCI devices.
-endmenu
-
-config SUBSYSTEM_VENDOR_ID
-	hex "Override PCI Subsystem Vendor ID"
-	depends on PCI
-	default "0x0000"
-	help
-	  This config option will override the devicetree settings for
-	  PCI Subsystem Vendor ID.
-
-config SUBSYSTEM_DEVICE_ID
-	hex "Override PCI Subsystem Device ID"
-	depends on PCI
-	default "0x0000"
-	help
-	  This config option will override the devicetree settings for
-	  PCI Subsystem Device ID.

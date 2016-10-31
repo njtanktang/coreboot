@@ -17,10 +17,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -34,7 +30,13 @@
 #include <arch/io.h>
 #include <arch/ioapic.h>
 #include <cpu/x86/lapic.h>
+#include <arch/acpi.h>
 #include <stdlib.h>
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
+#endif
+#include <cpu/amd/powernow.h>
 #include "mcp55.h"
 
 #define NMI_OFF	0
@@ -54,13 +56,13 @@
 static void lpc_common_init(device_t dev, int master)
 {
 	u8 byte;
-	u32 ioapic_base;
+	void *ioapic_base;
 
 	/* IOAPIC initialization. */
 	byte = pci_read_config8(dev, 0x74);
 	byte |= (1 << 0); /* Enable IOAPIC. */
 	pci_write_config8(dev, 0x74, byte);
-	ioapic_base = pci_read_config32(dev, PCI_BASE_ADDRESS_1); /* 0x14 */
+	ioapic_base = (void *)pci_read_config32(dev, PCI_BASE_ADDRESS_1); /* 0x14 */
 
 	if (master)
 		setup_ioapic(ioapic_base, 0);
@@ -77,7 +79,7 @@ static void enable_hpet(struct device *dev)
 {
 	unsigned long hpet_address;
 
-	pci_write_config32(dev, 0x44, 0xfed00001);
+	pci_write_config32(dev, 0x44, CONFIG_HPET_ADDRESS|1);
 	hpet_address=pci_read_config32(dev, 0x44) & 0xfffffffe;
 	printk(BIOS_DEBUG, "enabling HPET @0x%lx\n", hpet_address);
 }
@@ -89,11 +91,6 @@ static void lpc_init(device_t dev)
 
 	lpc_common_init(dev, 1);
 
-#if 0
-	/* Posted memory write enable. */
-	byte = pci_read_config8(dev, 0x46);
-	pci_write_config8(dev, 0x46, byte | (1 << 0));
-#endif
 	/* power after power fail */
 
 #if 1
@@ -120,13 +117,6 @@ static void lpc_init(device_t dev)
 		       (on * 12) + (on >> 1), (on & 1) * 5);
 	}
 
-#if 0
-	/* Enable Port 92 fast reset (default is enabled). */
-	byte = pci_read_config8(dev, 0xe8);
-	byte |= ~(1 << 3);
-	pci_write_config8(dev, 0xe8, byte);
-#endif
-
 	/* Enable error reporting. */
 	/* Set up sync flood detected. */
 	byte = pci_read_config8(dev, 0x47);
@@ -146,7 +136,7 @@ static void lpc_init(device_t dev)
 		outb(byte, 0x70);
 
 	/* Initialize the real time clock. */
-	rtc_init(0);
+	cmos_init(0);
 
 	/* Initialize ISA DMA. */
 	isa_dma_init();
@@ -255,8 +245,7 @@ static struct device_operations lpc_ops = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = mcp55_lpc_enable_resources,
 	.init             = lpc_init,
-	.scan_bus         = scan_static_bus,
-//	.enable           = mcp55_enable,
+	.scan_bus         = scan_lpc_bus,
 	.ops_pci          = &mcp55_pci_ops,
 };
 static const unsigned short lpc_ids[] = {
@@ -275,12 +264,24 @@ static const struct pci_driver lpc_driver __pci_driver = {
 	.devices = lpc_ids,
 };
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+
+static void southbridge_acpi_fill_ssdt_generator(device_t device)
+{
+	amd_generate_powernow(0, 0, 0);
+}
+
+#endif
+
 static struct device_operations lpc_slave_ops = {
 	.read_resources   = mcp55_lpc_read_resources,
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.acpi_fill_ssdt_generator = southbridge_acpi_fill_ssdt_generator,
+	.write_acpi_tables      = acpi_write_hpet,
+#endif
 	.init             = lpc_slave_init,
-//	.enable           = mcp55_enable,
 	.ops_pci          = &mcp55_pci_ops,
 };
 

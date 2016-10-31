@@ -12,72 +12,54 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 if BOARD_AMD_TORPEDO
 
 config BOARD_SPECIFIC_OPTIONS # dummy
-        def_bool y
-        select DIMM_DDR3
-        select DIMM_UNREGISTERED
-  select CPU_AMD_AGESA_FAMILY12
-  select NORTHBRIDGE_AMD_AGESA_FAMILY12
-  select SOUTHBRIDGE_AMD_CIMX_SB900
-  select SUPERIO_SMSC_KBC1100
-        select HAVE_OPTION_TABLE
-        select HAVE_PIRQ_TABLE
-        select HAVE_MP_TABLE
-        select HAVE_ACPI_TABLES
-  select BOARD_ROMSIZE_KB_2048
-  select ENABLE_APIC_EXT_ID
-        select GFXUMA
+	def_bool y
+	select CPU_AMD_AGESA_FAMILY12
+	select NORTHBRIDGE_AMD_AGESA_FAMILY12
+	select SOUTHBRIDGE_AMD_CIMX_SB900
+	select SUPERIO_SMSC_KBC1100
+	select HAVE_OPTION_TABLE
+	select HAVE_PIRQ_TABLE
+	select HAVE_MP_TABLE
+	select HAVE_ACPI_TABLES
+	select BOARD_ROMSIZE_KB_2048
+	select ENABLE_APIC_EXT_ID
+	select GFXUMA
 
 config MAINBOARD_DIR
-        string
-        default amd/torpedo
+	string
+	default amd/torpedo
 
 config MAINBOARD_PART_NUMBER
-        string
-        default "Torpedo"
+	string
+	default "Torpedo"
 
 config HW_MEM_HOLE_SIZEK
-        hex
-        default 0x200000
+	hex
+	default 0x200000
 
 config MAX_CPUS
-        int
-        default 4
+	int
+	default 4
 
 config HW_MEM_HOLE_SIZE_AUTO_INC
-        bool
-        default n
+	bool
+	default n
 
 config HT_CHAIN_END_UNITID_BASE
-        hex
-        default 0x1
+	hex
+	default 0x1
 
 config HT_CHAIN_UNITID_BASE
-        hex
-        default 0x0
+	hex
+	default 0x0
 
 config IRQ_SLOT_COUNT
-        int
-        default 11
-
-config RAMTOP
-        hex
-        default 0x1000000
-
-config HEAP_SIZE
-        hex
-        default 0xc0000
-
-config RAMBASE
-        hex
-        default 0x200000
+	int
+	default 11
 
 config ONBOARD_VGA_IS_PRIMARY
 	bool
@@ -125,15 +107,6 @@ config XHC_BIOS_ID
 	depends on XHC_BIOS
 	default "1022,7812"
 
-config DRIVERS_PS2_KEYBOARD
-	bool
-	default y
-
-config CONSOLE_POST
-	bool
-	depends on !NO_POST
-	default y
-
 config SATA_CONTROLLER_MODE
 	hex
 	default 0x0
@@ -167,4 +140,3 @@ config ONBOARD_LIGHTSENSOR
 	default n
 
 endif # BOARD_AMD_TORPEDO
-

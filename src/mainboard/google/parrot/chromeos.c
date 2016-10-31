@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -25,7 +21,9 @@
 #include <device/pci.h>
 
 #include <southbridge/intel/bd82x6x/pch.h>
+#include <southbridge/intel/common/gpio.h>
 #include <ec/compal/ene932/ec.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 #include "ec.h"
 
 
@@ -43,16 +41,13 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	if (!gpio_base)
 		return;
 
-	u32 gp_lvl = inl(gpio_base + GP_LVL);
-	u32 gp_lvl3 = inl(gpio_base + GP_LVL3);
-
 	gpios->size = sizeof(*gpios) + (GPIO_COUNT * sizeof(struct lb_gpio));
 	gpios->count = GPIO_COUNT;
 
 	/* Write Protect: GPIO70 active high */
 	gpios->gpios[0].port = 70;
 	gpios->gpios[0].polarity = ACTIVE_LOW;
-	gpios->gpios[0].value = (gp_lvl3 >> (70 - 64)) & 1;
+	gpios->gpios[0].value = !get_write_protect_state();
 	strncpy((char *)gpios->gpios[0].name,"write protect", GPIO_MAX_NAME_LENGTH);
 
 	/* Recovery: Virtual GPIO in the EC (Servo GPIO68 active low) */
@@ -70,7 +65,7 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 	/* Lid switch GPIO active high (open). */
 	gpios->gpios[3].port = 15;
 	gpios->gpios[3].polarity = ACTIVE_HIGH;
-	gpios->gpios[3].value = ((gp_lvl >> 15) & 1);
+	gpios->gpios[3].value = get_lid_switch();
 	strncpy((char *)gpios->gpios[3].name,"lid", GPIO_MAX_NAME_LENGTH);
 
 	/* Power Button */
@@ -88,72 +83,54 @@ void fill_lb_gpios(struct lb_gpios *gpios)
 }
 #endif
 
+int get_lid_switch(void)
+{
+	return get_gpio(15);
+}
 
 int get_developer_mode_switch(void)
 {
-	device_t dev;
-#ifdef __PRE_RAM__
-	dev = PCI_DEV(0, 0x1f, 0);
-#else
-	dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
-#endif
-	u16 gpio_base = pci_read_config32(dev, GPIOBASE) & 0xfffe;
+	u8 gpio = !get_gpio(17);
+	/*
+	 * Dev mode is controlled by EC and uboot stores a flag in TPM.
+	 * This GPIO is only for the debug header.
+	 * It is AND'd to the EC request.
+	 */
 
-	if (!gpio_base)
-		return(0);
-
-/*
- * Dev mode is controled by EC and uboot stores a flag in TPM. This GPIO is only
- * for the debug header. It is AND'd to the EC request.
- */
-
-	u32 gp_lvl = inl(gpio_base + GP_LVL);
-	printk(BIOS_DEBUG,"DEV MODE GPIO 17: %x\n", !((gp_lvl >> 17) & 1));
+	printk(BIOS_DEBUG, "DEV MODE GPIO 17: %x\n", gpio);
 
 	/* GPIO17, active low -- return active high reading and let
 	 * it be inverted by the caller if needed. */
-	return !((gp_lvl >> 17) & 1);
+	return gpio;
+}
+
+int get_write_protect_state(void)
+{
+	return !get_gpio(70);
 }
 
 int get_recovery_mode_switch(void)
 {
-	u8 rec_mode;
-
-	device_t dev;
-#ifdef __PRE_RAM__
-	dev = PCI_DEV(0, 0x1f, 0);
-#else
-	dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
-#endif
-	u16 gpio_base = pci_read_config32(dev, GPIOBASE) & 0xfffe;
-
-	if (!gpio_base)
-		return(0);
-
+	u8 gpio = !get_gpio(68);
 	/* GPIO68, active low. For Servo support
 	 * Treat as active high and let the caller invert if needed. */
-	u32 gp_lvl3 = inl(gpio_base + GP_LVL3);
-	rec_mode = !((gp_lvl3 >> (68 - 64)) & 1);
-	printk(BIOS_DEBUG,"REC MODE GPIO 68: %x\n", rec_mode);
+	printk(BIOS_DEBUG, "REC MODE GPIO 68: %x\n", gpio);
 
-	return (rec_mode);
+	return gpio;
 }
 
 int parrot_ec_running_ro(void)
 {
-	device_t dev;
-#ifdef __PRE_RAM__
-	dev = PCI_DEV(0, 0x1f, 0);
-#else
-	dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
-#endif
-	u16 gpio_base = pci_read_config32(dev, GPIOBASE) & 0xfffe;
+	return !get_gpio(68);
+}
 
-	if (!gpio_base)
-		return(0);
+static const struct cros_gpio cros_gpios[] = {
+	CROS_GPIO_REC_AH(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_DEV_AH(CROS_GPIO_VIRTUAL, CROS_GPIO_DEVICE_NAME),
+	CROS_GPIO_WP_AL(70, CROS_GPIO_DEVICE_NAME),
+};
 
-	/* GPIO68 EC_RW is active low.
-	 * Treat as active high and let the caller invert if needed. */
-	u32 gp_lvl3 = inl(gpio_base + GP_LVL3);
-	return !((gp_lvl3 >> (68 - 64)) & 1);
+void mainboard_chromeos_acpi_generate(void)
+{
+	chromeos_acpi_gpio_generate(cros_gpios, ARRAY_SIZE(cros_gpios));
 }

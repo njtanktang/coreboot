@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -35,7 +31,7 @@
 
 u32 map_oprom_vendev(u32 vendev)
 {
-	u32 new_vendev=vendev;
+	u32 new_vendev = vendev;
 
 	switch (vendev) {
 	case 0x80860102:		/* GT1 Desktop */
@@ -45,7 +41,7 @@ u32 map_oprom_vendev(u32 vendev)
 	case 0x80860122:		/* GT2 Desktop >=1.3GHz */
 	case 0x80860126:		/* GT2 Mobile >=1.3GHz */
 	case 0x80860166:                /* IVB */
-		new_vendev=0x80860106;	/* GT1 Mobile */
+		new_vendev = 0x80860106;	/* GT1 Mobile */
 		break;
 	}
 
@@ -63,6 +59,27 @@ static void gma_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+const struct i915_gpu_controller_info *
+intel_gma_get_controller_info(void)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x2,0));
+	if (!dev) {
+		return NULL;
+	}
+	struct northbridge_intel_fsp_sandybridge_config *chip = dev->chip_info;
+	return &chip->gfx;
+}
+
+static void gma_ssdt(device_t device)
+{
+	const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+	if (!gfx) {
+		return;
+	}
+
+	drivers_intel_gma_displays_ssdt_generate(gfx);
+}
+
 static struct pci_operations gma_pci_ops = {
 	.set_subsystem    = gma_set_subsystem,
 };
@@ -71,6 +88,7 @@ static struct device_operations gma_func0_ops = {
 	.read_resources		= pci_dev_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+	.acpi_fill_ssdt_generator = gma_ssdt,
 	.init			= pci_dev_init,
 	.scan_bus		= 0,
 	.enable			= 0,

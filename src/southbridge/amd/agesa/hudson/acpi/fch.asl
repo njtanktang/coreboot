@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* South Bridge */
@@ -179,16 +175,17 @@ Method(_INI, 0) {
 	/* Determine the OS we're running on */
 	OSFL()
 
-	/* TODO: It is unstable. */
-	//#include "acpi/AmdImc.asl" /* Hudson IMC function */
-	//ITZE() /* enable IMC Fan Control*/
+#if defined(CONFIG_HUDSON_IMC_FWM) && CONFIG_HUDSON_IMC_FWM
+	#include "acpi/AmdImc.asl" /* Hudson IMC function */
+	ITZE() /* enable IMC Fan Control*/
+#endif
 } /* End Method(_SB._INI) */
 
 Method(OSFL, 0){
 
-	if(LNotEqual(OSVR, Ones)) {Return(OSVR)}	/* OS version was already detected */
+	if (LNotEqual(OSVR, Ones)) {Return(OSVR)}	/* OS version was already detected */
 
-	if(CondRefOf(\_OSI,Local1))
+	if (CondRefOf(\_OSI))
 	{
 		Store(1, OSVR)					/* Assume some form of XP */
 		if (\_OSI("Windows 2006"))		/* Vista */

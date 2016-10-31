@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -39,9 +35,6 @@ static const unsigned char usbdevicePins[4] = { 'A', 'B', 'C', 'D' };	//only INT
 static const unsigned char sdioPins[4] = { 'A', 'B', 'C', 'D' };	//only INTA
 static const unsigned char sd_ms_ctrl_Pins[4] = { 'B', 'C', 'D', 'A' };	//only INTA
 static const unsigned char ce_ata_nf_ctrl_Pins[4] = { 'C', 'C', 'D', 'A' };	//only INTA
-static const unsigned char idePins[4] = { 'B', 'C', 'D', 'A' };	//only INTA
-
-static const unsigned char usbPins[4] = { 'A', 'B', 'C', 'D' };	//all 4
 
 static const unsigned char hdacaudioPins[4] = { 'B', 'C', 'D', 'A' };	//only INTA
 
@@ -90,11 +83,9 @@ static void pci_routing_fixup(struct device *dev)
 
 	/* PCI slot */
 	printk(BIOS_INFO, "setting ide\n");
-	//pci_assign_irqs(0, 0x0f, pin_to_irq(idePins));
 
 	/* Standard usb components */
 	printk(BIOS_INFO, "setting usb1-2\n");
-//      pci_assign_irqs(0, 0x10, pin_to_irq(usbPins));
 
 	/* sound hardware */
 	printk(BIOS_INFO, "setting hdac audio\n");
@@ -115,8 +106,7 @@ static void setup_pm(device_t dev)
 	/* set ACPI irq to 9 */
 	pci_write_config8(dev, 0x82, 0x49);
 
-	/* Primary interupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
-//      pci_write_config16(dev, 0x84, 0x30f2);
+	/* Primary interupt channel, define wake events 0 = IRQ0 15 = IRQ15 1 = en. */
 	pci_write_config16(dev, 0x84, 0x609a);	// 0x609a??
 
 	/* SMI output level to low, 7.5us throttle clock */
@@ -138,8 +128,6 @@ static void setup_pm(device_t dev)
 
 	/* GP2 Timer Counter */
 	pci_write_config8(dev, 0x99, 0xfb);
-	/* GP3 Timer Counter */
-	//pci_write_config8(dev, 0x9a, 0x20);
 
 	/* Multi Function Select 1 */
 	pci_write_config8(dev, 0xe4, 0x00);
@@ -185,16 +173,6 @@ static void setup_pm(device_t dev)
 	 * Will work for C3 and for FID/VID change.
 	 */
 	outb(0x1, VX800_ACPI_IO_BASE + 0x11);
-/*
-	outw(0x0, 0x424);
-	outw(0x0, 0x42a);
-	outw(0x1, 0x42c);
-	outl(0x0, 0x434);
-	outl(0x01, 0x438);
-	outb(0x0, 0x442);
-	outl(0xffff7fff, 0x448);
-	outw(0x001, 0x404);
-*/
 }
 
 static void S3_ps2_kb_ms_wakeup(struct device *dev)
@@ -218,7 +196,6 @@ static void S3_ps2_kb_ms_wakeup(struct device *dev)
 
 	outb(inb(VX800_ACPI_IO_BASE + 0x02) | 0x20, VX800_ACPI_IO_BASE + 0x02);	//ACPI golabe enable for sci smi trigger
 	outw(inw(VX800_ACPI_IO_BASE + 0x22) | 0x204, VX800_ACPI_IO_BASE + 0x22);	//ACPI SCI on Internal KBC PME and mouse PME
-
 }
 
 static void S3_usb_wakeup(struct device *dev)
@@ -242,7 +219,6 @@ static void vx800_sb_init(struct device *dev)
 	pci_write_config8(dev, 0x6C, enables);
 
 	// Map 4MB of FLASH into the address space
-//      pci_write_config8(dev, 0x41, 0x7f);
 
 	// Set bit 6 of 0x40, because Award does it (IO recovery time)
 	// IMPORTANT FIX - EISA 0x4d0 decoding must be on so that PCI
@@ -263,7 +239,6 @@ static void vx800_sb_init(struct device *dev)
 	pci_write_config8(dev, 0x59, 0x80);
 
 	/* Set 0x5b to 0x01 to match Award */
-	//pci_write_config8(dev, 0x5b, 0x01);
 	enables = pci_read_config8(dev, 0x5b);
 	enables |= 0x01;
 	pci_write_config8(dev, 0x5b, enables);
@@ -272,12 +247,11 @@ static void vx800_sb_init(struct device *dev)
 	pci_write_config8(dev, 0x48, 0x0c);
 
 	/* Set 0x58 to 0x42 APIC and RTC. */
-	//pci_write_config8(dev, 0x58, 0x42); this cmd cause the irq0 can not be triggerd,since bit 5 was set to 0.
 	enables = pci_read_config8(dev, 0x58);
 	enables |= 0x41;	//
 	pci_write_config8(dev, 0x58, enables);
 
-	/* Set bit 3 of 0x4f to match award (use INIT# as cpu reset) */
+	/* Set bit 3 of 0x4f to match award (use INIT# as CPU reset) */
 	enables = pci_read_config8(dev, 0x4f);
 	enables |= 0x08;
 	pci_write_config8(dev, 0x4f, enables);
@@ -291,11 +265,11 @@ static void vx800_sb_init(struct device *dev)
 	// Power management setup
 	setup_pm(dev);
 
-	/* set up isa bus -- i/o recovery time, rom write enable, extend-ale */
+	/* set up isa bus -- i/o recovery time, ROM write enable, extend-ale */
 	pci_write_config8(dev, 0x40, 0x54);
 
 	// Start the rtc
-	rtc_init(0);
+	cmos_init(0);
 }
 
 /* total kludge to get lxb to call our childrens set/enable functions - these are
@@ -330,28 +304,28 @@ static void southbridge_init(struct device *dev)
 	setup_i8259();		// make sure interupt controller is configured before keyboard init
 
 	/* turn on keyboard and RTC, no need to visit this reg twice */
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
 	printk(BIOS_DEBUG, "ps2 usb lid, you  set who can wakeup system from s3 sleep\n");
 	S3_ps2_kb_ms_wakeup(dev);
 	S3_usb_wakeup(dev);
 	S3_lid_wakeup(dev);
 
-/*	enable acpi cpu c3 state. (c2 state need not do anything.)
+/*	enable acpi CPU c3 state. (c2 state need not do anything.)
 	#1
 		fadt->pm2_cnt_blk = 0x22;//to support cpu-c3
 		fadt->p_lvl2_lat = 0x50; //this is the coreboot source
 		fadt->p_lvl3_lat = 0x320;//
 		fadt->pm2_cnt_len = 1;//to support cpu-c3
 	#2
-		ssdt? ->every cpu has a P_BLK address. set it to 0x10 (so that "Read Processor Level3 register(PMIORx15<7:0>) to enter C3 state"---VIA vx800 P SPEC )
-       #3    write 0x17 in to PMIO=VX800_ACPI_IO_BASE + 0x26, following the describtion in the P-spec.
-	       1  enable SLP# asserts in C3 state  PMIORx26<1> =1
-		2    enable CPUSTP# asserts in C3 state;  PMIORx26<2> =1
-		3  CLKRUN# is always asserted  PMIORx26<3> =0
-		4    Disable PCISTP# When CLKRUN# is asserted
+		ssdt? ->every CPU has a P_BLK address. set it to 0x10 (so that "Read Processor Level3 register(PMIORx15<7:0>) to enter C3 state"---VIA vx800 P SPEC )
+	#3    write 0x17 in to PMIO = VX800_ACPI_IO_BASE + 0x26, following the describtion in the P-spec.
+		1  enable SLP# asserts in C3 state  PMIORx26<1> = 1
+		2  enable CPUSTP# asserts in C3 state;  PMIORx26<2> = 1
+		3  CLKRUN# is always asserted  PMIORx26<3> = 0
+		4  Disable PCISTP# When CLKRUN# is asserted
 		1: PCISTP# will not assert When CLKRUN# is asserted
-		PMIORx26<4> =1
+		PMIORx26<4> = 1
 		5  This bit controls whether the CPU voltage is lowered when in C3/S1 state.
 		VRDSLP will be active in either this bit set in C3 or LVL4 register read
 		PMIORx26<0> =0
@@ -366,7 +340,7 @@ static struct device_operations vx800_lpc_ops = {
 	.set_resources = vx800_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init = southbridge_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 };
 
 static const struct pci_driver lpc_driver __pci_driver = {

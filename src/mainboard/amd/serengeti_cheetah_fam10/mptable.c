@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -47,8 +43,8 @@ static void *smp_write_config_table(void *v)
 
 	mptable_write_buses(mc, NULL, &bus_isa);
 
-	/*I/O APICs:	APIC ID	Version	State	Address*/
-	smp_write_ioapic(mc, m->apicid_8111, 0x11, IO_APIC_ADDR); //8111
+	/* I/O APICs:	APIC ID	Version	State	Address*/
+	smp_write_ioapic(mc, m->apicid_8111, 0x11, VIO_APIC_VADDR); /* 8111 */
 	{
 		device_t dev;
 		struct resource *res;
@@ -56,20 +52,22 @@ static void *smp_write_config_table(void *v)
 		if (dev) {
 			res = find_resource(dev, PCI_BASE_ADDRESS_0);
 			if (res) {
-				smp_write_ioapic(mc, m->apicid_8132_1, 0x11, res->base);
+				smp_write_ioapic(mc, m->apicid_8132_1, 0x11,
+						 res2mmio(res, 0, 0));
 			}
 		}
 		dev = dev_find_slot(m->bus_8132_0, PCI_DEVFN(m->sbdn3+1, 1));
 		if (dev) {
 			res = find_resource(dev, PCI_BASE_ADDRESS_0);
 			if (res) {
-				smp_write_ioapic(mc, m->apicid_8132_2, 0x11, res->base);
+				smp_write_ioapic(mc, m->apicid_8132_2, 0x11,
+						 res2mmio(res, 0, 0));
 			}
 		}
 
 		j = 0;
 
-		for(i=1; i< sysconf.hc_possible_num; i++) {
+		for(i = 1; i< sysconf.hc_possible_num; i++) {
 			if(!(sysconf.pci1234[i] & 0x1) ) continue;
 
 			switch(sysconf.hcid[i]) {
@@ -79,14 +77,16 @@ static void *smp_write_config_table(void *v)
 				if (dev) {
 					res = find_resource(dev, PCI_BASE_ADDRESS_0);
 					if (res) {
-						smp_write_ioapic(mc, m->apicid_8132a[j][0], 0x11, res->base);
+						smp_write_ioapic(mc, m->apicid_8132a[j][0], 0x11,
+								 res2mmio(res, 0, 0));
 					}
 				}
 				dev = dev_find_slot(m->bus_8132a[j][0], PCI_DEVFN(m->sbdn3a[j]+1, 1));
 				if (dev) {
 					res = find_resource(dev, PCI_BASE_ADDRESS_0);
 					if (res) {
-						smp_write_ioapic(mc, m->apicid_8132a[j][1], 0x11, res->base);
+						smp_write_ioapic(mc, m->apicid_8132a[j][1], 0x11,
+								 res2mmio(res, 0, 0));
 					}
 				}
 				break;
@@ -99,38 +99,38 @@ static void *smp_write_config_table(void *v)
 	mptable_add_isa_interrupts(mc, bus_isa, m->apicid_8111, 0);
 
 	/* I/O Ints:	Type	Polarity	Trigger		Bus ID		IRQ	APIC ID	PIN#*/
-//??? What
+/* ??? What */
 	smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_0, ((sysconf.sbdn+1)<<2)|3, m->apicid_8111, 0x13);
 
-	// Onboard AMD USB
-	 smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (0<<2)|3, m->apicid_8111, 0x13);
+	/* Onboard AMD USB */
+	 smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (0 << 2)|3, m->apicid_8111, 0x13);
 
-	//Slot 3  PCI 32
-	for(i=0;i<4;i++) {
-		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (5<<2)|i, m->apicid_8111, 0x10 + (1+i)%4); //16
+	/* Slot 3  PCI 32 */
+	for(i = 0; i < 4; i++) {
+		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (5 << 2)|i, m->apicid_8111, 0x10 + (1+i)%4); /* 16 */
 	}
 
 
-	// Slot 4 PCI 32
-	for(i=0;i<4;i++) {
-		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (4<<2)|i, m->apicid_8111, 0x10 + (0+i)%4); //16
+	/* Slot 4 PCI 32 */
+	for(i = 0; i < 4; i++) {
+		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8111_1, (4 << 2)|i, m->apicid_8111, 0x10 + (0+i)%4); /* 16 */
 	}
 
 
-	// Slot 1 PCI-X 133/100/66
-	for(i=0;i<4;i++) {
-		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132_2, (1<<2)|i, m->apicid_8132_2, (0+i)%4); //
+	/* Slot 1 PCI-X 133/100/66 */
+	for(i = 0; i < 4; i++) {
+		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132_2, (1 << 2)|i, m->apicid_8132_2, (0+i)%4);
 	}
 
 
-	//Slot 2 PCI-X 133/100/66
-	for(i=0;i<4;i++) {
-		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132_1, (1<<2)|i, m->apicid_8132_1, (1+i)%4); //25
+	/* Slot 2 PCI-X 133/100/66 */
+	for(i = 0; i < 4; i++) {
+		smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132_1, (1 << 2)|i, m->apicid_8132_1, (1+i)%4); /* 25 */
 	}
 
 	j = 0;
 
-	for(i=1; i< sysconf.hc_possible_num; i++) {
+	for(i = 1; i< sysconf.hc_possible_num; i++) {
 		if(!(sysconf.pci1234[i] & 0x1) ) continue;
 		int ii;
 		int jj;
@@ -143,10 +143,10 @@ static void *smp_write_config_table(void *v)
 			if (dev) {
 				res = find_resource(dev, PCI_BASE_ADDRESS_0);
 				if (res) {
-					for(jj=0; jj<4; jj++) {
-						//Slot 1 PCI-X 133/100/66
-						for(ii=0;ii<4;ii++) {
-							smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132a[j][1], (jj<<2)|ii, m->apicid_8132a[j][0], (jj+ii)%4); //
+					for(jj = 0; jj < 4; jj++) {
+						/* Slot 1 PCI-X 133/100/66 */
+						for(ii = 0; ii < 4; ii++) {
+							smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132a[j][1], (jj << 2)|ii, m->apicid_8132a[j][0], (jj+ii)%4);
 						}
 					}
 				}
@@ -156,10 +156,10 @@ static void *smp_write_config_table(void *v)
 			if (dev) {
 				res = find_resource(dev, PCI_BASE_ADDRESS_0);
 				if (res) {
-					for(jj=0; jj<4; jj++) {
-						//Slot 2 PCI-X 133/100/66
-						for(ii=0;ii<4;ii++) {
-							smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132a[j][2], (jj<<2)|ii, m->apicid_8132a[j][1], (jj+ii)%4); //25
+					for(jj = 0; jj < 4; jj++) {
+						/* Slot 2 PCI-X 133/100/66 */
+						for(ii = 0; ii < 4; ii++) {
+							smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8132a[j][2], (jj << 2)|ii, m->apicid_8132a[j][1], (jj+ii)%4); /* 25 */
 						}
 					}
 				}
@@ -168,7 +168,7 @@ static void *smp_write_config_table(void *v)
 			break;
 		case 2:
 
-		//  Slot AGP
+		/*  Slot AGP */
 			smp_write_intsrc(mc, mp_INT, MP_IRQ_TRIGGER_LEVEL|MP_IRQ_POLARITY_LOW, m->bus_8151[j][1], 0x0, m->apicid_8111, 0x11);
 			break;
 		}

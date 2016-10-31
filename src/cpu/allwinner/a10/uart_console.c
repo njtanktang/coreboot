@@ -1,9 +1,20 @@
 /*
- * Glue to UART code to enable serial console
+ * This file is part of the coreboot project.
  *
  * Copyright 2013 Google Inc.
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Glue to UART code to enable serial console
  */
 
 #include <types.h>
@@ -12,7 +23,7 @@
 
 #include "memmap.h"
 
-unsigned int uart_platform_base(int idx)
+uintptr_t uart_platform_base(int idx)
 {
 	/* UART blocks are mapped 0x400 bytes apart */
 	if (idx < 8)
@@ -34,6 +45,7 @@ void uart_fill_lb(void *data)
 	serial.type = LB_SERIAL_TYPE_MEMORY_MAPPED;
 	serial.baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
 	serial.baud = default_baudrate();
+	serial.regwidth = 1;
 	lb_add_serial(&serial, data);
 
 	lb_add_console(LB_TAG_CONSOLE_SERIAL8250MEM, data);

@@ -1,13 +1,27 @@
 /*
- * ACPI - create the Fixed ACPI Description Tables (FADT)
+ * This file is part of the coreboot project.
+ *
  * (C) Copyright 2005 Stefan Reinauer <stepan@openbios.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/*
+ * ACPI - create the Fixed ACPI Description Tables (FADT)
  */
 
 #include <string.h>
 #include <console/console.h>
 #include <arch/acpi.h>
 
-extern unsigned pm_base; /* pm_base should be set in sb acpi */
+extern unsigned pm_base; /* pm_base should be set in sb ACPI */
 
 void acpi_create_fadt(acpi_fadt_t *fadt,acpi_facs_t *facs,void *dsdt){
 
@@ -23,15 +37,15 @@ void acpi_create_fadt(acpi_fadt_t *fadt,acpi_facs_t *facs,void *dsdt){
 	memcpy(header->oem_id,OEM_ID,6);
 	memcpy(header->oem_table_id, ACPI_TABLE_CREATOR, 8);
 	memcpy(header->asl_compiler_id,ASLC,4);
-	header->asl_compiler_revision=0;
+	header->asl_compiler_revision = 0;
 
 	fadt->firmware_ctrl=(u32)facs;
 	fadt->dsdt= (u32)dsdt;
-	// 3=Workstation,4=Enterprise Server, 7=Performance Server
-	fadt->preferred_pm_profile=0x03;
-	fadt->sci_int=9;
-	// disable system management mode by setting to 0:
-	fadt->smi_cmd = 0;//pm_base+0x2f;
+	/*  3 = Workstation, 4 = Enterprise Server, 7 = Performance Server */
+	fadt->preferred_pm_profile = 0x03;
+	fadt->sci_int = 9;
+	/*  disable system management mode by setting to 0: */
+	fadt->smi_cmd = 0;/* pm_base+0x2f  */
 	fadt->acpi_enable = 0xf0;
 	fadt->acpi_disable = 0xf1;
 	fadt->s4bios_req = 0x0;
@@ -61,10 +75,10 @@ void acpi_create_fadt(acpi_fadt_t *fadt,acpi_facs_t *facs,void *dsdt){
 	fadt->flush_stride = 0;
 	fadt->duty_offset = 1;
 	fadt->duty_width = 3;
-	fadt->day_alrm = 0; // 0x7d these have to be
-	fadt->mon_alrm = 0; // 0x7e added to cmos.layout
-	fadt->century =  0; // 0x7f to make rtc alrm work
-	fadt->iapc_boot_arch = 0x3; // See table 5-11
+	fadt->day_alrm = 0; /* 0x7d these have to be */
+	fadt->mon_alrm = 0; /* 0x7e added to cmos.layout */
+	fadt->century =  0; /* 0x7f to make rtc alrm work */
+	fadt->iapc_boot_arch = 0x3; /* See table 5-11 */
 	fadt->flags = 0x25;
 
 	fadt->res2 = 0;

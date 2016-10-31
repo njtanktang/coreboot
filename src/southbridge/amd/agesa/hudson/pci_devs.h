@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _AGESA_HUDSON_PCI_DEVS_H_
@@ -27,6 +23,13 @@
 #define XHCI_FUNC 0
 #define XHCI_DEVID 0x7814
 #define XHCI_DEVFN PCI_DEVFN(XHCI_DEV,XHCI_FUNC)
+
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_BOLTON)
+#define XHCI2_DEV 0x10
+#define XHCI2_FUNC 1
+#define XHCI2_DEVID 0x7814
+#define XHCI2_DEVFN PCI_DEVFN(XHCI2_DEV,XHCI2_FUNC)
+#endif
 
 /* SATA */
 #define SATA_DEV 0x11
@@ -56,7 +59,7 @@
 #define EHCI1_FUNC 2
 #define EHCI2_DEV 0x13
 #define EHCI2_FUNC 2
-#define EHCI3_DEV 0x22
+#define EHCI3_DEV 0x16
 #define EHCI3_FUNC 2
 #define EHCI_DEVID 0x7808
 #define EHCI1_DEVFN PCI_DEVFN(EHCI1_DEV,EHCI1_FUNC)
@@ -70,7 +73,7 @@
 #define SMBUS_DEVFN PCI_DEVFN(SMBUS_DEV,SMBUS_FUNC)
 
 /* IDE */
-#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_HUDSON)
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_BOLTON) || IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_HUDSON)
 #define IDE_DEV 0x14
 #define IDE_FUNC 1
 # define IDE_DEVID 0x780C
@@ -85,6 +88,7 @@
 
 /* LPC BUS */
 #define PCU_DEV 0x14
+#define LPC_DEV PCU_DEV
 #define LPC_FUNC 3
 #define LPC_DEVID 0x780E
 #define LPC_DEVFN PCI_DEVFN(LPC_DEV,LPC_FUNC)
@@ -102,7 +106,7 @@
 #define SD_DEVFN PCI_DEVFN(SD_DEV,SD_FUNC)
 
 /* PCIe Ports */
-#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_HUDSON)
+#if IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_BOLTON) || IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_AGESA_HUDSON)
 #define SB_PCIE_DEV 0x15
 #define SB_PCIE_PORT1_FUNC 0
 #define SB_PCIE_PORT2_FUNC 1

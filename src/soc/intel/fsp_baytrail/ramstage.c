@@ -11,13 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/cpu.h>
+#include <arch/acpi.h>
+#include <cbmem.h>
 #include <console/console.h>
 #include <cpu/intel/microcode.h>
 #include <cpu/x86/cr.h>
@@ -26,13 +24,15 @@
 #include <device/pci_def.h>
 #include <device/pci_ops.h>
 #include <stdlib.h>
+#include <string.h>
 
-#include <baytrail/gpio.h>
-#include <baytrail/lpc.h>
-#include <baytrail/msr.h>
-#include <baytrail/pattrs.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/gpio.h>
+#include <soc/lpc.h>
+#include <soc/nvs.h>
+#include <soc/msr.h>
+#include <soc/pattrs.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
 
 /* Global PATTRS */
 DEFINE_PATTRS;
@@ -68,7 +68,7 @@ static inline void fill_in_msr(msr_t *msr, int idx)
 }
 
 static const char *stepping_str[] = {
-	"A0", "A1", "B0", "B1", "B2", "B3"
+	"A0", "A1", "B0", "B1", "B2", "B3", "C0", "D0",
 };
 
 static void fill_in_pattrs(void)
@@ -81,7 +81,13 @@ static void fill_in_pattrs(void)
 	dev = dev_find_slot(0, PCI_DEVFN(LPC_DEV, LPC_FUNC));
 	attrs->revid = pci_read_config8(dev, REVID);
 	/* The revision to stepping IDs have two values per metal stepping. */
-	if (attrs->revid >= RID_B_STEPPING_START) {
+	if (attrs->revid >= RID_D_STEPPING_START) {
+		attrs->stepping = (attrs->revid - RID_D_STEPPING_START) / 2;
+		attrs->stepping += STEP_D0;
+	} else if (attrs->revid >= RID_C_STEPPING_START) {
+		attrs->stepping = (attrs->revid - RID_C_STEPPING_START) / 2;
+		attrs->stepping += STEP_C0;
+	} else if (attrs->revid >= RID_B_STEPPING_START) {
 		attrs->stepping = (attrs->revid - RID_B_STEPPING_START) / 2;
 		attrs->stepping += STEP_B0;
 	} else {
@@ -89,6 +95,7 @@ static void fill_in_pattrs(void)
 		attrs->stepping += STEP_A0;
 	}
 
+	attrs->microcode_patch = intel_microcode_find();
 	attrs->address_bits = cpuid_eax(0x80000008) & 0xff;
 	detect_num_cpus(attrs);
 
@@ -122,6 +129,17 @@ static void fill_in_pattrs(void)
 	attrs->bclk_khz = bus_freq_khz();
 }
 
+static void s3_resume_prepare(void)
+{
+	global_nvs_t *gnvs;
+
+	gnvs = cbmem_add(CBMEM_ID_ACPI_GNVS, sizeof(global_nvs_t));
+	if (gnvs == NULL)
+		return;
+
+	if (!acpi_is_wakeup_s3())
+		memset(gnvs, 0, sizeof(global_nvs_t));
+}
 
 void baytrail_init_pre_device(void)
 {
@@ -131,6 +149,9 @@ void baytrail_init_pre_device(void)
 
 	/* Allow for SSE instructions to be executed. */
 	write_cr4(read_cr4() | CR4_OSFXSR | CR4_OSXMMEXCPT);
+
+	/* Indicate S3 resume to rest of ramstage. */
+	s3_resume_prepare();
 
 	/* Get GPIO initial states from mainboard */
 	config = mainboard_get_gpios();

@@ -1,7 +1,21 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #ifndef ARCH_CPU_H
 #define ARCH_CPU_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <rules.h>
 
 /*
@@ -142,8 +156,12 @@ static inline unsigned int cpuid_edx(unsigned int op)
 #define X86_VENDOR_ANY     0xfe
 #define X86_VENDOR_UNKNOWN 0xff
 
-int cpu_phys_address_size(void);
+#define CPUID_FEATURE_PAE (1 << 6)
+#define CPUID_FEATURE_PSE36 (1 << 17)
+
+int cpu_cpuid_extended_level(void);
 int cpu_have_cpuid(void);
+int cpu_phys_address_size(void);
 
 #ifndef __SIMPLE_DEVICE__
 
@@ -175,8 +193,14 @@ struct cpu_info {
 static inline struct cpu_info *cpu_info(void)
 {
 	struct cpu_info *ci;
-	__asm__("andl %%esp,%0; "
+	__asm__(
+#ifdef __x86_64__
+		"and %%rsp,%0; "
+		"or  %2, %0 "
+#else
+		"andl %%esp,%0; "
 		"orl  %2, %0 "
+#endif
 		:"=r" (ci)
 		: "0" (~(CONFIG_STACK_SIZE - 1)),
 		"r" (CONFIG_STACK_SIZE - sizeof(struct cpu_info))
@@ -194,26 +218,77 @@ static inline unsigned long cpu_index(void)
 
 #ifndef __ROMCC__ // romcc is segfaulting in some cases
 struct cpuinfo_x86 {
-        uint8_t    x86;            /* CPU family */
-        uint8_t    x86_vendor;     /* CPU vendor */
-        uint8_t    x86_model;
-        uint8_t    x86_mask;
+	uint8_t	x86;		/* CPU family */
+	uint8_t	x86_vendor;	/* CPU vendor */
+	uint8_t	x86_model;
+	uint8_t	x86_mask;
 };
 
 static inline void get_fms(struct cpuinfo_x86 *c, uint32_t tfms)
 {
-        c->x86 = (tfms >> 8) & 0xf;
-        c->x86_model = (tfms >> 4) & 0xf;
-        c->x86_mask = tfms & 0xf;
-        if (c->x86 == 0xf)
-                c->x86 += (tfms >> 20) & 0xff;
-        if (c->x86 >= 0x6)
-                c->x86_model += ((tfms >> 16) & 0xF) << 4;
+	c->x86 = (tfms >> 8) & 0xf;
+	c->x86_model = (tfms >> 4) & 0xf;
+	c->x86_mask = tfms & 0xf;
+	if (c->x86 == 0xf)
+		c->x86 += (tfms >> 20) & 0xff;
+	if (c->x86 >= 0x6)
+		c->x86_model += ((tfms >> 16) & 0xF) << 4;
 
 }
 #endif
 
 #define asmlinkage __attribute__((regparm(0)))
 #define alwaysinline inline __attribute__((always_inline))
+
+#ifndef __ROMCC__
+/*
+ * When using CONFIG_C_ENVIRONMENT_BOOTBLOCK the car_stage_entry()
+ * is the symbol jumped to for each stage after bootblock using
+ * cache-as-ram.
+ */
+void asmlinkage car_stage_entry(void);
+
+/*
+ * Support setting up a stack frame consisting of MTRR information
+ * for use in bootstrapping the caching attributes after cache-as-ram
+ * is torn down.
+ */
+
+struct postcar_frame {
+	uintptr_t stack;
+	uint32_t upper_mask;
+	int max_var_mttrs;
+	int num_var_mttrs;
+};
+
+/*
+ * Initialize postcar_frame object allocating stack size in cbmem
+ * with the provided size. Returns 0 on success, < 0 on error.
+ */
+int postcar_frame_init(struct postcar_frame *pcf, size_t stack_size);
+
+/*
+ * Add variable MTRR covering the provided range with MTRR type.
+ */
+void postcar_frame_add_mtrr(struct postcar_frame *pcf,
+				uintptr_t addr, size_t size, int type);
+
+/*
+ * Push used MTRR and Max MTRRs on to the stack
+ * and return pointer to stack top.
+ */
+void *postcar_commit_mtrrs(struct postcar_frame *pcf);
+
+/*
+ * Load and run a program that takes control of execution that
+ * tears down CAR and loads ramstage. The postcar_frame object
+ * indicates how to set up the frame. If caching is enabled at
+ * the time of the call it is up to the platform code to handle
+ * coherency with dirty lines in the cache using some mechansim
+ * such as platform_prog_run() because run_postcar_phase()
+ * utilizes prog_run() internally.
+ */
+void run_postcar_phase(struct postcar_frame *pcf);
+#endif
 
 #endif /* ARCH_CPU_H */

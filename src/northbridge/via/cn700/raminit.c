@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <spd.h>
@@ -25,10 +21,10 @@
 #include "cn700.h"
 
 #if CONFIG_DEBUG_RAM_SETUP
-#define PRINT_DEBUG_MEM(x)		print_debug(x)
-#define PRINT_DEBUG_MEM_HEX8(x)		print_debug_hex8(x)
-#define PRINT_DEBUG_MEM_HEX16(x)	print_debug_hex16(x)
-#define PRINT_DEBUG_MEM_HEX32(x)	print_debug_hex32(x)
+#define PRINT_DEBUG_MEM(x)		printk(BIOS_DEBUG, x)
+#define PRINT_DEBUG_MEM_HEX8(x)		printk(BIOS_DEBUG, "%02x", x)
+#define PRINT_DEBUG_MEM_HEX16(x)	printk(BIOS_DEBUG, "%04x", x)
+#define PRINT_DEBUG_MEM_HEX32(x)	printk(BIOS_DEBUG, "%08x", x)
 #define DUMPNORTH()			dump_pci_device(PCI_DEV(0, 0, 0))
 #else
 #define PRINT_DEBUG_MEM(x)
@@ -38,7 +34,7 @@
 #define DUMPNORTH()
 #endif
 
-static void do_ram_command(device_t dev, u8 command)
+static void do_ram_command(pci_devfn_t dev, u8 command)
 {
 	u8 reg;
 
@@ -62,7 +58,7 @@ static void do_ram_command(device_t dev, u8 command)
  *
  * @param dev The northbridge's CPU Host Interface (D0F2).
  */
-static void c7_cpu_setup(device_t dev)
+static void c7_cpu_setup(pci_devfn_t dev)
 {
 	/* Host bus interface registers (D0F2 0x50-0x67) */
 	/* Request phase control */
@@ -262,9 +258,9 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 {
 	u8 reg;
 
-	/* Set WR=5 */
+	/* Set WR = 5 */
 	pci_write_config8(ctrl->d0f3, 0x61, 0xe0);
-	/* Set CAS=4 */
+	/* Set CAS = 4 */
 	pci_write_config8(ctrl->d0f3, 0x62, 0xfa);
 	/* DRAM timing-3 */
 	pci_write_config8(ctrl->d0f3, 0x63, 0xca);
@@ -287,7 +283,7 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 	pci_write_config8(ctrl->d0f3, 0x52, 0x33);
 	pci_write_config8(ctrl->d0f3, 0x53, 0x3f);
 
-	/* Set to DDR2 SDRAM, BL=8 (0xc8, 0xc0 for bl=4) */
+	/* Set to DDR2 SDRAM, BL = 8 (0xc8, 0xc0 for bl = 4) */
 	pci_write_config8(ctrl->d0f3, 0x6c, 0xc8);
 
 	/* DRAM Bus Turn-Around Setting */
@@ -380,7 +376,7 @@ static void sdram_set_registers(const struct mem_controller *ctrl)
 
 static void sdram_set_post(const struct mem_controller *ctrl)
 {
-	device_t dev = ctrl->d0f3;
+	pci_devfn_t dev = ctrl->d0f3;
 
 	/* Enable multipage mode. */
 	pci_write_config8(dev, 0x69, 0x03);
@@ -393,7 +389,7 @@ static void sdram_set_post(const struct mem_controller *ctrl)
 	pci_write_config16(dev, 0xa4, 0x0010);
 }
 
-static void sdram_enable(device_t dev, unsigned long rank_address)
+static void sdram_enable(pci_devfn_t dev, u8 *rank_address)
 {
 	u8 i;
 
@@ -413,7 +409,7 @@ static void sdram_enable(device_t dev, unsigned long rank_address)
 	PRINT_DEBUG_MEM("RAM Enable 3: Mode register set\n");
 	do_ram_command(dev, RAM_COMMAND_MRS);
 	read32(rank_address + 0x120000);	/* EMRS DLL Enable */
-	read32(rank_address + 0x800);		/* MRS DLL Reset */
+	read32(rank_address + 0x800);	/* MRS DLL Reset */
 
 	/* 4. Precharge all again. */
 	PRINT_DEBUG_MEM("RAM Enable 4: Precharge all\n");
@@ -430,7 +426,7 @@ static void sdram_enable(device_t dev, unsigned long rank_address)
 
 	/* 6. Mode register set. */
 	PRINT_DEBUG_MEM("RAM Enable 6: Mode register set\n");
-	/* Safe value for now, BL=8, WR=5, CAS=4 */
+	/* Safe value for now, BL = 8, WR = 5, CAS = 4 */
 	/*
 	 * (E)MRS values are from the BPG. No direct explanation is given, but
 	 * they should somehow conform to the JEDEC DDR2 SDRAM Specification
@@ -457,10 +453,10 @@ static void ddr_ram_setup(const struct mem_controller *ctrl)
 	c7_cpu_setup(ctrl->d0f2);
 	sdram_set_registers(ctrl);
 	sdram_set_size(ctrl);
-	sdram_enable(ctrl->d0f3, 0);
+	sdram_enable(ctrl->d0f3, (u8 *)0);
 	reg = pci_read_config8(ctrl->d0f3, 0x41);
 	if (reg != 0)
 		sdram_enable(ctrl->d0f3,
-			     pci_read_config8(ctrl->d0f3, 0x40) << 26);
+			     (u8 *)(pci_read_config8(ctrl->d0f3, 0x40) << 26));
 	sdram_set_post(ctrl);
 }

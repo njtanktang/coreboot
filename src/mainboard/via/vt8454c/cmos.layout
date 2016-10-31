@@ -12,20 +12,13 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-## MA 02110-1301 USA
-##
 
 entries
 
-#start-bit length  config config-ID    name
 0          384       r       0        reserved_memory
 384          1       e       4        boot_option
-385          1       e       4        last_boot
-386          1       e       1        ECC_memory
-388          4       r       0        reboot_bits
+456          1       e       1        ECC_memory
+388          4       h       0        reboot_counter
 392          3       e       5        baud_rate
 400          1       e       1        power_on_after_fail
 412          4       e       6        debug_level
@@ -52,16 +45,7 @@ enumerations
 6     7     Info
 6     8     Debug
 6     9     Spew
-7     0     Network
-7     1     HDD
-7     2     Floppy
-7     8     Fallback_Network
-7     9     Fallback_HDD
-7     10    Fallback_Floppy
-#7     3     ROM
 
 checksums
 
 checksum 392 1007 1008
-
-

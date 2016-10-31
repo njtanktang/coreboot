@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* Global Variables */
@@ -31,8 +26,8 @@ Name(\DSEN, 1)		// Display Output Switching Enable
  * we have to fix it up in coreboot's ACPI creation phase.
  */
 
-
-OperationRegion (GNVS, SystemMemory, 0xC0DEBABE, 0xf00)
+External(NVSA)
+OperationRegion (GNVS, SystemMemory, NVSA, 0xf00)
 Field (GNVS, ByteAcc, NoLock, Preserve)
 {
 	/* Miscellaneous */
@@ -243,12 +238,12 @@ External (\_TZ.SKIN)
 Method (TZUP)
 {
 	/* Update Primary Thermal Zone */
-	If (CondRefOf (\_TZ.THRM, Local0)) {
+	If (CondRefOf (\_TZ.THRM)) {
 		Notify (\_TZ.THRM, 0x81)
 	}
 
 	/* Update Secondary Thermal Zone */
-	If (CondRefOf (\_TZ.SKIN, Local0)) {
+	If (CondRefOf (\_TZ.SKIN)) {
 		Notify (\_TZ.SKIN, 0x81)
 	}
 }

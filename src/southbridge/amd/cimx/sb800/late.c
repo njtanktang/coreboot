@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -32,13 +28,13 @@
 #include <arch/acpi.h>
 #include <device/pci_ehci.h>
 #include "lpc.h"		/* lpc_read_resources */
-#include "SBPLATFORM.h" 	/* Platfrom Specific Definitions */
+#include "SBPLATFORM.h" 	/* Platform Specific Definitions */
 #include "cfg.h"		/* sb800 Cimx configuration */
 #include "chip.h"		/* struct southbridge_amd_cimx_sb800_config */
 #include "sb_cimx.h"		/* AMD CIMX wrapper entries */
 #include "smbus.h"
 #include "fan.h"
-#include <southbridge/amd/amd_pci_util.h>
+#include <southbridge/amd/common/amd_pci_util.h>
 
 /*implement in mainboard.c*/
 void set_pcie_reset(void);
@@ -56,10 +52,10 @@ static AMDSBCFG *sb_config = &sb_late_cfg;
  *
  * @param[in] func      Southbridge CIMx Function ID.
  * @param[in] data      Southbridge Input Data.
- * @param[in] sb_config Southbridge configuration structure pointer.
+ * @param[in] config    Southbridge configuration structure pointer.
  *
  */
-u32 sb800_callout_entry(u32 func, u32 data, void* config)
+static u32 sb800_callout_entry(u32 func, u32 data, void* config)
 {
 	u32 ret = 0;
 	printk(BIOS_DEBUG, "SB800 - Late.c - %s - Start.\n", __func__);
@@ -92,7 +88,8 @@ u32 sb800_callout_entry(u32 func, u32 data, void* config)
 static void ahci_raid_init(struct device *dev)
 {
 	u8 irq = 0;
-	u32 bar5, caps, ports, val;
+	void *bar5;
+	u32 caps, ports, val;
 
 	val = pci_read_config16(dev, PCI_CLASS_DEVICE);
 	if (val == PCI_CLASS_STORAGE_SATA) {
@@ -105,18 +102,18 @@ static void ahci_raid_init(struct device *dev)
 	}
 
 	irq = pci_read_config8(dev, PCI_INTERRUPT_LINE);
-	bar5 = pci_read_config32(dev, PCI_BASE_ADDRESS_5);
-	printk(BIOS_DEBUG, "IOMEM base: 0x%X, IRQ: 0x%X\n", bar5, irq);
+	bar5 = (void *)(uintptr_t)pci_read_config32(dev, PCI_BASE_ADDRESS_5);
+	printk(BIOS_DEBUG, "IOMEM base: %p, IRQ: 0x%X\n", bar5, irq);
 
-	caps = *(volatile u32 *)(bar5 + HOST_CAP);
+	caps = read32(bar5 + HOST_CAP);
 	caps = (caps & 0x1F) + 1;
-	ports= *(volatile u32 *)(bar5 + HOST_PORTS_IMPL);
+	ports= read32(bar5 + HOST_PORTS_IMPL);
 	printk(BIOS_DEBUG, "Number of Ports: 0x%x, Port implemented(bit map): 0x%x\n", caps, ports);
 
 	/* make sure ahci is enabled */
-	val = *(volatile u32 *)(bar5 + HOST_CTL);
+	val = read32(bar5 + HOST_CTL);
 	if (!(val & HOST_CTL_AHCI_EN)) {
-		*(volatile u32 *)(bar5 + HOST_CTL) = val | HOST_CTL_AHCI_EN;
+		write32(bar5 + HOST_CTL, val | HOST_CTL_AHCI_EN);
 	}
 
 	dev->command |= PCI_COMMAND_MASTER;
@@ -132,14 +129,14 @@ static void lpc_init(device_t dev)
 {
 	printk(BIOS_DEBUG, "SB800 - Late.c - lpc_init - Start.\n");
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
 
 	/* Initialize the real time clock.
-	 * The 0 argument tells rtc_init not to
+	 * The 0 argument tells cmos_init not to
 	 * update CMOS unless it is invalid.
-	 * 1 tells rtc_init to always initialize the CMOS.
+	 * 1 tells cmos_init to always initialize the CMOS.
 	 */
-	rtc_init(0);
+	cmos_init(0);
 
 	setup_i8259(); /* Initialize i8259 pic */
 	setup_i8254(); /* Initialize i8254 timers */
@@ -147,19 +144,28 @@ static void lpc_init(device_t dev)
 	printk(BIOS_DEBUG, "SB800 - Late.c - lpc_init - End.\n");
 }
 
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
+
 static struct device_operations lpc_ops = {
-        .read_resources = lpc_read_resources,
-        .set_resources = lpc_set_resources,
-        .enable_resources = pci_dev_enable_resources,
-        .init = lpc_init,
-        .scan_bus = scan_static_bus,
-        .ops_pci = &lops_pci,
+	.read_resources = lpc_read_resources,
+	.set_resources = lpc_set_resources,
+	.enable_resources = pci_dev_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables = acpi_write_hpet,
+#endif
+	.init = lpc_init,
+	.scan_bus = scan_lpc_bus,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver lpc_driver __pci_driver = {
-        .ops = &lpc_ops,
-        .vendor = PCI_VENDOR_ID_ATI,
-        .device = PCI_DEVICE_ID_ATI_SB800_LPC,
+	.ops = &lpc_ops,
+	.vendor = PCI_VENDOR_ID_ATI,
+	.device = PCI_DEVICE_ID_ATI_SB800_LPC,
 };
 
 static struct device_operations sata_ops = {
@@ -220,80 +226,47 @@ static const struct pci_driver usb_ohci4_driver __pci_driver = {
 
 
 static struct device_operations azalia_ops = {
-        .read_resources = pci_dev_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_dev_enable_resources,
-        .init = 0,
-        .scan_bus = 0,
-        .ops_pci = &lops_pci,
+	.read_resources = pci_dev_read_resources,
+	.set_resources = pci_dev_set_resources,
+	.enable_resources = pci_dev_enable_resources,
+	.init = 0,
+	.scan_bus = 0,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver azalia_driver __pci_driver = {
-        .ops = &azalia_ops,
-        .vendor = PCI_VENDOR_ID_ATI,
-        .device = PCI_DEVICE_ID_ATI_SB800_HDA,
+	.ops = &azalia_ops,
+	.vendor = PCI_VENDOR_ID_ATI,
+	.device = PCI_DEVICE_ID_ATI_SB800_HDA,
 };
 
 
 static struct device_operations gec_ops = {
-        .read_resources = pci_dev_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_dev_enable_resources,
-        .init = 0,
-        .scan_bus = 0,
-        .ops_pci = &lops_pci,
+	.read_resources = pci_dev_read_resources,
+	.set_resources = pci_dev_set_resources,
+	.enable_resources = pci_dev_enable_resources,
+	.init = 0,
+	.scan_bus = 0,
+	.ops_pci = &lops_pci,
 };
 
 static const struct pci_driver gec_driver __pci_driver = {
-        .ops = &gec_ops,
-        .vendor = PCI_VENDOR_ID_ATI,
-        .device = PCI_DEVICE_ID_ATI_SB800_GEC,
+	.ops = &gec_ops,
+	.vendor = PCI_VENDOR_ID_ATI,
+	.device = PCI_DEVICE_ID_ATI_SB800_GEC,
 };
 
 /**
- * @brief Enable PCI Bridge
- *
- * PcibConfig [PM_Reg: EAh], PCIDisable [Bit0]
- * 'PCIDisable' set to 0 to enable P2P bridge.
- * 'PCIDisable' set to 1 to disable P2P bridge and enable PCI interface pins
- *              to function as GPIO {GPIO 35:0}.
+ *  Fill build time defaults.
  */
-static void pci_init(device_t dev)
+static void sb800_init(void *chip_info)
 {
-	/* PCI Bridge SHOULD be enabled by default according to SB800 rrg,
-	 * but actually was disabled in some platform, so I have to enabled it.
-	 */
-	RWMEM(ACPI_MMIO_BASE + PMIO_BASE + SB_PMIOA_REGEA, AccWidthUint8, ~BIT0, 0);
+	sb_config->StdHeader.CALLBACK.CalloutPtr = sb800_callout_entry;
+	sb800_cimx_config(sb_config);
+
+	/* Initially enable all GPP ports 0 to 3 */
+	abcfg_reg(0xc0, 0x01FF, 0x0F4);
 }
-
-
-static struct device_operations pci_ops = {
-        .read_resources = pci_bus_read_resources,
-        .set_resources = pci_dev_set_resources,
-        .enable_resources = pci_bus_enable_resources,
-        .init = pci_init,
-        .scan_bus = pci_scan_bridge,
-        .reset_bus = pci_bus_reset,
-        .ops_pci = &lops_pci,
-};
-
-static const struct pci_driver pci_driver __pci_driver = {
-        .ops = &pci_ops,
-        .vendor = PCI_VENDOR_ID_ATI,
-        .device = PCI_DEVICE_ID_ATI_SB800_PCI,
-};
-
-
-struct device_operations bridge_ops = {
-	.read_resources   = pci_bus_read_resources,
-	.set_resources    = pci_dev_set_resources,
-	.enable_resources = pci_bus_enable_resources,
-	.init             = 0,
-	.scan_bus         = pci_scan_bridge,
-	.enable           = 0,
-	.reset_bus        = pci_bus_reset,
-	.ops_pci          = &lops_pci,
-};
 
 /**
  * South Bridge CIMx ramstage entry point wrapper.
@@ -351,10 +324,7 @@ static void set_pci_irqs(void *unused)
  * Hook this function into the PCI state machine
  * on entry into BS_DEV_ENABLE.
  */
-BOOT_STATE_INIT_ENTRIES(pci_irq_update) = {
-	BOOT_STATE_INIT_ENTRY(BS_DEV_ENABLE, BS_ON_ENTRY,
-	                      set_pci_irqs, NULL),
-};
+BOOT_STATE_INIT_ENTRY(BS_DEV_ENABLE, BS_ON_ENTRY, set_pci_irqs, NULL);
 
 /**
  * @brief SB Cimx entry point sbBeforePciInit wrapper
@@ -364,28 +334,8 @@ static void sb800_enable(device_t dev)
 	struct southbridge_amd_cimx_sb800_config *sb_chip =
 		(struct southbridge_amd_cimx_sb800_config *)(dev->chip_info);
 
-	printk(BIOS_DEBUG, "sb800_enable() ");
-
 	switch (dev->path.pci.devfn) {
 	case (0x11 << 3) | 0: /* 0:11.0  SATA */
-		/* the first sb800 device */
-		switch (GPP_CFGMODE) { /* config the GPP PCIe ports */
-		case GPP_CFGMODE_X2200:
-			abcfg_reg(0xc0, 0x01FF, 0x032); /* x2 Port_0, x2 Port_1 */
-			break;
-		case GPP_CFGMODE_X2110:
-			abcfg_reg(0xc0, 0x01FF, 0x073); /* x2 Port_0, x1 Port_1&2 */
-			break;
-		case GPP_CFGMODE_X1111:
-			abcfg_reg(0xc0, 0x01FF, 0x0F4); /* x1 Port_0&1&2&3 */
-			break;
-		case GPP_CFGMODE_X4000:
-		default:
-			abcfg_reg(0xc0, 0x01FF, 0x010); /* x4 Port_0 */
-			break;
-		}
-		sb800_cimx_config(sb_config);
-
 		if (dev->enabled) {
   			sb_config->SATAMODE.SataMode.SataController = CIMX_OPTION_ENABLED;
 			if (1 == sb_chip->boot_switch_sata_ide)
@@ -398,19 +348,19 @@ static void sb800_enable(device_t dev)
 		break;
 
 	case (0x14 << 3) | 0: /* 0:14:0 SMBUS */
-		printk(BIOS_INFO, "sm_init().\n");
-		clear_ioapic(IO_APIC_ADDR);
+		clear_ioapic(VIO_APIC_VADDR);
 #if CONFIG_CPU_AMD_AGESA
 		/* Assign the ioapic ID the next available number after the processor core local APIC IDs */
-		setup_ioapic(IO_APIC_ADDR, CONFIG_MAX_CPUS);
+		setup_ioapic(VIO_APIC_VADDR, CONFIG_MAX_CPUS);
 #else
 		/* I/O APIC IDs are normally limited to 4-bits. Enforce this limit. */
 #if (CONFIG_APIC_ID_OFFSET == 0 && CONFIG_MAX_CPUS * CONFIG_MAX_PHYSICAL_CPUS < 16)
 		/* Assign the ioapic ID the next available number after the processor core local APIC IDs */
-		setup_ioapic(IO_APIC_ADDR, CONFIG_MAX_CPUS * CONFIG_MAX_PHYSICAL_CPUS);
+		setup_ioapic(VIO_APIC_VADDR,
+			     CONFIG_MAX_CPUS * CONFIG_MAX_PHYSICAL_CPUS);
 #elif (CONFIG_APIC_ID_OFFSET > 0)
 		/* Assign the ioapic ID the value 0. Processor APIC IDs follow. */
-		setup_ioapic(IO_APIC_ADDR, 0);
+		setup_ioapic(VIO_APIC_VADDR, 0);
 #else
 #error "The processor APIC IDs must be lifted to make room for the I/O APIC ID"
 #endif
@@ -425,10 +375,8 @@ static void sb800_enable(device_t dev)
   			if (AZALIA_DISABLE == sb_config->AzaliaController) {
   				sb_config->AzaliaController = AZALIA_AUTO;
 			}
-			printk(BIOS_DEBUG, "hda enabled\n");
 		} else {
   			sb_config->AzaliaController = AZALIA_DISABLE;
-			printk(BIOS_DEBUG, "hda disabled\n");
 		}
 		break;
 
@@ -443,15 +391,22 @@ static void sb800_enable(device_t dev)
 		break;
 
 	case (0x14 << 3) | 4: /* 0:14:4 PCI */
+		/* PcibConfig [PM_Reg: EAh], PCIDisable [Bit0]
+		 * 'PCIDisable' set to 0 to enable P2P bridge.
+		 * 'PCIDisable' set to 1 to disable P2P bridge and enable PCI interface pins
+		 *              to function as GPIO {GPIO 35:0}.
+		 */
+		if (!sb_chip->disconnect_pcib && dev->enabled)
+			RWMEM(ACPI_MMIO_BASE + PMIO_BASE + SB_PMIOA_REGEA, AccWidthUint8, ~BIT0, 0);
+		else
+			RWMEM(ACPI_MMIO_BASE + PMIO_BASE + SB_PMIOA_REGEA, AccWidthUint8, ~BIT0, BIT0);
 		break;
 
 	case (0x14 << 3) | 6: /* 0:14:6 GEC */
 		if (dev->enabled) {
 			sb_config->GecConfig = 0;
-			printk(BIOS_DEBUG, "gec enabled\n");
 		} else {
 			sb_config->GecConfig = 1;
-			printk(BIOS_DEBUG, "gec disabled\n");
 		}
 		break;
 
@@ -511,5 +466,6 @@ static void sb800_enable(device_t dev)
 
 struct chip_operations southbridge_amd_cimx_sb800_ops = {
 	CHIP_NAME("ATI SB800")
+	.init = sb800_init,
 	.enable_dev = sb800_enable,
 };

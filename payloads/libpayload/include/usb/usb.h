@@ -31,6 +31,7 @@
 #define __USB_H
 #include <libpayload.h>
 #include <pci/pci.h>
+#include <stdint.h>
 
 typedef enum { host_to_device = 0, device_to_host = 1 } dev_req_dir;
 typedef enum { standard_type = 0, class_type = 1, vendor_type =
@@ -38,6 +39,14 @@ typedef enum { standard_type = 0, class_type = 1, vendor_type =
 } dev_req_type;
 typedef enum { dev_recp = 0, iface_recp = 1, endp_recp = 2, other_recp = 3
 } dev_req_recp;
+
+enum {
+	DT_DEV = 1,
+	DT_CFG = 2,
+	DT_STR = 3,
+	DT_INTF = 4,
+	DT_ENDP = 5,
+};
 
 typedef enum {
 	GET_STATUS = 0,
@@ -59,107 +68,8 @@ typedef enum {
 	TEST_MODE = 2
 } feature_selectors;
 
-typedef struct {
-	union {
-		struct {
-			dev_req_recp req_recp:5;
-			dev_req_type req_type:2;
-			dev_req_dir data_dir:1;
-		} __attribute__ ((packed));
-		unsigned char bmRequestType;
-	} __attribute__ ((packed));
-	unsigned char bRequest;
-	unsigned short wValue;
-	unsigned short wIndex;
-	unsigned short wLength;
-} __attribute__ ((packed)) dev_req_t;
-
-struct usbdev_hc;
-typedef struct usbdev_hc hci_t;
-
-struct usbdev;
-typedef struct usbdev usbdev_t;
-
-typedef enum { SETUP, IN, OUT } direction_t;
-typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
-} endpoint_type;
-
-typedef struct {
-	usbdev_t *dev;
-	int endpoint;
-	direction_t direction;
-	int toggle;
-	int maxpacketsize;
-	endpoint_type type;
-	int interval; /* expressed as binary logarithm of the number
-			 of microframes (i.e. t = 125us * 2^interval) */
-} endpoint_t;
-
-enum { FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3 };
-
-struct usbdev {
-	hci_t *controller;
-	endpoint_t endpoints[32];
-	int num_endp;
-	int address;		// usb address
-	int hub;		// hub, device is attached to
-	int port;		// port where device is attached
-	int speed;		// 1: lowspeed, 0: fullspeed, 2: highspeed
-	u32 quirks;		// quirks field. got to love usb
-	void *data;
-	u8 *descriptor;
-	u8 *configuration;
-	void (*init) (usbdev_t *dev);
-	void (*destroy) (usbdev_t *dev);
-	void (*poll) (usbdev_t *dev);
-};
-
-typedef enum { OHCI = 0, UHCI = 1, EHCI = 2, XHCI = 3} hc_type;
-
-struct usbdev_hc {
-	hci_t *next;
-	u32 reg_base;
-	pcidev_t pcidev; // 0 if not used (eg on ARM)
-	hc_type type;
-	usbdev_t *devices[128];	// dev 0 is root hub, 127 is last addressable
-
-	/* start():     Resume operation. */
-	void (*start) (hci_t *controller);
-	/* stop():      Stop operation but keep controller initialized. */
-	void (*stop) (hci_t *controller);
-	/* reset():     Perform a controller reset. The controller needs to
-	                be (re)initialized afterwards to work (again). */
-	void (*reset) (hci_t *controller);
-	/* init():      Initialize a (previously reset) controller
-	                to a working state. */
-	void (*init) (hci_t *controller);
-	/* shutdown():  Stop operation, detach host controller and shutdown
-	                this driver instance. After calling shutdown() any
-			other usage of this hci_t* is invalid. */
-	void (*shutdown) (hci_t *controller);
-
-	int (*bulk) (endpoint_t *ep, int size, u8 *data, int finalize);
-	int (*control) (usbdev_t *dev, direction_t pid, int dr_length,
-			void *devreq, int data_length, u8 *data);
-	void* (*create_intr_queue) (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
-	void (*destroy_intr_queue) (endpoint_t *ep, void *queue);
-	u8* (*poll_intr_queue) (void *queue);
-	void *instance;
-
-	/* set_address():		Tell the usb device its address and
-					return it. xHCI controllers want to
-					do this by themself. Also, the usbdev
-					structure has to be allocated and
-					initialized. */
-	int (*set_address) (hci_t *controller, int speed, int hubport, int hubaddr);
-	/* finish_device_config():	Another hook for xHCI,
-					returns 0 on success. */
-	int (*finish_device_config) (usbdev_t *dev);
-	/* destroy_device():		Finally, destroy all structures that
-					were allocated during set_address()
-					and finish_device_config(). */
-	void (*destroy_device) (hci_t *controller, int devaddr);
-};
+/* SetAddress() recovery interval (USB 2.0 specification 9.2.6.3 */
+#define SET_ADDRESS_MDELAY 2
 
 typedef struct {
 	unsigned char bDescLength;
@@ -240,14 +150,125 @@ typedef struct {
 	unsigned short wReportDescriptorLength;
 } __attribute__ ((packed)) hid_descriptor_t;
 
+typedef struct {
+	union {
+		struct {
+			dev_req_recp req_recp:5;
+			dev_req_type req_type:2;
+			dev_req_dir data_dir:1;
+		} __attribute__ ((packed));
+		unsigned char bmRequestType;
+	} __attribute__ ((packed));
+	unsigned char bRequest;
+	unsigned short wValue;
+	unsigned short wIndex;
+	unsigned short wLength;
+} __attribute__ ((packed)) dev_req_t;
+
+struct usbdev_hc;
+typedef struct usbdev_hc hci_t;
+
+struct usbdev;
+typedef struct usbdev usbdev_t;
+
+typedef enum { SETUP, IN, OUT } direction_t;
+typedef enum { CONTROL = 0, ISOCHRONOUS = 1, BULK = 2, INTERRUPT = 3
+} endpoint_type;
+
+typedef struct {
+	usbdev_t *dev;
+	int endpoint;
+	direction_t direction;
+	int toggle;
+	int maxpacketsize;
+	endpoint_type type;
+	int interval; /* expressed as binary logarithm of the number
+			 of microframes (i.e. t = 125us * 2^interval) */
+} endpoint_t;
+
+typedef enum {
+	FULL_SPEED = 0, LOW_SPEED = 1, HIGH_SPEED = 2, SUPER_SPEED = 3,
+} usb_speed;
+
+struct usbdev {
+	hci_t *controller;
+	endpoint_t endpoints[32];
+	int num_endp;
+	int address;		// usb address
+	int hub;		// hub, device is attached to
+	int port;		// port where device is attached
+	usb_speed speed;
+	u32 quirks;		// quirks field. got to love usb
+	void *data;
+	device_descriptor_t *descriptor;
+	configuration_descriptor_t *configuration;
+	void (*init) (usbdev_t *dev);
+	void (*destroy) (usbdev_t *dev);
+	void (*poll) (usbdev_t *dev);
+};
+
+typedef enum { OHCI = 0, UHCI = 1, EHCI = 2, XHCI = 3, DWC2 = 4} hc_type;
+
+struct usbdev_hc {
+	hci_t *next;
+	uintptr_t reg_base;
+	pcidev_t pcidev; // 0 if not used (eg on ARM)
+	hc_type type;
+	int latest_address;
+	usbdev_t *devices[128];	// dev 0 is root hub, 127 is last addressable
+
+	/* start():     Resume operation. */
+	void (*start) (hci_t *controller);
+	/* stop():      Stop operation but keep controller initialized. */
+	void (*stop) (hci_t *controller);
+	/* reset():     Perform a controller reset. The controller needs to
+	                be (re)initialized afterwards to work (again). */
+	void (*reset) (hci_t *controller);
+	/* init():      Initialize a (previously reset) controller
+	                to a working state. */
+	void (*init) (hci_t *controller);
+	/* shutdown():  Stop operation, detach host controller and shutdown
+	                this driver instance. After calling shutdown() any
+			other usage of this hci_t* is invalid. */
+	void (*shutdown) (hci_t *controller);
+
+	int (*bulk) (endpoint_t *ep, int size, u8 *data, int finalize);
+	int (*control) (usbdev_t *dev, direction_t pid, int dr_length,
+			void *devreq, int data_length, u8 *data);
+	void* (*create_intr_queue) (endpoint_t *ep, int reqsize, int reqcount, int reqtiming);
+	void (*destroy_intr_queue) (endpoint_t *ep, void *queue);
+	u8* (*poll_intr_queue) (void *queue);
+	void *instance;
+
+	/* set_address():		Tell the usb device its address (xHCI
+					controllers want to do this by
+					themselves). Also, allocate the usbdev
+					structure, initialize enpoint 0
+					(including MPS) and return it. */
+	usbdev_t *(*set_address) (hci_t *controller, usb_speed speed,
+				  int hubport, int hubaddr);
+	/* finish_device_config():	Another hook for xHCI,
+					returns 0 on success. */
+	int (*finish_device_config) (usbdev_t *dev);
+	/* destroy_device():		Finally, destroy all structures that
+					were allocated during set_address()
+					and finish_device_config(). */
+	void (*destroy_device) (hci_t *controller, int devaddr);
+};
+
+hci_t *usb_add_mmio_hc(hc_type type, void *bar);
 hci_t *new_controller (void);
 void detach_controller (hci_t *controller);
 void usb_poll (void);
-void init_device_entry (hci_t *controller, int num);
+usbdev_t *init_device_entry (hci_t *controller, int num);
 
-void set_feature (usbdev_t *dev, int endp, int feature, int rtype);
-void get_status (usbdev_t *dev, int endp, int rtype, int len, void *data);
-void set_configuration (usbdev_t *dev);
+int usb_decode_mps0 (usb_speed speed, u8 bMaxPacketSize0);
+int speed_to_default_mps(usb_speed speed);
+int set_feature (usbdev_t *dev, int endp, int feature, int rtype);
+int get_status (usbdev_t *dev, int endp, int rtype, int len, void *data);
+int get_descriptor (usbdev_t *dev, int rtype, int descType, int descIdx,
+		    void *data, size_t len);
+int set_configuration (usbdev_t *dev);
 int clear_feature (usbdev_t *dev, int endp, int feature, int rtype);
 int clear_stall (endpoint_t *ep);
 
@@ -257,8 +278,7 @@ void usb_hid_init (usbdev_t *dev);
 void usb_msc_init (usbdev_t *dev);
 void usb_generic_init (usbdev_t *dev);
 
-u8 *get_descriptor (usbdev_t *dev, unsigned char bmRequestType,
-		    int descType, int descIdx, int langID);
+int closest_usb2_hub(const usbdev_t *dev, int *const addr, int *const port);
 
 static inline unsigned char
 gen_bmRequestType (dev_req_dir dir, dev_req_type type, dev_req_recp recp)
@@ -267,10 +287,12 @@ gen_bmRequestType (dev_req_dir dir, dev_req_type type, dev_req_recp recp)
 }
 
 /* default "set address" handler */
-int generic_set_address (hci_t *controller, int speed, int hubport, int hubaddr);
+usbdev_t *generic_set_address (hci_t *controller, usb_speed speed,
+			       int hubport, int hubaddr);
 
 void usb_detach_device(hci_t *controller, int devno);
-int usb_attach_device(hci_t *controller, int hubaddress, int port, int speed);
+int usb_attach_device(hci_t *controller, int hubaddress, int port,
+		      usb_speed speed);
 
 u32 usb_quirk_check(u16 vendor, u16 device);
 int usb_interface_check(u16 vendor, u16 device);

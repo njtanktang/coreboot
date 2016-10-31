@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -31,18 +27,16 @@
 #include <arch/io.h>
 #include <arch/interrupt.h>
 #include <boot/coreboot_tables.h>
-#include "hda_verb.h"
 #include <smbios.h>
 #include <device/pci.h>
 #include <ec/google/chromeec/ec.h>
-#include <cbfs_core.h>
 
 #include <cpu/x86/tsc.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/x86/msr.h>
 #include <edid.h>
-#include <device/i915.h>
+#include <drivers/intel/gma/i915.h>
 
 /* how many bytes do we need for the framebuffer?
  * Well, this gets messy. To get an exact answer, we have
@@ -87,7 +81,7 @@ static int ioread = 0, iowrite = 0;
 static char *regname(unsigned long addr)
 {
 	static char name[16];
-	snprintf(name, sizeof (name), "0x%lx", addr);
+	snprintf(name, sizeof(name), "0x%lx", addr);
 	return name;
 }
 

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <arch/cpu.h>
@@ -37,4 +33,3 @@ WRAP_LIBGCC_CALL(long long, __divdi3)
 WRAP_LIBGCC_CALL(unsigned long long, __udivdi3)
 WRAP_LIBGCC_CALL(long long, __moddi3)
 WRAP_LIBGCC_CALL(unsigned long long, __umoddi3)
-

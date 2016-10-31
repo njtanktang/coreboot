@@ -1,12 +1,7 @@
-#include <console/console.h>
 #include <device/device.h>
 #include <device/smbus.h>
-#include <device/pci.h>
-#include <device/pci_ids.h>
-#include <device/pci_ops.h>
-#include <cpu/x86/msr.h>
 
-static void i2cmux_set_link(device_t dev, unsigned int link)
+static void i2cmux_set_link(struct device *dev, unsigned int link)
 {
 	if (dev->enabled && dev->path.type == DEVICE_PATH_I2C) {
 		if (ops_smbus_bus(get_pbus_smbus(dev))) {
@@ -16,16 +11,12 @@ static void i2cmux_set_link(device_t dev, unsigned int link)
 	}
 }
 
-static void i2cmux_noop(device_t dummy)
-{
-}
-
 static struct device_operations i2cmux_operations = {
-	.read_resources = i2cmux_noop,
-	.set_resources = i2cmux_noop,
-	.enable_resources = i2cmux_noop,
-	.init = i2cmux_noop,
-	.scan_bus = scan_static_bus,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
+	.init = DEVICE_NOOP,
+	.scan_bus = scan_smbus,
 	.set_link = i2cmux_set_link,
 };
 

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -58,7 +54,7 @@ static void usb_init(struct device *dev)
 static void usb_init2(struct device *dev)
 {
 	u32 dword;
-	u32 usb2_bar0;
+	void *usb2_bar0;
 	device_t sm_dev;
 
 	sm_dev = dev_find_slot(0, PCI_DEVFN(0x14, 0));
@@ -68,10 +64,10 @@ static void usb_init2(struct device *dev)
 	/* dword |= 40; */
 	/* pci_write_config32(dev, 0xf8, dword); */
 
-	usb2_bar0 = pci_read_config32(dev, 0x10) & ~0xFF;
-	printk(BIOS_INFO, "usb2_bar0=0x%x\n", usb2_bar0);
+	usb2_bar0 = (void *)(pci_read_config32(dev, 0x10) & ~0xFF);
+	printk(BIOS_INFO, "usb2_bar0=0x%p\n", usb2_bar0);
 
-	/* RPR7.3 Enables the USB PHY auto calibration resister to match 45ohm resistence */
+	/* RPR7.3 Enables the USB PHY auto calibration resister to match 45ohm resistance */
 	dword = 0x00020F00;
 	write32(usb2_bar0 + 0xC0, dword);
 

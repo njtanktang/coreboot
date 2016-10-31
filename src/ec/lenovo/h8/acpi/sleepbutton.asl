@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Field(ERAM, ByteAcc, NoLock, Preserve)
@@ -30,7 +25,7 @@ Field(ERAM, ByteAcc, NoLock, Preserve)
 
 Device(SLPB)
 {
-        Name (_HID, EisaId ("PNP0C0E"))
+	Name (_HID, EisaId ("PNP0C0E"))
 	Method(_PRW, 0, NotSerialized)
 	{
 		Return (Package() { 0x18, 0x03 })

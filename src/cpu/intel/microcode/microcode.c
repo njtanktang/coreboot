@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Microcode update for Intel PIII and later CPUs */
@@ -23,18 +19,19 @@
 #include <stdint.h>
 #include <stddef.h>
 #if !defined(__ROMCC__)
+#include <cbfs.h>
 #include <console/console.h>
+#else
+#include <arch/cbfs.h>
 #endif
 #include <cpu/cpu.h>
 #include <cpu/x86/msr.h>
 #include <cpu/intel/microcode.h>
+#include <rules.h>
 
 #if !defined(__PRE_RAM__)
-#include <cbfs.h>
 #include <smp/spinlock.h>
 DECLARE_SPIN_LOCK(microcode_lock)
-#else
-#include <arch/cbfs.h>
 #endif
 
 struct microcode {
@@ -68,7 +65,7 @@ static inline u32 read_microcode_rev(void)
 		"movl $0x01, %%eax\n\t"
 		"cpuid\n\t"
 		"movl $0x08b, %%ecx\n\t"
-		"rdmsr \n\t"
+		"rdmsr\n\t"
 		: /* outputs */
 		"=a" (msr.lo), "=d" (msr.hi)
 		: /* inputs */
@@ -95,6 +92,14 @@ void intel_microcode_load_unlocked(const void *microcode_patch)
 	if (current_rev == m->rev)
 		return;
 
+#if ENV_RAMSTAGE
+	/*SoC specific check to update microcode*/
+	if (soc_skip_ucode_update(current_rev, m->rev)) {
+		printk(BIOS_DEBUG, "Skip microcode update\n");
+		return;
+	}
+#endif
+
 	msr.lo = (unsigned long)m + sizeof(struct microcode);
 	msr.hi = 0;
 	wrmsr(0x79, msr);
@@ -109,25 +114,29 @@ void intel_microcode_load_unlocked(const void *microcode_patch)
 
 const void *intel_microcode_find(void)
 {
-	struct cbfs_file *microcode_file;
 	const struct microcode *ucode_updates;
-	u32 eax, microcode_len;
+	size_t microcode_len;
+	u32 eax;
 	u32 pf, rev, sig, update_size;
 	unsigned int x86_model, x86_family;
 	msr_t msr;
 
-#ifdef __PRE_RAM__
-	microcode_file = walkcbfs_head((char *) MICROCODE_CBFS_FILE);
-#else
-	microcode_file = cbfs_get_file(CBFS_DEFAULT_MEDIA,
-					  MICROCODE_CBFS_FILE);
-#endif
+#ifdef __ROMCC__
+	struct cbfs_file *microcode_file;
 
+	microcode_file = walkcbfs_head((char *) MICROCODE_CBFS_FILE);
 	if (!microcode_file)
 		return NULL;
 
 	ucode_updates = CBFS_SUBHEADER(microcode_file);
 	microcode_len = ntohl(microcode_file->len);
+#else
+	ucode_updates = cbfs_boot_map_with_leak(MICROCODE_CBFS_FILE,
+						CBFS_TYPE_MICROCODE,
+						&microcode_len);
+	if (ucode_updates == NULL)
+		return NULL;
+#endif
 
 	/* CPUID sets MSR 0x8B iff a microcode update has been loaded. */
 	msr.lo = 0;
@@ -166,7 +175,7 @@ const void *intel_microcode_find(void)
 		}
 
 		/* Checkpoint 1: The microcode update falls within CBFS */
-		if(update_size > microcode_len) {
+		if (update_size > microcode_len) {
 #if !defined(__ROMCC__)
 			printk(BIOS_WARNING, "Microcode header corrupted!\n");
 #endif
@@ -198,3 +207,10 @@ void intel_update_microcode_from_cbfs(void)
 	spin_unlock(&microcode_lock);
 #endif
 }
+
+#if ENV_RAMSTAGE
+__attribute__((weak)) int soc_skip_ucode_update(u32 currrent_patch_id, u32 new_patch_id)
+{
+	return 0;
+}
+#endif

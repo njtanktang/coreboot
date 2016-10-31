@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
@@ -28,21 +24,22 @@
 static void thermal_init(struct device *dev)
 {
 	struct resource *res;
-
+	u8 *base;
 	printk(BIOS_DEBUG, "Thermal init start.\n");
 
 	res = find_resource(dev, 0x10);
 	if (!res)
 		return;
 
-	write32(res->base + 4, 0x3a2b);
-	write8(res->base + 0xe, 0x40);
-	write16(res->base + 0x56, 0xffff);
-	write16(res->base + 0x64, 0xffff);
-	write16(res->base + 0x66, 0xffff);
-	write16(res->base + 0x68, 0xfa);
+	base = res2mmio(res, 0, 0);
+	write32(base + 4, 0x3a2b);
+	write8(base + 0xe, 0x40);
+	write16(base + 0x56, 0xffff);
+	write16(base + 0x64, 0xffff);
+	write16(base + 0x66, 0xffff);
+	write16(base + 0x68, 0xfa);
 
-	write8(res->base + 1, 0xb8);
+	write8(base + 1, 0xb8);
 
 	printk(BIOS_DEBUG, "Thermal init done.\n");
 }

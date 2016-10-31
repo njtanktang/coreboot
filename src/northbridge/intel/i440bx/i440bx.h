@@ -12,11 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#ifndef NORTHBRIDGE_INTEL_I440BX_I440BX_H
+#define NORTHBRIDGE_INTEL_I440BX_I440BX_H
 
 /*
  * Datasheet:
@@ -87,3 +86,4 @@
 #define DRTC    0xe8 /* DRAM Read Thermal Throttling Control (0x000..000). */
 #define BUFFC   0xf0 /* Buffer Control Register (0x0000). */
 
+#endif /* NORTHBRIDGE_INTEL_I440BX_I440BX_H */

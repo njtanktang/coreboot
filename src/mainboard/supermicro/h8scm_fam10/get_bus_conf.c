@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -23,9 +19,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#if CONFIG_LOGICAL_CPUS
 #include <cpu/amd/multicore.h>
-#endif
 
 #include <cpu/amd/amdfam10_sysconf.h>
 
@@ -54,7 +48,6 @@ u32 hcdnx[] = {
 	0x20202020,
 };
 
-u32 bus_type[256];
 
 u32 sbdn_sr5650;
 u32 sbdn_sp5100;
@@ -67,7 +60,7 @@ void get_bus_conf(void)
 {
 	u32 apicid_base;
 	device_t dev;
-	int i, j;
+	int i;
 
 	if (get_bus_conf_done == 1)
 		return;		/* do it only once */
@@ -92,16 +85,10 @@ void get_bus_conf(void)
 		bus_sr5650[i] = 0;
 	}
 
-	for (i = 0; i < 256; i++) {
-		bus_type[i] = 0; /* default ISA bus. */
-	}
-
-	bus_type[0] = 1;	/* pci */
 
 	bus_sr5650[0] = (sysconf.pci1234[0] >> 16) & 0xff;
 	bus_sp5100[0] = bus_sr5650[0];
 
-	bus_type[bus_sr5650[0]] = 1;
 
 	/* sp5100 */
 	dev = dev_find_slot(bus_sp5100[0], PCI_DEVFN(sbdn_sp5100 + 0x14, 4));
@@ -109,8 +96,6 @@ void get_bus_conf(void)
 		bus_sp5100[1] = pci_read_config8(dev, PCI_SECONDARY_BUS);
 		bus_isa = pci_read_config8(dev, PCI_SUBORDINATE_BUS);
 		bus_isa++;
-		for (j = bus_sp5100[1]; j < bus_isa; j++)
-			bus_type[j] = 1;
 	}
 
 	/* sr5650 */
@@ -121,17 +106,15 @@ void get_bus_conf(void)
 			if(255 != bus_sr5650[i]) {
 				bus_isa = pci_read_config8(dev, PCI_SUBORDINATE_BUS);
 				bus_isa++;
-				bus_type[bus_sr5650[i]] = 1; /* PCI bus. */
 			}
 		}
 	}
 
 	/* I/O APICs:   APIC ID Version State   Address */
 	bus_isa = 10;
-#if CONFIG_LOGICAL_CPUS
-	apicid_base = get_apicid_base(1);
-#else
-	apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
-#endif
+	if (IS_ENABLED(CONFIG_LOGICAL_CPUS))
+		apicid_base = get_apicid_base(1);
+	else
+		apicid_base = CONFIG_MAX_PHYSICAL_CPUS;
 	apicid_sp5100 = apicid_base + 0;
 }

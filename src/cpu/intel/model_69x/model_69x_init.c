@@ -8,7 +8,7 @@
 #include <cpu/intel/microcode.h>
 #include <cpu/x86/cache.h>
 
-static void model_69x_init(device_t dev)
+static void model_69x_init(struct device *dev)
 {
 	/* Turn on caching if we haven't already */
 	x86_enable_cache();
@@ -18,7 +18,7 @@ static void model_69x_init(device_t dev)
 	/* Update the microcode */
 	intel_update_microcode_from_cbfs();
 
-	/* Enable the local cpu apics */
+	/* Enable the local CPU APICs */
 	setup_lapic();
 };
 

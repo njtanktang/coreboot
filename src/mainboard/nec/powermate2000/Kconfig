@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 if BOARD_NEC_POWERMATE_2000
 
 config BOARD_SPECIFIC_OPTIONS # dummy
@@ -25,7 +21,6 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select SOUTHBRIDGE_INTEL_I82801AX
 	select SUPERIO_SMSC_SMSCSUPERIO
 	select HAVE_PIRQ_TABLE
-	select UDELAY_TSC
 	select BOARD_ROMSIZE_KB_512
 
 config MAINBOARD_DIR

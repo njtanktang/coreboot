@@ -11,15 +11,11 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "coreinfo.h"
 
-#ifdef CONFIG_MODULE_RAMDUMP
+#if IS_ENABLED(CONFIG_MODULE_RAMDUMP)
 
 static s64 cursor = 0;
 static s64 cursor_max = (1 * 1024 * 1024 * 1024); /* Max. 1 GB RAM for now. */
@@ -34,7 +30,7 @@ static void dump_ram(WINDOW *win, uint32_t addr, int row, int col)
 	int i, x = 0, y = 0, count = 0;
 	volatile uint8_t *ptr = (void *)(addr);
 
-	mvwprintw(win, 0, col + 54, "RAM address: %10x", addr);
+	mvwprintw(win, 0, col + 54, "RAM address: 0x%08x", addr);
 
 	/* Dump 256 bytes of RAM. */
 	for (i = 1; i < 257; i++) {

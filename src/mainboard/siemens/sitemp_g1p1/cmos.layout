@@ -14,50 +14,22 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 ##
 ##
 
 entries
 
-#start-bit length  config config-ID    name
-#0            8       r       0        seconds
-#8            8       r       0        alarm_seconds
-#16           8       r       0        minutes
-#24           8       r       0        alarm_minutes
-#32           8       r       0        hours
-#40           8       r       0        alarm_hours
-#48           8       r       0        day_of_week
-#56           8       r       0        day_of_month
-#64           8       r       0        month
-#72           8       r       0        year
 # =======================================================
-#80           4       r       0        rate_select
-#84           3       r       0        REF_Clock
-#87           1       r       0        UIP
 # =======================================================
-#88           1       r       0        auto_switch_DST
-#89           1       r       0        24_hour_mode
-#90           1       r       0        binary_values_enable
-#91           1       r       0        square-wave_out_enable
-#92           1       r       0        update_finished_enable
-#93           1       r       0        alarm_interrupt_enable
-#94           1       r       0        periodic_interrupt_enable
-#95           1       r       0        disable_clock_updates
 # ========================================================
-#96         288       r       0        temporary_filler
 0          384       r       0        reserved_memory
 # ========================================================
 #384          1       r       0        unused
 # -----------------------------------------------------------------
 # RTC_BOOT_BYTE (coreboot hardcoded)
 384          1       e       4        boot_option
-385          1       e       4        last_boot
 #386          2       r       1        unused
-388          4       r       0        reboot_bits
+388          4       h       0        reboot_counter
 392          3       e       5        baud_rate
 #395          1       r       1        unused
 #396          1       r       1        unused
@@ -77,11 +49,16 @@ entries
 424          4       e       14       cpu_t_max
 428          4       e       15       cpu_dutycycle_min
 432          4       e       15       cpu_dutycycle_max
+
 436          4       e       14       chassis_t_min
 440          4       e       14       chassis_t_max
+
 444          4       e       15       chassis_dutycycle_min
+
 448          4       e       15       chassis_dutycycle_max
+
 #452          4       r       9        unused
+
 456          4       e       10       boot_delay
 460		     4       e       11       lcd_panel_id
 #===========================================================
@@ -115,13 +92,6 @@ enumerations
 6     6     Info
 6     7     Debug
 6     8     Spew
-#7     0     Network
-#7     1     HDD
-#7     2     Floppy
-#7     8     Fallback_Network
-#7     9     Fallback_HDD
-#7     10    Fallback_Floppy
-#7     3     ROM
 8     0     DDR400
 8     1     DDR333
 8     2     DDR266
@@ -162,7 +132,7 @@ enumerations
 # CPU/Chassis FAN Control: polarity
 13  0   Active_high
 13  1   Active_low
-# Temperature °C
+# Temperature Â°C
 14  0   30
 14  1   35
 14  2   40
@@ -204,5 +174,3 @@ enumerations
 checksums
 
 checksum 392 983 984
-
-

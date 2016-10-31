@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* SPDs for DDR2 SDRAM */
@@ -24,12 +20,14 @@
 	#define SPD_MEM_TYPE_SDRAM_DDR2	0x08
 
 #define SPD_DIMM_TYPE	20	/* x  bit0 or bit4 =1 mean registered*/
-	#define SPD_DIMM_TYPE_RDIMM	(1<<0)
-	#define SPD_DIMM_TYPE_UDIMM	(1<<1)
-	#define SPD_DIMM_TYPE_SODIMM	(1<<2)
-	#define SPD_DIMM_TYPE_uDIMM	(1<<3)
-	#define SPD_DIMM_TYPE_mRDIMM	(1<<4)
-	#define SPD_DIMM_TYPE_mUDIMM	(1<<5)
+	#define SPD_DIMM_TYPE_RDIMM	0x01
+	#define SPD_DIMM_TYPE_UDIMM	0x02
+	#define SPD_DIMM_TYPE_SODIMM	0x04
+	#define SPD_72B_SO_CDIMM	0x06
+	#define SPD_72B_SO_RDIMM	0x07
+	#define SPD_DIMM_TYPE_uDIMM	0x08
+	#define SPD_DIMM_TYPE_mRDIMM	0x10
+	#define SPD_DIMM_TYPE_mUDIMM	0x20
 
 #define SPD_MOD_ATTRIB	21
 	#define SPD_MOD_ATTRIB_DIFCK	0x20
@@ -56,7 +54,7 @@
 				 SDRAM device, it could be 0x4, 0x8, so address
 				 lines for that would be 2, and 3 */
 
-/* Number of Ranks bit [2:0], Package (bit4, 1=stack, 0=planr), Height bit[7:5] */
+/* Number of Ranks bit [2:0], Package (bit4, 1 = stack, 0 = planr), Height bit[7:5] */
 #define SPD_MOD_ATTRIB_RANK	5
 	#define SPD_MOD_ATTRIB_RANK_NUM_SHIFT	0
 	#define SPD_MOD_ATTRIB_RANK_NUM_MASK	0x07
@@ -84,6 +82,7 @@
 	#define SPD_CAS_LAT_4	(1<<4)
 	#define SPD_CAS_LAT_5	(1<<5)
 	#define SPD_CAS_LAT_6	(1<<6)
+	#define SPD_CAS_LAT_7	(1<<7)
 
 #define SPD_TRP	27  /* bit [7:2] = 1-63 ns, bit [1:0] 0.25ns+, final value ((val>>2) + (val & 3) * 0.25)ns */
 #define SPD_TRRD	28

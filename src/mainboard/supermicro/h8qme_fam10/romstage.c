@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define FAM10_SCAN_PCI_BUS 0
@@ -30,18 +26,19 @@
 #include <device/pnp_def.h>
 #include <cpu/x86/lapic.h>
 #include <console/console.h>
+#include <timestamp.h>
 #include <lib.h>
 #include <spd.h>
 #include <cpu/amd/model_10xxx_rev.h>
 #include "southbridge/nvidia/mcp55/early_smbus.c" // for enable the FAN
-#include "northbridge/amd/amdfam10/raminit.h"
-#include "northbridge/amd/amdfam10/amdfam10.h"
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <northbridge/amd/amdfam10/raminit.h>
+#include <northbridge/amd/amdfam10/amdfam10.h>
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdfam10/reset_test.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdfam10/debug.c"
 #include "northbridge/amd/amdfam10/setup_resource_map.c"
 #include "southbridge/nvidia/mcp55/early_ctrl.c"
@@ -49,10 +46,11 @@
 #define SERIAL_DEV PNP_DEV(0x2e, W83627HF_SP1)
 #define DUMMY_DEV PNP_DEV(0x2e, 0)
 
-static inline void activate_spd_rom(const struct mem_controller *ctrl)
-{
 #define SMBUS_SWITCH1 0x70
 #define SMBUS_SWITCH2 0x72
+
+static inline void activate_spd_rom(const struct mem_controller *ctrl)
+{
 	smbus_send_byte(SMBUS_SWITCH1, 5 & 0x0f);
 	smbus_send_byte(SMBUS_SWITCH2, (5 >> 4) & 0x0f);
 }
@@ -62,50 +60,50 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdfam10/amdfam10.h"
+#include <northbridge/amd/amdfam10/amdfam10.h>
 #include "northbridge/amd/amdfam10/raminit_sysinfo_in_ram.c"
 #include "northbridge/amd/amdfam10/pci.c"
 #include "resourcemap.c"
 #include "cpu/amd/quadcore/quadcore.c"
-#include "southbridge/nvidia/mcp55/early_setup_ss.h"
+#include <southbridge/nvidia/mcp55/early_setup_ss.h>
 #include "southbridge/nvidia/mcp55/early_setup_car.c"
-#include "cpu/amd/microcode.h"
+#include <cpu/amd/microcode.h>
 
-#include "cpu/amd/model_10xxx/init_cpus.c"
+#include "cpu/amd/family_10h-family_15h/init_cpus.c"
 #include "northbridge/amd/amdfam10/early_ht.c"
 
 static void sio_setup(void)
 {
-        uint32_t dword;
-        uint8_t byte;
-        enable_smbus();
-//	smbusx_write_byte(1, (0x58>>1), 0, 0x80); /* select bank0 */
-	smbusx_write_byte(1, (0x58>>1), 0xb1, 0xff); /* set FAN ctrl to DC mode */
+	uint32_t dword;
+	uint8_t byte;
+	enable_smbus();
+//	smbusx_write_byte(1, (0x58 >> 1), 0, 0x80); /* select bank0 */
+	smbusx_write_byte(1, (0x58 >> 1), 0xb1, 0xff); /* set FAN ctrl to DC mode */
 
-        byte = pci_read_config8(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0x7b);
-        byte |= 0x20;
-        pci_write_config8(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0x7b, byte);
+	byte = pci_read_config8(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0x7b);
+	byte |= 0x20;
+	pci_write_config8(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0x7b, byte);
 
-        dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0);
-        dword |= (1<<0);
-        pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0, dword);
+	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0);
+	dword |= (1 << 0);
+	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0, dword);
 
-        dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4);
-        dword |= (1<<16);
-        pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4, dword);
+	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4);
+	dword |= (1 << 16);
+	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4, dword);
 }
 
 static const u8 spd_addr[] = {
-	//first node
+	/* first node */
 	RC00, DIMM0, DIMM2, 0, 0, DIMM1, DIMM3, 0, 0,
 #if CONFIG_MAX_PHYSICAL_CPUS > 1
-	//second node
+	/* second node */
 	RC00, DIMM4, DIMM6, 0, 0, DIMM5, DIMM7, 0, 0,
 #endif
 #if CONFIG_MAX_PHYSICAL_CPUS > 2
-	//third node
+	/* third node */
 	RC02, DIMM0, DIMM2, 0, 0, DIMM1, DIMM3, 0, 0,
-	//forth node
+	/* fourth node */
 	RC03, DIMM4, DIMM6,0 , 0, DIMM5, DIMM7, 0, 0,
 #endif
 };
@@ -171,20 +169,23 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	u32 bsp_apicid = 0, val, wants_reset;
 	msr_t msr;
 
-        if (!cpu_init_detectedx && boot_cpu()) {
+	timestamp_init(timestamp_get());
+	timestamp_add_now(TS_START_ROMSTAGE);
+
+	if (!cpu_init_detectedx && boot_cpu()) {
 		/* Nothing special needs to be done to find bus 0 */
 		/* Allow the HT devices to be found */
 		set_bsp_node_CHtExtNodeCfgEn();
 		enumerate_ht_chain();
 		sio_setup();
-        }
+	}
 
-  post_code(0x30);
+	post_code(0x30);
 
-        if (bist == 0)
+	if (bist == 0)
 		bsp_apicid = init_cpus(cpu_init_detectedx, sysinfo);
 
-  post_code(0x32);
+	post_code(0x32);
 
 	w83627hf_set_clksel_48(DUMMY_DEV);
 	winbond_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
@@ -196,106 +197,111 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	/* Halt if there was a built in self test failure */
 	report_bist_failure(bist);
 
- val = cpuid_eax(1);
- printk(BIOS_DEBUG, "BSP Family_Model: %08x \n", val);
- printk(BIOS_DEBUG, "*sysinfo range: [%p,%p]\n",sysinfo,sysinfo+1);
- printk(BIOS_DEBUG, "bsp_apicid = %02x \n", bsp_apicid);
- printk(BIOS_DEBUG, "cpu_init_detectedx = %08lx \n", cpu_init_detectedx);
+	val = cpuid_eax(1);
+	printk(BIOS_DEBUG, "BSP Family_Model: %08x\n", val);
+	printk(BIOS_DEBUG, "*sysinfo range: [%p,%p]\n",sysinfo,sysinfo+1);
+	printk(BIOS_DEBUG, "bsp_apicid = %02x\n", bsp_apicid);
+	printk(BIOS_DEBUG, "cpu_init_detectedx = %08lx\n", cpu_init_detectedx);
 
- /* Setup sysinfo defaults */
- set_sysinfo_in_ram(0);
+	/* Setup sysinfo defaults */
+	set_sysinfo_in_ram(0);
 
- update_microcode(val);
+	update_microcode(val);
 
- post_code(0x33);
+	post_code(0x33);
 
- cpuSetAMDMSR();
- post_code(0x34);
+	cpuSetAMDMSR(0);
+	post_code(0x34);
 
- amd_ht_init(sysinfo);
- post_code(0x35);
+	amd_ht_init(sysinfo);
+	post_code(0x35);
 
- /* Setup nodes PCI space and start core 0 AP init. */
- finalize_node_setup(sysinfo);
+	/* Setup nodes PCI space and start core 0 AP init. */
+	finalize_node_setup(sysinfo);
 
- /* Setup any mainboard PCI settings etc. */
- setup_mb_resource_map();
- post_code(0x36);
+	/* Setup any mainboard PCI settings etc. */
+	setup_mb_resource_map();
+	post_code(0x36);
 
- /* wait for all the APs core0 started by finalize_node_setup. */
- /* FIXME: A bunch of cores are going to start output to serial at once.
-  * It would be nice to fixup prink spinlocks for ROM XIP mode.
-  * I think it could be done by putting the spinlock flag in the cache
-  * of the BSP located right after sysinfo.
-  */
+	/* wait for all the APs core0 started by finalize_node_setup. */
+	/* FIXME: A bunch of cores are going to start output to serial at once.
+	* It would be nice to fixup prink spinlocks for ROM XIP mode.
+	* I think it could be done by putting the spinlock flag in the cache
+	* of the BSP located right after sysinfo.
+	*/
 
-        wait_all_core0_started();
+	wait_all_core0_started();
 #if CONFIG_LOGICAL_CPUS
- /* Core0 on each node is configured. Now setup any additional cores. */
- printk(BIOS_DEBUG, "start_other_cores()\n");
-        start_other_cores();
- post_code(0x37);
-        wait_all_other_cores_started(bsp_apicid);
+	/* Core0 on each node is configured. Now setup any additional cores. */
+	printk(BIOS_DEBUG, "start_other_cores()\n");
+	start_other_cores(bsp_apicid);
+	post_code(0x37);
+	wait_all_other_cores_started(bsp_apicid);
 #endif
 
- post_code(0x38);
+	post_code(0x38);
 
 #if CONFIG_SET_FIDVID
- msr = rdmsr(0xc0010071);
- printk(BIOS_DEBUG, "\nBegin FIDVID MSR 0xc0010071 0x%08x 0x%08x \n", msr.hi, msr.lo);
+	msr = rdmsr(0xc0010071);
+	printk(BIOS_DEBUG, "\nBegin FIDVID MSR 0xc0010071 0x%08x 0x%08x\n", msr.hi, msr.lo);
 
- /* FIXME: The sb fid change may survive the warm reset and only
-  * need to be done once.*/
+	/* FIXME: The sb fid change may survive the warm reset and only
+	* need to be done once.*/
 
-        enable_fid_change_on_sb(sysinfo->sbbusn, sysinfo->sbdn);
- post_code(0x39);
+	enable_fid_change_on_sb(sysinfo->sbbusn, sysinfo->sbdn);
+	post_code(0x39);
 
- if (!warm_reset_detect(0)) {      // BSP is node 0
-   init_fidvid_bsp(bsp_apicid, sysinfo->nodes);
- } else {
-   init_fidvid_stage2(bsp_apicid, 0);  // BSP is node 0
-        }
+	if (!warm_reset_detect(0)) {      // BSP is node 0
+		init_fidvid_bsp(bsp_apicid, sysinfo->nodes);
+	} else {
+		init_fidvid_stage2(bsp_apicid, 0);  // BSP is node 0
+	}
 
- post_code(0x3A);
+	post_code(0x3A);
 
- /* show final fid and vid */
- msr=rdmsr(0xc0010071);
- printk(BIOS_DEBUG, "End FIDVIDMSR 0xc0010071 0x%08x 0x%08x \n", msr.hi, msr.lo);
+	/* show final fid and vid */
+	msr = rdmsr(0xc0010071);
+	printk(BIOS_DEBUG, "End FIDVIDMSR 0xc0010071 0x%08x 0x%08x\n", msr.hi, msr.lo);
 #endif
 
-	init_timer(); // Need to use TMICT to synconize FID/VID
+	init_timer(); // Need to use TMICT to synchronize FID/VID
 
- wants_reset = mcp55_early_setup_x();
+	wants_reset = mcp55_early_setup_x();
 
- /* Reset for HT, FIDVID, PLL and errata changes to take affect. */
- if (!warm_reset_detect(0)) {
-   print_info("...WARM RESET...\n\n\n");
-              	soft_reset();
-   die("After soft_reset_x - shouldn't see this message!!!\n");
-        }
+	/* Reset for HT, FIDVID, PLL and errata changes to take affect. */
+	if (!warm_reset_detect(0)) {
+		printk(BIOS_INFO, "...WARM RESET...\n\n\n");
+		soft_reset();
+		die("After soft_reset_x - shouldn't see this message!!!\n");
+	}
 
- if (wants_reset)
-   printk(BIOS_DEBUG, "mcp55_early_setup_x wanted additional reset!\n");
+	if (wants_reset)
+		printk(BIOS_DEBUG, "mcp55_early_setup_x wanted additional reset!\n");
 
- post_code(0x3B);
+	post_code(0x3B);
 
-/* It's the time to set ctrl in sysinfo now; */
-printk(BIOS_DEBUG, "fill_mem_ctrl()\n");
-fill_mem_ctrl(sysinfo->nodes, sysinfo->ctrl, spd_addr);
+	/* It's the time to set ctrl in sysinfo now; */
+	printk(BIOS_DEBUG, "fill_mem_ctrl()\n");
+	fill_mem_ctrl(sysinfo->nodes, sysinfo->ctrl, spd_addr);
 
-post_code(0x3D);
+	post_code(0x3D);
 
-//printk(BIOS_DEBUG, "enable_smbus()\n");
-//        enable_smbus(); /* enable in sio_setup */
+// 	printk(BIOS_DEBUG, "enable_smbus()\n");
+// 	enable_smbus(); /* enable in sio_setup */
 
-post_code(0x40);
+	post_code(0x40);
 
- printk(BIOS_DEBUG, "raminit_amdmct()\n");
- raminit_amdmct(sysinfo);
- post_code(0x41);
+	timestamp_add_now(TS_BEFORE_INITRAM);
+	printk(BIOS_DEBUG, "raminit_amdmct()\n");
+	raminit_amdmct(sysinfo);
+	timestamp_add_now(TS_AFTER_INITRAM);
+	cbmem_initialize_empty();
+	post_code(0x41);
 
- post_cache_as_ram();  // BSP switch stack to ram, copy then execute LB.
- post_code(0x42);  // Should never see this post code.
+	amdmct_cbmem_store_info(sysinfo);
+
+	post_cache_as_ram();  /* BSP switch stack to ram, copy then execute CB. */
+	post_code(0x42);  /* Should never see this post code. */
 }
 
 /**
@@ -311,11 +317,9 @@ post_code(0x40);
  *	based on each device's unit count.
  *
  * Parameters:
- *	@param[in]  u8  node    = The node on which this chain is located
- *	@param[in]  u8  link    = The link on the host for this chain
- *	@param[out] u8** list   = supply a pointer to a list
- *	@param[out] BOOL result = true to use a manual list
- *				  false to initialize the link automatically
+ *	@param[in]  node   = The node on which this chain is located
+ *	@param[in]  link   = The link on the host for this chain
+ *	@param[out] List   = supply a pointer to a list
  */
 BOOL AMD_CB_ManualBUIDSwapList (u8 node, u8 link, const u8 **List)
 {

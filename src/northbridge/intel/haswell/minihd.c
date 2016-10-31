@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -67,7 +63,8 @@ static const u32 minihd_verb_table[] = {
 static void minihd_init(struct device *dev)
 {
 	struct resource *res;
-	u32 base, reg32;
+	u32 reg32;
+	u8 *base;
 	int codec_mask, i;
 
 	/* Find base address */
@@ -75,8 +72,8 @@ static void minihd_init(struct device *dev)
 	if (!res)
 		return;
 
-	base = (u32)res->base;
-	printk(BIOS_DEBUG, "Mini-HD: base = %08x\n", (u32)base);
+	base = res2mmio(res, 0, 0);
+	printk(BIOS_DEBUG, "Mini-HD: base = %p\n", base);
 
 	/* Set Bus Master */
 	reg32 = pci_read_config32(dev, PCI_COMMAND);
@@ -137,4 +134,3 @@ static const struct pci_driver haswell_minihd __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-

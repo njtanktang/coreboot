@@ -44,25 +44,31 @@
 #define _LIBPAYLOAD_H
 
 #include <libpayload-config.h>
+#include <cbgfx.h>
 #include <ctype.h>
+#include <die.h>
+#include <endian.h>
+#include <fmap_serialized.h>
 #include <ipchksum.h>
+#include <kconfig.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <arch/types.h>
 #include <arch/io.h>
 #include <arch/virtual.h>
 #include <sysinfo.h>
 #include <pci.h>
-#ifdef CONFIG_LAR
-#include <lar.h>
-#endif
+#include <archive.h>
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+
+static inline u32 div_round_up(u32 n, u32 d) { return (n + d - 1) / d; }
 
 #define LITTLE_ENDIAN	1234
 #define BIG_ENDIAN	4321
@@ -163,6 +169,7 @@ int keyboard_set_layout(char *country);
  * @{
  */
 void serial_init(void);
+void serial_console_init(void);
 void serial_putchar(unsigned int c);
 int serial_havechar(void);
 int serial_getchar(void);
@@ -202,6 +209,18 @@ void video_console_clear(void);
 void video_console_cursor_enable(int state);
 void video_console_get_cursor(unsigned int *x, unsigned int *y, unsigned int *en);
 void video_console_set_cursor(unsigned int cursorx, unsigned int cursory);
+/*
+ * print characters on video console with colors. note that there is a size
+ * restriction for the internal buffer. so, output string can be truncated.
+ */
+enum video_printf_align {
+	VIDEO_PRINTF_ALIGN_KEEP = 0,
+	VIDEO_PRINTF_ALIGN_LEFT,
+	VIDEO_PRINTF_ALIGN_CENTER,
+	VIDEO_PRINTF_ALIGN_RIGHT,
+};
+void video_printf(int foreground, int background, enum video_printf_align align,
+		  const char *fmt, ...);
 /** @} */
 
 /**
@@ -210,7 +229,7 @@ void video_console_set_cursor(unsigned int cursorx, unsigned int cursory);
  * @{
  */
 void cbmem_console_init(void);
-void cbmem_console_putc(unsigned int data);
+void cbmem_console_write(const void *buffer, size_t count);
 /** @} */
 
 /* drivers/option.c */
@@ -247,12 +266,19 @@ int set_option_from_string(const struct nvram_accessor *nvram, struct cb_cmos_op
  * @defgroup console Console functions
  * @{
  */
+typedef enum {
+	CONSOLE_INPUT_TYPE_UNKNOWN = 0,
+	CONSOLE_INPUT_TYPE_USB,
+} console_input_type;
+
 void console_init(void);
+void console_write(const void *buffer, size_t count);
 int putchar(unsigned int c);
 int puts(const char *s);
 int havekey(void);
 int getchar(void);
 int getchar_timeout(int *ms);
+console_input_type last_key_input_type(void);
 
 extern int last_putchar;
 
@@ -261,16 +287,19 @@ struct console_input_driver {
 	struct console_input_driver *next;
 	int (*havekey) (void);
 	int (*getchar) (void);
+	console_input_type input_type;
 };
 
 struct console_output_driver;
 struct console_output_driver {
 	struct console_output_driver *next;
 	void (*putchar) (unsigned int);
+	void (*write) (const void *, size_t);
 };
 
 void console_add_output_driver(struct console_output_driver *out);
 void console_add_input_driver(struct console_input_driver *in);
+int console_remove_output_driver(void *function);
 
 #define havechar havekey
 /** @} */
@@ -294,8 +323,15 @@ long int labs(long int j);
 long long int llabs(long long int j);
 u8 bin2hex(u8 b);
 u8 hex2bin(u8 h);
-void hexdump(void *memory, int length);
+void hexdump(const void *memory, size_t length);
 void fatal(const char *msg) __attribute__ ((noreturn));
+
+/* Count Leading Zeroes: clz(0) == 32, clz(0xf) == 28, clz(1 << 31) == 0 */
+static inline int clz(u32 x) { return x ? __builtin_clz(x) : sizeof(x) * 8; }
+/* Integer binary logarithm (rounding down): log2(0) == -1, log2(5) == 2 */
+static inline int log2(u32 x) { return sizeof(x) * 8 - clz(x) - 1; }
+/* Find First Set: __ffs(0xf) == 0, __ffs(0) == -1, __ffs(1 << 31) == 31 */
+static inline int __ffs(u32 x) { return log2(x & (u32)(-(s32)x)); }
 /** @} */
 
 
@@ -319,77 +355,6 @@ u8 *sha1(const u8 *data, size_t len, u8 *buf);
 /** @} */
 
 /**
- * @defgroup time Time functions
- * @{
- */
-
-/** System time structure */
-struct timeval {
-	time_t tv_sec;       /**< Seconds */
-	suseconds_t tv_usec; /**< Microseconds */
-};
-
-int gettimeofday(struct timeval *tv, void *tz);
-/** @} */
-
-#ifdef CONFIG_LAR
-/**
- * @defgroup lar LAR functions
- * @{
- */
-
-/** LAR file header */
-struct LAR {
-	void *start;    /**< Location of the LAR in memory */
-	int cindex;     /**< Next file to return in readlar() */
-	int count;      /**< Number of entries in the header cache */
-	int alloc;      /**< Number of slots in the header cache */
-	int eof;        /**< Last entry in the header cache */
-	void **headers; /**< Pointer to the header cache */
-};
-
-/** A structure representing the next LAR entry */
-struct larent {
-	u8 name[LAR_MAX_PATHLEN]; /**< The name of the next LAR entry */
-};
-
-/** A structure containing information about a LAR file */
-struct larstat {
-	u32 len;           /**< Length of the file in the LAR */
-	u32 reallen;       /**< Length of the uncompressed file */
-	u32 checksum;      /**< Checksum of the uncompressed file */
-	u32 compchecksum;  /**< Checksum of the compressed file in the LAR */
-	u32 offset;        /**< Offset of the file in the LAR */
-	u32 compression;   /**< Compression type of the file */
-	u64 entry;         /**< Entry point of the file for executables */
-	u64 loadaddress;   /**< Address in memory to put the uncompressed file */
-};
-
-/** A structure representing a LAR file */
-struct LFILE {
-	struct LAR *lar;           /**< Pointer to the LAR struct */
-	struct lar_header *header; /**< Pointer to the header struct */
-	u32 size;                  /**< Size of the file */
-	void *start;               /**< Start of the file in memory */
-	u32 offset;                /**< Offset of the file in the LAR */
-};
-
-struct LAR *openlar(void *addr);
-int closelar(struct LAR *lar);
-struct larent *readlar(struct LAR *lar);
-void rewindlar(struct LAR *lar);
-int larstat(struct LAR *lar, const char *path, struct larstat *buf);
-void *larfptr(struct LAR *lar, const char *filename);
-int lfverify(struct LAR *lar, const char *filename);
-struct LFILE *lfopen(struct LAR *lar, const char *filename);
-int lfread(void *ptr, size_t size, size_t nmemb, struct LFILE *stream);
-
-int lfseek(struct LFILE *stream, long offset, int whence);
-int lfclose(struct LFILE *file);
-/** @} */
-#endif
-
-/**
  * @defgroup info System information functions
  * This module contains functions that return information about the system
  * @{
@@ -406,14 +371,18 @@ int sysinfo_have_multiboot(unsigned long *addr);
  */
 int get_coreboot_info(struct sysinfo_t *info);
 int get_multiboot_info(struct sysinfo_t *info);
+void *get_cb_header_ptr(void);
 
 int lib_get_sysinfo(void);
+void lib_sysinfo_get_memranges(struct memrange **ranges,
+			       uint64_t *nranges);
 
 /* Timer functions. */
 /* Defined by each architecture. */
 unsigned int get_cpu_speed(void);
 uint64_t timer_hz(void);
 uint64_t timer_raw_value(void);
+uint64_t timer_us(uint64_t base);
 /* Generic. */
 void ndelay(unsigned int n);
 void udelay(unsigned int n);
@@ -430,4 +399,16 @@ char *readline(const char *prompt);
 int getline(char *buffer, int len);
 /** @} */
 
+/* Defined in arch/${ARCH}/selfboot.c */
+void selfboot(void *entry);
+
+/* Enter remote GDB mode. Will initialize connection if not already up. */
+void gdb_enter(void);
+/* Disconnect existing GDB connection if one exists. */
+void gdb_exit(s8 exit_status);
+
+/* look for area "name" in "fmap", setting offset and size to describe it.
+   Returns 0 on success, < 0 on error. */
+int fmap_region_by_name(const uint32_t fmap_offset, const char * const name,
+			uint32_t * const offset, uint32_t * const size);
 #endif

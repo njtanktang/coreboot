@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 config CPU_AMD_AGESA_FAMILY12
 	bool
@@ -27,23 +23,6 @@ if CPU_AMD_AGESA_FAMILY12
 config CPU_ADDR_BITS
 	int
 	default 48
-
-config CPU_SOCKET_TYPE
-	hex
-	default 0x10
-
-# DDR2 and REG
-config DIMM_SUPPORT
-	hex
-	default 0x0104
-
-config EXT_RT_TBL_SUPPORT
-	bool
-	default n
-
-config EXT_CONF_SUPPORT
-	bool
-	default n
 
 config CBB
 	hex

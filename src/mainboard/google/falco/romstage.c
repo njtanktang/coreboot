@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -79,8 +75,8 @@ static void copy_spd(struct pei_data *peid)
 	size_t spd_file_len;
 
 	printk(BIOS_DEBUG, "SPD index %d\n", spd_index);
-	spd_file = cbfs_get_file_content(CBFS_DEFAULT_MEDIA, "spd.bin", 0xab,
-					 &spd_file_len);
+	spd_file = cbfs_boot_map_with_leak("spd.bin", CBFS_TYPE_SPD,
+						&spd_file_len);
 	if (!spd_file)
 		die("SPD data not found.");
 
@@ -93,11 +89,13 @@ static void copy_spd(struct pei_data *peid)
 	if (spd_file_len < sizeof(peid->spd_data[0]))
 		die("Missing SPD data.");
 
-	/* Index 0-2 are 4GB config with both CH0 and CH1
-	 * Index 3-5 are 2GB config with CH0 only
+	/* Index 0-2,6 are 4GB config with both CH0 and CH1
+	 * Index 3-5,7 are 2GB config with CH0 only
 	 */
-	if (spd_index > 2)
+	switch (spd_index) {
+	case 3: case 4: case 5: case 7:
 		peid->dimm_channel1_disabled = 3;
+	}
 
 	memcpy(peid->spd_data[0],
 	       spd_file +
@@ -109,15 +107,15 @@ void mainboard_romstage_entry(unsigned long bist)
 {
 	struct pei_data pei_data = {
 		.pei_version = PEI_VERSION,
-		.mchbar = DEFAULT_MCHBAR,
-		.dmibar = DEFAULT_DMIBAR,
+		.mchbar = (uintptr_t)DEFAULT_MCHBAR,
+		.dmibar = (uintptr_t)DEFAULT_DMIBAR,
 		.epbar = DEFAULT_EPBAR,
 		.pciexbar = DEFAULT_PCIEXBAR,
 		.smbusbar = SMBUS_IO_BASE,
 		.wdbbar = 0x4000000,
 		.wdbsize = 0x1000,
 		.hpet_address = HPET_ADDR,
-		.rcba = DEFAULT_RCBA,
+		.rcba = (uintptr_t)DEFAULT_RCBA,
 		.pmbase = DEFAULT_PMBASE,
 		.gpiobase = DEFAULT_GPIOBASE,
 		.temp_mmio_base = 0xfed08000,

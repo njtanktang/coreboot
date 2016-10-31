@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -38,7 +34,7 @@ void sr56x0_rd890_disable_pcie_bridge(void)
 	AMD_NB_CONFIG_BLOCK	*cfg_ptr = &cfg_block;
 	AMD_NB_CONFIG		*nb_cfg  = &(cfg_block.Northbridges[0]);
 
-        nb_cfg->ConfigPtr = &cfg_ptr;
+	nb_cfg->ConfigPtr = &cfg_ptr;
 	nb_dev = MAKE_SBDFO(0, 0x0, 0x0, 0x0, 0x0);
 	val = (1 << 2) | (1 << 3); /*GPP1*/
 	val |= (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 16) | (1 << 17); /*GPP3a*/

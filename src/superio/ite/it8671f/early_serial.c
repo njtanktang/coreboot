@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -89,13 +85,13 @@ void it8671f_48mhz_clkin(void)
 }
 
 /* Enable the serial port(s). */
-void it8671f_enable_serial(device_t dev, u16 iobase)
+void it8671f_enable_serial(pnp_devfn_t dev, u16 iobase)
 {
 	it8671f_enter_conf();
 
 	/*
 	 * Allow all devices to be enabled. Bits: FDC (0), Com1 (1), Com2 (2),
-         * PP (3), Reserved (4), KBCK (5), KBCM (6), Reserved (7).
+	 * PP (3), Reserved (4), KBCK (5), KBCM (6), Reserved (7).
 	 */
 	it8671f_sio_write(0x00, IT8671F_CONFIG_REG_LDE, 0x6f);
 

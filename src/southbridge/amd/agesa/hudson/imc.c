@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include "imc.h"
@@ -22,27 +18,29 @@
 #include <delay.h>
 #include "Porting.h"
 #include "AGESA.h"
-#include <Lib/amdlib.h>
+#include <amdlib.h>
 #include <Proc/Fch/Fch.h>
 #include <Proc/Fch/Common/FchCommonCfg.h>
 #include <Proc/Fch/FchPlatform.h>
+
+#define VACPI_MMIO_VBASE ((u8 *)ACPI_MMIO_BASE)
 
 void imc_reg_init(void)
 {
 	/* Init Power Management Block 2 (PM2) Registers.
 	 * Check BKDG for AMD Family 16h for details. */
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x00, 0x06);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x01, 0x06);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x02, 0xf7);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x03, 0xff);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x04, 0xff);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x00, 0x06);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x01, 0x06);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x02, 0xf7);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x03, 0xff);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x04, 0xff);
 
 #if !CONFIG_SOUTHBRIDGE_AMD_AGESA_YANGTZE
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x10, 0x06);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x11, 0x06);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x12, 0xf7);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x13, 0xff);
-	write8(ACPI_MMIO_BASE + PMIO2_BASE + 0x14, 0xff);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x10, 0x06);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x11, 0x06);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x12, 0xf7);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x13, 0xff);
+	write8(VACPI_MMIO_VBASE + PMIO2_BASE + 0x14, 0xff);
 #endif
 
 #if CONFIG_SOUTHBRIDGE_AMD_AGESA_YANGTZE
@@ -68,12 +66,12 @@ void enable_imc_thermal_zone(void)
 	regs[0] = 0;
 	regs[1] = 0;
 	FunNum = Fun_80;
-	for (i=0; i<=1; i++)
+	for (i = 0; i <= 1; i++)
 		WriteECmsg(MSG_REG0 + i, AccessWidth8, &regs[i], &StdHeader);
 	WriteECmsg(MSG_SYS_TO_IMC, AccessWidth8, &FunNum, &StdHeader);     // function number
 	WaitForEcLDN9MailboxCmdAck(&StdHeader);
 
-	for (i=2; i<=9; i++)
+	for (i = 2; i <= 9; i++)
 		ReadECmsg(MSG_REG0 + i, AccessWidth8, &regs[i], &StdHeader);
 
 	/* enable thermal zone 0 */
@@ -81,7 +79,7 @@ void enable_imc_thermal_zone(void)
 	regs[0] = 0;
 	regs[1] = 0;
 	FunNum = Fun_81;
-	for (i=0; i<=9; i++)
+	for (i = 0; i <= 9; i++)
 		WriteECmsg(MSG_REG0 + i, AccessWidth8, &regs[i], &StdHeader);
 	WriteECmsg(MSG_SYS_TO_IMC, AccessWidth8, &FunNum, &StdHeader);     // function number
 	WaitForEcLDN9MailboxCmdAck(&StdHeader);

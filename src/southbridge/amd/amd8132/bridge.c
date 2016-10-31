@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -36,8 +32,7 @@ static void amd8132_walk_children(struct bus *bus,
 	void (*visit)(device_t dev, void *ptr), void *ptr)
 {
 	device_t child;
-	for(child = bus->children; child; child = child->sibling)
-	{
+	for (child = bus->children; child; child = child->sibling) {
 		if (child->path.type != DEVICE_PATH_PCI) {
 			continue;
 		}
@@ -130,23 +125,22 @@ static void amd8132_pcix_tune_dev(device_t dev, void *ptr)
 		cmd |= max_tran << 4;
 	}
 
-        /* Don't attempt to handle PCI-X errors */
-        cmd &= ~PCI_X_CMD_DPERR_E;
-        if (orig_cmd != cmd) {
-                pci_write_config16(dev, cap + PCI_X_CMD, cmd);
-        }
+	/* Don't attempt to handle PCI-X errors */
+	cmd &= ~PCI_X_CMD_DPERR_E;
+	if (orig_cmd != cmd) {
+		pci_write_config16(dev, cap + PCI_X_CMD, cmd);
+	}
 
 
 }
-static unsigned int amd8132_scan_bus(struct bus *bus,
-	unsigned min_devfn, unsigned max_devfn, unsigned int max)
+static void amd8132_scan_bus(struct bus *bus,
+	unsigned min_devfn, unsigned max_devfn)
 {
 	struct amd8132_bus_info info;
 	unsigned pos;
 
-
 	/* Find the children on the bus */
-	max = pci_scan_bus(bus, min_devfn, max_devfn, max);
+	pci_scan_bus(bus, min_devfn, max_devfn);
 
 	/* Find the revision of the 8132 */
 	info.rev = pci_read_config8(bus->dev, PCI_CLASS_REVISION);
@@ -156,7 +150,7 @@ static unsigned int amd8132_scan_bus(struct bus *bus,
 	info.sstatus = pci_read_config16(bus->dev, pos + PCI_X_SEC_STATUS);
 
 	/* Print the PCI-X bus speed */
-	printk(BIOS_DEBUG, "PCI: %02x: %s sstatus=%04x rev=%02x \n", bus->secondary, pcix_speed(info.sstatus), info.sstatus, info.rev);
+	printk(BIOS_DEBUG, "PCI: %02x: %s sstatus=%04x rev=%02x\n", bus->secondary, pcix_speed(info.sstatus), info.sstatus, info.rev);
 
 
 	/* Examine the bus and find out how loaded it is */
@@ -181,25 +175,23 @@ static unsigned int amd8132_scan_bus(struct bus *bus,
 		pcix_misc &= ~(0x1f << 16);
 		pci_write_config32(bus->dev, 0x40, pcix_misc);
 
-		return max;
+		return;
 	}
 #endif
 
 	/* If we are in conventional PCI mode nothing more is necessary.
 	 */
 	if (PCI_X_SSTATUS_MFREQ(info.sstatus) == PCI_X_SSTATUS_CONVENTIONAL_PCI) {
-		return max;
+		return;
 	}
 
 	/* Tune the devices on the bus */
 	amd8132_walk_children(bus, amd8132_pcix_tune_dev, &info);
-
-	return max;
 }
 
-static unsigned int amd8132_scan_bridge(device_t dev, unsigned int max)
+static void amd8132_scan_bridge(device_t dev)
 {
-	return do_pci_scan_bridge(dev, max, amd8132_scan_bus);
+	do_pci_scan_bridge(dev, amd8132_scan_bus);
 }
 
 
@@ -210,18 +202,18 @@ static void amd8132_pcix_init(device_t dev)
 	unsigned chip_rev;
 
 	/* Find the revision of the 8132 */
-        chip_rev = pci_read_config8(dev, PCI_CLASS_REVISION);
+	chip_rev = pci_read_config8(dev, PCI_CLASS_REVISION);
 
 	/* Enable memory write and invalidate ??? */
 	dword = pci_read_config32(dev, 0x04);
-        dword |= 0x10;
+	dword |= 0x10;
 	dword &= ~(1<<6); // PERSP Parity Error Response
-        pci_write_config32(dev, 0x04, dword);
+	pci_write_config32(dev, 0x04, dword);
 
 	if (chip_rev == 0x01) {
 		/* Errata #37 */
 		byte = pci_read_config8(dev, 0x0c);
-		if(byte == 0x08 )
+		if (byte == 0x08 )
 			pci_write_config8(dev, 0x0c, 0x10);
 
 #if 0
@@ -236,58 +228,58 @@ static void amd8132_pcix_init(device_t dev)
 	/* Set up error reporting, enable all */
 	/* system error enable */
 	dword = pci_read_config32(dev, 0x04);
-        dword |= (1<<8);
-        pci_write_config32(dev, 0x04, dword);
+	dword |= (1<<8);
+	pci_write_config32(dev, 0x04, dword);
 
 	/* system and error parity enable */
 	dword = pci_read_config32(dev, 0x3c);
-        dword |= (3<<16);
-        pci_write_config32(dev, 0x3c, dword);
+	dword |= (3<<16);
+	pci_write_config32(dev, 0x3c, dword);
 
-        dword = pci_read_config32(dev, 0x40);
-//        dword &= ~(1<<31); /* WriteChainEnable */
+	dword = pci_read_config32(dev, 0x40);
+//	dword &= ~(1<<31); /* WriteChainEnable */
 	dword |= (1<<31);
 	dword |= (1<<7);// must set to 1
 	dword |= (3<<21); //PCIErrorSerrDisable
-        pci_write_config32(dev, 0x40, dword);
+	pci_write_config32(dev, 0x40, dword);
 
-        /* EXTARB = 1, COMPAT = 0 */
-        dword = pci_read_config32(dev, 0x48);
-        dword |= (1<<3);
+	/* EXTARB = 1, COMPAT = 0 */
+	dword = pci_read_config32(dev, 0x48);
+	dword |= (1<<3);
 	dword &= ~(1<<0);
 	dword |= (1<<15); //CLEARPCILOG_L
 	dword |= (1<<19); //PERR FATAL Enable
 	dword |= (1<<22); // SERR FATAL Enable
 	dword |= (1<<23); // LPMARBENABLE
 	dword |= (0x61<<24); //LPMARBCOUNT
-        pci_write_config32(dev, 0x48, dword);
+	pci_write_config32(dev, 0x48, dword);
 
-        dword = pci_read_config32(dev, 0x4c);
-        dword |= (1<<6); //intial prefetch for memory read line request
+	dword = pci_read_config32(dev, 0x4c);
+	dword |= (1<<6); //Initial prefetch for memory read line request
 	dword |= (1<<9); //continuous prefetch Enable for memory read line request
-        pci_write_config32(dev, 0x4c, dword);
+	pci_write_config32(dev, 0x4c, dword);
 
 
-       /* Disable Single-Bit-Error Correction [30] = 0 */
-        dword = pci_read_config32(dev, 0x70);
-        dword &= ~(1<<30);
-        pci_write_config32(dev, 0x70, dword);
+	/* Disable Single-Bit-Error Correction [30] = 0 */
+	dword = pci_read_config32(dev, 0x70);
+	dword &= ~(1<<30);
+	pci_write_config32(dev, 0x70, dword);
 
 	//link
-        dword = pci_read_config32(dev, 0xd4);
-        dword |= (0x5c<<16);
-        pci_write_config32(dev, 0xd4, dword);
+	dword = pci_read_config32(dev, 0xd4);
+	dword |= (0x5c<<16);
+	pci_write_config32(dev, 0xd4, dword);
 
-        /* TxSlack0 [16:17] = 0, RxHwLookahdEn0 [18] = 1, TxSlack1 [24:25] = 0, RxHwLookahdEn1 [26] = 1 */
-        dword = pci_read_config32(dev, 0xdc);
+	/* TxSlack0 [16:17] = 0, RxHwLookahdEn0 [18] = 1, TxSlack1 [24:25] = 0, RxHwLookahdEn1 [26] = 1 */
+	dword = pci_read_config32(dev, 0xdc);
 	dword |= (1<<1) |  (1<<4); // stream disable 1 to 0 , DBLINSRATE
-        dword |= (1<<18)|(1<<26);
-        dword &= ~((3<<16)|(3<<24));
-        pci_write_config32(dev, 0xdc, dword);
+	dword |= (1<<18)|(1<<26);
+	dword &= ~((3<<16)|(3<<24));
+	pci_write_config32(dev, 0xdc, dword);
 
 	/* Set up CRC flood enable */
 	dword = pci_read_config32(dev, 0xc0);
-	if(dword) {  /* do device A only */
+	if (dword) {  /* do device A only */
 #if 0
 		dword = pci_read_config32(dev, 0xc4);
 		dword |= (1<<1);
@@ -297,12 +289,12 @@ static void amd8132_pcix_init(device_t dev)
 		pci_write_config32(dev, 0xc8, dword);
 #endif
 
-	        if (chip_rev == 0x11) {
-        	        /* [18] Clock Gate Enable = 1 */
-                	dword = pci_read_config32(dev, 0xf0);
-	                dword |= 0x00040008;
-        	        pci_write_config32(dev, 0xf0, dword);
-	        }
+		if (chip_rev == 0x11) {
+			/* [18] Clock Gate Enable = 1 */
+			dword = pci_read_config32(dev, 0xf0);
+			dword |= 0x00040008;
+			pci_write_config32(dev, 0xf0, dword);
+		}
 
 	}
 	return;
@@ -344,22 +336,22 @@ static void bridge_set_resources(struct device *dev)
 
 static struct device_operations pcix_ops  = {
 #if BRIDGE_40_BIT_SUPPORT
-        .read_resources   = bridge_read_resources,
-        .set_resources    = bridge_set_resources,
+	.read_resources   = bridge_read_resources,
+	.set_resources    = bridge_set_resources,
 #else
-        .read_resources   = pci_bus_read_resources,
-        .set_resources    = pci_dev_set_resources,
+	.read_resources   = pci_bus_read_resources,
+	.set_resources    = pci_dev_set_resources,
 #endif
 	.enable_resources = pci_bus_enable_resources,
-        .init             = amd8132_pcix_init,
-        .scan_bus         = amd8132_scan_bridge,
+	.init             = amd8132_pcix_init,
+	.scan_bus         = amd8132_scan_bridge,
 	.reset_bus        = pci_bus_reset,
 };
 
 static const struct pci_driver pcix_driver __pci_driver = {
-        .ops    = &pcix_ops,
-        .vendor = PCI_VENDOR_ID_AMD,
-        .device = 0x7458,
+	.ops    = &pcix_ops,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = 0x7458,
 };
 
 static void ioapic_enable(device_t dev)
@@ -376,39 +368,39 @@ static void ioapic_enable(device_t dev)
 }
 static void amd8132_ioapic_init(device_t dev)
 {
-        uint32_t dword;
-        unsigned chip_rev;
+	uint32_t dword;
+	unsigned chip_rev;
 
-        /* Find the revision of the 8132 */
-        chip_rev = pci_read_config8(dev, PCI_CLASS_REVISION);
+	/* Find the revision of the 8132 */
+	chip_rev = pci_read_config8(dev, PCI_CLASS_REVISION);
 
-        if (chip_rev == 0x01) {
+	if (chip_rev == 0x01) {
 #if 0
-                /* Errata #43 */
-                dword = pci_read_config32(dev, 0xc8);
+		/* Errata #43 */
+		dword = pci_read_config32(dev, 0xc8);
 		dword |= (0x3<<23);
 		pci_write_config32(dev, 0xc8, dword);
 #endif
 
-        }
+	}
 
 
-        if( (chip_rev == 0x11) ||(chip_rev == 0x12) ) {
-                //for b1 b2
-                /* Errata #73 */
-                dword = pci_read_config32(dev, 0x80);
-                dword |= (0x1f<<5);
-                pci_write_config32(dev, 0x80, dword);
-                dword = pci_read_config32(dev, 0x88);
-                dword |= (0x1f<<5);
-                pci_write_config32(dev, 0x88, dword);
+	if ( (chip_rev == 0x11) ||(chip_rev == 0x12) ) {
+		//for b1 b2
+		/* Errata #73 */
+		dword = pci_read_config32(dev, 0x80);
+		dword |= (0x1f<<5);
+		pci_write_config32(dev, 0x80, dword);
+		dword = pci_read_config32(dev, 0x88);
+		dword |= (0x1f<<5);
+		pci_write_config32(dev, 0x88, dword);
 
-                /* Errata #74 */
-                dword = pci_read_config32(dev, 0x7c);
-                dword &= ~(0x3<<30);
-                dword |= (0x01<<30);
-                pci_write_config32(dev, 0x7c, dword);
-        }
+		/* Errata #74 */
+		dword = pci_read_config32(dev, 0x7c);
+		dword &= ~(0x3<<30);
+		dword |= (0x01<<30);
+		pci_write_config32(dev, 0x7c, dword);
+	}
 
 }
 

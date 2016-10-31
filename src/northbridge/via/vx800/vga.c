@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Note: Some of the VGA control registers are located on the memory controller.
@@ -52,13 +48,13 @@
 
 static int via_vx800_int15_handler(void)
 {
-	int res=0;
+	int res = 0;
 	printk(BIOS_DEBUG, "via_vx800_int15_handler\n");
 	switch(X86_EAX & 0xffff) {
 	case 0x5f19:
-		X86_EAX=0x5f;
-		X86_ECX=0x03;
-		res=1;
+		X86_EAX = 0x5f;
+		X86_ECX = 0x03;
+		res = 1;
 		break;
 	case 0x5f18:
 	{
@@ -108,17 +104,17 @@ static int via_vx800_int15_handler(void)
 		res = 1;
 		break;
 	case 0x5f02:
-		X86_EAX=0x5f;
-		X86_EBX= (X86_EBX & 0xffff0000) | 2;
-		X86_ECX= (X86_ECX & 0xffff0000) | 0x401;  // PAL + crt only
-		X86_EDX= (X86_EDX & 0xffff0000) | 0;  // TV Layout - default
-		res=1;
+		X86_EAX = 0x5f;
+		X86_EBX = (X86_EBX & 0xffff0000) | 2;
+		X86_ECX = (X86_ECX & 0xffff0000) | 0x401;  // PAL + crt only
+		X86_EDX = (X86_EDX & 0xffff0000) | 0;  // TV Layout - default
+		res = 1;
 		break;
 	case 0x5f0f:
 		X86_EAX = 0x005f;
 		res = 1;
 		break;
-        default:
+	default:
 		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n",
 				X86_EAX & 0xffff);
 		X86_EAX = 0;
@@ -138,10 +134,6 @@ static void write_protect_vgabios(void)
 			      PCI_DEVICE_ID_VIA_VX855_MEMCTRL, 0);
 	if (dev)
 		pci_write_config8(dev, 0x80, 0xff);
-	/*vx855 no th 0x61 reg */
-	/*dev = dev_find_device(PCI_VENDOR_ID_VIA, PCI_DEVICE_ID_VIA_VX855_VLINK, 0);
-	   //if(dev)
-	   //   pci_write_config8(dev, 0x61, 0xff); */
 }
 #endif
 
@@ -170,15 +162,6 @@ static void vga_init(device_t dev)
 	reg8 = reg8 | 2;
 	outb(reg8, 0x92);
 
-	//*
-	//pci_write_config8(dev, 0x04, 0x07);
-	//pci_write_config32(dev,0x10, 0xa0000008);
-	//pci_write_config32(dev,0x14, 0xdd000000);
-	pci_write_config32(dev, 0x10, VIACONFIG_VGA_PCI_10);
-	pci_write_config32(dev, 0x14, VIACONFIG_VGA_PCI_14);
-	pci_write_config8(dev, 0x3c, 0x0a);	//same with vx855_lpc.c
-	//*/
-
 	printk(BIOS_DEBUG, "Initializing VGA...\n");
 
 	pci_dev_init(dev);
@@ -186,7 +169,7 @@ static void vga_init(device_t dev)
 	printk(BIOS_DEBUG, "Enable VGA console\n");
 	vga_enable_console();
 
-	if ((acpi_sleep_type == 3)/* || (PAYLOAD_IS_SEABIOS == 0)*/) {
+	if (acpi_sleep_type == 3/* || (PAYLOAD_IS_SEABIOS == 0)*/) {
 		/* It's not clear if these need to be programmed before or after
 		 * the VGA bios runs. Try both, clean up later */
 		/* Set memory rate to 200MHz */
@@ -196,13 +179,6 @@ static void vga_init(device_t dev)
 		reg8 |= (0x3 << 4);
 		outb(0x3d, CRTM_INDEX);
 		outb(reg8, CRTM_DATA);
-
-#if 0
-		/* Set framebuffer size to CONFIG_VIDEO_MB mb */
-		reg8 = (CONFIG_VIDEO_MB/4);
-		outb(0x39, SR_INDEX);
-		outb(reg8, SR_DATA);
-#endif
 	}
 }
 

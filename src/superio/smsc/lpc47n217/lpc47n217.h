@@ -12,14 +12,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SUPERIO_SMSC_LPC47N217_LPC47N217_H
 #define SUPERIO_SMSC_LPC47N217_LPC47N217_H
+
+#include <arch/io.h>
+#include <stdint.h>
 
 /*
  * These are arbitrary, but must match declarations in the mainboard
@@ -30,5 +29,7 @@
 #define LPC47N217_SP2              5   /* Com2 */
 
 #define LPC47N217_MAX_CONFIG_REGISTER	0x39
+
+void lpc47n217_enable_serial(pnp_devfn_t dev, u16 iobase);
 
 #endif

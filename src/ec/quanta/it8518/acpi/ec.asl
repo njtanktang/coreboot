@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -572,6 +568,9 @@ Device (EC0)
 		// Force a read of CPU temperature
 		// TODO Which temperature corresponds to the CPU?
 		Store (TMP0, Local0)
+		/* So that we don't get a warning that Local0 is unused.  */
+		Increment (Local0)
+
 	}
 
 /* Attention Codes

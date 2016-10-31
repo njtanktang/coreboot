@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -56,7 +52,8 @@ static void *smp_write_config_table(void *v)
 	if (dev) {
 		res = find_resource(dev, PCI_BASE_ADDRESS_1);
 		if (res)
-			smp_write_ioapic(mc, apicid_mcp55, 0x11, res->base);
+			smp_write_ioapic(mc, apicid_mcp55, 0x11,
+					 res2mmio(res, 0, 0));
 
 		pci_write_config32(dev, 0x7c, 0x00000000);
 		pci_write_config32(dev, 0x80, 0x11002009);

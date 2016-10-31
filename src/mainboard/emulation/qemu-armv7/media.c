@@ -12,46 +12,13 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#include <cbfs.h>
-#include <string.h>
-#include <console/console.h>
+#include <boot_device.h>
 
-/* Simple memory-mapped ROM emulation. */
+/* Maps directly to NOR flash up to ROM size. */
+static const struct mem_region_device boot_dev =
+	MEM_REGION_DEV_RO_INIT((void *)0x0, CONFIG_ROM_SIZE);
 
-static int emu_rom_open(struct cbfs_media *media) {
-	return 0;
-}
-
-static void *emu_rom_map(struct cbfs_media *media, size_t offset, size_t count) {
-        return (void*)(offset + CONFIG_BOOTBLOCK_BASE);
-}
-
-static void *emu_rom_unmap(struct cbfs_media *media, const void *address) {
-	return NULL;
-}
-
-static size_t emu_rom_read(struct cbfs_media *media, void *dest, size_t offset,
-			   size_t count) {
-	void *ptr = emu_rom_map(media, offset, count);
-	memcpy(dest, ptr, count);
-	emu_rom_unmap(media, ptr);
-	return count;
-}
-
-static int emu_rom_close(struct cbfs_media *media) {
-	return 0;
-}
-
-int init_emu_rom_cbfs_media(struct cbfs_media *media);
-int init_emu_rom_cbfs_media(struct cbfs_media *media) {
-	media->open = emu_rom_open;
-	media->close = emu_rom_close;
-	media->map = emu_rom_map;
-	media->unmap = emu_rom_unmap;
-	media->read = emu_rom_read;
-	return 0;
-}
-
-int init_default_cbfs_media(struct cbfs_media *media) {
-	return init_emu_rom_cbfs_media(media);
+const struct region_device *boot_device_ro(void)
+{
+	return &boot_dev.rdev;
 }

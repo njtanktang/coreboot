@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* CX700 has 48 bytes of scratch registers in D0F4 starting at Reg. 0xd0 */
@@ -42,5 +38,3 @@
 #define DDRII_333	0x2
 #define DDRII_266	0x1
 #define DDRII_200	0x0
-
-

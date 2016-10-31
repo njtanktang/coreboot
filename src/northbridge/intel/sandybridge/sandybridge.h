@@ -12,14 +12,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__
-#define __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__ 1
+#define __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__
 
 /* Chipset types */
 #define SANDYBRIDGE_MOBILE	0
@@ -48,15 +44,25 @@
 
 /* Northbridge BARs */
 #define DEFAULT_PCIEXBAR	CONFIG_MMCONF_BASE_ADDRESS	/* 4 KB per PCIe device */
+#ifndef __ACPI__
+#define DEFAULT_MCHBAR		((u8 *)0xfed10000)	/* 16 KB */
+#define DEFAULT_DMIBAR		((u8 *)0xfed18000)	/* 4 KB */
+#else
 #define DEFAULT_MCHBAR		0xfed10000	/* 16 KB */
 #define DEFAULT_DMIBAR		0xfed18000	/* 4 KB */
+#endif
 #define DEFAULT_EPBAR		0xfed19000	/* 4 KB */
-#define DEFAULT_RCBABASE	0xfed1c000
+#define DEFAULT_RCBABASE	((u8 *)0xfed1c000)
+
+#define IOMMU_BASE1		0xfed90000ULL
+#define IOMMU_BASE2		0xfed91000ULL
 
 #include <southbridge/intel/bd82x6x/pch.h>
 
 /* Everything below this line is ignored in the DSDT */
 #ifndef __ACPI__
+
+#include <rules.h>
 
 /* Device 0:0.0 PCI configuration space (Host Bridge) */
 
@@ -86,16 +92,15 @@
 
 #define LAC		0x87	/* Legacy Access Control */
 #define SMRAM		0x88	/* System Management RAM Control */
-#define  D_OPEN		(1 << 6)
-#define  D_CLS		(1 << 5)
-#define  D_LCK		(1 << 4)
-#define  G_SMRAME	(1 << 3)
-#define  C_BASE_SEG	((0 << 2) | (1 << 1) | (0 << 0))
 
 #define TOM		0xa0
 #define TOUUD		0xa8	/* Top of Upper Usable DRAM */
+#define BGSM		0xb4	/* Base GTT Stolen Memory */
 #define TSEG		0xb8	/* TSEG base */
 #define TOLUD		0xbc	/* Top of Low Used Memory */
+
+#define CAPID0_A	0xe4	/* Capabilities Register A */
+#define CAPID0_B	0xe8	/* Capabilities Register B */
 
 #define SKPAD		0xdc	/* Scratchpad Data */
 
@@ -191,14 +196,14 @@
 
 #define DMIDRCCFG	0xeb4	/* 32bit */
 
+/* Delegation of resume backup memory so we don't have to
+ * (slowly) handle backing up OS memory in romstage.c
+ */
+#define CBMEM_BOOT_MODE		0x610
+#define CBMEM_RESUME_BACKUP	0x614
+
 #ifndef __ASSEMBLER__
 static inline void barrier(void) { asm("" ::: "memory"); }
-
-struct ied_header {
-	char signature[10];
-	u32 size;
-	u8 reserved[34];
-} __attribute__ ((packed));
 
 #define PCI_DEVICE_ID_SB 0x0104
 #define PCI_DEVICE_ID_IB 0x0154
@@ -208,7 +213,9 @@ void intel_sandybridge_finalize_smm(void);
 #else /* !__SMM__ */
 int bridge_silicon_revision(void);
 void sandybridge_early_initialization(int chipset_type);
+void sandybridge_init_iommu(void);
 void sandybridge_late_initialization(void);
+void northbridge_romstage_finalize(int s3resume);
 
 /* debugging functions */
 void print_pci_devices(void);
@@ -217,21 +224,23 @@ void dump_pci_devices(void);
 void dump_spd_registers(void);
 void dump_mem(unsigned start, unsigned end);
 void report_platform_info(void);
+
 #endif /* !__SMM__ */
 
+void rcba_config(void);
+void pch_enable_lpc(void);
+void mainboard_early_init(int s3resume);
+void mainboard_config_superio(void);
+int mainboard_should_reset_usb(int s3resume);
+void perform_raminit(int s3resume);
 
-#define MRC_DATA_ALIGN           0x1000
-#define MRC_DATA_SIGNATURE       (('M'<<0)|('R'<<8)|('C'<<16)|('D'<<24))
+#if ENV_RAMSTAGE && !defined(__SIMPLE_DEVICE__)
+#include <device/device.h>
 
-struct mrc_data_container {
-	u32	mrc_signature;	// "MRCD"
-	u32	mrc_data_size;	// Actual total size of this structure
-	u32	mrc_checksum;	// IP style checksum
-	u32	reserved;	// For header alignment
-	u8	mrc_data[0];	// Variable size, platform/run time dependent.
-} __attribute__ ((packed));
+struct acpi_rsdp;
+unsigned long northbridge_write_acpi_tables(device_t device, unsigned long start, struct acpi_rsdp *rsdp);
+#endif
 
-struct mrc_data_container *find_current_mrc_cache(void);
 #if !defined(__PRE_RAM__)
 #include "gma.h"
 int init_igd_opregion(igd_opregion_t *igd_opregion);
@@ -239,4 +248,4 @@ int init_igd_opregion(igd_opregion_t *igd_opregion);
 
 #endif
 #endif
-#endif
+#endif /* __NORTHBRIDGE_INTEL_SANDYBRIDGE_SANDYBRIDGE_H__ */

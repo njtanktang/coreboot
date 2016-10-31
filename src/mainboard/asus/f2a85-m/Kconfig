@@ -13,10 +13,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 if BOARD_ASUS_F2A85_M
 
@@ -28,11 +24,11 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 	select HAVE_OPTION_TABLE
 	select HAVE_PIRQ_TABLE
 	select HAVE_MP_TABLE
-	select HAVE_ACPI_RESUME
 	select HAVE_ACPI_TABLES
 	select SUPERIO_ITE_IT8728F
 	select BOARD_ROMSIZE_KB_8192
 	select GFXUMA
+	select HUDSON_DISABLE_IMC
 
 choice
 	prompt "DDR3 memory voltage"
@@ -78,21 +74,17 @@ config HW_MEM_HOLE_SIZE_AUTO_INC
 	bool
 	default n
 
+config HUDSON_XHCI_FWM
+	bool
+	default n
+
+config HUDSON_IMC_FWM
+	bool
+	default n
+
 config IRQ_SLOT_COUNT
 	int
 	default 11
-
-config RAMTOP
-	hex
-	default 0x1000000
-
-config HEAP_SIZE
-	hex
-	default 0xc0000
-
-config RAMBASE
-	hex
-	default 0x200000
 
 config ONBOARD_VGA_IS_PRIMARY
 	bool
@@ -105,5 +97,9 @@ config VGA_BIOS_ID
 config HUDSON_LEGACY_FREE
 	bool
 	default y
+
+config POST_IO
+	bool
+	default n
 
 endif # BOARD_ASUS_F2A85_M

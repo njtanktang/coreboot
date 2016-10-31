@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -26,7 +22,9 @@
 #include <arch/io.h>
 #include "pch.h"
 
-static u32 usb_xhci_mem_base(device_t dev)
+typedef struct southbridge_intel_lynxpoint_config config_t;
+
+static u8 *usb_xhci_mem_base(device_t dev)
 {
 	u32 mem_base = pci_read_config32(dev, PCI_BASE_ADDRESS_0);
 
@@ -34,7 +32,7 @@ static u32 usb_xhci_mem_base(device_t dev)
 	if (mem_base == 0 || mem_base == 0xffffffff)
 		return 0;
 
-	return mem_base & ~0xf;
+	return (u8 *)(mem_base & ~0xf);
 }
 
 static int usb_xhci_port_count_usb3(device_t dev)
@@ -44,7 +42,7 @@ static int usb_xhci_port_count_usb3(device_t dev)
 		return 4;
 	} else {
 		/* LynxPoint-H can have 0, 2, 4, or 6 SS ports */
-		u32 mem_base = usb_xhci_mem_base(dev);
+		u8 *mem_base = usb_xhci_mem_base(dev);
 		u32 fus = read32(mem_base + XHCI_USB3FUS);
 		fus >>= XHCI_USB3FUS_SS_SHIFT;
 		fus &= XHCI_USB3FUS_SS_MASK;
@@ -58,9 +56,9 @@ static int usb_xhci_port_count_usb3(device_t dev)
 	return 0;
 }
 
-static void usb_xhci_reset_status_usb3(u32 mem_base, int port)
+static void usb_xhci_reset_status_usb3(u8 *mem_base, int port)
 {
-	u32 portsc = mem_base + XHCI_USB3_PORTSC(port);
+	u8 *portsc = mem_base + XHCI_USB3_PORTSC(port);
 	u32 status = read32(portsc);
 	/* Do not set Port Enabled/Disabled field */
 	status &= ~XHCI_USB3_PORTSC_PED;
@@ -69,13 +67,11 @@ static void usb_xhci_reset_status_usb3(u32 mem_base, int port)
 	write32(portsc, status);
 }
 
-static void usb_xhci_reset_port_usb3(u32 mem_base, int port)
+static void usb_xhci_reset_port_usb3(u8 *mem_base, int port)
 {
-	u32 portsc = mem_base + XHCI_USB3_PORTSC(port);
+	u8 *portsc = mem_base + XHCI_USB3_PORTSC(port);
 	write32(portsc, read32(portsc) | XHCI_USB3_PORTSC_WPR);
 }
-
-#ifdef __SMM__
 
 #define XHCI_RESET_DELAY_US	1000 /* 1ms */
 #define XHCI_RESET_TIMEOUT	100  /* 100ms */
@@ -92,7 +88,7 @@ static void usb_xhci_reset_usb3(device_t dev, int all)
 	u32 status, port_disabled;
 	int timeout, port;
 	int port_count = usb_xhci_port_count_usb3(dev);
-	u32 mem_base = usb_xhci_mem_base(dev);
+	u8 *mem_base = usb_xhci_mem_base(dev);
 
 	if (!mem_base || !port_count)
 		return;
@@ -121,16 +117,17 @@ static void usb_xhci_reset_usb3(device_t dev, int all)
 
 	/* Reset all requested ports */
 	for (port = 0; port < port_count; port++) {
-		u32 portsc = mem_base + XHCI_USB3_PORTSC(port);
+		u8 *portsc = mem_base + XHCI_USB3_PORTSC(port);
 		/* Skip disabled ports */
 		if (port_disabled & (1 << port))
 			continue;
 		status = read32(portsc) & XHCI_USB3_PORTSC_PLS;
 		/* Reset all or only disconnected ports */
-		if (all || status == XHCI_PLSR_RXDETECT)
+		if (all || (status == XHCI_PLSR_RXDETECT ||
+			    status == XHCI_PLSR_POLLING))
 			usb_xhci_reset_port_usb3(mem_base, port);
 		else
-			port_disabled |= 1 << port; /* No reset */
+			port_disabled |= 1 << port;
 	}
 
 	/* Wait for warm reset complete on all reset ports */
@@ -156,14 +153,16 @@ static void usb_xhci_reset_usb3(device_t dev, int all)
 		usb_xhci_reset_status_usb3(mem_base, port);
 }
 
+#ifdef __SMM__
+
 /* Handler for XHCI controller on entry to S3/S4/S5 */
 void usb_xhci_sleep_prepare(device_t dev, u8 slp_typ)
 {
 	u16 reg16;
 	u32 reg32;
-	u32 mem_base = usb_xhci_mem_base(dev);
+	u8 *mem_base = usb_xhci_mem_base(dev);
 
-	if (!mem_base || slp_typ < 3)
+	if (!mem_base || slp_typ < ACPI_S3)
 		return;
 
 	if (pch_is_lp()) {
@@ -288,54 +287,12 @@ static void usb_xhci_clock_gating(device_t dev)
 	pci_write_config32(dev, 0xa4, reg32);
 }
 
-/* Re-enable ports that are disabled */
-static void usb_xhci_enable_ports_usb3(device_t dev)
-{
-#if CONFIG_FINALIZE_USB_ROUTE_XHCI
-	int port;
-	u32 portsc, status, disabled;
-	u32 mem_base = usb_xhci_mem_base(dev);
-	int port_count = usb_xhci_port_count_usb3(dev);
-
-	if (!mem_base || !port_count)
-		return;
-
-	/* Get port disable override map */
-	disabled = pci_read_config32(dev, XHCI_USB3PDO);
-
-	for (port = 0; port < port_count; port++) {
-		/* Skip overridden ports */
-		if (disabled & (1 << port))
-			continue;
-		portsc = mem_base + XHCI_USB3_PORTSC(port);
-		status = read32(portsc) & XHCI_USB3_PORTSC_PLS;
-
-		switch (status) {
-		case XHCI_PLSR_RXDETECT:
-			/* Clear change status */
-			printk(BIOS_DEBUG, "usb_xhci reset port %d\n", port);
-			usb_xhci_reset_status_usb3(mem_base, port);
-			break;
-		case XHCI_PLSR_DISABLED:
-		default:
-			/* Transition to enabled */
-			printk(BIOS_DEBUG, "usb_xhci enable port %d\n", port);
-			usb_xhci_reset_port_usb3(mem_base, port);
-			status = read32(portsc);
-			status &= ~XHCI_USB3_PORTSC_PLS;
-			status |= XHCI_PLSW_ENABLE | XHCI_USB3_PORTSC_LWS;
-			write32(portsc, status);
-			break;
-		}
-	}
-#endif
-}
-
 static void usb_xhci_init(device_t dev)
 {
 	u32 reg32;
 	u16 reg16;
-	u32 mem_base = usb_xhci_mem_base(dev);
+	u8 *mem_base = usb_xhci_mem_base(dev);
+	config_t *config = dev->chip_info;
 
 	/* D20:F0:74h[1:0] = 00b (set D0 state) */
 	reg16 = pci_read_config16(dev, XHCI_PWR_CTL_STS);
@@ -394,9 +351,14 @@ static void usb_xhci_init(device_t dev)
 	reg32 |= (1 << 31);
 	pci_write_config32(dev, 0x40, reg32);
 
-	/* Enable ports that are disabled before returning to OS */
-	if (acpi_is_wakeup_s3())
-		usb_xhci_enable_ports_usb3(dev);
+	if (acpi_is_wakeup_s3()) {
+		/* Reset ports that are disabled or
+		 * polling before returning to the OS. */
+		usb_xhci_reset_usb3(dev, 0);
+	} else if (config->xhci_default) {
+		/* Route all ports to XHCI */
+		outb(0xca, 0xb2);
+	}
 }
 
 static void usb_xhci_set_subsystem(device_t dev, unsigned vendor,

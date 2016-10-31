@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/pci.h>
@@ -24,6 +20,8 @@
 #include <console/console.h>	/* printk */
 #include <cbmem.h>
 
+#if IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
+
 #define BIOSRAM_INDEX   0xcd4
 #define BIOSRAM_DATA    0xcd5
 
@@ -31,12 +29,13 @@ void backup_top_of_ram(uint64_t ramtop)
 {
 	u32 dword = (u32) ramtop;
 	int nvram_pos = 0xfc, i;
-	for (i = 0; i<4; i++) {
+	for (i = 0; i < 4; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		outb((dword >>(8 * i)) & 0xff , BIOSRAM_DATA);
 		nvram_pos++;
 	}
 }
+#endif
 
 void lpc_read_resources(device_t dev)
 {
@@ -89,7 +88,7 @@ void lpc_set_resources(struct device *dev)
 /**
  * @brief Enable resources for children devices
  *
- * @param dev the device whos children's resources are to be enabled
+ * @param dev the device whose children's resources are to be enabled
  *
  */
 void lpc_enable_childrens_resources(device_t dev)
@@ -131,13 +130,13 @@ void lpc_enable_childrens_resources(device_t dev)
 					case 0x2f8:	/*  COM2 */
 						reg |= (1 << 7);
 						break;
-					case 0x378:	/*  Parallal 1 */
+					case 0x378:	/*  Parallel 1 */
 						reg |= (1 << 0);
 						break;
 					case 0x3f0:	/*  FD0 */
 						reg |= (1 << 26);
 						break;
-					case 0x220:	/*  Aduio 0 */
+					case 0x220:	/*  Audio 0 */
 						reg |= (1 << 8);
 						break;
 					case 0x300:	/*  Midi 0 */

@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -33,17 +29,20 @@
 #include <pc80/i8254.h>
 #include <pc80/i8259.h>
 #include <pc80/isa-dma.h>
-#include <romstage_handoff.h>
 
-#include <baytrail/baytrail.h>
-#include <baytrail/iomap.h>
-#include <baytrail/irq.h>
-#include <baytrail/lpc.h>
-#include <baytrail/nvs.h>
-#include <baytrail/pci_devs.h>
-#include <baytrail/pmc.h>
-#include <baytrail/ramstage.h>
+#include <soc/baytrail.h>
+#include <soc/iomap.h>
+#include <soc/irq.h>
+#include <soc/lpc.h>
+#include <soc/nvs.h>
+#include <soc/acpi.h>
+#include <soc/pci_devs.h>
+#include <soc/pmc.h>
+#include <soc/ramstage.h>
 #include "chip.h"
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
+#include <cpu/cpu.h>
 
 #define ENABLE_ACPI_MODE_IN_COREBOOT	0
 #define TEST_SMM_FLASH_LOCKDOWN		0
@@ -58,9 +57,6 @@ add_mmio_resource(device_t dev, int i, unsigned long addr, unsigned long size)
 
 static void sc_add_mmio_resources(device_t dev)
 {
-#ifndef CONFIG_VIRTUAL_ROM_SIZE
-#error CONFIG_VIRTUAL_ROM_SIZE must be set.
-#endif
 	add_mmio_resource(dev, 0xfeb, ABORT_BASE_ADDRESS, ABORT_BASE_SIZE);
 	add_mmio_resource(dev, PBASE, PMC_BASE_ADDRESS, PMC_BASE_SIZE);
 	add_mmio_resource(dev, IOBASE, IO_BASE_ADDRESS, IO_BASE_SIZE);
@@ -82,16 +78,16 @@ static void sc_enable_ioapic(struct device *dev)
 {
 	int i;
 	u32 reg32;
-	volatile u32 *ioapic_index = (volatile u32 *)(IO_APIC_ADDR);
-	volatile u32 *ioapic_data = (volatile u32 *)(IO_APIC_ADDR + 0x10);
-	u32 ilb_base = pci_read_config32(dev, IBASE) & ~0x0f;
+	volatile u32 *ioapic_index = (u32 *)(IO_APIC_ADDR);
+	volatile u32 *ioapic_data = (u32 *)(IO_APIC_ADDR + 0x10);
+	u8 *ilb_base = (u8 *)(pci_read_config32(dev, IBASE) & ~0x0f);
 
 	/*
 	 * Enable ACPI I/O and power management.
 	 * Set SCI IRQ to IRQ9
 	 */
 	write32(ilb_base + ILB_OIC, 0x100);  /* AEN */
-	reg32 = read32(ilb_base + ILB_OIC);  /* Read back per BWG */
+	reg32 = read32(ilb_base + ILB_OIC); /* Read back per BWG */
 	write32(ilb_base + ILB_ACTL, 0);  /* ACTL bit 2:0 SCIS IRQ9 */
 
 	*ioapic_index = 0;
@@ -131,7 +127,7 @@ static void sc_enable_serial_irqs(struct device *dev)
 	 * until we understand how it needs to be configured.
 	 */
 	u8 reg8;
-	u32 ibase = pci_read_config32(dev, IBASE) & ~0xF;
+	u8 *ibase = (u8 *)(pci_read_config32(dev, IBASE) & ~0xF);
 
 	/*
 	 * Disable the IOCHK# NMI. Let the NMI handler enable it if it needs.
@@ -194,7 +190,7 @@ static void write_pci_config_irqs(void)
 	 * the Interrupt Route registers in the ILB
 	 */
 	printk(BIOS_DEBUG, "PCI_CFG IRQ: Write PCI config space IRQ assignments\n");
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 
 		if ((irq_dev->path.type != DEVICE_PATH_PCI) ||
 			(!irq_dev->enabled))
@@ -211,6 +207,16 @@ static void write_pci_config_irqs(void)
 		new_int_pin = get_pci_irq_pins(irq_dev, &targ_dev);
 		if (targ_dev == NULL || new_int_pin < 1)
 			continue;
+
+		/*
+		 * Adjust the INT routing for the PCIe root ports
+		 * See 'Interrupt Generated for INT[A-D] Interrupts'
+		 * Table 241 in Document Number: 538136, Rev. 3.9
+		 */
+		if (PCI_SLOT(targ_dev->path.pci.devfn) == PCIE_DEV &&
+				targ_dev != irq_dev)
+			new_int_pin = ((new_int_pin - 1 +
+				PCI_FUNC(targ_dev->path.pci.devfn)) % 4) + 1;
 
 		/* Get the original INT_PIN for record keeping */
 		original_int_pin = pci_read_config8(irq_dev, PCI_INTERRUPT_PIN);
@@ -259,17 +265,17 @@ static void sc_pirq_init(device_t dev)
 {
 	int i, j;
 	int pirq;
-	const unsigned long pr_base = ILB_BASE_ADDRESS + 0x08;
-	const unsigned long ir_base = ILB_BASE_ADDRESS + 0x20;
-	const unsigned long actl = ILB_BASE_ADDRESS + ACTL;
+	u8 *pr_base = (u8 *)(ILB_BASE_ADDRESS + 0x08);
+	u16 *ir_base = (u16 *)(ILB_BASE_ADDRESS + 0x20);
+	u32 *actl = (u32 *)(ILB_BASE_ADDRESS + ACTL);
 	const struct baytrail_irq_route *ir = &global_baytrail_irq_route;
 
 	/* Set up the PIRQ PIC routing based on static config. */
 	printk(BIOS_SPEW, "Start writing IRQ assignments\n"
-			"PIRQ\tA \tB \tC \tD \tE \tF \tG \tH\n"
+			"PIRQ\tA\tB\tC\tD\tE\tF\tG\tH\n"
 			"IRQ ");
 	for (i = 0; i < NUM_PIRQS; i++) {
-		write8(pr_base + i*sizeof(ir->pic[i]), ir->pic[i]);
+		write8(pr_base + i, ir->pic[i]);
 		printk(BIOS_SPEW, "\t%d", ir->pic[i]);
 	}
 	printk(BIOS_SPEW, "\n\n");
@@ -278,10 +284,10 @@ static void sc_pirq_init(device_t dev)
 	printk(BIOS_SPEW, "\t\t\tPIRQ[A-H] routed to each INT_PIN[A-D]\n"
 			"Dev\tINTA (IRQ)\tINTB (IRQ)\tINTC (IRQ)\tINTD (IRQ)\n");
 	for (i = 0; i < NUM_OF_PCI_DEVS; i++) {
-		write16(ir_base + i*sizeof(ir->pcidev[i]), ir->pcidev[i]);
+		write16(ir_base + i, ir->pcidev[i]);
 
 		/* If the entry is more than just 0, print it out */
-		if(ir->pcidev[i]) {
+		if (ir->pcidev[i]) {
 			printk(BIOS_SPEW, " %d: ", i);
 			for (j = 0; j < 4; j++) {
 				pirq = (ir->pcidev[i] >> (j * 4)) & 0xF;
@@ -372,11 +378,11 @@ static void enable_hpet(void)
 
 static void sc_init(struct device *dev)
 {
-	u32 ibase;
+	u8 *ibase;
 
 	printk(BIOS_DEBUG, "soc: southcluster_init\n");
 
-	ibase = pci_read_config32(dev, IBASE) & ~0xF;
+	ibase = (u8 *)(pci_read_config32(dev, IBASE) & ~0xF);
 
 	write8(ibase + ILB_MC, 0);
 
@@ -411,8 +417,8 @@ static void sc_init(struct device *dev)
 /* Set bit in function disable register to hide this device. */
 static void sc_disable_devfn(device_t dev)
 {
-	const unsigned long func_dis = PMC_BASE_ADDRESS + FUNC_DIS;
-	const unsigned long func_dis2 = PMC_BASE_ADDRESS + FUNC_DIS2;
+	u32 *func_dis = (u32 *)(PMC_BASE_ADDRESS + FUNC_DIS);
+	u32 *func_dis2 = (u32 *)(PMC_BASE_ADDRESS + FUNC_DIS2);
 	uint32_t fd_mask = 0;
 	uint32_t fd2_mask = 0;
 
@@ -424,43 +430,9 @@ static void sc_disable_devfn(device_t dev)
 		fd2_mask |= name_ ## _DIS
 
 	switch (dev->path.pci.devfn) {
-	SET_DIS_MASK(MIPI);
-		break;
-	SET_DIS_MASK(EMMC);
-		break;
-	SET_DIS_MASK(SDIO);
-		break;
-	SET_DIS_MASK(SD);
-		break;
-	SET_DIS_MASK(SATA);
-		break;
-	SET_DIS_MASK(XHCI);
-		/* Disable super speed PHY when XHCI is not available. */
-		fd2_mask |= USH_SS_PHY_DIS;
-		break;
 	SET_DIS_MASK(LPE);
 		break;
-	SET_DIS_MASK(MMC45);
-		break;
-	SET_DIS_MASK(SIO_DMA1);
-		break;
-	SET_DIS_MASK(I2C1);
-		break;
-	SET_DIS_MASK(I2C2);
-		break;
-	SET_DIS_MASK(I2C3);
-		break;
-	SET_DIS_MASK(I2C4);
-		break;
-	SET_DIS_MASK(I2C5);
-		break;
-	SET_DIS_MASK(I2C6);
-		break;
-	SET_DIS_MASK(I2C7);
-		break;
 	SET_DIS_MASK(TXE);
-		break;
-	SET_DIS_MASK(HDA);
 		break;
 	SET_DIS_MASK(PCIE_PORT1);
 		break;
@@ -469,20 +441,6 @@ static void sc_disable_devfn(device_t dev)
 	SET_DIS_MASK(PCIE_PORT3);
 		break;
 	SET_DIS_MASK(PCIE_PORT4);
-		break;
-	SET_DIS_MASK(EHCI);
-		break;
-	SET_DIS_MASK(SIO_DMA2);
-		break;
-	SET_DIS_MASK(PWM1);
-		break;
-	SET_DIS_MASK(PWM2);
-		break;
-	SET_DIS_MASK(HSUART1);
-		break;
-	SET_DIS_MASK(HSUART2);
-		break;
-	SET_DIS_MASK(SPI);
 		break;
 	SET_DIS_MASK2(SMBUS);
 		break;
@@ -519,7 +477,7 @@ static inline void set_d3hot_bits(device_t dev, int offset)
  * the audio paths work for LPE audio. */
 static void hda_work_around(device_t dev)
 {
-	unsigned long gctl = TEMP_BASE_ADDRESS + 0x8;
+	u32 *gctl = (u32 *)(TEMP_BASE_ADDRESS + 0x8);
 
 	/* Need to set magic register 0x43 to 0xd7 in config space. */
 	pci_write_config8(dev, 0x43, 0xd7);
@@ -647,10 +605,12 @@ void southcluster_enable_dev(device_t dev)
 static struct device_operations device_ops = {
 	.read_resources		= sc_read_resources,
 	.set_resources		= pci_dev_set_resources,
+	.acpi_inject_dsdt_generator = southcluster_inject_dsdt,
+	.write_acpi_tables      = southcluster_write_acpi_tables,
 	.enable_resources	= NULL,
 	.init			= sc_init,
 	.enable			= southcluster_enable_dev,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &soc_pci_ops,
 };
 

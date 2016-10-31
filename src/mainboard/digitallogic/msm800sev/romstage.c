@@ -3,19 +3,19 @@
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <console/console.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/lxdef.h>
 #include <cpu/amd/car.h>
-#include "southbridge/amd/cs5536/cs5536.h"
+#include <southbridge/amd/cs5536/cs5536.h>
 #include <spd.h>
 #include "southbridge/amd/cs5536/early_smbus.c"
 #include "southbridge/amd/cs5536/early_setup.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
-#include "northbridge/amd/lx/raminit.h"
+#include <northbridge/amd/lx/raminit.h>
 
 #define SERIAL_DEV PNP_DEV(0x2e, W83627HF_SP1)
 
@@ -73,7 +73,7 @@ void main(unsigned long bist)
 	*/
 	post_code(0x02);
 	__asm__("wbinvd\n");
-	print_err("Past wbinvd\n");
+	printk(BIOS_ERR, "Past wbinvd\n");
 	/* we are finding the return does not work on this board. Explicitly call the label that is
 	 * after the call to us. This is gross, but sometimes at this level it is the only way out
 	 */

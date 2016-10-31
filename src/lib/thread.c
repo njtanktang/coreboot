@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include <stddef.h>
 #include <stdint.h>
@@ -28,7 +24,6 @@ static void idle_thread_init(void);
 
 /* There needs to be at least one thread to run the ramstate state machine. */
 #define TOTAL_NUM_THREADS (CONFIG_NUM_THREADS + 1)
-extern char thread_stacks[CONFIG_NUM_THREADS*CONFIG_STACK_SIZE];
 
 /* Storage space for the thread structs .*/
 static struct thread all_threads[TOTAL_NUM_THREADS];
@@ -48,7 +43,7 @@ static inline int thread_can_yield(const struct thread *t)
 	return (t != NULL && t->can_yield);
 }
 
-/* Assumes current cpu info can switch. */
+/* Assumes current CPU info can switch. */
 static inline struct thread *cpu_info_to_thread(const struct cpu_info *ci)
 {
 	return ci->thread;
@@ -259,8 +254,11 @@ void threads_initialize(void)
 {
 	int i;
 	struct thread *t;
-	char *stack_top;
+	u8 *stack_top;
 	struct cpu_info *ci;
+	u8 *thread_stacks;
+
+	thread_stacks = arch_get_thread_stackbase();
 
 	/* Initialize the BSP thread first. The cpu_info structure is assumed
 	 * to be just under the top of the stack. */

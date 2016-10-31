@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define	LX_STACK_BASE		CONFIG_DCACHE_RAM_BASE		/* this is where the DCache will be mapped and be used as stack, It would be cool if it was the same base as coreboot normal stack */
@@ -25,15 +21,14 @@
 #define	LX_CACHEWAY_SIZE	(LX_NUM_CACHELINES * LX_CACHELINE_SIZE)
 #define	CR0_CD				0x40000000	/* bit 30 = Cache Disable */
 #define	CR0_NW				0x20000000	/* bit 29 = Not Write Through */
+
 #include <cpu/amd/lxdef.h>
 #include <cpu/x86/post_code.h>
-/***************************************************************************
+
 /**
-/**	DCacheSetup
-/**
-/**	Setup data cache for  use as RAM for a stack.
-/**
-/***************************************************************************/
+ *	DCacheSetup
+ *	Setup data cache for  use as RAM for a stack.
+ */
 DCacheSetup:
 	/* Save the BIST result */
 	movl    %eax, %ebx
@@ -187,33 +182,33 @@ DCacheSetupGood:
 
 	/* Call romstage.c main function */
 	call	main
+.global done_cache_as_ram_main
 done_cache_as_ram_main:
 
-        /* We now run over the stack-in-cache, copying it back to itself to invalidate the cache */
+	/* We now run over the stack-in-cache,
+	 * copying it back to itself to invalidate the cache */
 
-        push   %edi
-        mov    $(CONFIG_DCACHE_RAM_SIZE/4),%ecx
-        push   %esi
-        mov    $(CONFIG_DCACHE_RAM_BASE),%edi
-        mov    %edi,%esi
-        cld
-        rep movsl %ds:(%esi),%es:(%edi)
-        pop    %esi
-        pop    %edi
+	push   %edi
+	mov    $(CONFIG_DCACHE_RAM_SIZE >> 2),%ecx
+	push   %esi
+	mov    $(CONFIG_DCACHE_RAM_BASE),%edi
+	mov    %edi,%esi
+	cld
+	rep movsl %ds:(%esi),%es:(%edi)
+	pop    %esi
+	pop    %edi
 
-	/* Clear the cache out to ram */
+	/* Clear the cache out to RAM */
 	wbinvd
-        /* re-enable the cache */
-        movl    %cr0, %eax
-        xorl             $(CR0_CD + CR0_NW), %eax        /* clear  the CD and NW bits */
-        movl    %eax, %cr0
+	/* re-enable the cache */
+	movl    %cr0, %eax
+	xorl    $(CR0_CD + CR0_NW), %eax        /* clear  the CD and NW bits */
+	movl    %eax, %cr0
 
 __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 
-	/* TODO For suspend/resume the cache will have to live between
-	 * CONFIG_RAMBASE and CONFIG_RAMTOP
-	 */
+	/* TODO For suspend/resume low memory needs backup store. */
 
 	cld				/* clear direction flag */
 
@@ -227,4 +222,3 @@ __main:
 	post_code(POST_DEAD_CODE)
 	hlt
 	jmp	.Lhlt
-

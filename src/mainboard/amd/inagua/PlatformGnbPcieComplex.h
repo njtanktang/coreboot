@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _PLATFORM_GNB_PCIE_COMPLEX_H
@@ -63,7 +59,5 @@
 #define GNB_GPP_PORT8_CHANNEL_TYPE      4  //0:LowLoss(-3.5db) 1:HighLoss(-6db) 2:Half-swing(0db)
 //3:Half-swing(-3.5db) 4:extended length (-6db) 5:extended length(-8db)
 #define GNB_GPP_PORT8_HOTPLUG_SUPPORT   0  //0:Disable 1:Basic 3:Enhanced
-
-VOID OemCustomizeInitEarly(IN  OUT AMD_EARLY_PARAMS    *InitEarly);
 
 #endif //_PLATFORM_GNB_PCIE_COMPLEX_H

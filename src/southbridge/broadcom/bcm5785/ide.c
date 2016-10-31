@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -27,13 +23,13 @@
 
 static void bcm5785_ide_read_resources(device_t dev)
 {
-        /* Get the normal pci resources of this device */
-        pci_dev_read_resources(dev);
+	/* Get the normal pci resources of this device */
+	pci_dev_read_resources(dev);
 
-        /* BAR */
-        pci_get_resource(dev, 0x64);
+	/* BAR */
+	pci_get_resource(dev, 0x64);
 
-        compact_resources(dev);
+	compact_resources(dev);
 }
 
 static void ide_init(struct device *dev)
@@ -42,12 +38,12 @@ static void ide_init(struct device *dev)
 
 static void lpci_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 {
-        pci_write_config32(dev, 0x40,
-                ((device & 0xffff) << 16) | (vendor & 0xffff));
+	pci_write_config32(dev, 0x40,
+		((device & 0xffff) << 16) | (vendor & 0xffff));
 }
 
 static struct pci_operations lops_pci = {
-        .set_subsystem = lpci_set_subsystem,
+	.set_subsystem = lpci_set_subsystem,
 };
 
 static struct device_operations ide_ops  = {

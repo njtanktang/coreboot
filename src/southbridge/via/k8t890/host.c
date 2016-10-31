@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -60,7 +56,7 @@ static void host_enable(struct device *dev)
 	/* Multiple function control */
 	pci_write_config8(dev, K8T890_MULTIPLE_FN_EN, 0x01);
 
-	print_debug(" VIA_X_0 device dump:\n");
+	printk(BIOS_DEBUG, " VIA_X_0 device dump:\n");
 	dump_south(dev);
 }
 

@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -43,6 +39,8 @@ void bootmem_init(void)
 
 	/* Add memory used by CBMEM. */
 	cbmem_add_bootmem();
+
+	bootmem_arch_add_ranges();
 }
 
 void bootmem_add_range(uint64_t start, uint64_t size, uint32_t type)

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <cpu/x86/tsc.h>
@@ -92,7 +88,7 @@ static void pll_reset(void)
 	wrmsr(GLCP_SYS_RSTPLL, msrGlcpSysRstpll);
 
 	/* If the "we've already been here" flag is set, don't reconfigure the pll */
-	if ( !(msrGlcpSysRstpll.lo & PLLCHECK_COMPLETED ) )
+	if (!(msrGlcpSysRstpll.lo & PLLCHECK_COMPLETED))
 	{ /* we haven't configured the PLL; do it now */
 
 		/* Store PCI33(0)/66(1), SDR(0)/DDR(1), and CRT(0)/TFT(1) in upper esi to get to the */
@@ -149,8 +145,8 @@ static void pll_reset(void)
 			/*	CheckPCIsync: */
 			/* If FBdiv/Mdiv is evenly divisible then set the PCI semi-sync. FB is always greater */
 			/* look up the real divider... if we get a 0 we have serious problems */
-			if ( !(fbdiv2plldiv[((msrGlcpSysRstpll.hi >> RSTPLL_UPPER_FBDIV_SHIFT) & 0x3f)] %
-				(((msrGlcpSysRstpll.hi >> RSTPLL_UPPER_MDIV_SHIFT) & 0x0F) + 2)) )
+			if (!(fbdiv2plldiv[((msrGlcpSysRstpll.hi >> RSTPLL_UPPER_FBDIV_SHIFT) & 0x3f)] %
+				(((msrGlcpSysRstpll.hi >> RSTPLL_UPPER_MDIV_SHIFT) & 0x0F) + 2)))
 			{
 				SyncBits |= RSTPPL_LOWER_PCI_SEMI_SYNC_SET;
 			}

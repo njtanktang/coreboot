@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
 /*
@@ -57,9 +53,6 @@ void enable_vx800_serial(void)
 {
 	post_code(0x06);
 	outb(0x03, 0x22);
-
-	//pci_write_config8(PCI_DEV(0,17,0),0xb4,0x7e);
-	//pci_write_config8(PCI_DEV(0,17,0),0xb0,0x10);
 
 	// turn on pnp
 	vx800_writepnpaddr(0x87);

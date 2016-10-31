@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 static void setup_mb_resource_map(void)
@@ -269,7 +265,7 @@ static void setup_mb_resource_map(void)
 		 * [31:24] Bus Number Limit i
 		 *	   This field defines the highest bus number in configuration region i
 		 */
-		PCI_ADDR(0, 0x18, 1, 0xE0), 0x0000FC88, 0x3f000203, /* link 2 of cpu 0 --> Nvidia MCP55 Pro */
+		PCI_ADDR(0, 0x18, 1, 0xE0), 0x0000FC88, 0x3f000203, /* link 2 of CPU 0 --> Nvidia MCP55 Pro */
 		PCI_ADDR(0, 0x18, 1, 0xE4), 0x0000FC88, 0x00000000,
 		PCI_ADDR(0, 0x18, 1, 0xE8), 0x0000FC88, 0x00000000,
 		PCI_ADDR(0, 0x18, 1, 0xEC), 0x0000FC88, 0x00000000,
@@ -280,4 +276,3 @@ static void setup_mb_resource_map(void)
 	max = ARRAY_SIZE(register_values);
 	setup_resource_map(register_values, max);
 }
-

@@ -10,7 +10,7 @@
 static inline int cpu_init_detected(unsigned nodeid)
 {
 	u32 htic;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = PCI_DEV(0, 0x18 + nodeid, 0);
 	htic = pci_read_config32(dev, HT_INIT_CONTROL);
@@ -37,15 +37,15 @@ static inline int cold_reset_detected(void)
 static inline void distinguish_cpu_resets(unsigned nodeid)
 {
 	u32 htic;
-	device_t device;
+	pci_devfn_t device;
 	device = PCI_DEV(0, 0x18 + nodeid, 0);
 	htic = pci_read_config32(device, HT_INIT_CONTROL);
 	htic |= HTIC_ColdR_Detect | HTIC_BIOSR_Detect | HTIC_INIT_Detect;
 	pci_write_config32(device, HT_INIT_CONTROL, htic);
 }
 
-void __attribute__ ((weak)) set_bios_reset(void);
-void __attribute__ ((weak)) set_bios_reset(void)
+void set_bios_reset(void);
+void set_bios_reset(void)
 {
 	u32 htic;
 	htic = pci_read_config32(PCI_DEV(0, 0x18, 0), HT_INIT_CONTROL);
@@ -57,7 +57,7 @@ static unsigned node_link_to_bus(unsigned node, unsigned link)
 {
 	u8 reg;
 
-	for(reg = 0xE0; reg < 0xF0; reg += 0x04) {
+	for (reg = 0xE0; reg < 0xF0; reg += 0x04) {
 		u32 config_map;
 		config_map = pci_read_config32(PCI_DEV(0, 0x18, 1), reg);
 		if ((config_map & 3) != 3) {
@@ -77,11 +77,10 @@ static inline unsigned get_sblk(void)
 	u32 reg;
 	/* read PCI_DEV(0,0x18,0) 0x64 bit [8:9] to find out SbLink m */
 	reg = pci_read_config32(PCI_DEV(0, 0x18, 0), 0x64);
-	return ((reg>>8) & 3) ;
+	return ((reg>>8) & 3);
 }
 
 static inline unsigned get_sbbusn(unsigned sblk)
 {
 	return node_link_to_bus(0, sblk);
 }
-

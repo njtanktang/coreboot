@@ -17,6 +17,8 @@
 
 #include "lkc.h"
 
+int kconfig_warnings = 0;
+
 static void conf(struct menu *menu);
 static void check_conf(struct menu *menu);
 static void xfgets(char *str, int size, FILE *in);
@@ -493,6 +495,7 @@ int main(int ac, char **av)
 	const char *progname = av[0];
 	int opt;
 	const char *name, *defconfig_file = NULL /* gcc uninit */;
+	char *env;
 	struct stat tmpstat;
 
 	setlocale(LC_ALL, "");
@@ -681,6 +684,13 @@ int main(int ac, char **av)
 		break;
 	}
 
+	env = getenv("KCONFIG_STRICT");
+	if (env && *env && kconfig_warnings) {
+		fprintf(stderr, _("\n*** ERROR: %d warnings encountered, and "
+			"warnings are errors.\n\n"), kconfig_warnings);
+		exit(1);
+	}
+
 	if (sync_kconfig) {
 		/* silentoldconfig is used during the build so we shall update autoconf.
 		 * All other commands are only used to generate a config.
@@ -696,7 +706,7 @@ int main(int ac, char **av)
 	} else if (input_mode == savedefconfig) {
 		if (conf_write_defconfig(defconfig_file)) {
 			fprintf(stderr, _("n*** Error while saving defconfig to: %s\n\n"),
-			        defconfig_file);
+				defconfig_file);
 			return 1;
 		}
 	} else if (input_mode != listnewconfig) {

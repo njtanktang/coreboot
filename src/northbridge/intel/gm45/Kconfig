@@ -12,10 +12,6 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config NORTHBRIDGE_INTEL_GM45
 	bool
@@ -27,11 +23,21 @@ config NORTHBRIDGE_SPECIFIC_OPTIONS # dummy
 	select HAVE_DEBUG_RAM_SETUP
 	select MMCONF_SUPPORT
 	select MMCONF_SUPPORT_DEFAULT
-	select DYNAMIC_CBMEM
-	select IOMMU
+	select VGA
+	select INTEL_EDID
+	select INTEL_GMA_ACPI
+	select UDELAY_TSC
+
+config CBFS_SIZE
+	hex
+	default 0x100000
 
 config BOOTBLOCK_NORTHBRIDGE_INIT
 	string
 	default "northbridge/intel/gm45/bootblock.c"
+
+config VGA_BIOS_ID
+	string
+	default "8086,2a42"
 
 endif

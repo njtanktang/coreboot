@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -83,7 +79,7 @@ static void rl5c476_init(device_t dev)
 	 * 16 bytes, 0x1e0 to 0x1ef.
 	 * Be warned that this is not a standard IDE address as
 	 * automatically detected by the likes of FILO, and would need
-	 * patching to recognise these addresses as an IDE drive.
+	 * patching to recognize these addresses as an IDE drive.
 	 *
 	 * An earlier version of this driver set up 2 I/O windows to
 	 * emulate the expected addresses for IDE2, however the PCMCIA
@@ -170,7 +166,7 @@ static void rl5c476_read_resources(device_t dev)
 	 /* For CF socket we need an extra memory window for
 	  * the control structure of the CF itself
 	  */
-	if( enable_cf_boot && (PCI_FUNC(dev->path.pci.devfn) == 1)){
+	if ( enable_cf_boot && (PCI_FUNC(dev->path.pci.devfn) == 1)){
 		/* fake index as it isn't in PCI config space */
 		resource = new_resource(dev, 1);
 		resource->flags |= IORESOURCE_MEM;
@@ -184,11 +180,11 @@ static void rl5c476_read_resources(device_t dev)
 static void rl5c476_set_resources(device_t dev)
 {
 	struct resource *resource;
-	printk(BIOS_DEBUG, "%s In set resources \n",dev_path(dev));
-	if( enable_cf_boot && (PCI_FUNC(dev->path.pci.devfn) == 1)){
+	printk(BIOS_DEBUG, "%s In set resources\n",dev_path(dev));
+	if ( enable_cf_boot && (PCI_FUNC(dev->path.pci.devfn) == 1)){
 		resource = find_resource(dev,1);
-		if( !(resource->flags & IORESOURCE_STORED) ){
-			resource->flags |= IORESOURCE_STORED ;
+		if ( !(resource->flags & IORESOURCE_STORED) ){
+			resource->flags |= IORESOURCE_STORED;
 			printk(BIOS_DEBUG, "%s 1 ==> %llx\n", dev_path(dev), resource->base);
 			cf_base = resource->base;
 		}

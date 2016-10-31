@@ -11,30 +11,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/agesawrapper.h>
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include "Ids.h"
-#include "OptionsIds.h"
 #include "heapManager.h"
-#include <northbridge/amd/agesa/family15/dimmSpd.h>
 #include <stdlib.h>
-
-static AGESA_STATUS board_ReadSpd (UINT32 Func,UINT32 Data, VOID *ConfigPtr);
 
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,			agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,		agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,			agesa_LocateBuffer },
 	{AGESA_DO_RESET,			agesa_Reset },
-	{AGESA_READ_SPD,			board_ReadSpd },
+	{AGESA_READ_SPD,			agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,		agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,			agesa_RunFuncOnAp },
 	{AGESA_GET_IDS_INIT_DATA,		agesa_EmptyIdsInitData },
@@ -43,17 +33,3 @@ const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 	{AGESA_HOOKBEFORE_EXIT_SELF_REF,	agesa_NoopSuccess },
 };
 const int BiosCalloutsLen = ARRAY_SIZE(BiosCallouts);
-
-
-
-static AGESA_STATUS board_ReadSpd (UINT32 Func, UINT32 Data, VOID *ConfigPtr)
-{
-	AGESA_STATUS Status;
-#ifdef __PRE_RAM__
-	Status = agesa_ReadSPD (Func, Data, ConfigPtr);
-#else
-	Status = AGESA_UNSUPPORTED;
-#endif
-
-	return Status;
-}

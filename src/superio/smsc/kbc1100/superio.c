@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* RAM driver for the SMSC KBC1100 Super I/O chip */
@@ -31,8 +27,8 @@
 #include "kbc1100.h"
 
 /* Forward declarations */
-static void enable_dev(device_t dev);
-static void kbc1100_init(device_t dev);
+static void enable_dev(struct device *dev);
+static void kbc1100_init(struct device *dev);
 
 struct chip_operations superio_smsc_kbc1100_ops = {
   CHIP_NAME("SMSC KBC1100 Super I/O")
@@ -52,12 +48,12 @@ static struct pnp_info pnp_dev_info[] = {
   { &ops, KBC1100_KBC,  PNP_IO0 | PNP_IO1 | PNP_IRQ0 | PNP_IRQ1, { 0x7ff, 0 }, { 0x7ff, 0x4}, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
   pnp_enable_devices(dev, &pnp_ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }
 
-static void kbc1100_init(device_t dev)
+static void kbc1100_init(struct device *dev)
 {
   struct resource *res0, *res1;
 
@@ -72,7 +68,7 @@ static void kbc1100_init(device_t dev)
   case KBC1100_KBC:
     res0 = find_resource(dev, PNP_IDX_IO0);
     res1 = find_resource(dev, PNP_IDX_IO1);
-    pc_keyboard_init();
+    pc_keyboard_init(NO_AUX_DEVICE);
     break;
   }
 }

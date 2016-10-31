@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -44,7 +39,7 @@ static u8 hwm_io_regs[] = {
 	0x5c,0x00, 0x5f,0x33, 0x40,0x01,
 };
 
-static void vt1211_set_iobase(device_t dev, u8 index, u16 iobase)
+static void vt1211_set_iobase(struct device *dev, u8 index, u16 iobase)
 {
 	switch (dev->path.pnp.device) {
 	case VT1211_FDC:
@@ -107,7 +102,7 @@ static void vt1211_init(struct device *dev)
 	}
 }
 
-static void vt1211_pnp_enable_resources(device_t dev)
+static void vt1211_pnp_enable_resources(struct device *dev)
 {
 	printk(BIOS_DEBUG, "%s - enabling\n", dev_path(dev));
 	pnp_enable_resources(dev);

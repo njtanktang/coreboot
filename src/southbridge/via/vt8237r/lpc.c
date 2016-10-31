@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /* Inspiration from other VIA SB code. */
@@ -55,7 +51,7 @@ static unsigned char *pin_to_irq(const unsigned char *pin)
 {
 	static unsigned char Irqs[4];
 	int i;
-	for (i = 0 ; i < 4 ; i++)
+	for (i = 0; i < 4; i++)
 		Irqs[i] = pciIrqs[ pin[i] - 'A' ];
 
 	return Irqs;
@@ -165,10 +161,10 @@ static void setup_pm(device_t dev)
 	pci_write_config8(dev, 0x82, 0x40 | VT8237R_ACPI_IRQ);
 
 #if CONFIG_EPIA_VT8237R_INIT
-	/* Primary interupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
+	/* Primary interrupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
 	pci_write_config16(dev, 0x84, 0x3052);
 #else
-	/* Primary interupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
+	/* Primary interrupt channel, define wake events 0=IRQ0 15=IRQ15 1=en. */
 	pci_write_config16(dev, 0x84, 0x30b2);
 
 #endif
@@ -244,10 +240,6 @@ static void setup_pm(device_t dev)
 
 	/* SCI is generated for RTC/pwrBtn/slpBtn. */
 	tmp = inw(VT8237R_ACPI_IO_BASE + 0x04);
-#if CONFIG_HAVE_ACPI_RESUME
-	acpi_slp_type = ((tmp & (7 << 10)) >> 10) == 1 ? 3 : 0 ;
-	printk(BIOS_DEBUG, "SLP_TYP type was %x %x\n", tmp, acpi_slp_type);
-#endif
 
 	/* All SMI on, both IDE buses ON, PSON rising edge. */
 	outw(0x1, VT8237R_ACPI_IO_BASE + 0x2c);
@@ -256,6 +248,12 @@ static void setup_pm(device_t dev)
 	tmp &= ~(7 << 10);
 	tmp |= 1;
 	outw(tmp, VT8237R_ACPI_IO_BASE + 0x04);
+}
+
+int acpi_get_sleep_type(void)
+{
+	u16 tmp = inw(VT8237R_ACPI_IO_BASE + 0x04);
+	return ((tmp & (7 << 10)) >> 10) == 1 ? 3 : 0;
 }
 
 static void vt8237r_init(struct device *dev)
@@ -358,7 +356,7 @@ static void vt8237a_init(struct device *dev)
 {
 	/*
 	 * FIXME: This is based on vt8237s_init() and the values the AMI
-	 *        BIOS on my M2V wrote to these registers (by loking
+	 *        BIOS on my M2V wrote to these registers (by looking
 	 *        at lspci -nxxx output).
 	 *        Works for me.
 	 */
@@ -565,7 +563,7 @@ static void vt8237_common_init(struct device *dev)
 	setup_pm(dev);
 
 	/* Start the RTC. */
-	rtc_init(0);
+	cmos_init(0);
 }
 
 static void vt8237r_read_resources(device_t dev)
@@ -627,14 +625,14 @@ static void init_keyboard(struct device *dev)
 {
 	u8 regval = pci_read_config8(dev, 0x51);
 	if (regval & 0x1)
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 }
 
 static void southbridge_init_common(struct device *dev)
 {
 	vt8237_common_init(dev);
 	pci_routing_fixup(dev);
-	setup_ioapic(IO_APIC_ADDR, VT8237R_APIC_ID);
+	setup_ioapic(VIO_APIC_VADDR, VT8237R_APIC_ID);
 	setup_i8259();
 	init_keyboard(dev);
 }
@@ -655,7 +653,7 @@ static const struct device_operations vt8237r_lpc_ops_s = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= vt8237s_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &lops_pci,
 };
 
@@ -664,7 +662,7 @@ static const struct device_operations vt8237r_lpc_ops_r = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= vt8237r_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &lops_pci,
 };
 
@@ -673,7 +671,7 @@ static const struct device_operations vt8237r_lpc_ops_a = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= vt8237a_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &lops_pci,
 };
 

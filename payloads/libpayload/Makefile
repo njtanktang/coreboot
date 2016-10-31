@@ -34,31 +34,27 @@ ifeq ($(INNER_SCANBUILD),y)
 CC_real:=$(CC)
 endif
 
-$(if $(wildcard .xcompile),,$(eval $(shell bash util/xcompile/xcompile > .xcompile)))
-include .xcompile
-
-ifeq ($(INNER_SCANBUILD),y)
-CC:=$(CC_real)
-HOSTCC:=$(CC_real) --hostcc
-HOSTCXX:=$(CC_real) --hostcxx
-endif
-
 export top := $(CURDIR)
 export src := src
-export srck := $(top)/util/kconfig
+export srck := $(abspath $(top)/../../util/kconfig)
 export obj ?= build
 export objutil ?= $(obj)/util
-export objk := $(objutil)/kconfig
-
+export objk := $(objutil)/lp_kconfig
 
 export KCONFIG_AUTOHEADER := $(obj)/config.h
 export KCONFIG_AUTOCONFIG := $(obj)/auto.conf
+export KCONFIG_DEPENDENCIES := $(obj)/auto.conf.cmd
+export KCONFIG_SPLITCONFIG := $(obj)/config
+export KCONFIG_TRISTATE := $(obj)/tristate.conf
+export KCONFIG_NEGATIVES := 1
+export Kconfig := Kconfig
+export CONFIG_ := CONFIG_LP_
 
 # directory containing the toplevel Makefile.inc
 TOPLEVEL := .
 
-CONFIG_SHELL := sh
-KBUILD_DEFCONFIG := configs/defconfig
+CONFIG_LP_SHELL := sh
+KBUILD_DEFCONFIG ?= configs/defconfig
 UNAME_RELEASE := $(shell uname -r)
 DOTCONFIG ?= .config
 KCONFIG_CONFIG = $(DOTCONFIG)
@@ -85,21 +81,41 @@ DOXYGEN_OUTPUT_DIR := doxygen
 
 all: real-all
 
+# in addition to the dependency below, create the file if it doesn't exist
+# to silence stupid warnings about a file that would be generated anyway.
+$(if $(wildcard .xcompile),,$(eval $(shell $(top)/../../util/xcompile/xcompile $(XGCCPATH) > .xcompile)))
+
+.xcompile: $(top)/../../util/xcompile/xcompile
+	$< $(XGCCPATH) > $@.tmp
+	\mv -f $@.tmp $@ 2> /dev/null
+
+ifeq ($(INNER_SCANBUILD),y)
+CC:=$(CC_real)
+HOSTCC:=$(CC_real) --hostcc
+HOSTCXX:=$(CC_real) --hostcxx
+endif
+
 # This include must come _before_ the pattern rules below!
 # Order _does_ matter for pattern rules.
-include util/kconfig/Makefile
+include $(srck)/Makefile
 
 include $(HAVE_DOTCONFIG)
 
-ARCHDIR-$(CONFIG_ARCH_ARMV7)   := armv7
-ARCHDIR-$(CONFIG_ARCH_X86)     := x86
+include .xcompile
+
+ARCHDIR-$(CONFIG_LP_ARCH_ARM)     := arm
+ARCHDIR-$(CONFIG_LP_ARCH_ARM64)   := arm64
+ARCHDIR-$(CONFIG_LP_ARCH_MIPS)    := mips
+ARCHDIR-$(CONFIG_LP_ARCH_X86)     := x86
 
 ARCH-y := $(ARCHDIR-y)
 
-# If architecture folder name is different from GCC binutils architecture name,
+# If architecture folder name is different from xcompile architecture name,
 # override here.
-ARCH-$(CONFIG_ARCH_ARMV7)   := armv7
-ARCH-$(CONFIG_ARCH_X86)     := i386
+ARCH-$(CONFIG_LP_ARCH_ARM)     := arm
+ARCH-$(CONFIG_LP_ARCH_ARM64)   := arm64
+ARCH-$(CONFIG_LP_ARCH_X86)     := x86_32
+ARCH-$(CONFIG_LP_ARCH_MIPS)    := mips
 
 CC := $(CC_$(ARCH-y))
 AS := $(AS_$(ARCH-y))
@@ -112,9 +128,6 @@ STRIP := $(STRIP_$(ARCH-y))
 AR := $(AR_$(ARCH-y))
 
 CFLAGS += $(CFLAGS_$(ARCH-y))
-
-LIBGCC_FILE_NAME := $(shell test -r `$(CC) -print-libgcc-file-name` && \
-		      $(CC) -print-libgcc-file-name)
 
 # Three cases where we don't need fully populated $(obj) lists:
 # 1. when no .config exists
@@ -137,13 +150,13 @@ real-all: config
 else
 
 ifneq ($(INNER_SCANBUILD),y)
-ifeq ($(CONFIG_COMPILER_LLVM_CLANG),y)
+ifeq ($(CONFIG_LP_COMPILER_LLVM_CLANG),y)
 CC:=clang -m32
 HOSTCC:=clang
 endif
 endif
 
-ifeq ($(CONFIG_CCACHE),y)
+ifeq ($(CONFIG_LP_CCACHE),y)
 CCACHE:=$(word 1,$(wildcard $(addsuffix /ccache,$(subst :, ,$(PATH)))))
 ifeq ($(CCACHE),)
 $(error ccache selected, but not found in PATH)
@@ -161,12 +174,12 @@ strip_quotes = $(subst ",,$(subst \",,$(1)))
 # other files
 
 ifeq ($(INNER_SCANBUILD),y)
-CONFIG_SCANBUILD_ENABLE:=
+CONFIG_LP_SCANBUILD_ENABLE:=
 endif
 
-ifeq ($(CONFIG_SCANBUILD_ENABLE),y)
-ifneq ($(CONFIG_SCANBUILD_REPORT_LOCATION),)
-CONFIG_SCANBUILD_REPORT_LOCATION:=-o $(CONFIG_SCANBUILD_REPORT_LOCATION)
+ifeq ($(CONFIG_LP_SCANBUILD_ENABLE),y)
+ifneq ($(CONFIG_LP_SCANBUILD_REPORT_LOCATION),)
+CONFIG_LP_SCANBUILD_REPORT_LOCATION:=-o $(CONFIG_LP_SCANBUILD_REPORT_LOCATION)
 endif
 real-all:
 	echo '#!/bin/sh' > .ccwrap
@@ -175,7 +188,7 @@ real-all:
 	echo 'if [ "$$1" = "--hostcxx" ]; then shift; CC="$(HOSTCXX)"; fi' >> .ccwrap
 	echo 'eval $$CC $$*' >> .ccwrap
 	chmod +x .ccwrap
-	scan-build $(CONFIG_SCANBUILD_REPORT_LOCATION) -analyze-headers --use-cc=$(top)/.ccwrap --use-c++=$(top)/.ccwrap $(MAKE) INNER_SCANBUILD=y
+	scan-build $(CONFIG_LP_SCANBUILD_REPORT_LOCATION) -analyze-headers --use-cc=$(top)/.ccwrap --use-c++=$(top)/.ccwrap $(MAKE) INNER_SCANBUILD=y
 else
 real-all: real-target
 endif
@@ -183,7 +196,7 @@ endif
 # must come rather early
 .SECONDEXPANSION:
 
-$(obj)/config.h:
+$(KCONFIG_AUTOHEADER): $(KCONFIG_CONFIG)
 	$(MAKE) oldconfig
 
 # Add a new class of source/object files to the build system
@@ -267,12 +280,11 @@ printall:
 	@echo alldirs:=$(alldirs)
 	@echo allsrcs=$(allsrcs)
 	@echo DEPENDENCIES=$(DEPENDENCIES)
-	@echo LIBGCC_FILE_NAME=$(LIBGCC_FILE_NAME)
 	@$(foreach class,$(special-classes),echo $(class):='$($(class))'; )
 
 endif
 
-$(shell mkdir -p $(obj) $(objutil)/kconfig/lxdialog $(additional-dirs) $(alldirs))
+$(shell mkdir -p $(KCONFIG_SPLITCONFIG) $(obj) $(objk)/lxdialog $(additional-dirs) $(alldirs))
 
 cscope:
 	cscope -bR
@@ -291,13 +303,13 @@ clean-for-update: doxygen-clean clean-for-update-target
 	rmdir -p $(alldirs) 2>/dev/null >/dev/null || true
 
 clean: clean-for-update clean-target
-	rm -f .ccwrap
+	rm -f .ccwrap junit_config junit_config.old
 
 clean-cscope:
 	rm -f cscope.out
 
 distclean: clean-cscope
 	rm -rf $(obj)
-	rm -f .config .config.old ..config.tmp .kconfig.d .tmpconfig* .ccwrap .xcompile
+	rm -f .config .config.old ..config.tmp .kconfig.d .tmpconfig* .ccwrap .xcompile junit.xml
 
-.PHONY: $(PHONY) clean clean-cscope cscope distclean doxygen doxy .xcompile
+.PHONY: $(PHONY) clean clean-cscope cscope distclean doxygen doxy

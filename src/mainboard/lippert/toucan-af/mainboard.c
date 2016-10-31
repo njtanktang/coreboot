@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdlib.h>
@@ -26,11 +22,12 @@
 #include <device/pci_def.h>
 #include <southbridge/amd/sb800/sb800.h>
 #include <arch/acpi.h>
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include <cpu/amd/agesa/s3_resume.h>
 #include <cpu/amd/mtrr.h>
 #include "SBPLATFORM.h"
 #include "OEM.h" /* SMBUS0_BASE_ADDRESS */
+#include <southbridge/amd/cimx/sb800/gpio_oem.h>
 
 /* Write data block to slave on SMBUS0. */
 #define SMB0_STATUS	((SMBUS0_BASE_ADDRESS) + 0)
@@ -42,7 +39,7 @@
 static int smb_write_blk(u8 slave, u8 command, u8 length, const u8 *data)
 {
 	__outbyte(SMB0_STATUS, 0x1E);		// clear error status
-	__outbyte(SMB0_ADDRESS, slave & ~1);	// slave addr + direction=out
+	__outbyte(SMB0_ADDRESS, slave & ~1);	// slave addr + direction = out
 	__outbyte(SMB0_HOSTCMD, command);	// or destination offset
 	__outbyte(SMB0_DATA0, length);		// sent before data
 	__inbyte(SMB0_CONTROL);			// reset block data array
@@ -50,7 +47,7 @@ static int smb_write_blk(u8 slave, u8 command, u8 length, const u8 *data)
 		__outbyte(SMB0_BLOCKDATA, *(data++));
 	__outbyte(SMB0_CONTROL, 0x54);		// execute block write, no IRQ
 
-	while (__inbyte(SMB0_STATUS) == 0x01) ;	// busy, no errors
+	while (__inbyte(SMB0_STATUS) == 0x01);	// busy, no errors
 	return __inbyte(SMB0_STATUS) ^ 0x02;	// 0x02 = completed, no errors
 }
 
@@ -92,14 +89,14 @@ static void init(struct device *dev)
 	       fch_gpio_state(58)<<2 | fch_gpio_state(57)<<1 | fch_gpio_state(56));
 
 	/* Lower SPI speed from default 66 to 22 MHz for SST 25VF032B */
-	spi_base = (u8*)(pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x14, 3)), 0xA0) & 0xFFFFFFE0);
+	spi_base = (u8*)((uintptr_t)pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x14, 3)), 0xA0) & 0xFFFFFFE0);
 	spi_base[0x0D] = (spi_base[0x0D] & ~0x30) | 0x20; // NormSpeed in SPI_Cntrl1 register
 
 	/* Notify the SMC we're alive and kicking, or after a while it will
 	 * effect a power cycle and switch to the alternate BIOS chip.
 	 * Should be done as late as possible. */
 	printk(BIOS_INFO, "Sending BIOS alive message\n");
-	const u8 i_am_alive[] = { 0x03 }; //bit2=SEL_DP0: 0=DDI2, 1=LVDS
+	const u8 i_am_alive[] = { 0x03 }; //bit2 = SEL_DP0: 0 = DDI2, 1 = LVDS
 	if ((i = smb_write_blk(0x50, 0x25, sizeof(i_am_alive), i_am_alive)))
 		printk(BIOS_ERR, "smb_write_blk failed: %d\n", i);
 
@@ -134,22 +131,14 @@ static void mainboard_enable(device_t dev)
 	printk(BIOS_INFO, "Mainboard " CONFIG_MAINBOARD_PART_NUMBER " Enable.\n");
 	dev->ops->init = init;
 
-/*
- * The mainboard is the first place that we get control in ramstage. Check
- * for S3 resume and call the appropriate AGESA/CIMx resume functions.
- */
-#if CONFIG_HAVE_ACPI_RESUME
-	acpi_slp_type = acpi_get_sleep_type();
-#endif
-
 	/* enable GPP CLK0 thru CLK1 */
 	/* disable GPP CLK2 thru SLT_GFX_CLK */
 	u8 *misc_mem_clk_cntrl = (u8 *)(ACPI_MMIO_BASE + MISC_BASE);
-	*(misc_mem_clk_cntrl + 0) = 0xFF;
-	*(misc_mem_clk_cntrl + 1) = 0x00;
-	*(misc_mem_clk_cntrl + 2) = 0x00;
-	*(misc_mem_clk_cntrl + 3) = 0x00;
-	*(misc_mem_clk_cntrl + 4) = 0x00;
+	write8(misc_mem_clk_cntrl + 0, 0xFF);
+	write8(misc_mem_clk_cntrl + 1, 0x00);
+	write8(misc_mem_clk_cntrl + 2, 0x00);
+	write8(misc_mem_clk_cntrl + 3, 0x00);
+	write8(misc_mem_clk_cntrl + 4, 0x00);
 
 	/*
 	 * Initialize ASF registers to an arbitrary address because someone

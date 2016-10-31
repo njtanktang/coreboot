@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -59,11 +55,19 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	memcpy(header->asl_compiler_id, ASLC, 4);
 	header->asl_compiler_revision = 0;
 
-	fadt->firmware_ctrl = (u32) facs;
-	fadt->dsdt = (u32) dsdt;
+	if ((uintptr_t)facs > 0xffffffff)
+		printk(BIOS_DEBUG, "ACPI: FACS lives above 4G\n");
+	else
+		fadt->firmware_ctrl = (uintptr_t)facs;
+
+	if ((uintptr_t)dsdt > 0xffffffff)
+		printk(BIOS_DEBUG, "ACPI: DSDT lives above 4G\n");
+	else
+		fadt->dsdt = (uintptr_t)dsdt;
+
 	fadt->model = 0;		/* reserved, should be 0 ACPI 3.0 */
 	fadt->preferred_pm_profile = FADT_PM_PROFILE;
-	fadt->sci_int = 9;		/* HUDSON - IRQ 09 – ACPI SCI */
+	fadt->sci_int = 9;		/* HUDSON - IRQ 09 - ACPI SCI */
 
 	if (IS_ENABLED(CONFIG_HAVE_SMI_HANDLER)) {
 		fadt->smi_cmd = ACPI_SMI_CTL_PORT;
@@ -138,10 +142,11 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	fadt->res4 = 0;		/* reserved, MUST be 0 ACPI 3.0 */
 	fadt->res5 = 0;		/* reserved, MUST be 0 ACPI 3.0 */
 
-	fadt->x_firmware_ctl_l = 0;	/* set to 0 if firmware_ctrl is used */
-	fadt->x_firmware_ctl_h = 0;
-	fadt->x_dsdt_l = (u32) dsdt;
-	fadt->x_dsdt_h = 0;
+
+	fadt->x_firmware_ctl_l = ((uintptr_t)facs) & 0xffffffff;
+	fadt->x_firmware_ctl_h = ((uint64_t)(uintptr_t)facs) >> 32;
+	fadt->x_dsdt_l = ((uintptr_t)dsdt) & 0xffffffff;
+	fadt->x_dsdt_h = ((uint64_t)(uintptr_t)dsdt) >> 32;
 
 	fadt->x_pm1a_evt_blk.space_id = ACPI_ADDRESS_SPACE_IO;
 	fadt->x_pm1a_evt_blk.bit_width = 32;

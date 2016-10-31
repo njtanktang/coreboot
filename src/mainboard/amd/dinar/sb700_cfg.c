@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -135,11 +131,10 @@ void sb700_cimx_config(AMDSBCFG *sb_config)
 #ifndef __PRE_RAM__
 	/* ramstage cimx config here */
 	if (!sb_config->StdHeader.pCallBack) {
-		sb_config->StdHeader.pCallBack = sb700_callout_entry;
+		sb_config->StdHeader.pCallBack = (CIM_HOOK_ENTRY)&sb700_callout_entry;
 	}
 
 	//sb_config->
 #endif //!__PRE_RAM__
 	printk(BIOS_DEBUG, "SB700 - Cfg.c - %s - End.\n", __func__);
 }
-

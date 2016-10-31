@@ -12,20 +12,16 @@
 ## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ## GNU General Public License for more details.
 ##
-## You should have received a copy of the GNU General Public License
-## along with this program; if not, write to the Free Software
-## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-##
 
 config BAYTRAIL_FSP_SPECIFIC_OPTIONS
 	def_bool y
-	select PLATFORM_USES_FSP
+	select PLATFORM_USES_FSP1_0
 	select USE_GENERIC_FSP_CAR_INC
 	select FSP_USES_UPD
 
 config FSP_FILE
 	string
-	default "../intel/fsp/baytrail/FvFsp.bin"
+	default "../intel/fsp/baytrail/BAYTRAIL_FSP.fd"
 	help
 	  The path and filename of the Intel FSP binary for this platform.
 

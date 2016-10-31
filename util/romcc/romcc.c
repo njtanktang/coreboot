@@ -3,8 +3,8 @@
 #undef RELEASE_DATE
 #undef VERSION
 #define VERSION_MAJOR "0"
-#define VERSION_MINOR "73"
-#define RELEASE_DATE "08 May 2013"
+#define VERSION_MINOR "80"
+#define RELEASE_DATE "18 November 2015"
 #define VERSION VERSION_MAJOR "." VERSION_MINOR
 
 #include <stdarg.h>
@@ -223,6 +223,14 @@ static int exists(const char *dirname, const char *filename)
 	return does_exist;
 }
 
+static off_t get_file_size(FILE *f)
+{
+	struct stat s;
+	int fd = fileno(f);
+	if (fd == -1) return -1;
+	if (fstat(fd, &s) == -1) return -1;
+	return s.st_size;
+}
 
 static char *slurp_file(const char *dirname, const char *filename, off_t *r_size)
 {
@@ -246,9 +254,10 @@ static char *slurp_file(const char *dirname, const char *filename, off_t *r_size
 		die("Cannot open '%s' : %s\n",
 			filename, strerror(errno));
 	}
-	fseek(file, 0, SEEK_END);
-	size = ftell(file);
-	fseek(file, 0, SEEK_SET);
+	size = get_file_size(file);
+	if (size == -1) {
+		die("Could not fetch size of '%s': %s\n", filename, strerror(errno));
+	}
 	*r_size = size +1;
 	buf = xmalloc(size +2, filename);
 	buf[size] = '\n'; /* Make certain the file is newline terminated */
@@ -1529,13 +1538,14 @@ static int append_string(size_t *max, const char ***vec, const char *str,
 }
 
 static void arg_error(char *fmt, ...);
+static void arg_warning(char *fmt, ...);
 static const char *identifier(const char *str, const char *end);
 
 static int append_include_path(struct compiler_state *compiler, const char *str)
 {
 	int result;
 	if (!exists(str, ".")) {
-		arg_error("Nonexistent include path: `%s'\n",
+		arg_warning("Warning: Nonexistent include path: `%s'\n",
 			str);
 	}
 	result = append_string(&compiler->include_path_count,
@@ -10797,8 +10807,8 @@ static struct triple *integer_constant(struct compile_state *state)
 	errno = 0;
 	decimal = (tk->val.str[0] != '0');
 	val = strtoul(tk->val.str, &end, 0);
-	if ((val > ULONG_T_MAX) || ((val == ULONG_MAX) && (errno == ERANGE))) {
-		error(state, 0, "Integer constant to large");
+	if (errno == ERANGE) {
+		error(state, 0, "Integer constant out of range");
 	}
 	u = l = 0;
 	if ((*end == 'u') || (*end == 'U')) {
@@ -15152,9 +15162,6 @@ static void free_basic_block(struct compile_state *state, struct block *block)
 		}
 	}
 	memset(block, -1, sizeof(*block));
-#ifndef WIN32
-	xfree(block);
-#endif
 }
 
 static void free_basic_blocks(struct compile_state *state,
@@ -25075,6 +25082,15 @@ static void arg_error(char *fmt, ...)
 	va_end(args);
 	usage();
 	exit(1);
+}
+
+static void arg_warning(char *fmt, ...)
+{
+	va_list args;
+
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
 }
 
 int main(int argc, char **argv)

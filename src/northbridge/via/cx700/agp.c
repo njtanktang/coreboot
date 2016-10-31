@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -72,12 +68,8 @@ static void agp_bridge_init(device_t dev)
 	pci_write_config8(dev, 0x44, 0x34);
 }
 
-static void cx700_noop(device_t dev)
-{
-}
-
 static struct device_operations agp_bridge_operations = {
-	.read_resources = cx700_noop,
+	.read_resources = DEVICE_NOOP,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = pci_bus_enable_resources,
 	.init = agp_bridge_init,

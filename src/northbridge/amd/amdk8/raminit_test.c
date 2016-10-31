@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <limits.h>
+#include <lib.h>
 #include <stdint.h>
 #include <string.h>
 #include <setjmp.h>
@@ -55,14 +56,6 @@ static uint32_t pci_read_config32(device_t dev, unsigned where)
 		(pci_register[addr + 1]  << 8) |
 		(pci_register[addr + 2]  << 16) |
 		(pci_register[addr + 3]  << 24);
-
-#if 0
-	print_debug("pcir32(");
-	print_debug_hex32(addr);
-	print_debug("):");
-	print_debug_hex32(value);
-	print_debug("\n");
-#endif
 	return value;
 
 }
@@ -90,20 +83,12 @@ static void pci_write_config32(device_t dev, unsigned where, uint32_t value)
 	pci_register[addr + 1] = (value >> 8) & 0xff;
 	pci_register[addr + 2] = (value >> 16) & 0xff;
 	pci_register[addr + 3] = (value >> 24) & 0xff;
-
-#if 0
-	print_debug("pciw32(");
-	print_debug_hex32(addr);
-	print_debug(", ");
-	print_debug_hex32(value);
-	print_debug(")\n");
-#endif
 }
 
 #define PCI_DEV_INVALID (0xffffffffU)
 static device_t pci_locate_device(unsigned pci_id, device_t dev)
 {
-	for(; dev <= PCI_DEV(255, 31, 7); dev += PCI_DEV(0,0,1)) {
+	for (; dev <= PCI_DEV(255, 31, 7); dev += PCI_DEV(0,0,1)) {
 		unsigned int id;
 		id = pci_read_config32(dev, 0);
 		if (id == pci_id) {
@@ -138,7 +123,7 @@ unsigned long log2(unsigned long x)
 		write(STDERR_FILENO, errmsg, sizeof(errmsg) - 1);
 		hlt();
 	}
-	for(; i > x; i >>= 1, pow--)
+	for (; i > x; i >>= 1, pow--)
 		;
 
 	return pow;
@@ -284,15 +269,6 @@ static int spd_read_byte(unsigned device, unsigned address)
 			result = spd_data[(device << 8) | address];
 		}
 	}
-#if 0
-	print_debug("spd_read_byte(");
-	print_debug_hex32(device);
-	print_debug(", ");
-	print_debug_hex32(address);
-	print_debug(") -> ");
-	print_debug_hex32(result);
-	print_debug("\n");
-#endif
 	if (spd_count >= spd_fail_count) {
 		result = -1;
 	}
@@ -367,10 +343,6 @@ static void reset_tests(void)
 		/* NBCAP_ECC | NBCAP_CHIPKILL_ECC | */
 		(NBCAP_MEMCLK_200MHZ << NBCAP_MEMCLK_SHIFT) |
 		NBCAP_MEMCTRL);
-
-#if 0
-	pci_read_config32(PCI_DEV(0, 0x18, 3), NORTHBRIDGE_CAP);
-#endif
 }
 
 static void test1(void)
@@ -379,24 +351,7 @@ static void test1(void)
 
 	memcpy(&spd_data[0*256], spd_micron_512MB_DDR333, 256);
 	memcpy(&spd_data[1*256], spd_micron_512MB_DDR333, 256);
-#if 0
-	memcpy(&spd_data[2*256], spd_micron_512MB_DDR333, 256);
-	memcpy(&spd_data[3*256], spd_micron_512MB_DDR333, 256);
-
-	memcpy(&spd_data[8*256], spd_micron_512MB_DDR333, 256);
-	memcpy(&spd_data[9*256], spd_micron_512MB_DDR333, 256);
-	memcpy(&spd_data[10*256], spd_micron_512MB_DDR333, 256);
-	memcpy(&spd_data[11*256], spd_micron_512MB_DDR333, 256);
-#endif
-
 	raminit_main();
-
-#if 0
-	print_debug("spd_count: ");
-	print_debug_hex32(spd_count);
-	print_debug("\n");
-#endif
-
 }
 
 
@@ -410,9 +365,7 @@ static void do_test2(int i)
 	reset_tests();
 	spd_fail_count = i;
 
-	print_debug("\nSPD will fail after: ");
-	print_debug_hex32(spd_fail_count);
-	print_debug(" accesses.\n");
+	printk(BIOS_DEBUG, "\nSPD will fail after: %d accesses.\n", %d);
 
 	memcpy(&spd_data[0*256], spd_micron_512MB_DDR333, 256);
 	memcpy(&spd_data[1*256], spd_micron_512MB_DDR333, 256);
@@ -426,7 +379,7 @@ done:
 static void test2(void)
 {
 	int i;
-	for(i = 0; i < 0x48; i++) {
+	for (i = 0; i < 0x48; i++) {
 		do_test2(i);
 	}
 

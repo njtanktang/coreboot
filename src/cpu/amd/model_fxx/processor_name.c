@@ -14,10 +14,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 /*
@@ -122,10 +118,10 @@ int init_processor_name(void)
 	EightBitBrandId = cpuid_ebx(0x00000001) & 0xff;
 	BrandId = cpuid_ebx(0x80000001) & 0xffff;
 
-	if(!EightBitBrandId && !BrandId) {
+	if (!EightBitBrandId && !BrandId) {
 		BrandTableIndex = 0;
 		NN = 0xffffff;
-	} else if(!EightBitBrandId) {
+	} else if (!EightBitBrandId) {
 		BrandTableIndex = (BrandId >> 6) & 0x3f; // BrandId[11:6]
 		NN = BrandId & 0x3f; // // BrandId[6:0]
 	} else {
@@ -235,6 +231,7 @@ int init_processor_name(void)
 		case 0x30052:
 			processor_name_string =
 			    "AMD Sempron(tm) Processor RR50p";
+			break;
 		case 0x30064:
 		case 0x30068:
 			processor_name_string =
@@ -395,7 +392,7 @@ int init_processor_name(void)
 	 */
 
 	for (i=0; i<47; i++) { // 48 -1
-		if(program_string[i] == program_string[i+1]) {
+		if (program_string[i] == program_string[i+1]) {
 			switch (program_string[i]) {
 #if !CONFIG_K8_REV_F_SUPPORT
 			case 'X': ModelNumber = 22+ NN; break;
@@ -415,7 +412,7 @@ int init_processor_name(void)
 #endif
 			}
 
-			if(ModelNumber && ModelNumber < 100) {
+			if (ModelNumber && ModelNumber < 100) {
 				// No idea what to do with RR=100. According
 				// to the revision guide this is possible.
 				//
@@ -437,4 +434,3 @@ int init_processor_name(void)
 
 	return 0;
 }
-

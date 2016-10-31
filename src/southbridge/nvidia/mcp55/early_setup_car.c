@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifdef UNUSED_CODE
@@ -116,7 +112,7 @@ static void mcp55_early_pcie_setup(unsigned busnx, unsigned devnx,
 {
 	u32 tgio_ctrl, pll_ctrl, dword;
 	int i;
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = PCI_DEV(busnx, devnx + 1, 1);
 
@@ -242,12 +238,21 @@ static void mcp55_early_setup(unsigned mcp55_num, unsigned *busn,
 	RES_PCI_IO, PCI_ADDR(0, 6, 0, 0x74), 0xFFFFFFC0, 0x00000000,
 	RES_PCI_IO, PCI_ADDR(0, 6, 0, 0xC0), 0x00000000, 0xCB8410DE,
 	RES_PCI_IO, PCI_ADDR(0, 6, 0, 0xC4), 0xFFFFFFF8, 0x00000007,
+#if IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AMDFAM10)
+	/*
+	 * Avoid crash (complete with severe memory corruption!) during initial CAR boot
+	 * in mcp55_early_setup_x() on Fam10h systems by not touching 0x78.
+	 * Interestingly once the system is fully booted into Linux this can be set, but
+	 * not before!  Apparently something isn't initialized but the amount of effort
+	 * required to fix this is non-negligible and of unknown real-world benefit
+	 */
+#else
 	RES_PCI_IO, PCI_ADDR(0, 1, 0, 0x78), 0xC0FFFFFF, 0x19000000,
+#endif
 
 #if CONFIG_MCP55_USE_AZA
 	RES_PCI_IO, PCI_ADDR(0, 6, 1, 0x40), 0x00000000, 0xCB8410DE,
 
-	// RES_PCI_IO, PCI_ADDR(0, 1, 1, 0xE4), ~(1 << 14), (1 << 14),
 #endif
 
 #ifdef MCP55_MB_SETUP
@@ -320,22 +325,6 @@ static void mcp55_early_setup(unsigned mcp55_num, unsigned *busn,
 				PCI_DEV(busn[j], devn[j], 0), io_base[j]);
 	}
 
-#if 0
-	for (j = 0; j < mcp55_num; j++) {
-		// PCI-E (XSPLL) SS table 0x40, x044, 0x48
-		// SATA  (SPPLL) SS table 0xb0, 0xb4, 0xb8
-		// CPU   (PPLL)  SS table 0xc0, 0xc4, 0xc8
-		setup_ss_table(io_base[j] + ANACTRL_IO_BASE + 0x40,
-			io_base[j] + ANACTRL_IO_BASE + 0x44,
-			io_base[j] + ANACTRL_IO_BASE + 0x48, pcie_ss_tbl, 64);
-		setup_ss_table(io_base[j] + ANACTRL_IO_BASE + 0xb0,
-			io_base[j] + ANACTRL_IO_BASE + 0xb4,
-			io_base[j] + ANACTRL_IO_BASE + 0xb8, sata_ss_tbl, 64);
-		setup_ss_table(io_base[j] + ANACTRL_IO_BASE + 0xc0,
-			io_base[j] + ANACTRL_IO_BASE + 0xc4,
-			io_base[j] + ANACTRL_IO_BASE + 0xc8, cpu_ss_tbl, 64);
-	}
-#endif
 }
 
 #ifndef HT_CHAIN_NUM_MAX
@@ -372,10 +361,10 @@ static int mcp55_early_setup_x(void)
 		busnx = ht_c_index * HT_CHAIN_BUSN_D;
 		for (devnx = 0; devnx < 0x20; devnx++) {
 			u32 id;
-			device_t dev;
+			pci_devfn_t dev;
 			dev = PCI_DEV(busnx, devnx, 0);
 			id = pci_read_config32(dev, PCI_VENDOR_ID);
-			if(id == 0x036910de) {
+			if (id == 0x036910de) {
 				busn[mcp55_num] = busnx;
 				devn[mcp55_num] = devnx;
 
@@ -392,16 +381,12 @@ static int mcp55_early_setup_x(void)
 	}
 
 out:
-	print_debug("mcp55_num:");
-	print_debug_hex8(mcp55_num);
-	print_debug("\n");
+	printk(BIOS_DEBUG, "mcp55_num: %02x\n", mcp55_num);
 
 	mcp55_early_set_port(mcp55_num, busn, devn, io_base);
 	mcp55_early_setup(mcp55_num, busn, devn, io_base, pci_e_x);
 
 	mcp55_early_clear_port(mcp55_num, busn, devn, io_base);
-
-	// set_ht_link_mcp55(HT_CHAIN_NUM_MAX);
 
 	return 0;
 }

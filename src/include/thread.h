@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #ifndef THREAD_H_
 #define THREAD_H_
@@ -38,6 +34,11 @@ struct thread {
 };
 
 void threads_initialize(void);
+/* Get the base of the thread stacks.
+ * Returns pointer to CONFIG_NUM_THREADS*CONFIG_STACK_SIZE contiguous bytes
+ * aligned to CONFIG_STACK_SIZE, or NULL.
+ */
+void *arch_get_thread_stackbase(void);
 /* Run func(arrg) on a new thread. Return 0 on successful start of thread, < 0
  * when thread could not be started. Note that the thread will block the
  * current state in the boot state machine until it is complete. */

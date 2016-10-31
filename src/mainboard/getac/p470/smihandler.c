@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -24,6 +19,7 @@
 #include <cpu/x86/smm.h>
 #include "southbridge/intel/i82801gx/i82801gx.h"
 #include "southbridge/intel/i82801gx/nvs.h"
+#include <southbridge/intel/common/gpio.h>
 #include <ec/acpi/ec.h>
 #include "ec_oem.c"
 
@@ -199,4 +195,3 @@ void mainboard_smi_gpi(u32 gpi_sts)
 		printk(BIOS_DEBUG, "EC SMI source: %02x\n", source);
 	}
 }
-

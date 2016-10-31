@@ -16,10 +16,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-#
 
 EXIT_SUCCESS=0
 EXIT_FAILURE=1
@@ -52,8 +48,8 @@ is_file_tracked() {
 # Takes one optional argument: the path to inspect
 git_url() {
   # Note: This may not work as expected if multiple remotes are fetched from.
-  echo $(git remote -v | \
-         awk '/fetch/ {split($2, pieces, "@"); print pieces[2]; exit 0}')
+  echo $(git remote -v | grep "^origin\>" | \
+         awk '/fetch/ {print $2; exit 0}' | sed "s,^.*@,,")
 }
 
 # Returns a string indicating where others can get the current source code (excluding uncommitted changes)
@@ -100,7 +96,10 @@ timestamp() {
 	if [ -z "$t" ]; then
 		echo "Warning: Could not determine timestamp." 2>/dev/null
 	fi
-	echo "${t}"
+
+	# output the time, changing colons to underscores.
+	# gnu make doesn't work in directories with colons
+	echo "${t}" | tr ':' '_'
 }
 
 # Retrieve local SCM revision info. This is useful if we're working in a different SCM than upstream and/or

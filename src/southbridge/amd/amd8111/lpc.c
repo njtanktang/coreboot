@@ -11,7 +11,13 @@
 #include <pc80/isa-dma.h>
 #include <cpu/x86/lapic.h>
 #include <arch/ioapic.h>
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
+#include <cpu/amd/powernow.h>
+#endif
 #include <stdlib.h>
+#include <string.h>
 #include "amd8111.h"
 
 #define NMI_OFF 0
@@ -20,7 +26,7 @@ static void enable_hpet(struct device *dev)
 {
 	unsigned long hpet_address;
 
-	pci_write_config32(dev,0xa0, 0xfed00001);
+	pci_write_config32(dev, 0xa0, CONFIG_HPET_ADDRESS|1);
 	hpet_address = pci_read_config32(dev,0xa0)& 0xfffffffe;
 	printk(BIOS_DEBUG, "enabling HPET @0x%lx\n", hpet_address);
 
@@ -36,7 +42,7 @@ static void lpc_init(struct device *dev)
 	byte |= 1;
 	pci_write_config8(dev, 0x4B, byte);
 	/* Don't rename IO APIC */
-	setup_ioapic(IO_APIC_ADDR, 0);
+	setup_ioapic(VIO_APIC_VADDR, 0);
 
 	/* posted memory write enable */
 	byte = pci_read_config8(dev, 0x46);
@@ -71,7 +77,7 @@ static void lpc_init(struct device *dev)
 	}
 
 	/* Initialize the real time clock */
-	rtc_init(0);
+	cmos_init(0);
 
 	/* Initialize isa dma */
 	isa_dma_init();
@@ -112,6 +118,26 @@ static void lpci_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 			   ((device & 0xffff) << 16) | (vendor & 0xffff));
 }
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+
+extern u16 pm_base;
+
+unsigned long acpi_fill_mcfg(unsigned long current)
+{
+	/* Just a dummy */
+	return current;
+}
+
+static void southbridge_acpi_fill_ssdt_generator(device_t device) {
+#if CONFIG_SET_FIDVID
+	amd_generate_powernow(pm_base + 0x10, 6, 1);
+	acpigen_write_mainboard_resources("\\_SB.PCI0.MBRS", "_CRS");
+#endif
+}
+
+#endif
+
+
 static struct pci_operations lops_pci = {
 	.set_subsystem = lpci_set_subsystem,
 };
@@ -121,7 +147,11 @@ static struct device_operations lpc_ops  = {
 	.set_resources    = pci_dev_set_resources,
 	.enable_resources = pci_dev_enable_resources,
 	.init             = lpc_init,
-	.scan_bus         = scan_static_bus,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_fill_ssdt_generator = southbridge_acpi_fill_ssdt_generator,
+#endif
+	.scan_bus         = scan_lpc_bus,
 	.enable           = amd8111_enable,
 	.ops_pci          = &lops_pci,
 };

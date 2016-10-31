@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __RS690_H__
@@ -104,7 +100,7 @@ typedef enum _NB_REVISION_ {
 * ------------------------------------------------- */
 extern PCIE_CFG AtiPcieCfg;
 
-/* ----------------- export funtions ----------------- */
+/* ----------------- export functions ----------------- */
 u32 nbmisc_read_index(device_t nb_dev, u32 index);
 void nbmisc_write_index(device_t nb_dev, u32 index, u32 data);
 u32 nbpcie_p_read_index(device_t dev, u32 index);
@@ -138,4 +134,4 @@ void avoid_lpc_dma_deadlock(device_t nb_dev, device_t sb_dev);
 void config_gpp_core(device_t nb_dev, device_t sb_dev);
 void PcieReleasePortTraining(device_t nb_dev, device_t dev, u32 port);
 u8 PcieTrainPort(device_t nb_dev, device_t dev, u32 port);
-#endif				/* RS690_H */
+#endif /* __RS690_H__ */

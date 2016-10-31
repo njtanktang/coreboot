@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // PCI Interrupt Routing
@@ -23,9 +19,9 @@ Method(_PRT)
 {
 	/*
 	 * PICM comes from _PIC, which returns the following:
-	 * 0 – PIC mode
-	 * 1 – APIC mode
-	 * 2 – SAPIC mode
+	 * 0 - PIC mode
+	 * 1 - APIC mode
+	 * 2 - SAPIC mode
 	 */
 	If (PICM) {
 		Return (Package() {
@@ -40,4 +36,10 @@ Method(_PRT)
 			PCI_DEV_PIRQ_ROUTES
 		})
 	}
+
 }
+
+PCIE_BRIDGE_IRQ_ROUTES
+#undef PIC_MODE
+#include "irq_helper.h"
+PCIE_BRIDGE_IRQ_ROUTES

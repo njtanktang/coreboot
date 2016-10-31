@@ -11,12 +11,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
+#include <arch/acpi.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
@@ -30,27 +27,6 @@
 /* Include EC functions */
 #include <ec/google/chromeec/ec.h>
 #include "ec.h"
-
-int mainboard_io_trap_handler(int smif)
-{
-	switch (smif) {
-	case 0x99:
-		printk(BIOS_DEBUG, "Sample\n");
-		smm_get_gnvs()->smif = 0;
-		break;
-	default:
-		return 0;
-	}
-
-	/* On success, the IO Trap Handler returns 0
-	 * On failure, the IO Trap Handler returns a value != 0
-	 *
-	 * For now, we force the return value to 0 and log all traps to
-	 * see what's going on.
-	 */
-	//gnvs->smif = 0;
-	return 1;
-}
 
 static u8 mainboard_smi_ec(void)
 {
@@ -89,7 +65,7 @@ void mainboard_smi_sleep(u8 slp_typ)
 {
 	/* Disable USB charging if required */
 	switch (slp_typ) {
-	case 3:
+	case ACPI_S3:
 		if (smm_get_gnvs()->s3u0 == 0)
 			google_chromeec_set_usb_charge_mode(
 				0, USB_CHARGE_MODE_DISABLED);
@@ -97,7 +73,7 @@ void mainboard_smi_sleep(u8 slp_typ)
 			google_chromeec_set_usb_charge_mode(
 				1, USB_CHARGE_MODE_DISABLED);
 		break;
-	case 5:
+	case ACPI_S5:
 		if (smm_get_gnvs()->s5u0 == 0)
 			google_chromeec_set_usb_charge_mode(
 				0, USB_CHARGE_MODE_DISABLED);
@@ -118,28 +94,12 @@ void mainboard_smi_sleep(u8 slp_typ)
 	google_chromeec_set_wake_mask(LINK_EC_S3_WAKE_EVENTS);
 }
 
-#define APMC_FINALIZE 0xcb
 #define APMC_ACPI_EN  0xe1
 #define APMC_ACPI_DIS 0x1e
-
-static int mainboard_finalized = 0;
 
 int mainboard_smi_apmc(u8 apmc)
 {
 	switch (apmc) {
-	case APMC_FINALIZE:
-		if (mainboard_finalized) {
-			printk(BIOS_DEBUG, "SMI#: Already finalized\n");
-			return 0;
-		}
-
-		intel_me_finalize_smm();
-		intel_pch_finalize_smm();
-		intel_sandybridge_finalize_smm();
-		intel_model_206ax_finalize_smm();
-
-		mainboard_finalized = 1;
-		break;
 	case APMC_ACPI_EN:
 		google_chromeec_set_smi_mask(0);
 		/* Clear all pending events */

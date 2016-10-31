@@ -12,22 +12,20 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <stdint.h>
 #include <arch/io.h>
 #include <stdlib.h>
+#include "arch/x86/romcc_console.c"
 #include <console/console.h>
 #include <cpu/x86/cache.h>
-#include "drivers/pc80/i8254.c"
-#include "northbridge/dmp/vortex86ex/northbridge.h"
-#include "southbridge/dmp/vortex86ex/southbridge.h"
-#include "northbridge/dmp/vortex86ex/raminit.c"
-#include "cpu/dmp/dmp_post_code.h"
+#include <halt.h>
+#include "drivers/pc80/pc/i8254.c"
+#include <soc/dmp/vortex86ex/northbridge.h>
+#include <soc/dmp/vortex86ex/southbridge.h>
+#include "soc/dmp/vortex86ex/raminit.c"
+#include <cpu/dmp/dmp_post_code.h>
 
 #define DMP_CPUID_SX      0x31504d44
 #define DMP_CPUID_DX      0x32504d44
@@ -302,15 +300,13 @@ static void enable_l2_cache(void)
 
 static void main(unsigned long bist)
 {
-	device_t dev;
 	u32 dmp_id;
 
 	dmp_id = get_dmp_id();
 	if (dmp_id != DMP_CPUID_EX) {
 		/* Not DMP Vortex86EX CPU. */
 		post_code(POST_DMP_ID_ERR);
-		while (1)
-			hlt();
+		halt();
 	}
 	disable_watchdog();
 	set_ex_powerdown_control();

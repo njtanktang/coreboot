@@ -11,14 +11,10 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef  _SB800_EARLY_SETUP_C_
-#define  _SB800_EARLY_SETUP_C_
+#ifndef _SB800_EARLY_SETUP_C_
+#define _SB800_EARLY_SETUP_C_
 
 #include <reset.h>
 #include <arch/acpi.h>
@@ -53,7 +49,7 @@ static void sb800_acpi_init(void)
 	pmio_write(0x68, ACPI_GPE0_BLK & 0xFF);
 	pmio_write(0x69, ACPI_GPE0_BLK >> 8);
 
-	/* CpuControl is in \_PR.CPU0, 6 bytes */
+	/* CpuControl is in \_PR.CP00, 6 bytes */
 	pmio_write(0x66, ACPI_CPU_CONTROL & 0xFF);
 	pmio_write(0x67, ACPI_CPU_CONTROL >> 8);
 
@@ -77,7 +73,7 @@ static void sb800_acpi_init(void)
 /* RPR 2.28 Get SB ASIC Revision.*/
 static u8 get_sb800_revision(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 rev_id;
 	u8 rev = 0;
 
@@ -127,7 +123,7 @@ void sb800_clk_output_48Mhz(void)
 static void sb800_lpc_init(void)
 {
 	u8 reg8;
-	device_t dev;
+	pci_devfn_t dev;
 
 	//dev = pci_locate_device(PCI_ID(0x1002, 0x4385), 0);	/* SMBUS controller */
 	dev = PCI_DEV(0, 0x14, 0);
@@ -170,7 +166,7 @@ static void sb800_lpc_init(void)
 /* what is its usage? */
 static u32 get_sbdn(u32 bus)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Find the device. */
 	dev = PCI_DEV(bus, 0x14, 0);//pci_locate_device_on_bus(PCI_ID(0x1002, 0x4385), bus);
@@ -242,7 +238,7 @@ void soft_reset(void)
 void sb800_pci_port80(void)
 {
 	u8 byte;
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* P2P Bridge */
 	dev = PCI_DEV(0, 0x14, 4);//pci_locate_device(PCI_ID(0x1002, 0x4384), 0);
@@ -348,7 +344,7 @@ struct pm_entry const pm_table[] =
 void sb800_lpc_port80(void)
 {
 	u8 byte;
-	device_t dev;
+	pci_devfn_t dev;
 
 	/* Enable LPC controller */
 	byte = pmio_read(0xEC);
@@ -365,7 +361,7 @@ void sb800_lpc_port80(void)
 /* sbDevicesPorInitTable */
 static void sb800_devices_por_init(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 byte;
 
 	printk(BIOS_INFO, "sb800_devices_por_init()\n");
@@ -382,7 +378,7 @@ static void sb800_devices_por_init(void)
 
 	/* sbPorAtStartOfTblCfg */
 	/* rpr 4.1.Set A-Link bridge access address.
-	 * This is an I/O address. The I/O address must be on 16-byte boundry.  */
+	 * This is an I/O address. The I/O address must be on 16-byte boundary.  */
 	//pci_write_config32(dev, 0xf0, AB_INDX);
 	pmio_write(0xE0, AB_INDX & 0xFF);
 	pmio_write(0xE1, (AB_INDX >> 8) & 0xFF);
@@ -471,8 +467,8 @@ static void sb800_devices_por_init(void)
 	/* Arbiter enable. */
 	pci_write_config8(dev, 0x43, 0xff);
 
-	/* Set PCDMA request into hight priority list. */
-	/* pci_write_config8(dev, 0x49, 0x1) */ ;
+	/* Set PCDMA request into height priority list. */
+	/* pci_write_config8(dev, 0x49, 0x1); */
 
 	pci_write_config8(dev, 0x40, 0x26);
 
@@ -529,7 +525,7 @@ static void sb800_pmio_por_init(void)
 	byte |= 1 << 0;
 	pmio_write(0xB2, byte);
 
-	for (i=0; i<sizeof(pm_table)/sizeof(struct pm_entry); i++) {
+	for (i = 0; i < sizeof(pm_table)/sizeof(struct pm_entry); i++) {
 		byte = pmio_read(pm_table[i].port);
 		byte &= pm_table[i].mask;
 		byte |= pm_table[i].bit;
@@ -547,7 +543,7 @@ static void sb800_pmio_por_init(void)
 */
 static void sb800_pci_cfg(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 	u8 byte;
 
 	/* SMBus Device, BDF:0-20-0 */
@@ -572,7 +568,7 @@ static void sb800_pci_cfg(void)
 
 	/* LPC Device, BDF:0-20-3 */
 	/* The code below is ported from old chipset. It is not
-	 * metioned in RPR. But I keep them. The registers and the
+	 * Mentioned in RPR. But I keep them. The registers and the
 	 * comments are compatible. */
 	dev = PCI_DEV(0, 0x14, 3);//pci_locate_device(PCI_ID(0x1002, 0x439D), 0);
 	/* Enabling LPC DMA function. */
@@ -641,7 +637,7 @@ int s3_save_nvram_early(u32 dword, int size, int  nvram_pos)
 	int i;
 	printk(BIOS_DEBUG, "Writing %x of size %d to nvram pos: %d\n", dword, size, nvram_pos);
 
-	for (i = 0; i<size; i++) {
+	for (i = 0; i < size; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		outb((dword >>(8 * i)) & 0xff , BIOSRAM_DATA);
 		nvram_pos++;
@@ -654,7 +650,7 @@ int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos)
 {
 	u32 data = *old_dword;
 	int i;
-	for (i = 0; i<size; i++) {
+	for (i = 0; i < size; i++) {
 		outb(nvram_pos, BIOSRAM_INDEX);
 		data &= ~(0xff << (i * 8));
 		data |= inb(BIOSRAM_DATA) << (i *8);
@@ -666,22 +662,21 @@ int s3_load_nvram_early(int size, u32 *old_dword, int nvram_pos)
 	return nvram_pos;
 }
 
-#if CONFIG_HAVE_ACPI_RESUME
-int acpi_is_wakeup_early(void)
+int acpi_get_sleep_type(void)
 {
 	u16 tmp;
 	tmp = inw(ACPI_PM1_CNT_BLK);
-	printk(BIOS_DEBUG, "IN TEST WAKEUP %x\n", tmp);
-	return (((tmp & (7 << 10)) >> 10) == 3);
+	return ((tmp & (7 << 10)) >> 10);
 }
 
+#if IS_ENABLED(CONFIG_LATE_CBMEM_INIT)
 unsigned long get_top_of_ram(void)
 {
 	uint32_t xdata = 0;
 	int xnvram_pos = 0xfc, xi;
-	if (!acpi_is_wakeup_early())
+	if (acpi_get_sleep_type() != 3)
 		return 0;
-	for (xi = 0; xi<4; xi++) {
+	for (xi = 0; xi < 4; xi++) {
 		outb(xnvram_pos, BIOSRAM_INDEX);
 		xdata &= ~(0xff << (xi * 8));
 		xdata |= inb(BIOSRAM_DATA) << (xi *8);

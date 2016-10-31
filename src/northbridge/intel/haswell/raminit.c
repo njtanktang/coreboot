@@ -11,53 +11,28 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
-#include <bootmode.h>
 #include <string.h>
-#include <arch/hlt.h>
 #include <arch/io.h>
 #include <cbmem.h>
 #include <arch/cbfs.h>
 #include <cbfs.h>
+#include <halt.h>
 #include <ip_checksum.h>
+#include <northbridge/intel/common/mrc_cache.h>
 #include <pc80/mc146818rtc.h>
 #include <device/pci_def.h>
+#include <vboot/vboot_common.h>
 #include "raminit.h"
 #include "pei_data.h"
 #include "haswell.h"
 
 void save_mrc_data(struct pei_data *pei_data)
 {
-	struct mrc_data_container *mrcdata;
-	int output_len = ALIGN(pei_data->mrc_output_len, 16);
-
 	/* Save the MRC S3 restore data to cbmem */
-	mrcdata = cbmem_add
-		(CBMEM_ID_MRCDATA,
-		 output_len + sizeof(struct mrc_data_container));
-
-	printk(BIOS_DEBUG, "Relocate MRC DATA from %p to %p (%u bytes)\n",
-	       pei_data->mrc_output, mrcdata, output_len);
-
-	mrcdata->mrc_signature = MRC_DATA_SIGNATURE;
-	mrcdata->mrc_data_size = output_len;
-	mrcdata->reserved = 0;
-	memcpy(mrcdata->mrc_data, pei_data->mrc_output,
-	       pei_data->mrc_output_len);
-
-	/* Zero the unused space in aligned buffer. */
-	if (output_len > pei_data->mrc_output_len)
-		memset(mrcdata->mrc_data+pei_data->mrc_output_len, 0,
-		       output_len - pei_data->mrc_output_len);
-
-	mrcdata->mrc_checksum = compute_ip_checksum(mrcdata->mrc_data,
-						    mrcdata->mrc_data_size);
+	store_current_mrc_cache(pei_data->mrc_output, pei_data->mrc_output_len);
 }
 
 static void prepare_mrc_cache(struct pei_data *pei_data)
@@ -146,7 +121,7 @@ void sdram_initialize(struct pei_data *pei_data)
 	 * Do not pass MRC data in for recovery mode boot,
 	 * Always pass it in for S3 resume.
 	 */
-	if (!recovery_mode_enabled() || pei_data->boot_mode == 2)
+	if (!vboot_recovery_mode_enabled() || pei_data->boot_mode == 2)
 		prepare_mrc_cache(pei_data);
 
 	/* If MRC data is not found we cannot continue S3 resume. */
@@ -155,17 +130,15 @@ void sdram_initialize(struct pei_data *pei_data)
 		printk(BIOS_DEBUG, "Giving up in sdram_initialize: "
 		       "No MRC data\n");
 		outb(0x6, 0xcf9);
-		while(1) {
-			hlt();
-		}
+		halt();
 	}
 
 	/* Pass console handler in pei_data */
 	pei_data->tx_byte = do_putchar;
 
 	/* Locate and call UEFI System Agent binary. */
-	entry = (unsigned long)cbfs_get_file_content(
-		CBFS_DEFAULT_MEDIA, "mrc.bin", 0xab, NULL);
+	entry = (unsigned long)cbfs_boot_map_with_leak("mrc.bin",
+							CBFS_TYPE_MRC, NULL);
 	if (entry) {
 		int rv;
 		asm volatile (

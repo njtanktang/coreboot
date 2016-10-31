@@ -1,10 +1,21 @@
 /*
- * Definitions for clock control and gating on Allwinner CPUs
+ * This file is part of the coreboot project.
  *
  * Copyright (C) 2007-2011 Allwinner Technology Co., Ltd.
  *	Tom Cubie <tangliang@allwinnertech.com>
  * Copyright (C) 2013  Alexandru Gagniuc <mr.nuke.me@gmail.com>
- * Subject to the GNU GPL v2, or (at your option) any later version.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License. or (at your option)
+ * any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * Definitions for clock control and gating on Allwinner CPUs
  */
 
 #ifndef CPU_ALLWINNER_A10_CLOCK_H
@@ -201,7 +212,7 @@ struct a10_ccm {
 	u8 res3[0xc];
 	u32 pll_lock_dbg;	/* 0x4c pll lock time debug */
 	u32 osc24m_cfg;		/* 0x50 osc24m control */
-	u32 cpu_ahb_apb0_cfg;	/* 0x54 cpu,ahb and apb0 divide ratio */
+	u32 cpu_ahb_apb0_cfg;	/* 0x54 CPU, ahb and apb0 divide ratio */
 	u32 apb1_clk_div_cfg;	/* 0x58 apb1 clock dividor */
 	u32 axi_gate;		/* 0x5c axi module clock gating */
 	u32 ahb_gate0;		/* 0x60 ahb module clock gating 0 */

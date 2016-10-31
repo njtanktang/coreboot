@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -40,7 +36,7 @@ unsigned long acpi_create_madt_lapic_nmis(unsigned long current, u16 flags, u8 l
 	device_t cpu;
 	int cpu_index = 0;
 
-	for(cpu = all_devices; cpu; cpu = cpu->next) {
+	for (cpu = all_devices; cpu; cpu = cpu->next) {
 		if ((cpu->path.type != DEVICE_PATH_APIC) ||
 		    (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
 			continue;
@@ -59,7 +55,7 @@ unsigned long acpi_create_srat_lapics(unsigned long current)
 	device_t cpu;
 	int cpu_index = 0;
 
-	for(cpu = all_devices; cpu; cpu = cpu->next) {
+	for (cpu = all_devices; cpu; cpu = cpu->next) {
 		if ((cpu->path.type != DEVICE_PATH_APIC) ||
 		    (cpu->bus->dev->path.type != DEVICE_PATH_CPU_CLUSTER)) {
 			continue;
@@ -103,9 +99,9 @@ static void set_srat_mem(void *gp, struct device *dev, struct resource *res)
 	 * next range is from 1M---
 	 * So will cut off before 1M in the mem range
 	 */
-	if((basek+sizek)<1024) return;
+	if ((basek+sizek)<1024) return;
 
-	if(basek<1024) {
+	if (basek < 1024) {
 		sizek -= 1024 - basek;
 		basek = 1024;
 	}
@@ -114,7 +110,7 @@ static void set_srat_mem(void *gp, struct device *dev, struct resource *res)
 	state->current += acpi_create_srat_mem((acpi_srat_mem_t *)state->current, (res->index & 0xf), basek, sizek, 1);
 }
 
-unsigned long acpi_fill_srat(unsigned long current)
+static unsigned long acpi_fill_srat(unsigned long current)
 {
 	struct acpi_srat_mem_state srat_mem_state;
 
@@ -135,7 +131,7 @@ unsigned long acpi_fill_srat(unsigned long current)
 	return current;
 }
 
-unsigned long acpi_fill_slit(unsigned long current)
+static unsigned long acpi_fill_slit(unsigned long current)
 {
 	/* need to find out the node num at first */
 	/* fill the first 8 byte with that num */
@@ -151,49 +147,19 @@ unsigned long acpi_fill_slit(unsigned long current)
 				      3, 4, 2, 3, 1, 2, 0, 1,
 				      4, 4, 3, 2, 2, 1, 1, 0 };
 
-//	u8 outer_node[8];
-
 	u8 *p = (u8 *)current;
 	int nodes = sysconf.nodes;
 	int i,j;
 	memset(p, 0, 8+nodes*nodes);
-//	memset((u8 *)outer_node, 0, 8);
 	*p = (u8) nodes;
 	p += 8;
 
-#if 0
-	for(i=0;i<sysconf.hc_possible_num;i++) {
-		if((sysconf.pci1234[i]&1) !=1 ) continue;
-		outer_node[(sysconf.pci1234[i] >> 4) & 0xf] = 1; // mark the outer node
-	}
-#endif
-
-	for(i=0;i<nodes;i++) {
-		for(j=0;j<nodes; j++) {
-			if(i==j) {
+	for (i = 0; i < nodes; i++) {
+		for (j = 0; j < nodes; j++) {
+			if (i == j) {
 				p[i*nodes+j] = 10;
 			} else {
-#if 0
-				int k;
-				u8 latency_factor = 0;
-				int k_start, k_end;
-				if(i<j) {
-					k_start = i;
-					k_end = j;
-				} else {
-					k_start = j;
-					k_end = i;
-				}
-				for(k=k_start;k<=k_end; k++) {
-					if(outer_node[k]) {
-						latency_factor = 1;
-						break;
-					}
-				}
-				p[i*nodes+j] = hops_8[i*nodes+j] * 2 + latency_factor + 10;
-#else
 				p[i*nodes+j] = hops_8[i*nodes+j] * 2 + 10;
-#endif
 
 			}
 		}
@@ -204,71 +170,108 @@ unsigned long acpi_fill_slit(unsigned long current)
 	return current;
 }
 
-static int k8acpi_write_HT(void) {
-	int len, lenp, i;
+unsigned long northbridge_write_acpi_tables(
+		device_t device,
+		unsigned long start,
+		acpi_rsdp_t *rsdp)
+{
+	unsigned long current;
+	acpi_srat_t *srat;
+	acpi_slit_t *slit;
 
-	len = acpigen_write_name("HCLK");
-	lenp = acpigen_write_package(HC_POSSIBLE_NUM);
+	current = start;
 
-	for(i=0;i<sysconf.hc_possible_num;i++) {
-		lenp += acpigen_write_dword(sysconf.pci1234[i]);
-	}
-	for(i=sysconf.hc_possible_num; i<HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
-		lenp += acpigen_write_dword(0x0);
-	}
+	/* Fills sysconf structure needed for SRAT and SLIT.  */
+	get_bus_conf();
 
-	acpigen_patch_len(lenp - 1);
-	len += lenp;
+	current = ALIGN(current, 16);
+	srat = (acpi_srat_t *) current;
+	printk(BIOS_DEBUG, "ACPI:    * SRAT @ %p\n", srat);
+	acpi_create_srat(srat, acpi_fill_srat);
+	current += srat->header.length;
+	acpi_add_table(rsdp, srat);
 
-	len += acpigen_write_name("HCDN");
-	lenp = acpigen_write_package(HC_POSSIBLE_NUM);
+	/* SLIT */
+	current = ALIGN(current, 16);
+	slit = (acpi_slit_t *) current;
+	printk(BIOS_DEBUG, "ACPI:    * SLIT @ %p\n", slit);
+	acpi_create_slit(slit, acpi_fill_slit);
+	current+=slit->header.length;
+	acpi_add_table(rsdp,slit);
 
-	for(i=0;i<sysconf.hc_possible_num;i++) {
-		lenp += acpigen_write_dword(sysconf.hcdn[i]);
-	}
-	for(i=sysconf.hc_possible_num; i<HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
-		lenp += acpigen_write_dword(0x20202020);
-	}
-	acpigen_patch_len(lenp - 1);
-	len += lenp;
-
-	return len;
+	return current;
 }
 
-static int k8acpi_write_pci_data(int dlen, const char *name, int offset) {
+static void k8acpi_write_HT(void) {
+	int i;
+
+	acpigen_write_name("HCLK");
+	acpigen_write_package(HC_POSSIBLE_NUM);
+
+	for (i = 0; i < sysconf.hc_possible_num; i++) {
+		acpigen_write_dword(sysconf.pci1234[i]);
+	}
+	for (i = sysconf.hc_possible_num; i < HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
+		acpigen_write_dword(0x0);
+	}
+
+	acpigen_pop_len();
+
+	acpigen_write_name("HCDN");
+	acpigen_write_package(HC_POSSIBLE_NUM);
+
+	for (i = 0; i < sysconf.hc_possible_num; i++) {
+		acpigen_write_dword(sysconf.hcdn[i]);
+	}
+	for (i = sysconf.hc_possible_num; i < HC_POSSIBLE_NUM; i++) { // in case we set array size to other than 8
+		acpigen_write_dword(0x20202020);
+	}
+	acpigen_pop_len();
+}
+
+static void k8acpi_write_pci_data(int dlen, const char *name, int offset) {
 	device_t dev;
 	uint32_t dword;
-	int len, lenp, i;
+	int i;
 
 	dev = dev_find_slot(0, PCI_DEVFN(0x18, 1));
 
-	len = acpigen_write_name(name);
-	lenp = acpigen_write_package(dlen);
-	for(i=0; i<dlen; i++) {
+	acpigen_write_name(name);
+	acpigen_write_package(dlen);
+	for (i = 0; i < dlen; i++) {
 		dword = pci_read_config32(dev, offset+i*4);
-		lenp += acpigen_write_dword(dword);
+		acpigen_write_dword(dword);
 	}
 	// minus the opcode
-	acpigen_patch_len(lenp - 1);
-	return len + lenp;
+	acpigen_pop_len();
 }
 
-int k8acpi_write_vars(void)
+void k8acpi_write_vars(device_t device)
 {
-	int lens;
+	/*
+	 * If more than one physical CPU is installed k8acpi_write_vars()
+	 * is called more than once. If we don't prevent it, a SSDT table
+	 * with duplicate variables will cause some ACPI parsers to be
+	 * confused enough to fail.
+	 */
+	static uint8_t ssdt_generated = 0;
+	if (ssdt_generated)
+		return;
+	ssdt_generated = 1;
+
 	msr_t msr;
 	char pscope[] = "\\_SB.PCI0";
 
-	lens = acpigen_write_scope(pscope);
-	lens += k8acpi_write_pci_data(4, "BUSN", 0xe0);
-	lens += k8acpi_write_pci_data(8, "PCIO", 0xc0);
-	lens += k8acpi_write_pci_data(16, "MMIO", 0x80);
-	lens += acpigen_write_name_byte("SBLK", sysconf.sblk);
-	lens += acpigen_write_name_byte("CBST",
+	acpigen_write_scope(pscope);
+	k8acpi_write_pci_data(4, "BUSN", 0xe0);
+	k8acpi_write_pci_data(8, "PCIO", 0xc0);
+	k8acpi_write_pci_data(16, "MMIO", 0x80);
+	acpigen_write_name_byte("SBLK", sysconf.sblk);
+	acpigen_write_name_byte("CBST",
 	    ((sysconf.pci1234[0] >> 12) & 0xff) ? 0xf : 0x0);
-	lens += acpigen_write_name_dword("SBDN", sysconf.sbdn);
+	acpigen_write_name_dword("SBDN", sysconf.sbdn);
 	msr = rdmsr(TOP_MEM);
-	lens += acpigen_write_name_dword("TOM1", msr.lo);
+	acpigen_write_name_dword("TOM1", msr.lo);
 	msr = rdmsr(TOP_MEM2);
 	/*
 	 * Since XP only implements parts of ACPI 2.0, we can't use a qword
@@ -278,12 +281,11 @@ int k8acpi_write_vars(void)
 	 * Shift value right by 20 bit to make it fit into 32bit,
 	 * giving us 1MB granularity and a limit of almost 4Exabyte of memory.
 	 */
-	lens += acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
+	acpigen_write_name_dword("TOM2", (msr.hi << 12) | msr.lo >> 20);
 
-	lens += k8acpi_write_HT();
+	k8acpi_write_HT();
 	//minus opcode
-	acpigen_patch_len(lens - 1);
-	return lens;
+	acpigen_pop_len();
 }
 
 void update_ssdtx(void *ssdtx, int i)
@@ -307,4 +309,3 @@ void update_ssdtx(void *ssdtx, int i)
 	/* FIXME: need to update the GSI id in the ssdtx too */
 
 }
-

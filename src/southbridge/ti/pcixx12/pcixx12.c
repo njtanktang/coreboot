@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -38,11 +34,11 @@ static void pcixx12_read_resources(device_t dev)
 
 static void pcixx12_set_resources(device_t dev)
 {
-	printk(BIOS_DEBUG, "%s In set resources \n",dev_path(dev));
+	printk(BIOS_DEBUG, "%s In set resources\n",dev_path(dev));
 
 	pci_dev_set_resources(dev);
 
-	printk(BIOS_DEBUG, "%s done set resources \n",dev_path(dev));
+	printk(BIOS_DEBUG, "%s done set resources\n",dev_path(dev));
 }
 
 static struct device_operations ti_pcixx12_ops = {

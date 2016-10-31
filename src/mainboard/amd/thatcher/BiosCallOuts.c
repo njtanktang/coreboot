@@ -11,17 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#include "agesawrapper.h"
+#include "AGESA.h"
 #include "amdlib.h"
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include "Ids.h"
-#include "OptionsIds.h"
 #include "heapManager.h"
 #include "FchPlatform.h"
 #include "cbfs.h"
@@ -30,13 +25,12 @@
 #endif
 #include <stdlib.h>
 
+static AGESA_STATUS Fch_Oem_config(UINT32 Func, UINTN FchData, VOID *ConfigPtr);
+
 const BIOS_CALLOUT_STRUCT BiosCallouts[] =
 {
-	{AGESA_ALLOCATE_BUFFER,          agesa_AllocateBuffer },
-	{AGESA_DEALLOCATE_BUFFER,        agesa_DeallocateBuffer },
-	{AGESA_LOCATE_BUFFER,            agesa_LocateBuffer },
-	{AGESA_READ_SPD,                 fam15tn_ReadSpd },
 	{AGESA_DO_RESET,                 agesa_Reset },
+	{AGESA_READ_SPD,                 agesa_ReadSpd },
 	{AGESA_READ_SPD_RECOVERY,        agesa_NoopUnsupported },
 	{AGESA_RUNFUNC_ONAP,             agesa_RunFuncOnAp },
 	{AGESA_GET_IDS_INIT_DATA,        agesa_EmptyIdsInitData },
@@ -189,17 +183,15 @@ static void oem_fan_control(FCH_DATA_BLOCK *FchParams)
  *  Configure platform specific Hudson device,
  *   such Azalia, SATA, IMC etc.
  */
-AGESA_STATUS Fch_Oem_config(UINT32 Func, UINT32 FchData, VOID *ConfigPtr)
+static AGESA_STATUS Fch_Oem_config(UINT32 Func, UINTN FchData, VOID *ConfigPtr)
 {
 	FCH_RESET_DATA_BLOCK *FchParams = (FCH_RESET_DATA_BLOCK *)FchData;
 
 	if (FchParams->StdHeader->Func == AMD_INIT_RESET) {
-		FCH_RESET_DATA_BLOCK *FchParams_reset =  (FCH_RESET_DATA_BLOCK *) FchData;
+		FCH_RESET_DATA_BLOCK *FchParams_reset = (FCH_RESET_DATA_BLOCK *)FchData;
 		printk(BIOS_DEBUG, "Fch OEM config in INIT RESET ");
 		//FchParams_reset->EcChannel0 = TRUE; /* logical devicd 3 */
-#if CONFIG_HUDSON_LEGACY_FREE
-		FchParams_reset->LegacyFree = 1;
-#endif
+		FchParams_reset->LegacyFree = IS_ENABLED(CONFIG_HUDSON_LEGACY_FREE);
 	} else if (FchParams->StdHeader->Func == AMD_INIT_ENV) {
 		FCH_DATA_BLOCK *FchParams_env = (FCH_DATA_BLOCK *)FchData;
 		printk(BIOS_DEBUG, "Fch OEM config in INIT ENV ");

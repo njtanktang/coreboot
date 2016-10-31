@@ -22,6 +22,8 @@
 #include "lkc.h"
 #include "lxdialog/dialog.h"
 
+int kconfig_warnings = 0;
+
 static const char mconf_readme[] = N_(
 "Overview\n"
 "--------\n"
@@ -299,7 +301,7 @@ static void set_config_filename(const char *config_filename)
 	int size;
 
 	size = snprintf(menu_backtitle, sizeof(menu_backtitle),
-	                "%s - %s", config_filename, rootmenu.prompt->text);
+			"%s - %s", config_filename, rootmenu.prompt->text);
 	if (size >= sizeof(menu_backtitle))
 		menu_backtitle[sizeof(menu_backtitle)-1] = '\0';
 	set_dialog_backtitle(menu_backtitle);
@@ -330,10 +332,10 @@ static void set_subtitle(void)
 	list_for_each_entry(sp, &trail, entries) {
 		if (sp->text) {
 			if (pos) {
-				pos->next = xcalloc(sizeof(*pos), 1);
+				pos->next = xcalloc(1, sizeof(*pos));
 				pos = pos->next;
 			} else {
-				subtitles = pos = xcalloc(sizeof(*pos), 1);
+				subtitles = pos = xcalloc(1, sizeof(*pos));
 			}
 			pos->text = sp->text;
 		}
@@ -952,6 +954,7 @@ static void conf_save(void)
 static int handle_exit(void)
 {
 	int res;
+	char *env;
 
 	save_and_exit = 1;
 	reset_subtitle();
@@ -965,6 +968,13 @@ static int handle_exit(void)
 		res = -1;
 
 	end_dialog(saved_x, saved_y);
+
+	env = getenv("KCONFIG_STRICT");
+	if (env && *env && kconfig_warnings) {
+		fprintf(stderr, _("\n*** ERROR: %d warnings encountered, and "
+			"warnings are errors.\n\n"), kconfig_warnings);
+		res = 2;
+	}
 
 	switch (res) {
 	case 0:
@@ -1034,4 +1044,3 @@ int main(int ac, char **av)
 
 	return res;
 }
-

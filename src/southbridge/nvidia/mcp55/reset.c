@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -29,9 +25,7 @@
 	(((DEV) & 0x1F) << 15) | \
 	(((FN)  & 0x7) << 12))
 
-typedef unsigned device_t;
-
-static void pci_write_config32(device_t dev, unsigned where, unsigned value)
+static void pci_write_config32(pci_devfn_t dev, unsigned where, unsigned value)
 {
 	unsigned addr;
 	addr = (dev>>4) | where;
@@ -39,7 +33,7 @@ static void pci_write_config32(device_t dev, unsigned where, unsigned value)
 	outl(value, 0xCFC);
 }
 
-static unsigned pci_read_config32(device_t dev, unsigned where)
+static unsigned pci_read_config32(pci_devfn_t dev, unsigned where)
 {
 	unsigned addr;
 	addr = (dev>>4) | where;
@@ -57,4 +51,3 @@ void hard_reset(void)
 	outb((0 <<3)|(0<<2)|(1<<1), 0xcf9);
 	outb((0 <<3)|(1<<2)|(1<<1), 0xcf9);
 }
-

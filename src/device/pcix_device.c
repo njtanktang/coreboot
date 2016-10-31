@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -112,12 +108,12 @@ const char *pcix_speed(u16 sstatus)
 	return result;
 }
 
-unsigned int pcix_scan_bridge(device_t dev, unsigned int max)
+void pcix_scan_bridge(device_t dev)
 {
 	unsigned int pos;
 	u16 sstatus;
 
-	max = do_pci_scan_bridge(dev, max, pci_scan_bus);
+	do_pci_scan_bridge(dev, pci_scan_bus);
 
 	/* Find the PCI-X capability. */
 	pos = pci_find_capability(dev, PCI_CAP_ID_PCIX);
@@ -129,8 +125,6 @@ unsigned int pcix_scan_bridge(device_t dev, unsigned int max)
 	/* Print the PCI-X bus speed. */
 	printk(BIOS_DEBUG, "PCI: %02x: %s\n", dev->link_list->secondary,
 	       pcix_speed(sstatus));
-
-	return max;
 }
 
 /** Default device operations for PCI-X bridges */

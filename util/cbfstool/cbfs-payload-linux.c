@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdio.h>
@@ -26,8 +22,8 @@
 #include "linux.h"
 
 /* trampoline */
-extern void *trampoline_start;
-extern long trampoline_size;
+extern unsigned char trampoline[];
+extern unsigned int trampoline_len;
 
 /*
  * Current max number of segments include:
@@ -51,14 +47,14 @@ struct bzpayload {
 	struct buffer cmdline;
 	struct buffer initrd;
 	/* Output variables. */
-	comp_algo algo;
+	enum comp_algo algo;
 	comp_func_ptr compress;
 	struct buffer output;
 	size_t offset;
 	struct cbfs_payload_segment *out_seg;
 };
 
-static int bzp_init(struct bzpayload *bzp, comp_algo algo)
+static int bzp_init(struct bzpayload *bzp, enum comp_algo algo)
 {
 	memset(bzp, 0, sizeof(*bzp));
 
@@ -101,8 +97,8 @@ static void bzp_add_segment(struct bzpayload *bzp, struct buffer *b, void *data,
 
 static int bzp_add_trampoline(struct bzpayload *bzp)
 {
-	bzp_add_segment(bzp, &bzp->trampoline, trampoline_start,
-	                trampoline_size);
+	bzp_add_segment(bzp, &bzp->trampoline, trampoline,
+			trampoline_len);
 	return 0;
 }
 
@@ -203,7 +199,7 @@ static void bzp_output_segment(struct bzpayload *bzp, struct buffer *b,
  */
 int parse_bzImage_to_payload(const struct buffer *input,
 			     struct buffer *output, const char *initrd_name,
-			     char *cmdline, comp_algo algo)
+			     char *cmdline, enum comp_algo algo)
 {
 	struct bzpayload bzp;
 	unsigned int initrd_base = 64*1024*1024;
@@ -224,12 +220,19 @@ int parse_bzImage_to_payload(const struct buffer *input,
 
 	if (hdr->setup_sects != 0) {
 		setup_size = (hdr->setup_sects + 1) * 512;
+	} else {
+		WARN("hdr->setup_sects is 0, which could cause boot problems.\n");
 	}
 
 	/* Setup parameter block. Imitate FILO. */
 	struct linux_params params;
+
+	memset(&params, 0, sizeof(struct linux_params));
+
 	params.mount_root_rdonly = hdr->root_flags;
 	params.orig_root_dev = hdr->root_dev;
+	params.init_size = hdr->init_size;
+
 	/* Sensible video defaults. Might be overridden on runtime by coreboot tables. */
 	params.orig_video_mode = 3;
 	params.orig_video_cols = 80;
@@ -264,6 +267,10 @@ int parse_bzImage_to_payload(const struct buffer *input,
 			 * so if possible (relocatable kernel) use that to
 			 * avoid a trampoline copy. */
 			kernel_base = ALIGN(16*1024*1024, params.kernel_alignment);
+			if (hdr->init_size == 0) {
+				ERROR("init_size 0 for relocatable kernel\n");
+				return -1;
+			}
 		}
 	}
 
@@ -281,7 +288,7 @@ int parse_bzImage_to_payload(const struct buffer *input,
 		 * close to the kernel, so give it some room.
 		 */
 		initrd_base = kernel_base + buffer_size(&bzp.kernel);
-		initrd_base = ALIGN(initrd_base, 16*1024*1024);
+		initrd_base = ALIGN(initrd_base, 64*1024*1024);
 
 		params.initrd_start = initrd_base;
 		params.initrd_size = buffer_size(&bzp.initrd);
@@ -302,9 +309,8 @@ int parse_bzImage_to_payload(const struct buffer *input,
 	                   PAYLOAD_SEGMENT_CODE, kernel_base);
 
 	/* trampoline */
-	uint64_t entrypoint = 0x40000; /*TODO: any better place? */
 	bzp_output_segment(&bzp, &bzp.trampoline,
-	                   PAYLOAD_SEGMENT_CODE, entrypoint);
+	                   PAYLOAD_SEGMENT_CODE, TRAMPOLINE_ENTRY_LOC);
 
 	/* cmdline */
 	bzp_output_segment(&bzp, &bzp.cmdline,
@@ -315,7 +321,7 @@ int parse_bzImage_to_payload(const struct buffer *input,
 	                   PAYLOAD_SEGMENT_DATA, initrd_base);
 
 	/* Terminating entry segment. */
-	bzp_output_segment(&bzp, NULL, PAYLOAD_SEGMENT_ENTRY, entrypoint);
+	bzp_output_segment(&bzp, NULL, PAYLOAD_SEGMENT_ENTRY, TRAMPOLINE_ENTRY_LOC);
 
 	/* Set size of buffer taking into account potential compression. */
 	buffer_set_size(&bzp.output, bzp.offset);
@@ -326,5 +332,3 @@ int parse_bzImage_to_payload(const struct buffer *input,
 	xdr_segs(output, bzp.segs, bzp.num_segments);
 	return 0;
 }
-
-

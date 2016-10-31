@@ -8,10 +8,10 @@
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include "southbridge/amd/amd8111/early_smbus.c"
-#include "northbridge/amd/amdk8/raminit.h"
+#include <northbridge/amd/amdk8/raminit.h>
 #include "northbridge/amd/amdk8/reset_test.c"
-#include "cpu/x86/bist.h"
-#include "lib/delay.c"
+#include <cpu/x86/bist.h>
+#include <delay.h>
 #include "northbridge/amd/amdk8/debug.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627hf/w83627hf.h>
@@ -28,12 +28,12 @@ static void memreset_setup(void)
 {
 	if (is_cpu_pre_c0()) {
 		/* Set the memreset low. */
-		outb((1<<2)|(0<<0), SMBUS_IO_BASE + 0xc0 + 28);
+		outb((1 << 2)|(0 << 0), SMBUS_IO_BASE + 0xc0 + 28);
 		/* Ensure the BIOS has control of the memory lines. */
-		outb((1<<2)|(0<<0), SMBUS_IO_BASE + 0xc0 + 29);
+		outb((1 << 2)|(0 << 0), SMBUS_IO_BASE + 0xc0 + 29);
 	} else {
 		/* Ensure the CPU has control of the memory lines. */
-		outb((1<<2)|(1<<0), SMBUS_IO_BASE + 0xc0 + 29);
+		outb((1 << 2)|(1 << 0), SMBUS_IO_BASE + 0xc0 + 29);
 	}
 }
 
@@ -42,7 +42,7 @@ static void memreset(int controllers, const struct mem_controller *ctrl)
 	if (is_cpu_pre_c0()) {
 		udelay(800);
 		/* Set memreset_high */
-		outb((1<<2)|(1<<0), SMBUS_IO_BASE + 0xc0 + 28);
+		outb((1 << 2)|(1 << 0), SMBUS_IO_BASE + 0xc0 + 28);
 		udelay(90);
 	}
 }
@@ -51,10 +51,10 @@ static void activate_spd_rom(const struct mem_controller *ctrl) { }
 
 static inline int spd_read_byte(unsigned device, unsigned address)
 {
-        return smbus_read_byte(device, address);
+	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit.c"
@@ -77,10 +77,10 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	};
 
 	struct sys_info *sysinfo = &sysinfo_car;
-        int needs_reset;
-        unsigned bsp_apicid = 0;
+	int needs_reset;
+	unsigned bsp_apicid = 0;
 
-        if (bist == 0)
+	if (bist == 0)
 		bsp_apicid = init_cpus(cpu_init_detectedx, sysinfo);
 
 	winbond_enable_serial(SERIAL_DEV, CONFIG_TTYS0_BASE);
@@ -91,55 +91,55 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	printk(BIOS_DEBUG, "*sysinfo range: [%p,%p]\n",sysinfo,sysinfo+1);
 
-        setup_mb_resource_map();
+	setup_mb_resource_map();
 
-	print_debug("bsp_apicid="); print_debug_hex8(bsp_apicid); print_debug("\n");
+	printk(BIOS_DEBUG, "bsp_apicid=%02x\n", bsp_apicid);
 
 	setup_coherent_ht_domain(); // routing table and start other core0
 
 	wait_all_core0_started();
 #if CONFIG_LOGICAL_CPUS
-        // It is said that we should start core1 after all core0 launched
+	// It is said that we should start core1 after all core0 launched
 	/* becase optimize_link_coherent_ht is moved out from setup_coherent_ht_domain,
 	 * So here need to make sure last core0 is started, esp for two way system,
 	 * (there may be apic id conflicts in that case)
 	 */
-        start_other_cores();
+	start_other_cores();
 	wait_all_other_cores_started(bsp_apicid);
 #endif
 
 	/* it will set up chains and store link pair for optimization later */
-        ht_setup_chains_x(sysinfo); // it will init sblnk and sbbusn, nodes, sbdn
+	ht_setup_chains_x(sysinfo); // it will init sblnk and sbbusn, nodes, sbdn
 
 #if CONFIG_SET_FIDVID
-        {
-                msr_t msr;
-	        msr=rdmsr(0xc0010042);
-                print_debug("begin msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
-        }
+	{
+		msr_t msr;
+		msr = rdmsr(0xc0010042);
+		printk(BIOS_DEBUG, "begin msr fid, vid %08x%08x\n", msr.hi, msr.lo);
+	}
 	enable_fid_change();
 	enable_fid_change_on_sb(sysinfo->sbbusn, sysinfo->sbdn);
-        init_fidvid_bsp(bsp_apicid);
-        // show final fid and vid
-        {
-                msr_t msr;
-               	msr=rdmsr(0xc0010042);
-               	print_debug("end   msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
-        }
+	init_fidvid_bsp(bsp_apicid);
+	// show final fid and vid
+	{
+		msr_t msr;
+			msr = rdmsr(0xc0010042);
+			printk(BIOS_DEBUG, "end   msr fid, vid %08x%08x\n", msr.hi, msr.lo);
+	}
 #endif
 
 	needs_reset = optimize_link_coherent_ht();
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
 
-        // fidvid change will issue one LDTSTOP and the HT change will be effective too
-        if (needs_reset) {
-                print_info("ht reset -\n");
-                soft_reset_x(sysinfo->sbbusn, sysinfo->sbdn);
-        }
+	// fidvid change will issue one LDTSTOP and the HT change will be effective too
+	if (needs_reset) {
+		printk(BIOS_INFO, "ht reset -\n");
+		soft_reset_x(sysinfo->sbbusn, sysinfo->sbdn);
+	}
 
 	allow_all_aps_stop(bsp_apicid);
 
-        //It's the time to set ctrl in sysinfo now;
+	//It's the time to set ctrl in sysinfo now;
 	fill_mem_ctrl(sysinfo->nodes, sysinfo->ctrl, spd_addr);
 
 	enable_smbus();
@@ -151,13 +151,13 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	memreset_setup();
 
 	//do we need apci timer, tsc...., only debug need it for better output
-        /* all ap stopped? */
-        init_timer(); // Need to use TMICT to synconize FID/VID
+	/* all ap stopped? */
+	init_timer(); // Need to use TMICT to synchronize FID/VID
 	sdram_initialize(sysinfo->nodes, sysinfo->ctrl, sysinfo);
 
 #if 0
-        dump_pci_devices();
+	dump_pci_devices();
 #endif
 
-        post_cache_as_ram(); // bsp swtich stack to ram and copy sysinfo ram now
+	post_cache_as_ram(); // bsp swtich stack to RAM and copy sysinfo RAM now
 }

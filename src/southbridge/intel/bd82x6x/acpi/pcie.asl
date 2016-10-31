@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /* Intel 6/7 Series PCH PCIe support */
@@ -155,16 +150,6 @@ Device (RP03)
 	{
 		Return (IRQM (RPPN))
 	}
-#ifdef RP03_IS_EXPRESSCARD
-	Device (SLOT)
-	{
-		Name (_ADR, 0x00)
-		Method (_RMV, 0, NotSerialized)
-		{
-			Return (0x01)
-		}
-	}
-#endif
 }
 
 Device (RP04)
@@ -177,17 +162,6 @@ Device (RP04)
 	{
 		Return (IRQM (RPPN))
 	}
-
-#ifdef RP04_IS_EXPRESSCARD
-	Device (SLOT)
-	{
-		Name (_ADR, 0x00)
-		Method (_RMV, 0, NotSerialized)
-		{
-			Return (0x01)
-		}
-	}
-#endif
 }
 
 Device (RP05)

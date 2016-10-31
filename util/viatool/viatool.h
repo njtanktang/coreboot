@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include <stdint.h>
@@ -32,11 +28,36 @@
 #define __DARWIN__
 #include <DirectHW/DirectHW.h>
 #endif
+#ifdef __NetBSD__
+#include <pciutils/pci.h>
+#else
 #include <pci/pci.h>
+#endif
 
 /* This #include is needed for freebsd_{rd,wr}msr. */
 #if defined(__FreeBSD__)
 #include <machine/cpufunc.h>
+#endif
+
+#ifdef __NetBSD__
+static inline uint8_t inb(unsigned port)
+{
+	uint8_t data;
+	__asm volatile("inb %w1,%0" : "=a" (data) : "d" (port));
+	return data;
+}
+static inline uint16_t inw(unsigned port)
+{
+	uint16_t data;
+	__asm volatile("inw %w1,%0": "=a" (data) : "d" (port));
+	return data;
+}
+static inline uint32_t inl(unsigned port)
+{
+	uint32_t data;
+	__asm volatile("inl %w1,%0": "=a" (data) : "d" (port));
+	return data;
+}
 #endif
 
 #include <stdlib.h>

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -41,7 +37,7 @@ void InterleaveChannels_D(struct MCTStatStruc *pMCTstat,
 	/* call back to wrapper not needed ManualChannelInterleave_D(); */
 	/* call back - DctSelIntLvAddr = mctGet_NVbits(NV_ChannelIntlv);*/	/* override interleave */
 	// FIXME: Check for Cx
-	DctSelIntLvAddr = mctGet_NVbits(NV_ChannelIntlv); /* typ=5: Hash*: exclusive OR of address bits[20:16, 6]. */
+	DctSelIntLvAddr = mctGet_NVbits(NV_ChannelIntlv); /* typ = 5: Hash*: exclusive OR of address bits[20:16, 6]. */
 	beforeInterleaveChannels_D(pDCTstatA, &enabled);
 
 	if (DctSelIntLvAddr & 1) {
@@ -75,7 +71,7 @@ void InterleaveChannels_D(struct MCTStatStruc *pMCTstat,
 				if (dct1_size == dct0_size) {
 					dct1_size = 0;
 					DctSelHi = 0x04;	/* DctSelHiRngEn = 0 */
-				} else if (dct1_size > dct0_size ) {
+				} else if (dct1_size > dct0_size) {
 					dct1_size = dct0_size;
 					DctSelHi = 0x07;	/* DctSelHiRngEn = 1, DctSelHi = 1 */
 				}

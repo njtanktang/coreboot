@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -238,37 +233,37 @@ void southbridge_smi_set_eos(void)
 
 static void busmaster_disable_on_bus(int bus)
 {
-        int slot, func;
-        unsigned int val;
-        unsigned char hdr;
+	int slot, func;
+	unsigned int val;
+	unsigned char hdr;
 
-        for (slot = 0; slot < 0x20; slot++) {
-                for (func = 0; func < 8; func++) {
-                        u32 reg32;
-                        device_t dev = PCI_DEV(bus, slot, func);
+	for (slot = 0; slot < 0x20; slot++) {
+		for (func = 0; func < 8; func++) {
+			u32 reg32;
+			pci_devfn_t dev = PCI_DEV(bus, slot, func);
 
-                        val = pci_read_config32(dev, PCI_VENDOR_ID);
+			val = pci_read_config32(dev, PCI_VENDOR_ID);
 
-                        if (val == 0xffffffff || val == 0x00000000 ||
-                            val == 0x0000ffff || val == 0xffff0000)
-                                continue;
+			if (val == 0xffffffff || val == 0x00000000 ||
+			    val == 0x0000ffff || val == 0xffff0000)
+				continue;
 
-                        /* Disable Bus Mastering for this one device */
-                        reg32 = pci_read_config32(dev, PCI_COMMAND);
-                        reg32 &= ~PCI_COMMAND_MASTER;
-                        pci_write_config32(dev, PCI_COMMAND, reg32);
+			/* Disable Bus Mastering for this one device */
+			reg32 = pci_read_config32(dev, PCI_COMMAND);
+			reg32 &= ~PCI_COMMAND_MASTER;
+			pci_write_config32(dev, PCI_COMMAND, reg32);
 
-                        /* If this is a bridge, then follow it. */
-                        hdr = pci_read_config8(dev, PCI_HEADER_TYPE);
-                        hdr &= 0x7f;
-                        if (hdr == PCI_HEADER_TYPE_BRIDGE ||
-                            hdr == PCI_HEADER_TYPE_CARDBUS) {
-                                unsigned int buses;
-                                buses = pci_read_config32(dev, PCI_PRIMARY_BUS);
-                                busmaster_disable_on_bus((buses >> 8) & 0xff);
-                        }
-                }
-        }
+			/* If this is a bridge, then follow it. */
+			hdr = pci_read_config8(dev, PCI_HEADER_TYPE);
+			hdr &= 0x7f;
+			if (hdr == PCI_HEADER_TYPE_BRIDGE ||
+			    hdr == PCI_HEADER_TYPE_CARDBUS) {
+				unsigned int buses;
+				buses = pci_read_config32(dev, PCI_PRIMARY_BUS);
+				busmaster_disable_on_bus((buses >> 8) & 0xff);
+			}
+		}
+	}
 }
 
 
@@ -291,21 +286,21 @@ static void southbridge_smi_sleep(unsigned int node, smm_state_save_area_t *stat
 	/* Figure out SLP_TYP */
 	reg32 = inl(pmbase + PM1_CNT);
 	printk(BIOS_SPEW, "SMI#: SLP = 0x%08x\n", reg32);
-	slp_typ = (reg32 >> 10) & 7;
+	slp_typ = acpi_sleep_from_pm1(reg32);
 
 	/* Next, do the deed.
 	 */
 
 	switch (slp_typ) {
-	case 0: printk(BIOS_DEBUG, "SMI#: Entering S0 (On)\n"); break;
-	case 1: printk(BIOS_DEBUG, "SMI#: Entering S1 (Assert STPCLK#)\n"); break;
-	case 5:
+	case ACPI_S0: printk(BIOS_DEBUG, "SMI#: Entering S0 (On)\n"); break;
+	case ACPI_S1: printk(BIOS_DEBUG, "SMI#: Entering S1 (Assert STPCLK#)\n"); break;
+	case ACPI_S3:
 		printk(BIOS_DEBUG, "SMI#: Entering S3 (Suspend-To-RAM)\n");
 		/* Invalidate the cache before going to S3 */
 		wbinvd();
 		break;
-	case 6: printk(BIOS_DEBUG, "SMI#: Entering S4 (Suspend-To-Disk)\n"); break;
-	case 7:
+	case ACPI_S4: printk(BIOS_DEBUG, "SMI#: Entering S4 (Suspend-To-Disk)\n"); break;
+	case ACPI_S5:
 		printk(BIOS_DEBUG, "SMI#: Entering S5 (Soft Power off)\n");
 
 		outl(0, pmbase + GPE0_EN);
@@ -441,12 +436,10 @@ static void southbridge_smi_gpi(unsigned int node, smm_state_save_area_t *state_
 
 	reg16 &= inw(pmbase + ALT_GP_SMI_EN);
 
-	if (mainboard_smi_gpi) {
-		mainboard_smi_gpi(reg16);
-	} else {
-		if (reg16)
-			printk(BIOS_DEBUG, "GPI (mask %04x)\n",reg16);
-	}
+	mainboard_smi_gpi(reg16);
+
+	if (reg16)
+		printk(BIOS_DEBUG, "GPI (mask %04x)\n",reg16);
 }
 
 static void southbridge_smi_mc(unsigned int node, smm_state_save_area_t *state_save)
@@ -556,7 +549,7 @@ static void southbridge_smi_monitor(unsigned int node, smm_state_save_area_t *st
 	}
 
 	printk(BIOS_DEBUG, "  trapped io address = 0x%x\n", trap_cycle & 0xfffc);
-	for (i=0; i < 4; i++) if(IOTRAP(i)) printk(BIOS_DEBUG, "  TRAP = %d\n", i);
+	for (i=0; i < 4; i++) if (IOTRAP(i)) printk(BIOS_DEBUG, "  TRAP = %d\n", i);
 	printk(BIOS_DEBUG, "  AHBE = %x\n", (trap_cycle >> 16) & 0xf);
 	printk(BIOS_DEBUG, "  MASK = 0x%08x\n", mask);
 	printk(BIOS_DEBUG, "  read/write: %s\n", (trap_cycle & (1 << 24)) ? "read" : "write");
@@ -610,10 +603,9 @@ smi_handler_t southbridge_smi[32] = {
 
 /**
  * @brief Interrupt handler for SMI#
- *
- * @param smm_revision revision of the smm state save map
+ * @param node
+ * @param state_save
  */
-
 void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_save)
 {
 	int i, dump = 0;
@@ -637,14 +629,14 @@ void southbridge_smi_handler(unsigned int node, smm_state_save_area_t *state_sav
 			if (southbridge_smi[i])
 				southbridge_smi[i](node, state_save);
 			else {
-				printk(BIOS_DEBUG, "SMI_STS[%d] occured, but no "
+				printk(BIOS_DEBUG, "SMI_STS[%d] occurred, but no "
 						"handler available.\n", i);
 				dump = 1;
 			}
 		}
 	}
 
-	if(dump) {
+	if (dump) {
 		dump_smi_status(smi_sts);
 	}
 

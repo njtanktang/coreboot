@@ -12,6 +12,7 @@
 /* converted to C 6/2004 yhlu */
 
 #include <assert.h>
+#include <lib.h>
 #include <spd.h>
 #include <sdram_mode.h>
 #include <stdlib.h>
@@ -27,9 +28,9 @@ Definitions:
 //#define VALIDATE_DIMM_COMPATIBILITY
 
 #if CONFIG_DEBUG_RAM_SETUP
-#define RAM_DEBUG_MESSAGE(x)	print_debug(x)
-#define RAM_DEBUG_HEX32(x)	print_debug_hex32(x)
-#define RAM_DEBUG_HEX8(x)	print_debug_hex8(x)
+#define RAM_DEBUG_MESSAGE(x)	printk(BIOS_DEBUG, x)
+#define RAM_DEBUG_HEX32(x)	printk(BIOS_DEBUG, "%08x", x)
+#define RAM_DEBUG_HEX8(x)	printk(BIOS_DEBUG, "%02x", x)
 #define DUMPNORTH()		dump_pci_device(PCI_DEV(0, 0, 0))
 #else
 #define RAM_DEBUG_MESSAGE(x)
@@ -44,7 +45,7 @@ Definitions:
 // NOTE: This used to be 0x100000.
 //       That doesn't work on systems where A20M# is asserted, because
 //       attempts to access 0x1000NN end up accessing 0x0000NN.
-#define RCOMP_MMIO 0x200000
+#define RCOMP_MMIO ((u8 *)0x200000)
 
 struct dimm_size {
 	unsigned long side1;
@@ -784,7 +785,7 @@ static uint8_t spd_get_supported_dimms(const struct mem_controller *ctrl)
 		    spd_read_byte(channel1_dimm, SPD_MODULE_ATTRIBUTES);
 		if (!(spd_value & MODULE_REGISTERED) || (spd_value < 0)) {
 
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 			continue;
 		}
 #ifdef VALIDATE_DIMM_COMPATIBILITY
@@ -812,11 +813,11 @@ static uint8_t spd_get_supported_dimms(const struct mem_controller *ctrl)
 			// Made it through all the checks, this DIMM pair is usable
 			dimm_mask |= ((1 << i) | (1 << (MAX_DIMM_SOCKETS_PER_CHANNEL + i)));
 		} else
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 #else
 		switch (bDualChannel) {
 		case 0:
-			print_debug("Skipping un-matched DIMMs - only dual-channel operation supported\n");
+			printk(BIOS_DEBUG, "Skipping un-matched DIMMs - only dual-channel operation supported\n");
 			break;
 
 		default:
@@ -893,8 +894,8 @@ static void do_ram_command(uint8_t command, uint16_t jedec_mode_bits)
 
 				// NOTE: 2^26 == 64 MB
 
-				uint32_t dimm_start_address =
-				    dimm_start_64M_multiple << 26;
+				u8 *dimm_start_address = (u8 *)
+				  (dimm_start_64M_multiple << 26);
 
 				RAM_DEBUG_MESSAGE("    Sending RAM command to 0x");
 				RAM_DEBUG_HEX32(dimm_start_address + e7501_mode_bits);
@@ -1276,7 +1277,7 @@ static void configure_e7501_dram_timing(const struct mem_controller *ctrl,
 
 	/* Trd */
 
-	/* Set to a 7 clock read delay. This is for 133Mhz
+	/* Set to a 7 clock read delay. This is for 133MHz
 	 *  with a CAS latency of 2.5  if 2.0 a 6 clock
 	 *  delay is good  */
 
@@ -1523,13 +1524,13 @@ static void configure_e7501_dram_controller_mode(const struct
 		die_on_spd_error(value);
 		value &= 0x7f;	// Mask off self-refresh bit
 		if (value > MAX_SPD_REFRESH_RATE) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// Get the appropriate E7501 refresh mode for this DIMM
 		dimm_refresh_mode = refresh_rate_map[value];
 		if (dimm_refresh_mode > 7) {
-			print_err("unsupported refresh rate\n");
+			printk(BIOS_ERR, "unsupported refresh rate\n");
 			continue;
 		}
 		// If this DIMM requires more frequent refresh than others,
@@ -1704,7 +1705,7 @@ static void ram_set_d0f0_regs(void)
  * @param src_addr TODO
  * @param dst_addr TODO
  */
-static void write_8dwords(const uint32_t *src_addr, uint32_t dst_addr)
+static void write_8dwords(const uint32_t *src_addr, u8 *dst_addr)
 {
 	int i;
 	for (i = 0; i < 8; i++) {
@@ -1737,7 +1738,8 @@ static void ram_set_rcomp_regs(void)
 	pci_write_config32(PCI_DEV(0, 0, 0), MAYBE_MCHTST, dword);
 
 	// Set the RCOMP MMIO base address
-	pci_write_config32(PCI_DEV(0, 0, 0), MAYBE_SMRBASE, RCOMP_MMIO);
+	pci_write_config32(PCI_DEV(0, 0, 0), MAYBE_SMRBASE,
+			   (uintptr_t)RCOMP_MMIO);
 
 	// Block RCOMP updates while we configure the registers
 	dword = read32(RCOMP_MMIO + MAYBE_SMRCTL);
@@ -1961,7 +1963,7 @@ static void sdram_set_spd_registers(const struct mem_controller *ctrl)
 	dimm_mask = spd_get_supported_dimms(ctrl);
 
 	if (dimm_mask == 0) {
-		print_debug("No usable memory for this controller\n");
+		printk(BIOS_DEBUG, "No usable memory for this controller\n");
 	} else {
 		enable_e7501_clocks(dimm_mask);
 

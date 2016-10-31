@@ -13,17 +13,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #define THINKPAD_EC_GPE 17
-#define BRIGHTNESS_UP \_SB.PCI0.GFX0.LCD0.INCB
-#define BRIGHTNESS_DOWN \_SB.PCI0.GFX0.LCD0.DECB
+#define BRIGHTNESS_UP \_SB.PCI0.GFX0.INCB
+#define BRIGHTNESS_DOWN \_SB.PCI0.GFX0.DECB
 #define ACPI_VIDEO_DEVICE \_SB.PCI0.GFX0
-#define RP03_IS_EXPRESSCARD 1
+#define EC_LENOVO_H8_ME_WORKAROUND 1
 
 DefinitionBlock(
 	"dsdt.aml",
@@ -34,15 +30,13 @@ DefinitionBlock(
 	0x20110725	// OEM revision
 )
 {
+	#include <southbridge/intel/bd82x6x/acpi/platform.asl>
+
 	// Some generic macros
 	#include "acpi/platform.asl"
-	#include "acpi/mainboard.asl"
 
 	// global NVS and variables
 	#include <southbridge/intel/bd82x6x/acpi/globalnvs.asl>
-
-	// General Purpose Events
-	//#include "acpi/gpe.asl"
 
 	#include <cpu/intel/model_206ax/acpi/cpu.asl>
 
@@ -51,10 +45,19 @@ DefinitionBlock(
 		{
 			#include <northbridge/intel/sandybridge/acpi/sandybridge.asl>
 			#include <southbridge/intel/bd82x6x/acpi/pch.asl>
+			#include <southbridge/intel/bd82x6x/acpi/default_irq_route.asl>
+
+			#include <drivers/intel/gma/acpi/default_brightness_levels.asl>
 		}
 	}
+/*
+ * LPC Trusted Platform Module
+ */
+Scope (\_SB.PCI0.LPCB)
+{
+	#include <drivers/pc80/tpm/acpi/tpm.asl>
+}
 
-	#include "acpi/video.asl"
 
 	/* Chipset specific sleep states */
 	#include <southbridge/intel/bd82x6x/acpi/sleepstates.asl>

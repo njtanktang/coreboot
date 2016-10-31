@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -26,6 +22,10 @@
 #include <pc80/isa-dma.h>
 #include <pc80/mc146818rtc.h>
 #include <arch/ioapic.h>
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
+#endif
 #include "i82371eb.h"
 
 #if CONFIG_IOAPIC
@@ -64,7 +64,7 @@ static void isa_init(struct device *dev)
 	u32 reg32;
 
 	/* Initialize the real time clock (RTC). */
-	rtc_init(0);
+	cmos_init(0);
 
 	/*
 	 * Enable special cycles, needed for soft poweroff.
@@ -124,12 +124,24 @@ static void sb_read_resources(struct device *dev)
 #endif
 }
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+static void southbridge_acpi_fill_ssdt_generator(device_t device)
+{
+	acpigen_write_mainboard_resources("\\_SB.PCI0.MBRS", "_CRS");
+	generate_cpu_entries(device);
+}
+#endif
+
 static const struct device_operations isa_ops = {
 	.read_resources		= sb_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_fill_ssdt_generator = southbridge_acpi_fill_ssdt_generator,
+#endif
 	.init			= isa_init,
-	.scan_bus		= scan_static_bus,	/* TODO: Needed? */
+	.scan_bus		= scan_lpc_bus,	/* TODO: Needed? */
 	.enable			= 0,
 	.ops_pci		= 0, /* No subsystem IDs on 82371EB! */
 };

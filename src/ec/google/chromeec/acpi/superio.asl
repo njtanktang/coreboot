@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -155,7 +151,7 @@ Device (SIO) {
 #ifdef SIO_EC_PS2K_IRQ
 			SIO_EC_PS2K_IRQ
 #else
-			IRQNoFlags () {1}
+			IRQ (Edge, ActiveHigh, ExclusiveAndWake) {1}
 #endif
 		})
 
@@ -167,7 +163,7 @@ Device (SIO) {
 #ifdef SIO_EC_PS2K_IRQ
 				SIO_EC_PS2K_IRQ
 #else
-				IRQNoFlags () {1}
+				IRQ (Edge, ActiveHigh, ExclusiveAndWake) {1}
 #endif
 			}
 			EndDependentFn ()

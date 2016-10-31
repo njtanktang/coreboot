@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 /*
@@ -28,7 +23,6 @@
  */
 
 #include <arch/acpi.h>
-#include <arch/hlt.h>
 #include <arch/io.h>
 #include <console/console.h>
 #include <device/pci_ids.h>
@@ -64,7 +58,7 @@ static const char *me_bios_path_values[] = {
 #endif
 
 /* MMIO base address for MEI interface */
-static u32 mei_base_address;
+static u32 *mei_base_address;
 
 #if CONFIG_DEBUG_INTEL_ME
 static void mei_dump(void *ptr, int dword, int offset, const char *type)
@@ -106,7 +100,7 @@ static void mei_dump(void *ptr, int dword, int offset, const char *type)
 
 static inline void mei_read_dword_ptr(void *ptr, int offset)
 {
-	u32 dword = read32(mei_base_address + offset);
+	u32 dword = read32(mei_base_address + (offset/sizeof(u32)));
 	memcpy(ptr, &dword, sizeof(dword));
 	mei_dump(ptr, dword, offset, "READ");
 }
@@ -115,7 +109,7 @@ static inline void mei_write_dword_ptr(void *ptr, int offset)
 {
 	u32 dword = 0;
 	memcpy(&dword, ptr, sizeof(dword));
-	write32(mei_base_address + offset, dword);
+	write32(mei_base_address + (offset/sizeof(u32)), dword);
 	mei_dump(ptr, dword, offset, "WRITE");
 }
 
@@ -146,13 +140,13 @@ static inline void read_me_csr(struct mei_csr *csr)
 
 static inline void write_cb(u32 dword)
 {
-	write32(mei_base_address + MEI_H_CB_WW, dword);
+	write32(mei_base_address + (MEI_H_CB_WW/sizeof(u32)), dword);
 	mei_dump(NULL, dword, MEI_H_CB_WW, "WRITE");
 }
 
 static inline u32 read_cb(void)
 {
-	u32 dword = read32(mei_base_address + MEI_ME_CB_RW);
+	u32 dword = read32(mei_base_address + (MEI_ME_CB_RW/sizeof(u32)));
 	mei_dump(NULL, dword, MEI_ME_CB_RW, "READ");
 	return dword;
 }
@@ -383,11 +377,11 @@ static void intel_me7_finalize_smm(void)
 	struct me_hfs hfs;
 	u32 reg32;
 
-	mei_base_address =
-		pci_read_config32(PCH_ME_DEV, PCI_BASE_ADDRESS_0) & ~0xf;
+	mei_base_address = (u32 *)
+		(pci_read_config32(PCH_ME_DEV, PCI_BASE_ADDRESS_0) & ~0xf);
 
 	/* S3 path will have hidden this device already */
-	if (!mei_base_address || mei_base_address == 0xfffffff0)
+	if (!mei_base_address || mei_base_address == (u32 *)0xfffffff0)
 		return;
 
 	/* Make sure ME is in a mode that expects EOP */
@@ -509,7 +503,7 @@ static int intel_mei_setup(device_t dev)
 		printk(BIOS_DEBUG, "ME: MEI resource not present!\n");
 		return -1;
 	}
-	mei_base_address = res->base;
+	mei_base_address = (u32 *)(uintptr_t)res->base;
 
 	/* Ensure Memory and Bus Master bits are set */
 	reg32 = pci_read_config32(dev, PCI_COMMAND);
@@ -636,7 +630,6 @@ static struct device_operations device_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= intel_me_init,
-	.scan_bus		= scan_static_bus,
 	.ops_pci		= &pci_ops,
 };
 

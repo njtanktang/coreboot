@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -22,8 +18,8 @@
 #include <device/pci.h>
 #include <arch/pci_ops.h>
 
-#include <baytrail/pci_devs.h>
-#include <baytrail/ramstage.h>
+#include <soc/pci_devs.h>
+#include <soc/ramstage.h>
 #include "chip.h"
 
 static void pci_domain_set_resources(device_t dev)
@@ -40,12 +36,10 @@ static struct device_operations pci_domain_ops = {
 	.ops_pci_bus      = pci_bus_default_ops,
 };
 
-static void cpu_bus_noop(device_t dev) { }
-
 static struct device_operations cpu_bus_ops = {
-	.read_resources   = cpu_bus_noop,
-	.set_resources    = cpu_bus_noop,
-	.enable_resources = cpu_bus_noop,
+	.read_resources   = DEVICE_NOOP,
+	.set_resources    = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init             = baytrail_init_cpus,
 	.scan_bus         = NULL,
 };
@@ -70,7 +64,7 @@ static void enable_dev(device_t dev)
 /* Called at BS_DEV_INIT_CHIPS time -- very early. Just after BS_PRE_DEVICE. */
 static void soc_init(void *chip_info)
 {
-	baytrail_init_pre_device();
+	baytrail_init_pre_device(chip_info);
 }
 
 struct chip_operations soc_intel_baytrail_ops = {

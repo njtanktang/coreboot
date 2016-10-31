@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -23,17 +19,17 @@
 
 int volatile trace_dis = 0;
 
-void __cyg_profile_func_enter( void *func, void *callsite)
+void __cyg_profile_func_enter(void *func, void *callsite)
 {
 
 	if (trace_dis)
 		return;
 
 	DISABLE_TRACE
-	printk(BIOS_INFO, "~0x%08x(0x%08x)\n", (uint32_t) func, (uint32_t) callsite);
+	printk(BIOS_INFO, "~0x%p(0x%p)\n", func, callsite);
 	ENABLE_TRACE
 }
 
-void __cyg_profile_func_exit( void *func, void *callsite )
+void __cyg_profile_func_exit(void *func, void *callsite)
 {
 }

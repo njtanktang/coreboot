@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 
@@ -26,7 +22,8 @@
 #define LEGACY_FREE		1
 
 /**
- * @def BIOS_SIZE -> BIOS_SIZE_{1,2,4,8,16}M
+ * @def BIOS_SIZE
+ *      BIOS_SIZE_{1,2,4,8,16}M
  *
  * In SB800, default ROM size is 1M Bytes, if your platform ROM
  * bigger than 1M you have to set the ROM size outside CIMx module and
@@ -185,7 +182,7 @@
  *  GPP_CFGMODE_X2110
  *  GPP_CFGMODE_X1111
  */
-#define GPP_CFGMODE			GPP_CFGMODE_X4000
+#define GPP_CFGMODE			GPP_CFGMODE_X1111
 
 /**
  * @def NB_SB_GEN2
@@ -195,7 +192,7 @@
 #define NB_SB_GEN2			TRUE
 
 /**
- * @def SB_GEN2
+ * @def SB_GPP_GEN2
  *    0  - Disable
  *    1  - Enable
  */

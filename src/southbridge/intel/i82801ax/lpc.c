@@ -15,10 +15,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -103,13 +99,13 @@ static void i82801ax_enable_ioapic(struct device *dev)
 	pci_write_config32(dev, GEN_CNTL, reg32);
 	printk(BIOS_DEBUG, "IOAPIC Southbridge enabled %x\n", reg32);
 
-	set_ioapic_id(IO_APIC_ADDR, 0x02);
+	set_ioapic_id(VIO_APIC_VADDR, 0x02);
 
 	/*
 	 * Select Boot Configuration register (0x03) and
 	 * use Processor System Bus (0x01) to deliver interrupts.
 	 */
-	io_apic_write(IO_APIC_ADDR, 0x03, 0x01);
+	io_apic_write(VIO_APIC_VADDR, 0x03, 0x01);
 }
 
 static void i82801ax_enable_serial_irqs(struct device *dev)
@@ -190,7 +186,7 @@ static void i82801ax_rtc_init(struct device *dev)
 	}
 	reg32 = pci_read_config32(dev, GEN_STA);
 	rtc_failed |= reg32 & (1 << 2);
-	rtc_init(rtc_failed);
+	cmos_init(rtc_failed);
 
 	/* Enable access to the upper 128 byte bank of CMOS RAM. */
 	pci_write_config8(dev, RTC_CONF, 0x04);
@@ -286,7 +282,7 @@ static struct device_operations lpc_ops = {
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pci_dev_enable_resources,
 	.init			= lpc_init,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.enable			= i82801ax_enable,
 };
 

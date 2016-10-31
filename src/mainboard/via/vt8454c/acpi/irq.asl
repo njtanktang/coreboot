@@ -12,11 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 Name (PICM, Package () {
@@ -120,10 +115,12 @@ Name (APIC, Package () {
 	Package () { 0x000FFFFF, 0x02, LNKA, 0x00 },
 	Package () { 0x000FFFFF, 0x03, LNKA, 0x00 },
 
-	/* USB controller. Hardwired in internal
-           APIC mode, see PM pg. 137,
-           "miscellaneous controls", footnote to
-           "IDE interrupt select" */
+	/*
+	 * USB controller. Hardwired in internal
+	 * APIC mode, see PM pg. 137,
+	 * "miscellaneous controls", footnote to
+	 * "IDE interrupt select"
+	 */
 	Package () { 0x0010FFFF, 0x00, 0x00, 0x14 },
 	Package () { 0x0010FFFF, 0x01, 0x00, 0x16 },
 	Package () { 0x0010FFFF, 0x02, 0x00, 0x15 },
@@ -139,5 +136,3 @@ Name (APIC, Package () {
 	Package () { 0x0012FFFF, 0x02, LNKD, 0x00 },
 	Package () { 0x0012FFFF, 0x03, LNKD, 0x00 },
 })
-
-

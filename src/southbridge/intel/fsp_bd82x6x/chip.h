@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_FSP_BD82X6X_CHIP_H
@@ -87,6 +83,9 @@ struct southbridge_intel_fsp_bd82x6x_config {
 	uint8_t pcie_aspm_f5;
 	uint8_t pcie_aspm_f6;
 	uint8_t pcie_aspm_f7;
+
+	int p_cnt_throttling_supported;
+	int c2_latency;
 };
 
-#endif				/* SOUTHBRIDGE_INTEL_BD82X6X_CHIP_H */
+#endif /* SOUTHBRIDGE_INTEL_FSP_BD82X6X_CHIP_H */

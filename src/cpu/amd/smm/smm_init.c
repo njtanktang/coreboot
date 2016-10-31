@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -25,7 +21,7 @@
 #include <cpu/x86/msr.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
-#include <cpu/amd/model_fxx_msr.h>
+#include <cpu/amd/msr.h>
 #include <cpu/x86/cache.h>
 #include <cpu/x86/smm.h>
 #include <string.h>
@@ -39,7 +35,7 @@ void smm_init(void)
 
 	/* Back up MSRs for later restore */
 	syscfg_orig = rdmsr(SYSCFG_MSR);
-	mtrr_aseg_orig = rdmsr(MTRRfix16K_A0000_MSR);
+	mtrr_aseg_orig = rdmsr(MTRR_FIX_16K_A0000);
 
 	/* MTRR changes don't like an enabled cache */
 	disable_cache();
@@ -57,7 +53,7 @@ void smm_init(void)
 	/* set DRAM access to 0xa0000 */
 	msr.lo = 0x18181818;
 	msr.hi = 0x18181818;
-	wrmsr(MTRRfix16K_A0000_MSR, msr);
+	wrmsr(MTRR_FIX_16K_A0000, msr);
 
 	/* enable the extended features */
 	msr = syscfg_orig;
@@ -73,7 +69,7 @@ void smm_init(void)
 
 	/* Restore SYSCFG and MTRR */
 	wrmsr(SYSCFG_MSR, syscfg_orig);
-	wrmsr(MTRRfix16K_A0000_MSR, mtrr_aseg_orig);
+	wrmsr(MTRR_FIX_16K_A0000, mtrr_aseg_orig);
 	enable_cache();
 
 	/* CPU MSR are set in CPU init */

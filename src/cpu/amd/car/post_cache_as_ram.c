@@ -1,152 +1,180 @@
-/* 2005.6 by yhlu
+/*
+ * This file is part of the coreboot project.
+ *
+ * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>,
+ *	 Raptor Engineering
+ * Copyright (C) 2012 ChromeOS Authors
+ * 2005.6 by yhlu
  * 2006.3 yhlu add copy data from CAR to ram
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 #include <string.h>
 #include <arch/stages.h>
+#include <arch/early_variables.h>
 #include <cpu/x86/mtrr.h>
 #include <cpu/amd/mtrr.h>
 #include <cpu/amd/car.h>
 #include <arch/acpi.h>
+#include <romstage_handoff.h>
 #include "cbmem.h"
 #include "cpu/amd/car/disable_cache_as_ram.c"
 
-static inline void print_debug_pcar(const char *strval, uint32_t val)
-{
-	printk(BIOS_DEBUG, "%s%08x\n", strval, val);
-}
-
-/* from linux kernel 2.6.32 asm/string_32.h */
-
-static void inline __attribute__((always_inline))  memcopy(void *dest, const void *src, unsigned long bytes)
-{
-	int d0, d1, d2;
-	asm volatile("cld ; rep ; movsl\n\t"
-			"movl %4,%%ecx\n\t"
-			"andl $3,%%ecx\n\t"
-			"jz 1f\n\t"
-			"rep ; movsb\n\t"
-			"1:"
-			: "=&c" (d0), "=&D" (d1), "=&S" (d2)
-			: "0" (bytes / 4), "g" (bytes), "1" ((long)dest), "2" ((long)src)
-			: "memory", "cc");
-}
-
-#if CONFIG_HAVE_ACPI_RESUME
-
-static inline void *backup_resume(void) {
-	void *resume_backup_memory;
-	int suspend = acpi_is_wakeup_early();
-
-	if (!suspend)
-		return NULL;
-
-	if (cbmem_recovery(1))
-		return NULL;
-
-	resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
-
-	/* copy 1MB - 64K to high tables ram_base to prevent memory corruption
-	 * through stage 2. We could keep stuff like stack and heap in high tables
-	 * memory completely, but that's a wonderful clean up task for another
-	 * day.
-	 */
-
-	if (resume_backup_memory) {
-		print_debug_pcar("Will copy coreboot region to: ", (uint32_t) resume_backup_memory);
-		/* copy only backup only memory used for CAR */
-		memcopy(resume_backup_memory+HIGH_MEMORY_SAVE-CONFIG_DCACHE_RAM_SIZE,
-			(void *)((CONFIG_RAMTOP)-CONFIG_DCACHE_RAM_SIZE),
-			 CONFIG_DCACHE_RAM_SIZE); //inline
-	}
-
-	return resume_backup_memory;
-}
-#endif
-
-/* Disable Erratum 343 Workaround, see RevGuide for Fam10h, Pub#41322 Rev 3.33 */
-
-static void vErrata343(void)
-{
-#ifdef BU_CFG2_MSR
-    msr_t msr;
-    unsigned int uiMask = 0xFFFFFFF7;
-
-    msr = rdmsr(BU_CFG2_MSR);
-    msr.hi &= uiMask; // set bit 35 to 0
-    wrmsr(BU_CFG2_MSR, msr);
-#endif
-}
-
-void post_cache_as_ram(void)
-{
-	void *resume_backup_memory = NULL;
-#if 1
-	{
-	/* Check value of esp to verify if we have enough room for stack in Cache as RAM */
-	unsigned v_esp;
-	__asm__ volatile (
-		"movl   %%esp, %0\n\t"
-		: "=a" (v_esp)
-	);
-	print_debug_pcar("v_esp=", v_esp);
-	}
-#endif
-
-	/* copy data from cache as ram to
-		ram need to set CONFIG_RAMTOP to 2M and use var mtrr instead.
-	 */
 #if CONFIG_RAMTOP <= 0x100000
 	#error "You need to set CONFIG_RAMTOP greater than 1M"
 #endif
 
-#if CONFIG_HAVE_ACPI_RESUME
- 	resume_backup_memory = backup_resume();
+#if IS_ENABLED(CONFIG_DEBUG_CAR)
+#define print_car_debug(format, arg...) printk(BIOS_DEBUG, "%s: " format, __func__, ##arg)
+#else
+#define print_car_debug(format, arg...)
 #endif
 
-	print_debug("Copying data from cache to RAM -- switching to use RAM as stack... ");
-
-	/* from here don't store more data in CAR */
-	vErrata343();
-
-	memcopy((void *)((CONFIG_RAMTOP)-CONFIG_DCACHE_RAM_SIZE), (void *)CONFIG_DCACHE_RAM_BASE, CONFIG_DCACHE_RAM_SIZE); //inline
-	cache_as_ram_switch_stack(resume_backup_memory);
+static size_t backup_size(void)
+{
+	size_t car_size = car_data_size();
+	return ALIGN(car_size + 1024, 1024);
 }
 
-void
-cache_as_ram_new_stack (void *resume_backup_memory __attribute__ ((unused)))
+static void memcpy_(void *d, const void *s, size_t len)
 {
-	/* We can put data to stack again */
+	print_car_debug(" Copy [%08x-%08x] to [%08x - %08x] ...",
+		(uint32_t) s, (uint32_t) (s + len - 1), (uint32_t) d, (uint32_t) (d + len - 1));
+	memcpy(d, s, len);
+}
 
-	/* only global variable sysinfo in cache need to be offset */
-	print_debug("Done\n");
+static void memset_(void *d, int val, size_t len)
+{
+	print_car_debug(" Fill [%08x-%08x] ...", (uint32_t) d, (uint32_t) (d + len - 1));
+	memset(d, val, len);
+}
 
-	print_debug("Disabling cache as ram now \n");
+static int memcmp_(void *d, const void *s, size_t len)
+{
+	print_car_debug(" Compare [%08x-%08x] with [%08x - %08x] ...",
+		(uint32_t) s, (uint32_t) (s + len - 1), (uint32_t) d, (uint32_t) (d + len - 1));
+	return memcmp(d, s, len);
+}
 
+static void prepare_romstage_ramstack(int s3resume)
+{
+	size_t backup_top = backup_size();
+	print_car_debug("Prepare CAR migration and stack regions...");
+
+	if (s3resume) {
+		void *resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
+		if (resume_backup_memory)
+			memcpy_(resume_backup_memory + HIGH_MEMORY_SAVE - backup_top,
+				(void *)(CONFIG_RAMTOP - backup_top), backup_top);
+	}
+	memset_((void *)(CONFIG_RAMTOP - backup_top), 0, backup_top);
+
+	print_car_debug(" Done\n");
+}
+
+static void prepare_ramstage_region(int s3resume)
+{
+	size_t backup_top = backup_size();
+	print_car_debug("Prepare ramstage memory region...");
+
+	if (s3resume) {
+		void *resume_backup_memory = cbmem_find(CBMEM_ID_RESUME);
+		if (resume_backup_memory)
+			memcpy_(resume_backup_memory, (void *) CONFIG_RAMBASE,
+				HIGH_MEMORY_SAVE - backup_top);
+	}
+
+	print_car_debug(" Done\n");
+}
+
+/* Disable Erratum 343 Workaround, see RevGuide for Fam10h, Pub#41322 Rev 3.33
+ * and RevGuide for Fam12h, Pub#44739 Rev 3.10
+ */
+
+static void vErrata343(void)
+{
+	msr_t msr;
+	unsigned int uiMask = 0xFFFFFFF7;
+
+	msr = rdmsr(BU_CFG2_MSR);
+	msr.hi &= uiMask;	// IcDisSpecTlbWr (bit 35) = 0
+	wrmsr(BU_CFG2_MSR, msr);
+}
+
+void post_cache_as_ram(void)
+{
+	uint32_t family = amd_fam1x_cpu_family();
+
+	/* Verify that the BSP didn't overrun the lower stack
+	 * boundary during romstage execution
+	 */
+	volatile uint32_t *lower_stack_boundary;
+	lower_stack_boundary = (void *)((CONFIG_DCACHE_RAM_BASE + CONFIG_DCACHE_RAM_SIZE) - CONFIG_DCACHE_BSP_STACK_SIZE);
+	if ((*lower_stack_boundary) != 0xdeadbeef)
+		printk(BIOS_WARNING, "BSP overran lower stack boundary.  Undefined behaviour may result!\n");
+
+	int s3resume = acpi_is_wakeup_s3();
+
+	/* Boards with EARLY_CBMEM_INIT need to do this in cache_as_ram_main().
+	 */
+	if (s3resume && !IS_ENABLED(CONFIG_EARLY_CBMEM_INIT))
+		cbmem_recovery(s3resume);
+
+	prepare_romstage_ramstack(s3resume);
+
+	if (IS_ENABLED(CONFIG_EARLY_CBMEM_INIT)) {
+		struct romstage_handoff *handoff;
+		handoff = romstage_handoff_find_or_add();
+		if (handoff != NULL)
+			handoff->s3_resume = s3resume;
+		else
+			printk(BIOS_DEBUG, "Romstage handoff structure not added!\n");
+	}
+
+	/* from here don't store more data in CAR */
+	if (family >= 0x1f && family <= 0x3f) {
+		/* Family 10h and 12h, 11h until shown otherwise */
+		vErrata343();
+	}
+
+	size_t car_size = car_data_size();
+	void *migrated_car = (void *)(CONFIG_RAMTOP - car_size);
+
+	print_car_debug("Copying data from cache to RAM...");
+	memcpy_(migrated_car, _car_relocatable_data_start, car_size);
+	print_car_debug(" Done\n");
+
+	print_car_debug("Verifying data integrity in RAM...");
+	if (memcmp_(migrated_car, _car_relocatable_data_start, car_size) == 0)
+		print_car_debug(" Done\n");
+	else
+		print_car_debug(" FAILED\n");
+
+	/* New stack grows right below migrated_car. */
+	print_car_debug("Switching to use RAM as stack...");
+	cache_as_ram_switch_stack(migrated_car);
+
+	/* We do not come back. */
+}
+
+void cache_as_ram_new_stack (void)
+{
+	print_car_debug("Disabling cache as RAM now\n");
 	disable_cache_as_ram_bsp();
 
 	disable_cache();
-	set_var_mtrr(0, 0x00000000, CONFIG_RAMTOP, MTRR_TYPE_WRBACK);
+	/* Enable cached access to RAM in the range 0M to CACHE_TMP_RAMTOP */
+	set_var_mtrr(0, 0x00000000, CACHE_TMP_RAMTOP, MTRR_TYPE_WRBACK);
 	enable_cache();
 
-#if CONFIG_HAVE_ACPI_RESUME
-	/* now copy the rest of the area, using the WB method because we already
-	   run normal RAM */
-	if (resume_backup_memory) {
-		memcopy(resume_backup_memory,
-				(void *)(CONFIG_RAMBASE),
-				(CONFIG_RAMTOP) - CONFIG_RAMBASE - CONFIG_DCACHE_RAM_SIZE);
-	}
-#endif
-
-	print_debug("Clearing initial memory region: ");
-
-#if CONFIG_HAVE_ACPI_RESUME
-	/* clear only coreboot used region of memory. Note: this may break ECC enabled boards */
-	memset((void*) CONFIG_RAMBASE, 0, (CONFIG_RAMTOP) - CONFIG_RAMBASE - CONFIG_DCACHE_RAM_SIZE);
-#else
-	memset((void*)0, 0, ((CONFIG_RAMTOP) - CONFIG_DCACHE_RAM_SIZE));
-#endif
-	print_debug("Done\n");
+	prepare_ramstage_region(acpi_is_wakeup_s3());
 
 	set_sysinfo_in_ram(1); // So other core0 could start to train mem
 
@@ -154,5 +182,5 @@ cache_as_ram_new_stack (void *resume_backup_memory __attribute__ ((unused)))
 	copy_and_run();
 	/* We will not return */
 
-	print_debug("should not be here -\n");
+	print_car_debug("should not be here -\n");
 }

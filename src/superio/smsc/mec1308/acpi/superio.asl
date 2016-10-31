@@ -11,15 +11,12 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 // Scope is \_SB.PCI0.LPCB
 
 Device (SIO) {
+	Name (_ADR, 0x2E)
 	OperationRegion (SIOA, SystemIO, 0x2E, 0x02)
 	Field (SIOA, ByteAcc, NoLock, Preserve)
 	{
@@ -249,12 +246,12 @@ Device (SIO) {
 
 		Name (_CRS, ResourceTemplate()
 		{
-			FixedIO (SIO_SMBX_IO0, 0x34)
+			IO (Decode16, SIO_SMBX_IO0, SIO_SMBX_IO0, 0x01, 0x34)
 		})
 
 		Name (_PRS, ResourceTemplate()
 		{
-			FixedIO (SIO_SMBX_IO0, 0x34)
+			IO (Decode16, SIO_SMBX_IO0, SIO_SMBX_IO0, 0x01, 0x34)
 		})
 	}
 #endif

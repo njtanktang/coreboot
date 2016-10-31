@@ -13,15 +13,15 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <libgen.h>
 #include "common.h"
 #include "cbfs.h"
@@ -33,17 +33,27 @@ int verbose = 0;
 int is_big_endian(void)
 {
 	static const uint32_t inttest = 0x12345678;
-	uint8_t inttest_lsb = *(uint8_t *)&inttest;
+	const uint8_t inttest_lsb = *(const uint8_t *)&inttest;
 	if (inttest_lsb == 0x12) {
 		return 1;
 	}
 	return 0;
 }
 
-/* Buffer and file I/O */
+static off_t get_file_size(FILE *f)
+{
+	off_t fsize;
+	fseek(f, 0, SEEK_END);
+	fsize = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	return fsize;
+}
 
-int buffer_create(struct buffer *buffer, size_t size, const char *name) {
+/* Buffer and file I/O */
+int buffer_create(struct buffer *buffer, size_t size, const char *name)
+{
 	buffer->name = strdup(name);
+	buffer->offset = 0;
 	buffer->size = size;
 	buffer->data = (char *)malloc(buffer->size);
 	if (!buffer->data) {
@@ -53,28 +63,35 @@ int buffer_create(struct buffer *buffer, size_t size, const char *name) {
 	return (buffer->data == NULL);
 }
 
-int buffer_from_file(struct buffer *buffer, const char *filename) {
+int buffer_from_file(struct buffer *buffer, const char *filename)
+{
 	FILE *fp = fopen(filename, "rb");
 	if (!fp) {
 		perror(filename);
 		return -1;
 	}
-	fseek(fp, 0, SEEK_END);
-	buffer->size = ftell(fp);
+	buffer->offset = 0;
+	buffer->size = get_file_size(fp);
+	if (buffer->size == -1u) {
+		fprintf(stderr, "could not determine size of %s\n", filename);
+		fclose(fp);
+		return -1;
+	}
 	buffer->name = strdup(filename);
-	rewind(fp);
 	buffer->data = (char *)malloc(buffer->size);
 	assert(buffer->data);
 	if (fread(buffer->data, 1, buffer->size, fp) != buffer->size) {
 		fprintf(stderr, "incomplete read: %s\n", filename);
 		fclose(fp);
+		buffer_delete(buffer);
 		return -1;
 	}
 	fclose(fp);
 	return 0;
 }
 
-int buffer_write_file(struct buffer *buffer, const char *filename) {
+int buffer_write_file(struct buffer *buffer, const char *filename)
+{
 	FILE *fp = fopen(filename, "wb");
 	if (!fp) {
 		perror(filename);
@@ -90,40 +107,39 @@ int buffer_write_file(struct buffer *buffer, const char *filename) {
 	return 0;
 }
 
-void buffer_delete(struct buffer *buffer) {
+void buffer_delete(struct buffer *buffer)
+{
 	assert(buffer);
 	if (buffer->name) {
 		free(buffer->name);
 		buffer->name = NULL;
 	}
 	if (buffer->data) {
-		free(buffer->data);
+		free(buffer_get_original_backing(buffer));
 		buffer->data = NULL;
 	}
+	buffer->offset = 0;
 	buffer->size = 0;
-}
-
-void cbfs_file_get_header(struct buffer *buf, struct cbfs_file *file)
-{
-	bgets(buf, &file->magic, sizeof(file->magic));
-	file->len = xdr_be.get32(buf);
-	file->type = xdr_be.get32(buf);
-	file->checksum = xdr_be.get32(buf);
-	file->offset = xdr_be.get32(buf);
 }
 
 static struct {
 	uint32_t arch;
 	const char *name;
 } arch_names[] = {
-	{ CBFS_ARCHITECTURE_ARMV7, "armv7" },
+	{ CBFS_ARCHITECTURE_AARCH64, "arm64" },
+	{ CBFS_ARCHITECTURE_ARM, "arm" },
+	{ CBFS_ARCHITECTURE_MIPS, "mips" },
+	{ CBFS_ARCHITECTURE_PPC64, "ppc64" },
+	/* power8 is a reasonable alias */
+	{ CBFS_ARCHITECTURE_PPC64, "power8" },
+	{ CBFS_ARCHITECTURE_RISCV, "riscv" },
 	{ CBFS_ARCHITECTURE_X86, "x86" },
 	{ CBFS_ARCHITECTURE_UNKNOWN, "unknown" }
 };
 
 uint32_t string_to_arch(const char *arch_string)
 {
-	int i;
+	size_t i;
 	uint32_t ret = CBFS_ARCHITECTURE_UNKNOWN;
 
 	for (i = 0; i < ARRAY_SIZE(arch_names); i++) {
@@ -136,23 +152,20 @@ uint32_t string_to_arch(const char *arch_string)
 	return ret;
 }
 
-static struct filetypes_t {
-	uint32_t type;
-	const char *name;
-} filetypes[] = {
-	{CBFS_COMPONENT_STAGE, "stage"},
-	{CBFS_COMPONENT_PAYLOAD, "payload"},
-	{CBFS_COMPONENT_OPTIONROM, "optionrom"},
-	{CBFS_COMPONENT_BOOTSPLASH, "bootsplash"},
-	{CBFS_COMPONENT_RAW, "raw"},
-	{CBFS_COMPONENT_VSA, "vsa"},
-	{CBFS_COMPONENT_MBI, "mbi"},
-	{CBFS_COMPONENT_MICROCODE, "microcode"},
-	{CBFS_COMPONENT_CMOS_DEFAULT, "cmos default"},
-	{CBFS_COMPONENT_CMOS_LAYOUT, "cmos layout"},
-	{CBFS_COMPONENT_DELETED, "deleted"},
-	{CBFS_COMPONENT_NULL, "null"}
-};
+const char *arch_to_string(uint32_t a)
+{
+        size_t i;
+	const char *ret = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(arch_names); i++) {
+		if (a == arch_names[i].arch) {
+			ret = arch_names[i].name;
+			break;
+		}
+	}
+
+	return ret;
+}
 
 void print_supported_filetypes(void)
 {
@@ -168,8 +181,25 @@ void print_supported_filetypes(void)
 uint64_t intfiletype(const char *name)
 {
 	size_t i;
-	for (i = 0; i < (sizeof(filetypes) / sizeof(struct filetypes_t)); i++)
+	for (i = 0; i < (sizeof(filetypes) / sizeof(struct typedesc_t)); i++)
 		if (strcmp(filetypes[i].name, name) == 0)
 			return filetypes[i].type;
 	return -1;
+}
+
+char *bintohex(uint8_t *data, size_t len)
+{
+	static const char translate[16] = "0123456789abcdef";
+
+	char *result = malloc(len * 2 + 1);
+	if (result == NULL)
+		return NULL;
+
+	result[len*2] = '\0';
+	unsigned int i;
+	for (i = 0; i < len; i++) {
+		result[i*2] = translate[(data[i] >> 4) & 0xf];
+		result[i*2+1] = translate[data[i] & 0xf];
+	}
+	return result;
 }

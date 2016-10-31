@@ -11,11 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
+
+#include <arch/io.h>
+#include <device/pnp.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include "lpc47n207.h"
 
 /*
  * This code tries to discover the SMSC LPC47N207 superio chip which can be
@@ -55,7 +57,7 @@ void try_enabling_LPC47N207_uart(void)
 
 		/* enable CONFIG mode */
 		outb(CONFIG_ENABLE, lpc_port);
-		reg_value=inb(lpc_port);
+		reg_value = inb(lpc_port);
 		if (reg_value != CONFIG_ENABLE) {
 			continue; /* There is no LPC device at this address */
 		}
@@ -66,12 +68,12 @@ void try_enabling_LPC47N207_uart(void)
 			 * match.
 			 */
 			outb(0x12, lpc_port);
-			reg_value=inb(lpc_port + 1);
+			reg_value = inb(lpc_port + 1);
 			if (reg_value != (lpc_port & 0xff))
 			    break;
 
 			outb(0x13, lpc_port);
-			reg_value=inb(lpc_port + 1);
+			reg_value = inb(lpc_port + 1);
 			if (reg_value != (lpc_port >> 8))
 				break;
 

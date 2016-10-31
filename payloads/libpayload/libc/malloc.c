@@ -41,11 +41,29 @@
 
 #define IN_MALLOC_C
 #include <libpayload.h>
+#include <stdint.h>
+
+struct memory_type {
+	void *start;
+	void *end;
+	struct align_region_t* align_regions;
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+	int magic_initialized;
+	size_t minimal_free;
+	const char *name;
+#endif
+};
 
 extern char _heap, _eheap;	/* Defined in the ldscript. */
 
-static void *hstart = (void *)&_heap;
-static void *hend = (void *)&_eheap;
+static struct memory_type default_type =
+	{ (void *)&_heap, (void *)&_eheap, NULL
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+	, 0, 0, "HEAP"
+#endif
+	};
+static struct memory_type *const heap = &default_type;
+static struct memory_type *dma = &default_type;
 
 typedef u64 hdrtype_t;
 #define HDRSIZE (sizeof(hdrtype_t))
@@ -65,38 +83,67 @@ typedef u64 hdrtype_t;
 #define IS_FREE(_h) (((_h) & (MAGIC | FLAG_FREE)) == (MAGIC | FLAG_FREE))
 #define HAS_MAGIC(_h) (((_h) & MAGIC) == MAGIC)
 
-static int free_aligned(void* addr);
+static int free_aligned(void* addr, struct memory_type *type);
 void print_malloc_map(void);
 
-#ifdef CONFIG_DEBUG_MALLOC
-static int heap_initialized = 0;
-static int minimal_free = 0;
-#endif
-
-static void setup(hdrtype_t volatile *start, int size)
+void init_dma_memory(void *start, u32 size)
 {
-	*start = FREE_BLOCK(size);
+	if (dma_initialized()) {
+		printf("ERROR: %s called twice!\n", __func__);
+		return;
+	}
 
-#ifdef CONFIG_DEBUG_MALLOC
-	heap_initialized = 1;
-	minimal_free  = size;
+	/*
+	 * DMA memory might not be zeroed by Coreboot on stage loading, so make
+	 * sure we clear the magic cookie from last boot.
+	 */
+	*(hdrtype_t *)start = 0;
+
+	dma = malloc(sizeof(*dma));
+	dma->start = start;
+	dma->end = start + size;
+	dma->align_regions = NULL;
+
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+	dma->minimal_free = 0;
+	dma->magic_initialized = 0;
+	dma->name = "DMA";
+
+	printf("Initialized cache-coherent DMA memory at [%p:%p]\n", start, start + size);
 #endif
 }
 
-static void *alloc(int len)
+int dma_initialized()
+{
+	return dma != heap;
+}
+
+/* For boards that don't initialize DMA we assume all locations are coherent */
+int dma_coherent(void *ptr)
+{
+	return !dma_initialized() || (dma->start <= ptr && dma->end > ptr);
+}
+
+static void *alloc(int len, struct memory_type *type)
 {
 	hdrtype_t header;
-	hdrtype_t volatile *ptr = (hdrtype_t volatile *) hstart;
+	hdrtype_t volatile *ptr = (hdrtype_t volatile *)type->start;
 
 	/* Align the size. */
-	len = (len + HDRSIZE - 1) & ~(HDRSIZE - 1);
+	len = ALIGN_UP(len, HDRSIZE);
 
 	if (!len || len > MAX_SIZE)
 		return (void *)NULL;
 
 	/* Make sure the region is setup correctly. */
-	if (!HAS_MAGIC(*ptr))
-		setup(ptr, (int)((&_eheap - &_heap) - HDRSIZE));
+	if (!HAS_MAGIC(*ptr)) {
+		size_t size = (type->end - type->start) - HDRSIZE;
+		*ptr = FREE_BLOCK(size);
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+		type->magic_initialized = 1;
+		type->minimal_free = size;
+#endif
+	}
 
 	/* Find some free space. */
 	do {
@@ -112,7 +159,7 @@ static void *alloc(int len)
 
 		if (header & FLAG_FREE) {
 			if (len <= size) {
-				hdrtype_t volatile *nptr = (hdrtype_t volatile *)((int)ptr + HDRSIZE + len);
+				hdrtype_t volatile *nptr = (hdrtype_t volatile *)((uintptr_t)ptr + HDRSIZE + len);
 				int nsize = size - (HDRSIZE + len);
 
 				/* If there is still room in this block,
@@ -131,23 +178,23 @@ static void *alloc(int len)
 					*ptr = USED_BLOCK(size);
 				}
 
-				return (void *)((int)ptr + HDRSIZE);
+				return (void *)((uintptr_t)ptr + HDRSIZE);
 			}
 		}
 
-		ptr = (hdrtype_t volatile *)((int)ptr + HDRSIZE + size);
+		ptr = (hdrtype_t volatile *)((uintptr_t)ptr + HDRSIZE + size);
 
-	} while (ptr < (hdrtype_t *) hend);
+	} while (ptr < (hdrtype_t *) type->end);
 
 	/* Nothing available. */
 	return (void *)NULL;
 }
 
-static void _consolidate(void)
+static void _consolidate(struct memory_type *type)
 {
-	void *ptr = hstart;
+	void *ptr = type->start;
 
-	while (ptr < hend) {
+	while (ptr < type->end) {
 		void *nptr;
 		hdrtype_t hdr = *((hdrtype_t *) ptr);
 		unsigned int size = 0;
@@ -160,7 +207,7 @@ static void _consolidate(void)
 		size = SIZE(hdr);
 		nptr = ptr + HDRSIZE + SIZE(hdr);
 
-		while (nptr < hend) {
+		while (nptr < type->end) {
 			hdrtype_t nhdr = *((hdrtype_t *) nptr);
 
 			if (!(IS_FREE(nhdr)))
@@ -181,15 +228,18 @@ static void _consolidate(void)
 void free(void *ptr)
 {
 	hdrtype_t hdr;
-
-	if (free_aligned(ptr)) return;
-
-	ptr -= HDRSIZE;
+	struct memory_type *type = heap;
 
 	/* Sanity check. */
-	if (ptr < hstart || ptr >= hend)
-		return;
+	if (ptr < type->start || ptr >= type->end) {
+		type = dma;
+		if (ptr < type->start || ptr >= type->end)
+			return;
+	}
 
+	if (free_aligned(ptr, type)) return;
+
+	ptr -= HDRSIZE;
 	hdr = *((hdrtype_t *) ptr);
 
 	/* Not our header (we're probably poisoned). */
@@ -201,18 +251,23 @@ void free(void *ptr)
 		return;
 
 	*((hdrtype_t *) ptr) = FREE_BLOCK(SIZE(hdr));
-	_consolidate();
+	_consolidate(type);
 }
 
 void *malloc(size_t size)
 {
-	return alloc(size);
+	return alloc(size, heap);
+}
+
+void *dma_malloc(size_t size)
+{
+	return alloc(size, dma);
 }
 
 void *calloc(size_t nmemb, size_t size)
 {
 	size_t total = nmemb * size;
-	void *ptr = alloc(total);
+	void *ptr = alloc(total, heap);
 
 	if (ptr)
 		memset(ptr, 0, total);
@@ -224,14 +279,18 @@ void *realloc(void *ptr, size_t size)
 {
 	void *ret, *pptr;
 	unsigned int osize;
+	struct memory_type *type = heap;
 
 	if (ptr == NULL)
-		return alloc(size);
+		return alloc(size, type);
 
 	pptr = ptr - HDRSIZE;
 
 	if (!HAS_MAGIC(*((hdrtype_t *) pptr)))
 		return NULL;
+
+	if (ptr < type->start || ptr >= type->end)
+		type = dma;
 
 	/* Get the original size of the block. */
 	osize = SIZE(*((hdrtype_t *) pptr));
@@ -242,7 +301,7 @@ void *realloc(void *ptr, size_t size)
 	 * reallocated the new space.
 	 */
 	free(ptr);
-	ret = alloc(size);
+	ret = alloc(size, type);
 
 	/*
 	 * if ret == NULL, then doh - failure.
@@ -259,6 +318,8 @@ void *realloc(void *ptr, size_t size)
 
 struct align_region_t
 {
+	/* If alignment is 0 then the region reqpresents a large region which
+	 * has no metadata for tracking subelements. */
 	int alignment;
 	/* start in memory, and size in bytes */
 	void* start;
@@ -277,74 +338,148 @@ struct align_region_t
 	struct align_region_t *next;
 };
 
-static struct align_region_t* align_regions = 0;
-
-static struct align_region_t *allocate_region(int alignment, int num_elements)
+static inline int region_is_large(const struct align_region_t *r)
 {
-	struct align_region_t *new_region;
-#ifdef CONFIG_DEBUG_MALLOC
-	printf("%s(old align_regions=%p, alignment=%u, num_elements=%u)\n",
-			__func__, align_regions, alignment, num_elements);
-#endif
-
-	new_region = malloc(sizeof(struct align_region_t));
-
-	if (!new_region)
-		return NULL;
-	new_region->alignment = alignment;
-	new_region->start = malloc((num_elements+1) * alignment + num_elements);
-	if (!new_region->start) {
-		free(new_region);
-		return NULL;
-	}
-	new_region->start_data = (void*)((u32)(new_region->start + num_elements + alignment - 1) & (~(alignment-1)));
-	new_region->size = num_elements * alignment;
-	new_region->free = num_elements;
-	new_region->next = align_regions;
-	memset(new_region->start, 0, num_elements);
-	align_regions = new_region;
-	return new_region;
+	return r->alignment == 0;
 }
 
-
-static int free_aligned(void* addr)
+static inline int addr_in_region(const struct align_region_t *r, void *addr)
 {
-	struct align_region_t *reg = align_regions;
-	while (reg != 0)
+	return ((addr >= r->start_data) && (addr < r->start_data + r->size));
+}
+
+/* num_elements == 0 indicates a large aligned region instead of a smaller
+ * region comprised of alignment-sized chunks. */
+static struct align_region_t *allocate_region(int alignment, int num_elements,
+					size_t size, struct memory_type *type)
+{
+	struct align_region_t *r;
+	size_t extra_space;
+
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+	printf("%s(old align_regions=%p, alignment=%u, num_elements=%u, size=%zu)\n",
+		__func__, type->align_regions, alignment, num_elements, size);
+#endif
+
+	r = malloc(sizeof(*r));
+
+	if (r == NULL)
+		return NULL;
+
+	memset(r, 0, sizeof(*r));
+
+	if (num_elements != 0) {
+		r->alignment = alignment;
+		r->size = num_elements * alignment;
+		r->free = num_elements;
+		/* Allocate enough memory for alignment requirements and
+		 * metadata for each chunk. */
+		extra_space = num_elements;
+	} else {
+		/* Large aligned allocation. Set alignment = 0. */
+		r->alignment = 0;
+		r->size = size;
+		extra_space = 0;
+	}
+
+	r->start = alloc(r->size + alignment + extra_space, type);
+
+	if (r->start == NULL) {
+		free(r);
+		return NULL;
+	}
+
+	r->start_data = (void *)ALIGN_UP((uintptr_t)r->start + extra_space,
+					alignment);
+
+	/* Clear any (if requested) metadata. */
+	memset(r->start, 0, extra_space);
+
+	/* Link the region with the rest. */
+	r->next = type->align_regions;
+	type->align_regions = r;
+
+	return r;
+}
+
+static void try_free_region(struct align_region_t **prev_link)
+{
+	struct align_region_t *r = *prev_link;
+
+	/* All large regions are immediately free-able. Non-large regions
+	 * need to be checked for the fully freed state. */
+	if (!region_is_large(r)) {
+		if (r->free != r->size / r->alignment)
+			return;
+	}
+
+	/* Unlink region from link list. */
+	*prev_link = r->next;
+
+	/* Free the data and metadata. */
+	free(r->start);
+	free(r);
+}
+
+static int free_aligned(void* addr, struct memory_type *type)
+{
+	struct align_region_t **prev_link = &type->align_regions;
+
+	while (*prev_link != NULL)
 	{
-		if ((addr >= reg->start_data) && (addr < reg->start_data + reg->size))
-		{
-			int i = (addr-reg->start_data)/reg->alignment;
-			while (((u8*)reg->start)[i]==2)
-			{
-				((u8*)reg->start)[i++]=0;
-				reg->free++;
-			}
-			((u8*)reg->start)[i]=0;
-			reg->free++;
+		if (!addr_in_region(*prev_link, addr)) {
+			prev_link = &((*prev_link)->next);
+			continue;
+		}
+
+		if (region_is_large(*prev_link)) {
+			try_free_region(prev_link);
 			return 1;
 		}
-		reg = reg->next;
+
+		int i = (addr-(*prev_link)->start_data)/(*prev_link)->alignment;
+		u8 *meta = (*prev_link)->start;
+		while (meta[i] == 2)
+		{
+			meta[i++] = 0;
+			(*prev_link)->free++;
+		}
+		meta[i] = 0;
+		(*prev_link)->free++;
+		try_free_region(prev_link);
+		return 1;
 	}
 	return 0;
 }
 
-void *memalign(size_t align, size_t size)
+static void *alloc_aligned(size_t align, size_t size, struct memory_type *type)
 {
+	/* Define a large request to be 1024 bytes for either alignment or
+	 * size of allocation. */
+	const size_t large_request = 1024;
+
 	if (size == 0) return 0;
-	if (align_regions == 0) {
-		align_regions = malloc(sizeof(struct align_region_t));
-		if (align_regions == NULL)
+	if (type->align_regions == 0) {
+		type->align_regions = malloc(sizeof(struct align_region_t));
+		if (type->align_regions == NULL)
 			return NULL;
-		memset(align_regions, 0, sizeof(struct align_region_t));
+		memset(type->align_regions, 0, sizeof(struct align_region_t));
 	}
-	struct align_region_t *reg = align_regions;
+	struct align_region_t *reg = type->align_regions;
+
+	if (size >= large_request || align >= large_request) {
+		reg = allocate_region(align, 0, size, type);
+		if (reg == NULL)
+			return NULL;
+		return reg->start_data;
+	}
+
 look_further:
 	while (reg != 0)
 	{
 		if ((reg->alignment == align) && (reg->free >= (size + align - 1)/align))
 		{
-#ifdef CONFIG_DEBUG_MALLOC
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
 			printf("  found memalign region. %x free, %x required\n", reg->free, (size + align - 1)/align);
 #endif
 			break;
@@ -353,13 +488,13 @@ look_further:
 	}
 	if (reg == 0)
 	{
-#ifdef CONFIG_DEBUG_MALLOC
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
 		printf("  need to allocate a new memalign region\n");
 #endif
 		/* get align regions */
-		reg = allocate_region(align, (size<1024)?(1024/align):(((size-1)/align)+1));
-#ifdef CONFIG_DEBUG_MALLOC
-		printf("  ... returned %p\n", align_regions);
+		reg = allocate_region(align, large_request/align, size, type);
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
+		printf("  ... returned %p\n", reg);
 #endif
 	}
 	if (reg == 0) {
@@ -393,28 +528,43 @@ look_further:
 	goto look_further; // end condition is once a new region is allocated - it always has enough space
 }
 
+void *memalign(size_t align, size_t size)
+{
+	return alloc_aligned(align, size, heap);
+}
+
+void *dma_memalign(size_t align, size_t size)
+{
+	return alloc_aligned(align, size, dma);
+}
+
 /* This is for debugging purposes. */
-#ifdef CONFIG_DEBUG_MALLOC
+#if IS_ENABLED(CONFIG_LP_DEBUG_MALLOC)
 void print_malloc_map(void)
 {
-	void *ptr = hstart;
-	int free_memory = 0;
+	struct memory_type *type = heap;
+	void *ptr;
+	int free_memory;
 
-	while (ptr < hend) {
+again:
+	ptr = type->start;
+	free_memory = 0;
+
+	while (ptr < type->end) {
 		hdrtype_t hdr = *((hdrtype_t *) ptr);
 
 		if (!HAS_MAGIC(hdr)) {
-			if (heap_initialized)
-				printf("Poisoned magic - we're toast\n");
+			if (type->magic_initialized)
+				printf("%s: Poisoned magic - we're toast\n", type->name);
 			else
-				printf("No magic yet - going to initialize\n");
+				printf("%s: No magic yet - going to initialize\n", type->name);
 			break;
 		}
 
 		/* FIXME: Verify the size of the block. */
 
-		printf("%x: %s (%x bytes)\n",
-		       (unsigned int)(ptr - hstart),
+		printf("%s %x: %s (%x bytes)\n", type->name,
+		       (unsigned int)(ptr - type->start),
 		       hdr & FLAG_FREE ? "FREE" : "USED", SIZE(hdr));
 
 		if (hdr & FLAG_FREE)
@@ -423,9 +573,14 @@ void print_malloc_map(void)
 		ptr += HDRSIZE + SIZE(hdr);
 	}
 
-	if (free_memory && (minimal_free > free_memory))
-		minimal_free = free_memory;
-	printf("Maximum memory consumption: %d bytes\n",
-		(unsigned int)(&_eheap - &_heap) - HDRSIZE - minimal_free);
+	if (free_memory && (type->minimal_free > free_memory))
+		type->minimal_free = free_memory;
+	printf("%s: Maximum memory consumption: %u bytes\n", type->name,
+		(type->end - type->start) - HDRSIZE - type->minimal_free);
+
+	if (type != dma) {
+		type = dma;
+		goto again;
+	}
 }
 #endif

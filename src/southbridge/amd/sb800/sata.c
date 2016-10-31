@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -38,7 +34,7 @@ static int sata_drive_detect(int portnum, u16 iobar)
 		if (byte != (0xA0 + 0x10 * (portnum % 2))) {
 			/* This will happen at the first iteration of this loop
 			 * if the first SATA port is unpopulated and the
-			 * second SATA port is poulated.
+			 * second SATA port is populated.
 			 */
 			printk(BIOS_DEBUG, "drive no longer selected after %i ms, "
 				"retrying init\n", i * 10);
@@ -53,7 +49,7 @@ static int sata_drive_detect(int portnum, u16 iobar)
 	return 0;
 }
 
-void __attribute__((weak)) sb800_setup_sata_phys(struct device *dev)
+static void sb800_setup_sata_phys(struct device *dev)
 {
 	int i;
 	static const u32 sata_phy[][3] = {
@@ -82,7 +78,7 @@ static void sata_init(struct device *dev)
 	u16 word;
 	u32 dword;
 	u8 rev_id;
-	u32 sata_bar5;
+	void *sata_bar5;
 	u16 sata_bar0, sata_bar1, sata_bar2, sata_bar3, sata_bar4;
 	int i, j;
 
@@ -97,8 +93,8 @@ static void sata_init(struct device *dev)
 	/* get rev_id */
 	rev_id = pci_read_config8(sm_dev, 0x08) - 0x2F;
 
-	/* get base addresss */
-	sata_bar5 = pci_read_config32(dev, 0x24) & ~0x3FF;
+	/* get base address */
+	sata_bar5 = (void *)(pci_read_config32(dev, 0x24) & ~0x3FF);
 	sata_bar0 = pci_read_config16(dev, 0x10) & ~0x7;
 	sata_bar1 = pci_read_config16(dev, 0x14) & ~0x3;
 	sata_bar2 = pci_read_config16(dev, 0x18) & ~0x7;
@@ -110,7 +106,7 @@ static void sata_init(struct device *dev)
 	printk(BIOS_SPEW, "sata_bar2=%x\n", sata_bar2);	/* 3040 */
 	printk(BIOS_SPEW, "sata_bar3=%x\n", sata_bar3);	/* 3080 */
 	printk(BIOS_SPEW, "sata_bar4=%x\n", sata_bar4);	/* 3000 */
-	printk(BIOS_SPEW, "sata_bar5=%x\n", sata_bar5);	/* e0309000 */
+	printk(BIOS_SPEW, "sata_bar5=%p\n", sata_bar5);	/* e0309000 */
 
 	/* SERR-Enable */
 	word = pci_read_config16(dev, 0x04);
@@ -181,7 +177,7 @@ static void sata_init(struct device *dev)
 		byte = read8(sata_bar5 + 0x128 + 0x80 * i);
 		printk(BIOS_SPEW, "SATA port %i status = %x\n", i, byte);
 		byte &= 0xF;
-		if( byte == 0x1 ) {
+		if ( byte == 0x1 ) {
 			/* If the drive status is 0x1 then we see it but we aren't talking to it. */
 			/* Try to do something about it. */
 			printk(BIOS_SPEW, "SATA device detected but not talking. Trying lower speed.\n");

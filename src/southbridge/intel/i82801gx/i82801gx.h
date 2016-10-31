@@ -11,14 +11,13 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef SOUTHBRIDGE_INTEL_I82801GX_I82801GX_H
 #define SOUTHBRIDGE_INTEL_I82801GX_I82801GX_H
+
+#include <arch/acpi.h>
+
 /*
  * It does not matter where we put the SMBus I/O base, as long as we
  * keep it consistent and don't interfere with other devices.  Stage2
@@ -32,7 +31,11 @@
 #define DEFAULT_GPIOBASE	0x0480
 #define DEFAULT_PMBASE		0x0500
 
+#ifndef __ACPI__
+#define DEFAULT_RCBA		((u8 *)0xfed1c000)
+#else
 #define DEFAULT_RCBA		0xfed1c000
+#endif
 
 #ifndef __ACPI__
 #define DEBUG_PERIODIC_SMIS 0
@@ -40,10 +43,14 @@
 #if !defined(__ASSEMBLER__)
 #if !defined(__PRE_RAM__)
 #include "chip.h"
-extern void i82801gx_enable(device_t dev);
+#if !defined(__SIMPLE_DEVICE__)
+void i82801gx_enable(device_t dev);
+#endif
+void gpi_route_interrupt(u8 gpi, u8 mode);
 #else
 void enable_smbus(void);
 int smbus_read_byte(unsigned device, unsigned address);
+int southbridge_detect_s3_resume(void);
 #endif
 #endif
 
@@ -73,6 +80,12 @@ int smbus_read_byte(unsigned device, unsigned address);
 #define GEN_PMCON_2		0xa2
 #define GEN_PMCON_3		0xa4
 
+#define GPIO_ROUT		0xb8
+#define   GPI_DISABLE		0x00
+#define   GPI_IS_SMI		0x01
+#define   GPI_IS_SCI		0x02
+#define   GPI_IS_NMI		0x03
+
 /* GEN_PMCON_3 bits */
 #define RTC_BATTERY_DEAD	(1 << 2)
 #define RTC_POWER_FAILED	(1 << 1)
@@ -96,6 +109,16 @@ int smbus_read_byte(unsigned device, unsigned address);
 
 #define LPC_IO_DEC		0x80 /* IO Decode Ranges Register */
 #define LPC_EN			0x82 /* LPC IF Enables Register */
+#define   CNF2_LPC_EN		(1 << 13) /* 0x4e/0x4f */
+#define   CNF1_LPC_EN		(1 << 12) /* 0x2e/0x2f */
+#define   MC_LPC_EN		(1 << 11) /* 0x62/0x66 */
+#define   KBC_LPC_EN		(1 << 10) /* 0x60/0x64 */
+#define   GAMEH_LPC_EN		(1 << 9)  /* 0x208/0x20f */
+#define   GAMEL_LPC_EN		(1 << 8)  /* 0x200/0x207 */
+#define   FDD_LPC_EN		(1 << 3)  /* LPC_IO_DEC[12] */
+#define   LPT_LPC_EN		(1 << 2)  /* LPC_IO_DEC[9:8] */
+#define   COMB_LPC_EN		(1 << 1)  /* LPC_IO_DEC[6:4] */
+#define   COMA_LPC_EN		(1 << 0)  /* LPC_IO_DEC[2:0] */
 
 /* PCI Configuration Space (D31:F1): IDE */
 #define INTR_LN			0x3c
@@ -284,16 +307,6 @@ int smbus_read_byte(unsigned device, unsigned address);
 #define FD_SATA		(1 <<  2)
 #define FD_PATA		(1 <<  1)
 
-/* ICH7 GPIOBASE */
-#define GPIO_USE_SEL	0x00
-#define GP_IO_SEL	0x04
-#define GP_LVL		0x0c
-#define GPO_BLINK	0x18
-#define GPI_INV		0x2c
-#define GPIO_USE_SEL2	0x30
-#define GP_IO_SEL2	0x34
-#define GP_LVL2		0x38
-
 /* ICH7 PMBASE */
 #define PM1_STS		0x00
 #define   WAK_STS	(1 << 15)
@@ -311,8 +324,6 @@ int smbus_read_byte(unsigned device, unsigned address);
 #define   GBL_EN	(1 << 5)
 #define   TMROF_EN	(1 << 0)
 #define PM1_CNT		0x04
-#define   SLP_EN	(1 << 13)
-#define   SLP_TYP	(7 << 10)
 #define   GBL_RLS	(1 << 2)
 #define   BM_RLD	(1 << 1)
 #define   SCI_EN	(1 << 0)

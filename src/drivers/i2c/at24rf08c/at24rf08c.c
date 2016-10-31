@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -25,7 +21,7 @@
 #include <smbios.h>
 #include <console/console.h>
 
-static void at24rf08c_init(device_t dev)
+static void at24rf08c_init(struct device *dev)
 {
 	int i, j;
 
@@ -52,18 +48,14 @@ static void at24rf08c_init(device_t dev)
 	printk (BIOS_DEBUG, "init EEPROM done\n");
 }
 
-static void at24rf08c_noop(device_t dummy)
-{
-}
-
 static struct device_operations at24rf08c_operations = {
-	.read_resources = at24rf08c_noop,
-	.set_resources = at24rf08c_noop,
-	.enable_resources = at24rf08c_noop,
+	.read_resources = DEVICE_NOOP,
+	.set_resources = DEVICE_NOOP,
+	.enable_resources = DEVICE_NOOP,
 	.init = at24rf08c_init,
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	dev->ops = &at24rf08c_operations;
 }

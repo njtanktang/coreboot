@@ -16,10 +16,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 unsigned int get_sbdn(unsigned bus);
@@ -34,14 +30,15 @@ unsigned int get_sbdn(unsigned bus);
 #include <pc80/mc146818rtc.h>
 #include <console/console.h>
 #include <cpu/amd/model_fxx_rev.h>
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
+#include <halt.h>
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include "northbridge/amd/amdk8/debug.c"
 #include <superio/ite/common/ite.h>
 #include <superio/ite/it8712f/it8712f.h>
 #include "southbridge/via/vt8237r/early_smbus.c"
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include <spd.h>
 
@@ -60,7 +57,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 }
 
 #include "southbridge/via/k8t890/early_car.c"
-#include "northbridge/amd/amdk8/amdk8.h"
+#include <northbridge/amd/amdk8/amdk8.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit_f.c"
@@ -75,7 +72,7 @@ void soft_reset(void)
 	uint8_t tmp;
 
 	set_bios_reset();
-	print_debug("soft reset\n");
+	printk(BIOS_DEBUG, "soft reset\n");
 
 	/* PCI reset */
 	tmp = pci_read_config8(PCI_DEV(0, 0x11, 0), 0x4f);
@@ -83,15 +80,12 @@ void soft_reset(void)
 	/* FIXME from S3 set bit1 to disable USB reset VT8237A/S */
 	pci_write_config8(PCI_DEV(0, 0x11, 0), 0x4f, tmp);
 
-	while (1) {
-		/* daisy daisy ... */
-		hlt();
-	}
+	halt();
 }
 
 unsigned int get_sbdn(unsigned bus)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	dev = pci_locate_device_on_bus(PCI_ID(PCI_VENDOR_ID_VIA,
 					PCI_DEVICE_ID_VIA_VT8237R_LPC), bus);
@@ -160,10 +154,10 @@ static void m2v_it8712f_gpio_init(void)
 	 * pcirst5# -> maybe n/c (untested)
 	 *
 	 * For software control of PCIRST[1-5]#:
-	 * 0x2a=0x17 (deselect pcirst# hardwiring, enable 0x25 control)
-	 * 0x25=0x17 (select gpio function)
-	 * 0xc0=0x17, 0xc8=0x17 gpio port 1 select & output enable
-	 * 0xc4=0xc1, 0xcc=0xc1 gpio port 5 select & output enable
+	 * 0x2a = 0x17 (deselect pcirst# hardwiring, enable 0x25 control)
+	 * 0x25 = 0x17 (select gpio function)
+	 * 0xc0 = 0x17, 0xc8 = 0x17 gpio port 1 select & output enable
+	 * 0xc4 = 0xc1, 0xcc = 0xc1 gpio port 5 select & output enable
 	 */
 	giv = gpio_init_data;
 	while (giv->addr) {
@@ -189,7 +183,7 @@ static void m2v_it8712f_gpio_init(void)
 
 static void m2v_bus_init(void)
 {
-	device_t dev;
+	pci_devfn_t dev;
 
 	printk(BIOS_SPEW, "m2v_bus_init\n");
 
@@ -234,7 +228,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	m2v_it8712f_gpio_init();
 	ite_enable_3vsbsw(GPIO_DEV);
 
-	printk(BIOS_INFO, "now booting... \n");
+	printk(BIOS_INFO, "now booting...\n");
 
 	if (bist == 0)
 		bsp_apicid = init_cpus(cpu_init_detectedx, sysinfo);
@@ -256,11 +250,11 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	ht_setup_chains_x(sysinfo); /* Init sblnk and sbbusn, nodes, sbdn. */
 
 	needs_reset = optimize_link_coherent_ht();
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 	needs_reset |= k8t890_early_setup_ht();
-	print_debug_hex8(needs_reset);
+	printk(BIOS_DEBUG, "%02x", needs_reset);
 
 	if (needs_reset) {
 		printk(BIOS_DEBUG, "ht reset -\n");
@@ -273,7 +267,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	vt8237_sb_enable_fid_vid();
 
 	enable_fid_change();
-	print_debug("after enable_fid_change\n");
+	printk(BIOS_DEBUG, "after enable_fid_change\n");
 
 	init_fidvid_bsp(bsp_apicid);
 

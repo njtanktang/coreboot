@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -23,6 +19,7 @@
 #include <device/pci.h>
 #include <device/pciexp.h>
 #include <device/pci_ids.h>
+#include <southbridge/intel/common/pciehp.h>
 #include "pch.h"
 
 static void pch_pcie_pm_early(struct device *dev)
@@ -218,6 +215,7 @@ static void pci_init(struct device *dev)
 {
 	u16 reg16;
 	u32 reg32;
+	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
 
 	printk(BIOS_DEBUG, "Initializing PCH PCIe bridge.\n");
 
@@ -255,6 +253,14 @@ static void pci_init(struct device *dev)
 	reg16 = pci_read_config16(dev, 0x1e);
 	//reg16 |= 0xf900;
 	pci_write_config16(dev, 0x1e, reg16);
+
+	/* Enable expresscard hotplug events.  */
+	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
+		pci_write_config32(dev, 0xd8,
+				   pci_read_config32(dev, 0xd8)
+				   | (1 << 30));
+		pci_write_config16(dev, 0x42, 0x142);
+	}
 }
 
 static void pch_pcie_enable(device_t dev)
@@ -263,17 +269,19 @@ static void pch_pcie_enable(device_t dev)
 	pch_pcie_pm_early(dev);
 }
 
-static unsigned int pch_pciexp_scan_bridge(device_t dev, unsigned int max)
+static void pch_pciexp_scan_bridge(device_t dev)
 {
-	unsigned int ret;
+	struct southbridge_intel_bd82x6x_config *config = dev->chip_info;
 
 	/* Normal PCIe Scan */
-	ret = pciexp_scan_bridge(dev, max);
+	pciexp_scan_bridge(dev);
+
+	if (config->pcie_hotplug_map[PCI_FUNC(dev->path.pci.devfn)]) {
+		intel_acpi_pcie_hotplug_scan_slot(dev->link_list);
+	}
 
 	/* Late Power Management init after bridge device enumeration */
 	pch_pcie_pm_late(dev);
-
-	return ret;
 }
 
 static void pcie_set_subsystem(device_t dev, unsigned vendor, unsigned device)

@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <spd.h>
@@ -387,7 +383,8 @@ static void do_ram_command(u32 command)
 	int i, caslatency;
 	u8 dimm_start, dimm_end;
 	u16 reg16;
-	u32 addr, addr_offset;
+	void *addr;
+	u32 addr_offset;
 
 	/* Configure the RAM command. */
 	reg16 = pci_read_config16(NB, SDRAMC);
@@ -424,13 +421,8 @@ static void do_ram_command(u32 command)
 
 		dimm_end = pci_read_config8(NB, DRB + i);
 
-		addr = (dimm_start * 8 * 1024 * 1024) + addr_offset;
+		addr = (void *)((dimm_start * 8 * 1024 * 1024) + addr_offset);
 		if (dimm_end > dimm_start) {
-#if 0
-			PRINT_DEBUG("    Sending RAM command 0x%04x to 0x%08x\n",
-					reg16, addr);
-#endif
-
 			read32(addr);
 		}
 
@@ -637,10 +629,6 @@ void sdram_set_registers(void)
 		reg &= register_values[i + 1];
 		reg |= register_values[i + 2] & ~(register_values[i + 1]);
 		pci_write_config8(NB, register_values[i], reg);
-#if 0
-		PRINT_DEBUG("    Set register 0x%02x to 0x%02x\n",
-				register_values[i], reg);
-#endif
 	}
 }
 
@@ -700,12 +688,12 @@ static struct dimm_size spd_get_dimm_size(unsigned int device)
 	/* It is possible to partially use larger then supported
 	 * modules by setting them to a supported size.
 	 */
-	if(sz.side1 > 128) {
+	if (sz.side1 > 128) {
 		PRINT_DEBUG("Side1 was %dMB but only 128MB will be used.\n",
 			sz.side1);
 		sz.side1 = 128;
 
-		if(sz.side2 > 128) {
+		if (sz.side2 > 128) {
 			PRINT_DEBUG("Side2 was %dMB but only 128MB will be used.\n",
 				sz.side2);
 			sz.side2 = 128;
@@ -752,7 +740,7 @@ static void set_dram_row_attributes(void)
 			PRINT_DEBUG("Found DIMM in slot %d\n", i);
 
 			if (edo && sd) {
-				print_err("Mixing EDO/SDRAM unsupported!\n");
+				printk(BIOS_ERR, "Mixing EDO/SDRAM unsupported!\n");
 				die("HALT\n");
 			}
 
@@ -857,11 +845,11 @@ static void set_dram_row_attributes(void)
 				if (col == 4)
 					bpr |= 0xc0;
 			} else {
-				print_err("# of banks of DIMM unsupported!\n");
+				printk(BIOS_ERR, "# of banks of DIMM unsupported!\n");
 				die("HALT\n");
 			}
 			if (dra == -1) {
-				print_err("Page size not supported\n");
+				printk(BIOS_ERR, "Page size not supported\n");
 				die("HALT\n");
 			}
 
@@ -872,7 +860,7 @@ static void set_dram_row_attributes(void)
 			 */
 			struct dimm_size sz = spd_get_dimm_size(device);
 			if ((sz.side1 < 8)) {
-				print_err("DIMMs smaller than 8MB per side\n"
+				printk(BIOS_ERR, "DIMMs smaller than 8MB per side\n"
 					  "are not supported on this NB.\n");
 				die("HALT\n");
 			}
@@ -888,10 +876,6 @@ static void set_dram_row_attributes(void)
 			drb &= 0xff;
 			drb |= (drb + (sz.side2 / 8)) << 8;
 		} else {
-#if 0
-			PRINT_DEBUG("No DIMM found in slot %d\n", i);
-#endif
-
 			/* If there's no DIMM in the slot, set dra to 0x00. */
 			dra = 0x00;
 			/* Still have to propagate DRB over. */
@@ -900,9 +884,6 @@ static void set_dram_row_attributes(void)
 		}
 
 		pci_write_config16(NB, DRB + (2 * i), drb);
-#if 0
-		PRINT_DEBUG("DRB has been set to 0x%04x\n", drb);
-#endif
 
 		/* Brings the upper DRB back down to be base for
 		 * DRB calculations for the next two rows.

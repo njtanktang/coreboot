@@ -11,16 +11,18 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <arch/io.h>
 #include <console/console.h>
 #include <cpu/x86/smm.h>
 #include <rmodule.h>
+
+#if CONFIG_SPI_FLASH_SMM
+#include <spi-generic.h>
+#endif
+
+static int do_driver_init = 1;
 
 typedef enum { SMI_LOCKED, SMI_UNLOCKED } smi_semaphore;
 
@@ -153,6 +155,14 @@ void asmlinkage smm_handler_start(void *arg)
 	console_init();
 
 	printk(BIOS_SPEW, "\nSMI# #%d\n", cpu);
+
+	/* Allow drivers to initialize variables in SMM context. */
+	if (do_driver_init) {
+#if CONFIG_SPI_FLASH_SMM
+		spi_init();
+#endif
+		do_driver_init = 0;
+	}
 
 	cpu_smi_handler();
 	northbridge_smi_handler();

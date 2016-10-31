@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /*
@@ -29,7 +25,7 @@
 #include "southbridge/amd/sb600/sb600.h"
 
 /*extern*/ u16 pm_base = 0x800;
-/* pm_base should be set in sb acpi */
+/* pm_base should be set in sb ACPI */
 /* pm_base should be got from bar2 of rs690. Here I compact ACPI
  * registers into 32 bytes limit.
  * */
@@ -79,7 +75,7 @@ void acpi_create_fadt(acpi_fadt_t * fadt, acpi_facs_t * facs, void *dsdt)
 	pm_iowrite(0x28, ACPI_GPE0_BLK & 0xFF);
 	pm_iowrite(0x29, ACPI_GPE0_BLK >> 8);
 
-	/* CpuControl is in \_PR.CPU0, 6 bytes */
+	/* CpuControl is in \_PR.CP00, 6 bytes */
 	pm_iowrite(0x26, ACPI_CPU_CONTORL & 0xFF);
 	pm_iowrite(0x27, ACPI_CPU_CONTORL >> 8);
 

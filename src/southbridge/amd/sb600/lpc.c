@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -24,9 +20,15 @@
 #include <device/pci_ids.h>
 #include <device/pci_ops.h>
 #include <pc80/mc146818rtc.h>
+#include <pc80/i8254.h>
+#include <pc80/i8259.h>
+#include <arch/acpi.h>
+#include <arch/acpigen.h>
 #include <pc80/isa-dma.h>
 #include <arch/io.h>
 #include <arch/ioapic.h>
+#include <arch/acpi.h>
+#include <cpu/amd/powernow.h>
 #include "sb600.h"
 
 static void lpc_init(device_t dev)
@@ -59,7 +61,10 @@ static void lpc_init(device_t dev)
 	byte &= ~(1 << 1);
 	pci_write_config8(dev, 0x78, byte);
 
-	rtc_check_update_cmos_date(RTC_HAS_ALTCENTURY);
+	cmos_check_update_date();
+
+	setup_i8259(); /* Initialize i8259 pic */
+	setup_i8254(); /* Initialize i8254 timers */
 }
 
 static void sb600_lpc_read_resources(device_t dev)
@@ -95,7 +100,7 @@ static void sb600_lpc_read_resources(device_t dev)
 /**
  * @brief Enable resources for children devices
  *
- * @param dev the device whos children's resources are to be enabled
+ * @param dev the device whose children's resources are to be enabled
  *
  */
 static void sb600_lpc_enable_childrens_resources(device_t dev)
@@ -215,6 +220,16 @@ static void sb600_lpc_enable_resources(device_t dev)
 	sb600_lpc_enable_childrens_resources(dev);
 }
 
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+
+extern u16 pm_base;
+
+static void southbridge_acpi_fill_ssdt_generator(device_t device) {
+	amd_generate_powernow(pm_base + 8, 6, 1);
+}
+
+#endif
+
 static struct pci_operations lops_pci = {
 	.set_subsystem = pci_dev_set_subsystem,
 };
@@ -223,8 +238,12 @@ static struct device_operations lpc_ops = {
 	.read_resources = sb600_lpc_read_resources,
 	.set_resources = pci_dev_set_resources,
 	.enable_resources = sb600_lpc_enable_resources,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_fill_ssdt_generator = southbridge_acpi_fill_ssdt_generator,
+#endif
 	.init = lpc_init,
-	.scan_bus = scan_static_bus,
+	.scan_bus = scan_lpc_bus,
 	/* .enable           = sb600_enable, */
 	.ops_pci = &lops_pci,
 };

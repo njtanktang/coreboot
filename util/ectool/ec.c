@@ -11,18 +11,30 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <unistd.h>
+#ifndef __NetBSD__
 #include <sys/io.h>
+#endif
 #include "ec.h"
+
+#ifdef __NetBSD__
+#include <machine/sysarch.h>
+static uint8_t inb(unsigned port)
+{
+	uint8_t data;
+	__asm volatile("inb %w1,%0" : "=a" (data) : "d" (port));
+	return data;
+}
+static __inline void outb(uint8_t data, unsigned port)
+{
+	__asm volatile("outb %0,%w1" : : "a" (data), "d" (port));
+}
+#endif
 
 extern int verbose;
 
@@ -146,4 +158,10 @@ uint8_t ec_idx_read(uint16_t addr)
 	outb(addr >> 8, lpc_idx + 1);
 
 	return inb(lpc_idx + 3);
+}
+
+uint8_t ec_query(void)
+{
+	send_ec_command(QR_EC);
+	return recv_ec_data();
 }

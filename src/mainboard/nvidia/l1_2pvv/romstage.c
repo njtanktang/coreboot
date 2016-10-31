@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -32,13 +28,13 @@
 #include <spd.h>
 #include <cpu/amd/model_fxx_rev.h>
 #include "southbridge/nvidia/mcp55/early_smbus.c"
-#include "northbridge/amd/amdk8/raminit.h"
-#include "lib/delay.c"
-#include "cpu/x86/lapic.h"
+#include <northbridge/amd/amdk8/raminit.h>
+#include <delay.h>
+#include <cpu/x86/lapic.h>
 #include "northbridge/amd/amdk8/reset_test.c"
 #include <superio/winbond/common/winbond.h>
 #include <superio/winbond/w83627ehg/w83627ehg.h>
-#include "cpu/x86/bist.h"
+#include <cpu/x86/bist.h>
 #include "northbridge/amd/amdk8/debug.c"
 #include "northbridge/amd/amdk8/setup_resource_map.c"
 #include "southbridge/nvidia/mcp55/early_ctrl.c"
@@ -53,7 +49,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	return smbus_read_byte(device, address);
 }
 
-#include "northbridge/amd/amdk8/f.h"
+#include <northbridge/amd/amdk8/f.h>
 #include "northbridge/amd/amdk8/incoherent_ht.c"
 #include "northbridge/amd/amdk8/coherent_ht.c"
 #include "northbridge/amd/amdk8/raminit_f.c"
@@ -69,7 +65,7 @@ static inline int spd_read_byte(unsigned device, unsigned address)
 	RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0+59, 0x00, 0x60,/* GPIP60 FANCTL0 */ \
 	RES_PORT_IO_8, SYSCTRL_IO_BASE + 0xc0+60, 0x00, 0x60,/* GPIO61 FANCTL1 */
 
-#include "southbridge/nvidia/mcp55/early_setup_ss.h"
+#include <southbridge/nvidia/mcp55/early_setup_ss.h>
 #include "southbridge/nvidia/mcp55/early_setup_car.c"
 #include "cpu/amd/model_fxx/init_cpus.c"
 #include "cpu/amd/model_fxx/fidvid.c"
@@ -85,11 +81,11 @@ static void sio_setup(void)
 	pci_write_config8(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0x7b, byte);
 
 	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0);
-	dword |= (1<<0);
+	dword |= (1 << 0);
 	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa0, dword);
 
 	dword = pci_read_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4);
-	dword |= (1<<16);
+	dword |= (1 << 16);
 	pci_write_config32(PCI_DEV(0, MCP55_DEVN_BASE+1 , 0), 0xa4, dword);
 }
 
@@ -131,7 +127,7 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	report_bist_failure(bist);
 	printk(BIOS_DEBUG, "*sysinfo range: [%p,%p]\n",sysinfo,sysinfo+1);
 
-	print_debug("bsp_apicid="); print_debug_hex8(bsp_apicid); print_debug("\n");
+	printk(BIOS_DEBUG, "bsp_apicid=%02x\n", bsp_apicid);
 
 	set_sysinfo_in_ram(0); // in BSP so could hold all ap until sysinfo is in ram
 	setup_coherent_ht_domain(); // routing table and start other core0
@@ -153,8 +149,8 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 #if CONFIG_SET_FIDVID
 	{
 		msr_t msr;
-		msr=rdmsr(0xc0010042);
-		print_debug("begin msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
+		msr = rdmsr(0xc0010042);
+		printk(BIOS_DEBUG, "begin msr fid, vid %08x%08x\n", msr.hi, msr.lo);
 	}
 	enable_fid_change();
 	enable_fid_change_on_sb(sysinfo->sbbusn, sysinfo->sbdn);
@@ -162,12 +158,12 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 	// show final fid and vid
 	{
 		msr_t msr;
-		msr=rdmsr(0xc0010042);
-		print_debug("end   msr fid, vid "); print_debug_hex32( msr.hi ); print_debug_hex32(msr.lo); print_debug("\n");
+		msr = rdmsr(0xc0010042);
+		printk(BIOS_DEBUG, "end   msr fid, vid %08x%08x\n", msr.hi, msr.lo);
 	}
 #endif
 
-	init_timer(); /* Need to use TMICT to synconize FID/VID. */
+	init_timer(); /* Need to use TMICT to synchronize FID/VID. */
 
 	needs_reset |= optimize_link_coherent_ht();
 	needs_reset |= optimize_link_incoherent_ht(sysinfo);
@@ -175,8 +171,8 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	// fidvid change will issue one LDTSTOP and the HT change will be effective too
 	if (needs_reset) {
-		print_info("ht reset -\n");
-	      	soft_reset();
+		printk(BIOS_INFO, "ht reset -\n");
+		soft_reset();
 	}
 	allow_all_aps_stop(bsp_apicid);
 
@@ -189,5 +185,5 @@ void cache_as_ram_main(unsigned long bist, unsigned long cpu_init_detectedx)
 
 	sdram_initialize(sysinfo->nodes, sysinfo->ctrl, sysinfo);
 
-	post_cache_as_ram(); // bsp swtich stack to ram and copy sysinfo ram now
+	post_cache_as_ram(); // bsp swtich stack to RAM and copy sysinfo RAM now
 }

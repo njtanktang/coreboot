@@ -79,19 +79,11 @@ AmdAgesaDispatcher (
   )
 {
   AGESA_STATUS Status;
-  IMAGE_ENTRY ImageEntry;
   MODULE_ENTRY  ModuleEntry;
   DISPATCH_TABLE *Entry;
-  UINT32 ImageStart;
-  UINT32 ImageEnd;
-  CONST AMD_IMAGE_HEADER* AltImagePtr;
 
   Status = AGESA_UNSUPPORTED;
-  ImageEntry = NULL;
   ModuleEntry = NULL;
-  ImageStart = 0xFFF00000;
-  ImageEnd = 0xFFFFFFFF;
-  AltImagePtr = NULL;
 
   Entry = (DISPATCH_TABLE *) DispatchTable;
   while (Entry->FunctionId != 0) {
@@ -104,24 +96,9 @@ AmdAgesaDispatcher (
 
   // 2. Try next dispatcher if possible, and we have not already got status back
   if ((mCpuModuleID.NextBlock != NULL) && (Status == AGESA_UNSUPPORTED)) {
-    ModuleEntry = (MODULE_ENTRY) (UINT32) mCpuModuleID.NextBlock->ModuleDispatcher;
+    ModuleEntry = (MODULE_ENTRY) mCpuModuleID.NextBlock->ModuleDispatcher;
     if (ModuleEntry != NULL) {
       Status = (*ModuleEntry) (ConfigPtr);
-    }
-  }
-
-  // 3. If not this image specific function, see if we can find alternative image instead
-  if (Status == AGESA_UNSUPPORTED) {
-    if ((((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr != 0xFFFFFFFF  ) || (((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr != 0)) {
-      ImageStart = ((AMD_CONFIG_PARAMS *)ConfigPtr)->AltImageBasePtr;
-      ImageEnd = ImageStart + 4;
-      // Locate/test image base that matches this component
-      AltImagePtr = LibAmdLocateImage ((VOID *) (UINT32)ImageStart, (VOID *) (UINT32)ImageEnd, 4096, (CHAR8 *) AGESA_ID);
-      if (AltImagePtr != NULL) {
-        //Invoke alternative Image
-        ImageEntry = (IMAGE_ENTRY) ((UINT32) AltImagePtr + AltImagePtr->EntryPointAddress);
-        Status = (*ImageEntry) (ConfigPtr);
-      }
     }
   }
 

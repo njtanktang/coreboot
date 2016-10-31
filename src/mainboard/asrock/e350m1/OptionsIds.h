@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
@@ -24,10 +20,6 @@
  *
  * This file is used to switch on/off IDS features.
  *
- * @xrefitem bom "File Content Label" "Release Content"
- * @e project:      AGESA
- * @e sub-project:  Core
- * @e \$Revision: 12067 $   @e \$Date: 2009-04-11 04:34:13 +0800 (Sat, 11 Apr 2009) $
  */
 #ifndef _OPTION_IDS_H_
 #define _OPTION_IDS_H_

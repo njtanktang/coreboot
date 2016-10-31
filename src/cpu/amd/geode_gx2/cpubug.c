@@ -1,3 +1,16 @@
+/*
+ * This file is part of the coreboot project.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 2 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
 #include <console/console.h>
 #include <arch/io.h>
 #include <stdint.h>
@@ -234,7 +247,7 @@ static void bug118339(void)
 
 	/* SET2M fires if VG pri is odd (3, not 2) and Ystate=0 */
 	msrnum =  MSR_GLCP + 0x042;
-	/* 	msr.hi =  2d6b8000h */;
+	/* 	msr.hi =  2d6b8000h; */
 	msr.hi =  0x596b8000;
 	msr.lo =  0x00000a00;
 	wrmsr(msrnum, msr);
@@ -342,5 +355,5 @@ void cpubug(void)
 	bug784();
 	bug118253();
 	disablememoryreadorder();
-	printk(BIOS_DEBUG, "Done cpubug fixes \n");
+	printk(BIOS_DEBUG, "Done cpubug fixes\n");
 }

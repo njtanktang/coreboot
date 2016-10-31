@@ -12,35 +12,31 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdint.h>
 #include <device/pci_def.h>
 #include <arch/io.h>
 #include <device/pnp_def.h>
-#include <arch/hlt.h>
 #include <stdlib.h>
 #include <console/console.h>
-#include "cpu/x86/bist.h"
-#include "cpu/x86/msr.h"
+#include <cpu/x86/bist.h>
+#include <cpu/x86/msr.h>
+#include <cpu/amd/car.h>
 #include <cpu/amd/lxdef.h>
-#include "southbridge/amd/cs5536/cs5536.h"
+#include <southbridge/amd/cs5536/cs5536.h>
 #include "spd_table.h"
 #include <spd.h>
 #include "southbridge/amd/cs5536/early_smbus.c"
 #include "southbridge/amd/cs5536/early_setup.c"
-#include "northbridge/amd/lx/raminit.h"
+#include <northbridge/amd/lx/raminit.h>
 
 int spd_read_byte(unsigned int device, unsigned int address)
 {
 	int i;
 
 	if (device == DIMM0) {
-		for (i=0; i < (ARRAY_SIZE(spd_table)); i++) {
+		for (i = 0; i < (ARRAY_SIZE(spd_table)); i++) {
 			if (spd_table[i].address == address) {
 				return spd_table[i].data;
 			}
@@ -91,35 +87,4 @@ void main(unsigned long bist)
 	cpuRegInit(0, DIMM0, DIMM1, DRAM_TERMINATED);
 
 	sdram_initialize(1, memctrl);
-
-	/* Dump memory configuration. */
-#if 0
-	msr = rdmsr(MC_CF07_DATA);
-	print_debug("MC_CF07_DATA: ");
-	print_debug_hex32(MC_CF07_DATA);
-	print_debug(" value is: ");
-	print_debug_hex32(msr.hi);
-	print_debug(":");
-	print_debug_hex32(msr.lo);
-	print_debug(" \n");
-
-	msr = rdmsr(MC_CF1017_DATA);
-	print_debug("MC_CF1017_DATA: ");
-	print_debug_hex32(MC_CF1017_DATA);
-	print_debug(" value is: ");
-	print_debug_hex32(msr.hi);
-	print_debug(":");
-	print_debug_hex32(msr.lo);
-	print_debug(" \n");
-
-	msr = rdmsr(MC_CF8F_DATA);
-	print_debug("MC_CF8F_DATA: ");
-	print_debug_hex32(MC_CF8F_DATA);
-	print_debug(" value is: ");
-	print_debug_hex32(msr.hi);
-	print_debug(":");
-	print_debug_hex32(msr.lo);
-	msr = rdmsr(MC_CF8F_DATA);
-	print_debug(" \n");
-#endif
 }

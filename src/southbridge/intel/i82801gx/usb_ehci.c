@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -29,7 +25,7 @@
 static void usb_ehci_init(struct device *dev)
 {
 	struct resource *res;
-	u32 base;
+	u8 *base;
 	u32 reg32;
 	u8 reg8;
 
@@ -50,7 +46,7 @@ static void usb_ehci_init(struct device *dev)
 
 	/* Clear any pending port changes */
 	res = find_resource(dev, 0x10);
-	base = res->base;
+	base = res2mmio(res, 0, 0);
 	reg32 = read32(base + 0x24) | (1 << 2);
 	write32(base + 0x24, reg32);
 

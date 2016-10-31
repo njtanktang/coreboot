@@ -32,14 +32,16 @@
 #include <coreboot_tables.h>
 #include <multiboot_tables.h>
 
+#define CPU_KHZ_DEFAULT 200
+
 /**
  * This is a global structure that is used through the library - we set it
  * up initially with some dummy values - hopefully they will be overridden.
  */
 struct sysinfo_t lib_sysinfo = {
-	.cpu_khz = 200,
-#ifdef CONFIG_SERIAL_CONSOLE
-	.ser_ioport = CONFIG_SERIAL_IOBASE,
+	.cpu_khz = CPU_KHZ_DEFAULT,
+#if IS_ENABLED(CONFIG_LP_SERIAL_CONSOLE)
+	.ser_ioport = CONFIG_LP_SERIAL_IOBASE,
 #else
 	.ser_ioport = 0x3f8,
 #endif
@@ -49,10 +51,7 @@ int lib_get_sysinfo(void)
 {
 	int ret;
 
-	/* Get the CPU speed (for delays). */
-	lib_sysinfo.cpu_khz = get_cpu_speed();
-
-#ifdef CONFIG_MULTIBOOT
+#if IS_ENABLED(CONFIG_LP_MULTIBOOT)
 	/* Get the information from the multiboot tables,
 	 * if they exist */
 	get_multiboot_info(&lib_sysinfo);
@@ -62,6 +61,10 @@ int lib_get_sysinfo(void)
 	 * if they exist */
 
 	ret = get_coreboot_info(&lib_sysinfo);
+
+	/* Get the CPU speed (for delays) if not set from the default value. */
+	if (lib_sysinfo.cpu_khz == CPU_KHZ_DEFAULT)
+		lib_sysinfo.cpu_khz = get_cpu_speed();
 
 	if (!lib_sysinfo.n_memranges) {
 		/* If we can't get a good memory range, use the default. */

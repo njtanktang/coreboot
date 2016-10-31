@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdlib.h>
@@ -26,15 +22,16 @@
 #include <device/pci_def.h>
 #include <southbridge/amd/sb800/sb800.h>
 #include <arch/acpi.h>
-#include "BiosCallOuts.h"
+#include <northbridge/amd/agesa/BiosCallOuts.h>
 #include <cpu/amd/agesa/s3_resume.h>
 #include <cpu/amd/mtrr.h>
 #include "SBPLATFORM.h"
 #include "OEM.h" /* SMBUS0_BASE_ADDRESS */
+#include <southbridge/amd/cimx/sb800/gpio_oem.h>
 
 /* Init SIO GPIOs. */
 #define SIO_RUNTIME_BASE 0x0E00
-static const u16 sio_init_table[] = { // hi=offset, lo=value
+static const u16 sio_init_table[] = { // hi = offset, lo = value
 	0x4BA0, // GP1x: COM1/2 control   = RS232, no term, max 115200
 	0x2300, // GP10: COM1 termination = push/pull output
 	0x2400, // GP11: COM2 termination = push/pull output
@@ -73,7 +70,7 @@ static const u16 sio_init_table[] = { // hi=offset, lo=value
 static int smb_write_blk(u8 slave, u8 command, u8 length, const u8 *data)
 {
 	__outbyte(SMB0_STATUS, 0x1E);		// clear error status
-	__outbyte(SMB0_ADDRESS, slave & ~1);	// slave addr + direction=out
+	__outbyte(SMB0_ADDRESS, slave & ~1);	// slave addr + direction = out
 	__outbyte(SMB0_HOSTCMD, command);	// or destination offset
 	__outbyte(SMB0_DATA0, length);		// sent before data
 	__inbyte(SMB0_CONTROL);			// reset block data array
@@ -81,7 +78,7 @@ static int smb_write_blk(u8 slave, u8 command, u8 length, const u8 *data)
 		__outbyte(SMB0_BLOCKDATA, *(data++));
 	__outbyte(SMB0_CONTROL, 0x54);		// execute block write, no IRQ
 
-	while (__inbyte(SMB0_STATUS) == 0x01) ;	// busy, no errors
+	while (__inbyte(SMB0_STATUS) == 0x01);	// busy, no errors
 	return __inbyte(SMB0_STATUS) ^ 0x02;	// 0x02 = completed, no errors
 }
 
@@ -125,7 +122,7 @@ static void init(struct device *dev)
 	}
 
 	/* Lower SPI speed from default 66 to 22 MHz for SST 25VF032B */
-	spi_base = (u8*)(pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x14, 3)), 0xA0) & 0xFFFFFFE0);
+	spi_base = (u8*)((uintptr_t)pci_read_config32(dev_find_slot(0, PCI_DEVFN(0x14, 3)), 0xA0) & 0xFFFFFFE0);
 	spi_base[0x0D] = (spi_base[0x0D] & ~0x30) | 0x20; // NormSpeed in SPI_Cntrl1 register
 
 	/* Notify the SMC we're alive and kicking, or after a while it will
@@ -167,22 +164,14 @@ static void mainboard_enable(device_t dev)
 	printk(BIOS_INFO, "Mainboard " CONFIG_MAINBOARD_PART_NUMBER " Enable.\n");
 	dev->ops->init = init;
 
-/*
- * The mainboard is the first place that we get control in ramstage. Check
- * for S3 resume and call the appropriate AGESA/CIMx resume functions.
- */
-#if CONFIG_HAVE_ACPI_RESUME
-	acpi_slp_type = acpi_get_sleep_type();
-#endif
-
 	/* enable GPP CLK0 */
 	/* disable GPP CLK1 thru SLT_GFX_CLK */
 	u8 *misc_mem_clk_cntrl = (u8 *)(ACPI_MMIO_BASE + MISC_BASE);
-	*(misc_mem_clk_cntrl + 0) = 0x0F;
-	*(misc_mem_clk_cntrl + 1) = 0x00;
-	*(misc_mem_clk_cntrl + 2) = 0x00;
-	*(misc_mem_clk_cntrl + 3) = 0x00;
-	*(misc_mem_clk_cntrl + 4) = 0x00;
+	write8(misc_mem_clk_cntrl + 0, 0x0F);
+	write8(misc_mem_clk_cntrl + 1, 0x00);
+	write8(misc_mem_clk_cntrl + 2, 0x00);
+	write8(misc_mem_clk_cntrl + 3, 0x00);
+	write8(misc_mem_clk_cntrl + 4, 0x00);
 
 	/*
 	 * Initialize ASF registers to an arbitrary address because someone

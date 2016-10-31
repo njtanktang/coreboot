@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef REG_SCRIPT_H
@@ -47,9 +43,14 @@ enum {
 	REG_SCRIPT_COMMAND_READ,
 	REG_SCRIPT_COMMAND_WRITE,
 	REG_SCRIPT_COMMAND_RMW,
+	REG_SCRIPT_COMMAND_RXW,
 	REG_SCRIPT_COMMAND_POLL,
 	REG_SCRIPT_COMMAND_SET_DEV,
 	REG_SCRIPT_COMMAND_NEXT,
+	REG_SCRIPT_COMMAND_DISPLAY,
+
+	/* Insert new types above this comment */
+
 	REG_SCRIPT_COMMAND_END,
 };
 
@@ -60,6 +61,12 @@ enum {
 	REG_SCRIPT_TYPE_RES,
 	REG_SCRIPT_TYPE_IOSF,
 	REG_SCRIPT_TYPE_MSR,
+
+	/* Insert other platform independent values above this comment */
+
+	REG_SCRIPT_TYPE_PLATFORM_BASE = 0x10000,
+	REG_SCRIPT_TYPE_SOC_BASE = REG_SCRIPT_TYPE_PLATFORM_BASE,
+	REG_SCRIPT_TYPE_MAINBOARD_BASE = 0x20000
 };
 
 enum {
@@ -85,6 +92,27 @@ struct reg_script {
 	};
 };
 
+struct reg_script_context {
+	device_t dev;
+	struct resource *res;
+	const struct reg_script *step;
+	uint8_t display_state;    /* Only modified by reg_script_run_step */
+	uint8_t display_features; /* Step routine modifies to control display */
+	const char *display_prefix; /* Prefix tag to display */
+};
+
+struct reg_script_bus_entry {
+	uint32_t type;
+	uint64_t (*reg_script_read)(struct reg_script_context *ctx);
+	void (*reg_script_write)(struct reg_script_context *ctx);
+};
+
+#define REG_SCRIPT_TABLE_ATTRIBUTE __attribute__ ((used,section (".rsbe_init")))
+
+#define REG_SCRIPT_BUS_ENTRY(bus_entry_)				\
+	const struct reg_script_bus_entry *rsbe_ ## bus_entry_ 	\
+		REG_SCRIPT_TABLE_ATTRIBUTE = &bus_entry_;
+
 /* Internal helper Macros. */
 
 #define _REG_SCRIPT_ENCODE_RAW(cmd_, type_, size_, reg_, \
@@ -109,6 +137,21 @@ struct reg_script {
 	  .value = value_,         \
 	  .timeout = timeout_,     \
 	  .res_index = res_index_, \
+	}
+
+/* Display control */
+#define REG_SCRIPT_DISPLAY_ALL		0xff
+#define REG_SCRIPT_DISPLAY_REGISTER	0x02
+#define REG_SCRIPT_DISPLAY_VALUE	0x01
+#define REG_SCRIPT_DISPLAY_NOTHING	0
+
+#define REG_SCRIPT_DISPLAY_OFF                   \
+	{ .command = REG_SCRIPT_COMMAND_DISPLAY, \
+	  .value = REG_SCRIPT_DISPLAY_NOTHING,   \
+	}
+#define REG_SCRIPT_DISPLAY_ON                    \
+	{ .command = REG_SCRIPT_COMMAND_DISPLAY, \
+	  .value = REG_SCRIPT_DISPLAY_ALL,       \
 	}
 
 /*
@@ -138,6 +181,12 @@ struct reg_script {
 	REG_SCRIPT_PCI(RMW, 16, reg_, mask_, value_, 0)
 #define REG_PCI_RMW32(reg_, mask_, value_) \
 	REG_SCRIPT_PCI(RMW, 32, reg_, mask_, value_, 0)
+#define REG_PCI_RXW8(reg_, mask_, value_) \
+	REG_SCRIPT_PCI(RXW, 8, reg_, mask_, value_, 0)
+#define REG_PCI_RXW16(reg_, mask_, value_) \
+	REG_SCRIPT_PCI(RXW, 16, reg_, mask_, value_, 0)
+#define REG_PCI_RXW32(reg_, mask_, value_) \
+	REG_SCRIPT_PCI(RXW, 32, reg_, mask_, value_, 0)
 #define REG_PCI_OR8(reg_, value_) \
 	REG_SCRIPT_PCI(RMW, 8, reg_, 0xff, value_, 0)
 #define REG_PCI_OR16(reg_, value_) \
@@ -150,6 +199,12 @@ struct reg_script {
 	REG_SCRIPT_PCI(POLL, 16, reg_, mask_, value_, timeout_)
 #define REG_PCI_POLL32(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_PCI(POLL, 32, reg_, mask_, value_, timeout_)
+#define REG_PCI_XOR8(reg_, value_) \
+	REG_SCRIPT_PCI(RXW, 8, reg_, 0xff, value_, 0)
+#define REG_PCI_XOR16(reg_, value_) \
+	REG_SCRIPT_PCI(RXW, 16, reg_, 0xffff, value_, 0)
+#define REG_PCI_XOR32(reg_, value_) \
+	REG_SCRIPT_PCI(RXW, 32, reg_, 0xffffffff, value_, 0)
 
 /*
  * Legacy IO
@@ -178,18 +233,30 @@ struct reg_script {
 	REG_SCRIPT_IO(RMW, 16, reg_, mask_, value_, 0)
 #define REG_IO_RMW32(reg_, mask_, value_) \
 	REG_SCRIPT_IO(RMW, 32, reg_, mask_, value_, 0)
+#define REG_IO_RXW8(reg_, mask_, value_) \
+	REG_SCRIPT_IO(RXW, 8, reg_, mask_, value_, 0)
+#define REG_IO_RXW16(reg_, mask_, value_) \
+	REG_SCRIPT_IO(RXW, 16, reg_, mask_, value_, 0)
+#define REG_IO_RXW32(reg_, mask_, value_) \
+	REG_SCRIPT_IO(RXW, 32, reg_, mask_, value_, 0)
 #define REG_IO_OR8(reg_, value_) \
-	REG_SCRIPT_IO_RMW8(_reg, 0xff, value)
+	REG_IO_RMW8(reg_, 0xff, value_)
 #define REG_IO_OR16(reg_, value_) \
-	REG_SCRIPT_IO_RMW16(_reg, 0xffff, value)
+	REG_IO_RMW16(reg_, 0xffff, value_)
 #define REG_IO_OR32(reg_, value_) \
-	REG_SCRIPT_IO_RMW32(_reg, 0xffffffff, value)
+	REG_IO_RMW32(reg_, 0xffffffff, value_)
 #define REG_IO_POLL8(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_IO(POLL, 8, reg_, mask_, value_, timeout_)
 #define REG_IO_POLL16(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_IO(POLL, 16, reg_, mask_, value_, timeout_)
 #define REG_IO_POLL32(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_IO(POLL, 32, reg_, mask_, value_, timeout_)
+#define REG_IO_XOR8(reg_, value_) \
+	REG_IO_RXW8(reg_, 0xff, value_)
+#define REG_IO_XOR16(reg_, value_) \
+	REG_IO_RXW16(reg_, 0xffff, value_)
+#define REG_IO_XOR32(reg_, value_) \
+	REG_IO_RXW32(reg_, 0xffffffff, value_)
 
 /*
  * Memory Mapped IO
@@ -218,6 +285,12 @@ struct reg_script {
 	REG_SCRIPT_MMIO(RMW, 16, reg_, mask_, value_, 0)
 #define REG_MMIO_RMW32(reg_, mask_, value_) \
 	REG_SCRIPT_MMIO(RMW, 32, reg_, mask_, value_, 0)
+#define REG_MMIO_RXW8(reg_, mask_, value_) \
+	REG_SCRIPT_MMIO(RXW, 8, reg_, mask_, value_, 0)
+#define REG_MMIO_RXW16(reg_, mask_, value_) \
+	REG_SCRIPT_MMIO(RXW, 16, reg_, mask_, value_, 0)
+#define REG_MMIO_RXW32(reg_, mask_, value_) \
+	REG_SCRIPT_MMIO(RXW, 32, reg_, mask_, value_, 0)
 #define REG_MMIO_OR8(reg_, value_) \
 	REG_MMIO_RMW8(reg_, 0xff, value_)
 #define REG_MMIO_OR16(reg_, value_) \
@@ -230,6 +303,12 @@ struct reg_script {
 	REG_SCRIPT_MMIO(POLL, 16, reg_, mask_, value_, timeout_)
 #define REG_MMIO_POLL32(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_MMIO(POLL, 32, reg_, mask_, value_, timeout_)
+#define REG_MMIO_XOR8(reg_, value_) \
+	REG_MMIO_RXW8(reg_, 0xff, value_)
+#define REG_MMIO_XOR16(reg_, value_) \
+	REG_MMIO_RXW16(reg_, 0xffff, value_)
+#define REG_MMIO_XOR32(reg_, value_) \
+	REG_MMIO_RXW32(reg_, 0xffffffff, value_)
 
 /*
  * Access through a device's resource such as a Base Address Register (BAR)
@@ -258,6 +337,12 @@ struct reg_script {
 	REG_SCRIPT_RES(RMW, 16, bar_, reg_, mask_, value_, 0)
 #define REG_RES_RMW32(bar_, reg_, mask_, value_) \
 	REG_SCRIPT_RES(RMW, 32, bar_, reg_, mask_, value_, 0)
+#define REG_RES_RXW8(bar_, reg_, mask_, value_) \
+	REG_SCRIPT_RES(RXW, 8, bar_, reg_, mask_, value_, 0)
+#define REG_RES_RXW16(bar_, reg_, mask_, value_) \
+	REG_SCRIPT_RES(RXW, 16, bar_, reg_, mask_, value_, 0)
+#define REG_RES_RXW32(bar_, reg_, mask_, value_) \
+	REG_SCRIPT_RES(RXW, 32, bar_, reg_, mask_, value_, 0)
 #define REG_RES_OR8(bar_, reg_, value_) \
 	REG_RES_RMW8(bar_, reg_, 0xff, value_)
 #define REG_RES_OR16(bar_, reg_, value_) \
@@ -270,7 +355,16 @@ struct reg_script {
 	REG_SCRIPT_RES(POLL, 16, bar_, reg_, mask_, value_, timeout_)
 #define REG_RES_POLL32(bar_, reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_RES(POLL, 32, bar_, reg_, mask_, value_, timeout_)
+#define REG_RES_XOR8(bar_, reg_, value_) \
+	REG_RES_RXW8(bar_, reg_, 0xff, value_)
+#define REG_RES_XOR16(bar_, reg_, value_) \
+	REG_RES_RXW16(bar_, reg_, 0xffff, value_)
+#define REG_RES_XOR32(bar_, reg_, value_) \
+	REG_RES_RXW32(bar_, reg_, 0xffffffff, value_)
 
+
+#if IS_ENABLED(CONFIG_SOC_INTEL_BAYTRAIL) || \
+IS_ENABLED(CONFIG_SOC_INTEL_FSP_BAYTRAIL)
 /*
  * IO Sideband Function
  */
@@ -286,10 +380,15 @@ struct reg_script {
 	REG_SCRIPT_IOSF(WRITE, unit_, reg_, 0, value_, 0)
 #define REG_IOSF_RMW(unit_, reg_, mask_, value_) \
 	REG_SCRIPT_IOSF(RMW, unit_, reg_, mask_, value_, 0)
+#define REG_IOSF_RXW(unit_, reg_, mask_, value_) \
+	REG_SCRIPT_IOSF(RXW, unit_, reg_, mask_, value_, 0)
 #define REG_IOSF_OR(unit_, reg_, value_) \
 	REG_IOSF_RMW(unit_, reg_, 0xffffffff, value_)
 #define REG_IOSF_POLL(unit_, reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_IOSF(POLL, unit_, reg_, mask_, value_, timeout_)
+#define REG_IOSF_XOR(unit_, reg_, value_) \
+	REG_IOSF_RXW(unit_, reg_, 0xffffffff, value_)
+#endif	/* CONFIG_SOC_INTEL_BAYTRAIL || CONFIG_SOC_INTEL_FSP_BAYTRAIL*/
 
 /*
  * CPU Model Specific Register
@@ -306,10 +405,14 @@ struct reg_script {
 	REG_SCRIPT_MSR(WRITE, reg_, 0, value_, 0)
 #define REG_MSR_RMW(reg_, mask_, value_) \
 	REG_SCRIPT_MSR(RMW, reg_, mask_, value_, 0)
+#define REG_MSR_RXW(reg_, mask_, value_) \
+	REG_SCRIPT_MSR(RXW, reg_, mask_, value_, 0)
 #define REG_MSR_OR(reg_, value_) \
 	REG_MSR_RMW(reg_, -1ULL, value_)
 #define REG_MSR_POLL(reg_, mask_, value_, timeout_) \
 	REG_SCRIPT_MSR(POLL, reg_, mask_, value_, timeout_)
+#define REG_MSR_XOR(reg_, value_) \
+	REG_MSR_RXW(reg_, -1ULL, value_)
 
 /*
  * Chain to another table.

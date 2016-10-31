@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 chip northbridge/amd/agesa/family14/root_complex
 	device cpu_cluster 0 on
 			chip cpu/amd/agesa/family14
@@ -54,22 +50,15 @@ chip northbridge/amd/agesa/family14/root_complex
 					end # SM
 					device pci 14.1 on end # IDE	0x439c
 					device pci 14.2 on end # HDA	0x4383
-					device pci 14.3 on # LPC		0x439d
-						chip superio/winbond/w83627hf
-							device pnp 2e.0 off #  Floppy
-								io 0x60 = 0x3f0
-								irq 0x70 = 6
-								drq 0x74 = 2
-							end
-							device pnp 2e.1 off #  Parallel Port
-								io 0x60 = 0x378
-								irq 0x70 = 7
-							end
+					device pci 14.3 on # LPC
+						chip superio/nuvoton/nct5572d
+							device pnp 2e.0 off end #  FDC; not externally available on the NCT5572D, but on the die
+							device pnp 2e.1 off end #  LPT1; same as FDC
 							device pnp 2e.2 on #  Com1
 								io 0x60 = 0x3f8
 								irq 0x70 = 4
 							end
-							device pnp 2e.3 off #  Com2
+							device pnp 2e.3 off #  IR
 								io 0x60 = 0x2f8
 								irq 0x70 = 3
 							end
@@ -81,19 +70,41 @@ chip northbridge/amd/agesa/family14/root_complex
 							end
 							device pnp 2e.6 off #  CIR
 								io 0x60 = 0x100
+								irq 0x70 = 0
 							end
-							device pnp 2e.7 off #  GAME_MIDI_GIPO1
-								io 0x60 = 0x220
-								io 0x62 = 0x300
-								irq 0x70 = 9
+							device pnp 2e.107 off end #  GPIO6
+							device pnp 2e.207 off end #  GPIO7
+							device pnp 2e.307 on #  GPIO8
+								irq 0x23 = 0x28
+								irq 0xe4 = 0xbf
+								irq 0xed = 0x27
 							end
-							device pnp 2e.8 off end #  GPIO2
-							device pnp 2e.9 off end #  GPIO3
-							device pnp 2e.a on end #  ACPI
+							device pnp 2e.407 off end #  GPIO9
+							device pnp 2e.8 off end #  WDT
+							device pnp 2e.009 on #  GPIO2
+								irq 0x2a = 0x42
+								irq 0xe0 = 0xe3
+							end
+							device pnp 2e.109 off end #  GPIO3
+							device pnp 2e.209 off end #  GPIO4
+							device pnp 2e.309 off end #  GPIO5
+							device pnp 2e.a on #  ACPI
+								irq 0xe7 = 0x10
+							end
 							device pnp 2e.b on #  HW Monitor
 								io 0x60 = 0x290
+								io 0x62 = 0x0000 #  SB-TSI currently not implemented
 								irq 0x70 = 5
 							end
+							device pnp 2e.c off end #  PECI
+							device pnp 2e.d on #  SUSLED
+								irq 0xec = 0x90
+							end
+							device pnp 2e.e off #  CIRWKUP
+								io 0x60 = 0x0000
+								irq 0x70 = 0
+							end
+							device pnp 2e.f off end #  GPIO_PP_OD
 						end
 					end #LPC
 					device pci 14.4 on end # PCIB 0x4384, NOTE: PCI interface pins shared with GPIO {GPIO 35:0}

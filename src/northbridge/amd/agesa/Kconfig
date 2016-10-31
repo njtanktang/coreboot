@@ -12,14 +12,11 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 config NORTHBRIDGE_AMD_AGESA
-        bool
-        default CPU_AMD_AGESA
+	bool
+	default CPU_AMD_AGESA
+	select LATE_CBMEM_INIT
 
 if NORTHBRIDGE_AMD_AGESA
 
@@ -31,11 +28,15 @@ config S3_VGA_ROM_RUN
 	bool
 	default n
 
-source src/northbridge/amd/agesa/family10/Kconfig
-source src/northbridge/amd/agesa/family12/Kconfig
-source src/northbridge/amd/agesa/family14/Kconfig
-source src/northbridge/amd/agesa/family15/Kconfig
-source src/northbridge/amd/agesa/family15tn/Kconfig
-source src/northbridge/amd/agesa/family16kb/Kconfig
+source "src/northbridge/amd/agesa/*/Kconfig"
+
+# TODO: Reservation for heap seems excessive
+config HEAP_SIZE
+	hex
+	default 0xc0000
+
+config RAMTOP
+	hex
+	default 0x400000
 
 endif # NORTHBRIDGE_AMD_AGESA

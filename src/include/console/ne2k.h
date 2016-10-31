@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef _NE2K_H__
@@ -41,4 +37,4 @@ static inline void __ne2k_tx_byte(u8 data)	{}
 static inline void __ne2k_tx_flush(void)	{}
 #endif
 
-#endif /* _NE2K_H */
+#endif /* _NE2K_H__ */

@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA, 02110-1301 USA
  */
 
 #include <stdint.h>
@@ -38,6 +34,8 @@ typedef struct file {
 
 #define COVERAGE_SIZE (32*1024)
 
+#define COVERAGE_MAGIC 0x584d4153
+
 static FILE *current_file = NULL;
 static FILE *previous_file = NULL;
 
@@ -56,7 +54,7 @@ static FILE *fopen(const char *path, const char *mode)
 
 	// TODO check if we're at the end of the CBMEM region (ENOMEM)
 	if (current_file) {
-		current_file->magic = 0x584d4153;
+		current_file->magic = COVERAGE_MAGIC;
 		current_file->next = NULL;
 		if (previous_file)
 			previous_file->next = current_file;
@@ -150,8 +148,6 @@ static void coverage_exit(void *unused)
 	__gcov_flush();
 }
 
-BOOT_STATE_INIT_ENTRIES(gcov_bscb) = {
-	BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_ENTRY, coverage_init, NULL),
-	BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, coverage_exit, NULL),
-	BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, coverage_exit, NULL),
-};
+BOOT_STATE_INIT_ENTRY(BS_PRE_DEVICE, BS_ON_ENTRY, coverage_init, NULL);
+BOOT_STATE_INIT_ENTRY(BS_OS_RESUME, BS_ON_ENTRY, coverage_exit, NULL);
+BOOT_STATE_INIT_ENTRY(BS_PAYLOAD_LOAD, BS_ON_EXIT, coverage_exit, NULL);

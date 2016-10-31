@@ -30,15 +30,25 @@
 ## SUCH DAMAGE.
 ##
 
-$(if $(wildcard .xcompile),,$(eval $(shell bash util/xcompile/xcompile $(XGCCPATH) > .xcompile)))
-include .xcompile
+# in addition to the dependency below, create the file if it doesn't exist
+# to silence stupid warnings about a file that would be generated anyway.
+$(if $(wildcard .xcompile),,$(eval $(shell util/xcompile/xcompile $(XGCCPATH) > .xcompile || rm -f .xcompile)))
+
+.xcompile: util/xcompile/xcompile
+	rm -f $@
+	$< $(XGCCPATH) > $@.tmp
+	\mv -f $@.tmp $@ 2> /dev/null
+	rm -f $@.tmp
 
 export top := $(CURDIR)
 export src := src
 export srck := $(top)/util/kconfig
-export obj ?= build
+obj ?= build
+override obj := $(subst $(top)/,,$(abspath $(obj)))
+export obj
 export objutil ?= $(obj)/util
 export objk := $(objutil)/kconfig
+absobj := $(abspath $(obj))
 
 
 export KCONFIG_AUTOHEADER := $(obj)/config.h
@@ -47,6 +57,7 @@ export KCONFIG_DEPENDENCIES := $(obj)/auto.conf.cmd
 export KCONFIG_SPLITCONFIG := $(obj)/config
 export KCONFIG_TRISTATE := $(obj)/tristate.conf
 export KCONFIG_NEGATIVES := 1
+export KCONFIG_STRICT := 1
 
 # directory containing the toplevel Makefile.inc
 TOPLEVEL := .
@@ -54,7 +65,7 @@ TOPLEVEL := .
 CONFIG_SHELL := sh
 KBUILD_DEFCONFIG := configs/defconfig
 UNAME_RELEASE := $(shell uname -r)
-DOTCONFIG ?= .config
+DOTCONFIG ?= $(top)/.config
 KCONFIG_CONFIG = $(DOTCONFIG)
 export KCONFIG_CONFIG
 HAVE_DOTCONFIG := $(wildcard $(DOTCONFIG))
@@ -68,22 +79,39 @@ ifneq ($(Q),)
 endif
 endif
 
-HOSTCC = gcc
-ifeq ($(CONFIG_COMPILER_LLVM_CLANG),y)
-HOSTCC := clang
-endif
+# Disable implicit/built-in rules to make Makefile errors fail fast.
+.SUFFIXES:
+
+HOSTCC := $(if $(shell type gcc 2>/dev/null),gcc,cc)
 HOSTCXX = g++
 HOSTCFLAGS := -g
 HOSTCXXFLAGS := -g
+
+PREPROCESS_ONLY := -E -P -x assembler-with-cpp -undef -I .
 
 DOXYGEN := doxygen
 DOXYGEN_OUTPUT_DIR := doxygen
 
 all: real-all
 
+help_coreboot help::
+	@echo  '*** coreboot platform targets ***'
+	@echo  '  Use "make [target] V=1" for extra build debug information'
+	@echo  '  all                   - Build coreboot'
+	@echo  '  clean                 - Remove coreboot build artifacts'
+	@echo  '  distclean             - Remove build artifacts and config files'
+	@echo  '  doxygen               - Build doxygen documentation for coreboot'
+	@echo  '  what-jenkins-does     - Run platform build tests (Use CPUS=# for more cores)'
+	@echo  '  printall              - print makefile info for debugging'
+	@echo  '  lint / lint-stable    - run coreboot lint tools (all / minimal)'
+	@echo  '  gitconfig             - set up git to submit patches to coreboot'
+	@echo  '  ctags / ctags-project - make ctags file for all of coreboot or current board'
+	@echo  '  cscope / cscope-project - make cscope.out file for coreboot or current board'
+	@echo
+
 # This include must come _before_ the pattern rules below!
 # Order _does_ matter for pattern rules.
-include util/kconfig/Makefile
+include $(srck)/Makefile
 
 # Three cases where we don't need fully populated $(obj) lists:
 # 1. when no .config exists
@@ -94,7 +122,7 @@ ifeq ($(strip $(HAVE_DOTCONFIG)),)
 NOCOMPILE:=1
 endif
 ifneq ($(MAKECMDGOALS),)
-ifneq ($(filter %config %clean cross%,$(MAKECMDGOALS)),)
+ifneq ($(filter %config %clean cross% clang iasl gnumake lint% help% what-jenkins-does,$(MAKECMDGOALS)),)
 NOCOMPILE:=1
 endif
 ifeq ($(MAKECMDGOALS), %clean)
@@ -104,36 +132,29 @@ endif
 
 ifeq ($(NOCOMPILE),1)
 include $(TOPLEVEL)/Makefile.inc
+include $(TOPLEVEL)/payloads/Makefile.inc
 real-all: config
 
 else
 
-include $(HAVE_DOTCONFIG)
+include $(DOTCONFIG)
 
-ifeq ($(CONFIG_COMPILER_LLVM_CLANG),y)
-# FIXME: armv7/aarch64 won't build right now
-CFLAGS_x86_32 = -no-integrated-as -Qunused-arguments -target i386-elf -m32
-CC_x86_32:=clang
+-include .xcompile
+
+ifneq ($(XCOMPILE_COMPLETE),1)
+$(shell rm -f .xcompile)
+$(error .xcompile deleted because it's invalid. \
+	Restarting the build should fix that, or explain the problem)
+endif
 
 ifneq ($(CONFIG_MMX),y)
 CFLAGS_x86_32 += -mno-mmx
 endif
 
-# FIXME: we end up with conflicting flags with this, not clear on this part.
-#ifneq ($(CONFIG_SSE),y)
-#CFLAGS_x86_32 += -mno-sse
-#endif
-
-CFLAGS_armv7 = -no-integrated-as -Qunused-arguments -target armv7-eabi -ccc-gcc-name $(CC_armv7)
-CC_armv7:=clang
-
-CFLAGS_aarch64 = -no-integrated-as -Qunused-arguments -target aarch64-eabi -ccc-gcc-name $(CC_aarch64)
-CC_aarch64:=clang
-endif
-
 include toolchain.inc
 
-strip_quotes = $(subst ",,$(subst \",,$(1)))
+strip_quotes = $(strip $(subst ",,$(subst \",,$(1))))
+# fix makefile syntax highlighting after strip macro \" "))
 
 # The primary target needs to be here before we include the
 # other files
@@ -143,7 +164,7 @@ real-all: real-target
 # must come rather early
 .SECONDEXPANSION:
 
-$(obj)/config.h:
+$(KCONFIG_AUTOHEADER): $(KCONFIG_CONFIG)
 	$(MAKE) oldconfig
 
 # Add a new class of source/object files to the build system
@@ -161,6 +182,36 @@ add-special-class= \
 	$(eval $(1):=) \
 	$(eval special-classes+=$(1))
 
+# Converts one or more source file paths to their corresponding build/ paths.
+# Only .ads, adb, .c and .S get converted to .o, other files (like .ld) keep
+# their name.
+# $1 stage name
+# $2 file path (list)
+src-to-obj=\
+	$(patsubst $(obj)/%,$(obj)/$(1)/%,\
+	$(patsubst $(obj)/$(1)/%,$(obj)/%,\
+	$(patsubst 3rdparty/%,$(obj)/%,\
+	$(patsubst src/%,$(obj)/%,\
+	$(patsubst %.ads,%.o,\
+	$(patsubst %.adb,%.o,\
+	$(patsubst %.c,%.o,\
+	$(patsubst %.S,%.o,\
+	$(subst .$(1),,$(2))))))))))
+
+# Converts one or more source file paths to the corresponding build/ paths
+# of their Ada library information (.ali) files.
+# $1 stage name
+# $2 file path (list)
+src-to-ali=\
+	$(patsubst $(obj)/%,$(obj)/$(1)/%,\
+	$(patsubst $(obj)/$(1)/%,$(obj)/%,\
+	$(patsubst 3rdparty/%,$(obj)/%,\
+	$(patsubst src/%,$(obj)/%,\
+	$(patsubst %.ads,%.ali,\
+	$(patsubst %.adb,%.ali,\
+	$(subst .$(1),,\
+	$(filter %.ads %.adb,$(2)))))))))
+
 # Clean -y variables, include Makefile.inc
 # Add paths to files in X-y to X-srcs
 # Add subdirs-y to subdirs
@@ -170,8 +221,9 @@ includemakefiles= \
 	$(foreach class,$(classes-y), $(call add-class,$(class))) \
 	$(foreach class,$(classes), \
 		$(eval $(class)-srcs+= \
+			$$(subst $(absobj)/,$(obj)/, \
 			$$(subst $(top)/,, \
-			$$(abspath $$(subst $(dir $(1))/,/,$$(addprefix $(dir $(1)),$$($(class)-y))))))) \
+			$$(abspath $$(subst $(dir $(1))/,/,$$(addprefix $(dir $(1)),$$($(class)-y)))))))) \
 	$(foreach special,$(special-classes), \
 		$(foreach item,$($(special)-y), $(call $(special)-handler,$(dir $(1)),$(item)))) \
 	$(eval subdirs+=$$(subst $(CURDIR)/,,$$(abspath $$(addprefix $(dir $(1)),$$(subdirs-y)))))
@@ -195,8 +247,22 @@ endif
 # Eliminate duplicate mentions of source files in a class
 $(foreach class,$(classes),$(eval $(class)-srcs:=$(sort $($(class)-srcs))))
 
-src-to-obj=$(addsuffix .$(1).o, $(basename $(patsubst src/%, $(obj)/%, $($(1)-srcs))))
-$(foreach class,$(classes),$(eval $(class)-objs:=$(call src-to-obj,$(class))))
+# To track dependencies, we need all Ada specification (.ads) files in
+# *-srcs. Extract / filter all specification files that have a matching
+# body (.adb) file here (specifications without a body are valid sources
+# in Ada).
+$(foreach class,$(classes),$(eval $(class)-extra-specs := \
+	$(filter \
+		$(addprefix %/,$(patsubst %.adb,%.ads,$(notdir $(filter %.adb,$($(class)-srcs))))), \
+		$(filter %.ads,$($(class)-srcs)))))
+$(foreach class,$(classes),$(eval $(class)-srcs := \
+	$(filter-out $($(class)-extra-specs),$($(class)-srcs))))
+
+$(foreach class,$(classes),$(eval $(class)-objs:=$(call src-to-obj,$(class),$($(class)-srcs))))
+$(foreach class,$(classes),$(eval $(class)-alis:=$(call src-to-ali,$(class),$($(class)-srcs))))
+
+# For Ada includes
+$(foreach class,$(classes),$(eval $(class)-ada-dirs:=$(sort $(dir $(filter %.ads %.adb,$($(class)-srcs)) $($(class)-extra-specs)))))
 
 # Save all objs before processing them (for dependency inclusion)
 originalobjs:=$(foreach var, $(addsuffix -objs,$(classes)), $($(var)))
@@ -209,16 +275,32 @@ allsrcs:=$(foreach var, $(addsuffix -srcs,$(classes)), $($(var)))
 allobjs:=$(foreach var, $(addsuffix -objs,$(classes)), $($(var)))
 alldirs:=$(sort $(abspath $(dir $(allobjs))))
 
+# Reads dependencies from an Ada library information (.ali) file
+# Only basenames (with suffix) are preserved so we have to look the
+# paths up in $($(stage)-srcs).
+# $1 stage name
+# $2 ali file
+create_ada_deps=$$(if $(2),\
+	gnat.adc \
+	$$(filter \
+		$$(addprefix %/,$$(shell sed -ne's/^D \([^\t]\+\).*$$$$/\1/p' $(2) 2>/dev/null)), \
+		$$($(1)-srcs) $$($(1)-extra-specs)))
+
 # macro to define template macros that are used by use_template macro
 define create_cc_template
 # $1 obj class
-# $2 source suffix (c, S)
-# $3 additional dependencies
+# $2 source suffix (c, S, ld, ...)
+# $3 additional compiler flags
+# $4 additional dependencies
 ifn$(EMPTY)def $(1)-objs_$(2)_template
 de$(EMPTY)fine $(1)-objs_$(2)_template
-$(obj)/$$(1).$(1).o: src/$$(1).$(2) $(obj)/config.h $(3)
+$$(call src-to-obj,$1,$$(1).$2): $$(1).$2 $$(call create_ada_deps,$1,$$(call src-to-ali,$1,$$(1).$2)) $(KCONFIG_AUTOHEADER) $(4)
 	@printf "    CC         $$$$(subst $$$$(obj)/,,$$$$(@))\n"
-	$(CC_$(1)) -MMD $$$$(CPPFLAGS_$(1)) $$$$(CFLAGS_$(1)) -c -o $$$$@ $$$$<
+	$(CC_$(1)) \
+		$$(if $$(filter-out ads adb,$(2)), \
+		   -MMD $$$$(CPPFLAGS_$(1)) $$$$(CFLAGS_$(1)) -MT $$$$(@), \
+		   $$$$(ADAFLAGS_$(1)) $$$$(addprefix -I,$$$$($(1)-ada-dirs))) \
+		$(3) -c -o $$$$@ $$$$<
 en$(EMPTY)def
 end$(EMPTY)if
 endef
@@ -226,34 +308,75 @@ endef
 filetypes-of-class=$(subst .,,$(sort $(suffix $($(1)-srcs))))
 $(foreach class,$(classes), \
 	$(foreach type,$(call filetypes-of-class,$(class)), \
-		$(eval $(call create_cc_template,$(class),$(type),$($(class)-$(type)-deps)))))
+		$(eval $(class)-$(type)-ccopts += $(generic-$(type)-ccopts) $($(class)-generic-ccopts)) \
+		$(if $(generic-objs_$(type)_template_gen),$(eval $(call generic-objs_$(type)_template_gen,$(class))),\
+		$(eval $(call create_cc_template,$(class),$(type),$($(class)-$(type)-ccopts),$($(class)-$(type)-deps))))))
 
-foreach-src=$(foreach file,$($(1)-srcs),$(eval $(call $(1)-objs_$(subst .,,$(suffix $(file)))_template,$(subst src/,,$(basename $(file))))))
+foreach-src=$(foreach file,$($(1)-srcs),$(eval $(call $(1)-objs_$(subst .,,$(suffix $(file)))_template,$(basename $(file)))))
 $(eval $(foreach class,$(classes),$(call foreach-src,$(class))))
 
-DEPENDENCIES = $(originalobjs:.o=.d)
+# To supported complex package initializations, we need to call the
+# emitted code explicitly. gnatbind gathers all the calls for us
+# and exports them as a procedure $(stage)_adainit(). Every stage that
+# uses Ada code has to call it!
+define gnatbind_template
+# $1 class
+$$(obj)/$(1)/b__$(1).adb: $$$$(filter-out $$(obj)/$(1)/b__$(1).ali,$$$$($(1)-alis))
+	@printf "    BIND       $$(subst $$(obj)/,,$$@)\n"
+	# We have to give gnatbind a simple filename (without leading
+	# path components) so just cd there.
+	cd $$(dir $$@) && \
+		$$(GNATBIND_$(1)) -a -n \
+			--RTS=$$(absobj)/libgnat-$$(ARCH-$(1)-y)/ \
+			-L$(1)_ada -o $$(notdir $$@) \
+			$$(subst $$(dir $$@),,$$^)
+$$(obj)/$(1)/b__$(1).o: $$(obj)/$(1)/b__$(1).adb
+	@printf "    CC         $$(subst $$(obj)/,,$$@)\n"
+	$(CC_$(1)) $$(ADAFLAGS_$(1)) -c -o $$@ $$<
+$(1)-objs += $$(obj)/$(1)/b__$(1).o
+$($(1)-alis): %.ali: %.o ;
+endef
+
+$(eval $(foreach class,$(filter-out libgnat-%,$(classes)), \
+	$(if $($(class)-alis),$(call gnatbind_template,$(class)))))
+
+DEPENDENCIES += $(addsuffix .d,$(basename $(allobjs)))
 -include $(DEPENDENCIES)
 
 printall:
-	@$(foreach class,$(classes),echo $(class)-objs:=$($(class)-objs); )
-	@echo alldirs:=$(alldirs)
-	@echo allsrcs=$(allsrcs)
-	@echo DEPENDENCIES=$(DEPENDENCIES)
-	@echo LIBGCC_FILE_NAME=$(LIBGCC_FILE_NAME_$(class))
-	@$(foreach class,$(special-classes),echo $(class):='$($(class))'; )
-
+	@$(foreach class,$(classes), echo $(class)-objs: $($(class)-objs) | tr ' ' '\n'; echo; )
+	@echo alldirs: $(alldirs) | tr ' ' '\n'; echo
+	@echo allsrcs: $(allsrcs) | tr ' ' '\n'; echo
+	@echo DEPENDENCIES: $(DEPENDENCIES) | tr ' ' '\n'; echo
+	@$(foreach class,$(special-classes),echo $(class):'$($(class))' | tr ' ' '\n'; echo; )
 endif
 
 ifndef NOMKDIR
-$(shell mkdir -p $(KCONFIG_SPLITCONFIG) $(objutil)/kconfig/lxdialog $(additional-dirs) $(alldirs))
+$(shell mkdir -p $(KCONFIG_SPLITCONFIG) $(objk)/lxdialog $(additional-dirs) $(alldirs))
 endif
+
+$(obj)/project_filelist.txt: all
+	find $(obj) -name "*.d" -exec cat {} \; | \
+	  sed 's/[:\\]/ /g' | sed 's/ /\n/g' | sort | uniq | \
+	  grep -v '\.o$$' > $(obj)/project_filelist.txt
+
+#works with either exuberant ctags or ctags.emacs
+ctags-project: clean-ctags $(obj)/project_filelist.txt
+	cat $(obj)/project_filelist.txt | \
+	  xargs ctags -o tags
+
+cscope-project: clean-cscope $(obj)/project_filelist.txt
+	cat $(obj)/project_filelist.txt | xargs cscope -b
 
 cscope:
 	cscope -bR
 
 doxy: doxygen
 doxygen:
-	$(DOXYGEN) documentation/Doxyfile.coreboot
+	$(DOXYGEN) Documentation/Doxyfile.coreboot
+
+doxygen_simple:
+	$(DOXYGEN) Documentation/Doxyfile.coreboot_simple
 
 doxyclean: doxygen-clean
 doxygen-clean:
@@ -268,7 +391,11 @@ clean: clean-for-update clean-target
 clean-cscope:
 	rm -f cscope.out
 
-distclean: clean
+clean-ctags:
+	rm -f tags
+
+distclean: clean clean-ctags clean-cscope distclean-payloads
 	rm -f .config .config.old ..config.tmp .kconfig.d .tmpconfig* .ccwrap .xcompile
 
-.PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean doxygen doxy .xcompile
+.PHONY: $(PHONY) clean clean-for-update clean-cscope cscope distclean doxygen doxy doxygen_simple
+.PHONY: ctags-project cscope-project clean-ctags

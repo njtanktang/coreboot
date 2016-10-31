@@ -12,10 +12,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
- *
  */
 
 /* This code is based on src/northbridge/intel/e7520/pciexp_porta.c */
@@ -39,13 +35,13 @@ static void pcie_init(struct device *dev)
 	/* Get the chip configuration */
 	config = dev->chip_info;
 
-	if(config->intrline) {
+	if (config->intrline) {
 		pci_write_config32(dev, 0x3c, config->intrline);
 	}
 
 }
 
-static unsigned int pcie_scan_bridge(struct device *dev, unsigned int max)
+static void pcie_scan_bridge(struct device *dev)
 {
 	u16 val;
 	u16 ctl;
@@ -58,11 +54,12 @@ static unsigned int pcie_scan_bridge(struct device *dev, unsigned int max)
 			pci_write_config16(dev, 0x74, (ctl | (1<<5)));
 			val = pci_read_config16(dev, 0x76);
 			printk(BIOS_DEBUG, "pcie porta reset 0x76: %02x\n", val);
-			flag=1;
+			flag = 1;
 			hard_reset();
 		}
 	} while	(val & (3<<10));
-	return pciexp_scan_bridge(dev, max);
+
+	pciexp_scan_bridge(dev);
 }
 
 static struct device_operations pcie_ops  = {

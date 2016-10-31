@@ -26,6 +26,8 @@
 
 //#define DEBUG
 
+int kconfig_warnings = 0;
+
 enum {
 	SINGLE_VIEW, SPLIT_VIEW, FULL_VIEW
 };
@@ -1404,7 +1406,7 @@ static void display_tree(struct menu *menu)
 		    && (tree == tree2))
 			continue;
 /*
-                if (((menu != &rootmenu) && !(menu->flags & MENU_ROOT))
+		if (((menu != &rootmenu) && !(menu->flags & MENU_ROOT))
 		    || (view_mode == FULL_VIEW)
 		    || (view_mode == SPLIT_VIEW))*/
 

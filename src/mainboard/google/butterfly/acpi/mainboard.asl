@@ -12,12 +12,9 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
+
+#include <mainboard/google/butterfly/onboard.h>
 
 Scope (\_SB) {
 	Device (LID0)
@@ -45,15 +42,18 @@ Scope (\_SB) {
 		Name(_HID, EisaId("PNP0C0E"))
 
 		// Trackpad Wake is GPIO11, wake from S3
-		Name(_PRW, Package(){0x1b, 0x03})
+		Name(_PRW, Package() { BOARD_TRACKPAD_WAKE_GPIO, 0x03 })
 
 		Name(_CRS, ResourceTemplate()
 		{
 			// PIRQG -> GSI22
-			Interrupt (ResourceConsumer, EDGE, ActiveLow) {22}
+			Interrupt (ResourceConsumer, EDGE, ActiveLow)
+			{
+				BOARD_TRACKPAD_IRQ
+			}
 
 			// SMBUS Address 0x67
-			VendorShort (ADDR) {0x67}
+			VendorShort (ADDR) { BOARD_TRACKPAD_I2C_ADDR }
 		})
 	}
 

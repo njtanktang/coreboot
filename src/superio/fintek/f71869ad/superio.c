@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <arch/io.h>
@@ -30,7 +26,7 @@
 #include "chip.h"
 #include "f71869ad.h"
 
-static void f71869ad_init(device_t dev)
+static void f71869ad_init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;
@@ -38,7 +34,7 @@ static void f71869ad_init(device_t dev)
 	switch(dev->path.pnp.device) {
 	/* TODO: Might potentially need code for HWM or FDC etc. */
 	case F71869AD_KBC:
-		pc_keyboard_init();
+		pc_keyboard_init(NO_AUX_DEVICE);
 		break;
 	case F71869AD_HWM:
 		f71869ad_multifunc_init(dev);
@@ -57,7 +53,7 @@ static struct device_operations ops = {
 };
 
 /*
- * io_info contains the mask 0x07f8. Given 16 register, each 8 bits wide of a
+ * io_info contains the mask 0x07f8. Given 8 register, each 8 bits wide of a
  * logical device we need a mask of the following form:
  *
  *  MSB                 LSB
@@ -122,7 +118,7 @@ static struct pnp_info pnp_dev_info[] = {
 	{ &ops, F71869AD_PME, },
 };
 
-static void enable_dev(device_t dev)
+static void enable_dev(struct device *dev)
 {
 	pnp_enable_devices(dev, &ops, ARRAY_SIZE(pnp_dev_info), pnp_dev_info);
 }

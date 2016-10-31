@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <device/device.h>
@@ -37,13 +33,13 @@ static void qemu_nb_init(device_t dev)
 	uint8_t v = pci_read_config8(dev, 0x59);
 	v |= 0x30;
 	pci_write_config8(dev, 0x59, v);
-	for (i=0; i<6; i++)
+	for (i = 0; i < 6; i++)
 	pci_write_config8(dev, 0x5a + i, 0x33);
 
 	/* This sneaked in here, because Qemu does not
 	 * emulate a SuperIO chip
 	 */
-	pc_keyboard_init();
+	pc_keyboard_init(NO_AUX_DEVICE);
 
 	/* setup IRQ routing */
 	for (i = 0; i < 32; i++)

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <types.h>
@@ -33,13 +29,14 @@
 #include <arch/io.h>
 #include <arch/interrupt.h>
 #include <boot/coreboot_tables.h>
-#include "hda_verb.h"
 #include "onboard.h"
 #include "ec.h"
 #include <southbridge/intel/bd82x6x/pch.h>
+#include <southbridge/intel/common/gpio.h>
 #include <smbios.h>
 #include <device/pci.h>
 #include <ec/google/chromeec/ec.h>
+#include <vendorcode/google/chromeos/chromeos.h>
 
 /* placeholder for evenual link post. Not sure what we'll
  * do but it will look nice
@@ -53,12 +50,6 @@ void mainboard_post(u8 value)
 	 * And it seems to break the SMP startup.
 	 * google_chromeec_post(value);
 	 */
-}
-
-void mainboard_suspend_resume(void)
-{
-	/* Call SMM finalize() handlers before resume */
-	outb(0xcb, 0xb2);
 }
 
 #if CONFIG_VGA_ROM_RUN
@@ -148,20 +139,7 @@ static int int15_handler(void)
 }
 #endif
 
-/* Audio Setup */
 
-extern const u32 * cim_verb_data;
-extern u32 cim_verb_data_size;
-extern const u32 * pc_beep_verbs;
-extern u32 pc_beep_verbs_size;
-
-static void verb_setup(void)
-{
-	cim_verb_data = mainboard_cim_verb_data;
-	cim_verb_data_size = sizeof(mainboard_cim_verb_data);
-	pc_beep_verbs = mainboard_pc_beep_verbs;
-	pc_beep_verbs_size = mainboard_pc_beep_verbs_size;
-}
 
 static void mainboard_init(device_t dev)
 {
@@ -187,28 +165,28 @@ static int link_onboard_smbios_data(device_t dev, int *handle,
 
 	len += smbios_write_type41(
 		current, handle,
-		LINK_LIGHTSENSOR_NAME,		/* name */
-		LINK_LIGHTSENSOR_IRQ,		/* instance */
+		BOARD_LIGHTSENSOR_NAME,		/* name */
+		BOARD_LIGHTSENSOR_IRQ,		/* instance */
 		0,				/* segment */
-		LINK_LIGHTSENSOR_I2C_ADDR,	/* bus */
+		BOARD_LIGHTSENSOR_I2C_ADDR,	/* bus */
 		0,				/* device */
 		0);				/* function */
 
 	len += smbios_write_type41(
 		current, handle,
-		LINK_TRACKPAD_NAME,		/* name */
-		LINK_TRACKPAD_IRQ,		/* instance */
+		BOARD_TRACKPAD_NAME,		/* name */
+		BOARD_TRACKPAD_IRQ,		/* instance */
 		0,				/* segment */
-		LINK_TRACKPAD_I2C_ADDR,		/* bus */
+		BOARD_TRACKPAD_I2C_ADDR,	/* bus */
 		0,				/* device */
 		0);				/* function */
 
 	len += smbios_write_type41(
 		current, handle,
-		LINK_TOUCHSCREEN_NAME,		/* name */
-		LINK_TOUCHSCREEN_IRQ,		/* instance */
+		BOARD_TOUCHSCREEN_NAME,		/* name */
+		BOARD_TOUCHSCREEN_IRQ,		/* instance */
 		0,				/* segment */
-		LINK_TOUCHSCREEN_I2C_ADDR,	/* bus */
+		BOARD_TOUCHSCREEN_I2C_ADDR,	/* bus */
 		0,				/* device */
 		0);				/* function */
 
@@ -222,11 +200,11 @@ static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
 	dev->ops->get_smbios_data = link_onboard_smbios_data;
+	dev->ops->acpi_inject_dsdt_generator = chromeos_dsdt_generator;
 #if CONFIG_VGA_ROM_RUN
 	/* Install custom int15 handler for VGA OPROM */
 	mainboard_interrupt_handlers(0x15, &int15_handler);
 #endif
-	verb_setup();
 }
 
 struct chip_operations mainboard_ops = {

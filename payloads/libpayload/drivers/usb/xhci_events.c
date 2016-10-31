@@ -86,12 +86,10 @@ xhci_handle_transfer_event(xhci_t *const xhci)
 	const int id = TRB_GET(ID, ev);
 	const int ep = TRB_GET(EP, ev);
 
-	devinfo_t *di;
 	intrq_t *intrq;
 
 	if (id && id <= xhci->max_slots_en &&
-			(di = DEVINFO_FROM_XHCI(xhci, id)) &&
-			(intrq = di->interrupt_queues[ep])) {
+			(intrq = xhci->dev[id].interrupt_queues[ep])) {
 		/* It's a running interrupt endpoint */
 		intrq->ready = phys_to_virt(ev->ptr_low);
 		if (cc == CC_SUCCESS || cc == CC_SHORT_PACKET) {
@@ -308,18 +306,20 @@ xhci_wait_for_command_done(xhci_t *const xhci,
 	return cc;
 }
 
-/* returns cc of transfer for given slot/endpoint pair */
+/* returns amount of bytes transferred on success, negative CC on error */
 int
 xhci_wait_for_transfer(xhci_t *const xhci, const int slot_id, const int ep_id)
 {
 	xhci_spew("Waiting for transfer on ID %d EP %d\n", slot_id, ep_id);
-	/* 2s for all types of transfers */ /* TODO: test, wait longer? */
-	unsigned long timeout_us = 2 * 1000 * 1000;
-	int cc = TIMEOUT;
+	/* 3s for all types of transfers */ /* TODO: test, wait longer? */
+	unsigned long timeout_us = 3 * 1000 * 1000;
+	int ret = TIMEOUT;
 	while (xhci_wait_for_event_type(xhci, TRB_EV_TRANSFER, &timeout_us)) {
 		if (TRB_GET(ID, xhci->er.cur) == slot_id &&
 				TRB_GET(EP, xhci->er.cur) == ep_id) {
-			cc = TRB_GET(CC, xhci->er.cur);
+			ret = -TRB_GET(CC, xhci->er.cur);
+			if (ret == -CC_SUCCESS || ret == -CC_SHORT_PACKET)
+				ret = TRB_GET(EVTL, xhci->er.cur);
 			xhci_advance_event_ring(xhci);
 			break;
 		}
@@ -329,5 +329,5 @@ xhci_wait_for_transfer(xhci_t *const xhci, const int slot_id, const int ep_id)
 	if (!timeout_us)
 		xhci_debug("Warning: Timed out waiting for TRB_EV_TRANSFER.\n");
 	xhci_update_event_dq(xhci);
-	return cc;
+	return ret;
 }

@@ -12,23 +12,20 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
+
+ifeq ($(CONFIG_NORTHBRIDGE_INTEL_NEHALEM),y)
 
 ramstage-y += ram_calc.c
 ramstage-y += northbridge.c
+ramstage-y += smi.c
 ramstage-y += gma.c
 
-ramstage-$(CONFIG_GENERATE_ACPI_TABLES) += acpi.c
-ramstage-y += ../sandybridge/mrccache.c
+ramstage-y += acpi.c
 
 romstage-y += ram_calc.c
 romstage-y += raminit.c
 romstage-y += early_init.c
-romstage-y += ../sandybridge/mrccache.c
-romstage-y += ../../../arch/x86/lib/walkcbfs.S
+romstage-y += ../../../arch/x86/walkcbfs.S
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += finalize.c
 
@@ -39,7 +36,7 @@ $(obj)/mrc.cache:
 
 cbfs-files-y += mrc.cache
 mrc.cache-file := $(obj)/mrc.cache
-mrc.cache-position := 0xfffe0000
-mrc.cache-type := 0xac
+mrc.cache-align := 0x10000
+mrc.cache-type := mrc_cache
 
-$(obj)/northbridge/intel/nehalem/acpi.ramstage.o : $(obj)/build.h
+endif

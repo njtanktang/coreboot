@@ -12,10 +12,6 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-#
 
 config CPU_AMD_AGESA_FAMILY15
 	bool
@@ -46,14 +42,6 @@ config CPU_AMD_SOCKET_AM3R2
 	help
 	  AMD AM3r2 Socket
 
-config EXT_RT_TBL_SUPPORT
-	bool
-	default n
-
-config EXT_CONF_SUPPORT
-	bool
-	default n
-
 config CBB
 	hex
 	default 0x0
@@ -67,11 +55,11 @@ config XIP_ROM_SIZE
 	default 0x80000
 
 config REDIRECT_IDS_HDT_CONSOLE_TO_SERIAL
-        bool "Redirect AGESA IDS_HDT_CONSOLE to serial console"
-        default n
-        help
-          This Option allows you to redirect the AMD AGESA IDS_HDT_CONSOLE debug information to the serial console.
+	bool "Redirect AGESA IDS_HDT_CONSOLE to serial console"
+	default n
+	help
+	  This Option allows you to redirect the AMD AGESA IDS_HDT_CONSOLE debug information to the serial console.
 
-          Warning: Only enable this option when debuging or tracing AMD AGESA code.
+	  Warning: Only enable this option when debuging or tracing AMD AGESA code.
 
 endif #CPU_AMD_AGESA_FAMILY15

@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -27,12 +23,12 @@
 
 static void lpci_set_subsystem(device_t dev, unsigned vendor, unsigned device)
 {
-        pci_write_config32(dev, 0x40,
-                ((device & 0xffff) << 16) | (vendor & 0xffff));
+	pci_write_config32(dev, 0x40,
+		((device & 0xffff) << 16) | (vendor & 0xffff));
 }
 
 static struct pci_operations lops_pci = {
-        .set_subsystem = lpci_set_subsystem,
+	.set_subsystem = lpci_set_subsystem,
 };
 
 static struct device_operations nic_ops  = {
@@ -51,7 +47,7 @@ static const struct pci_driver nic_driver __pci_driver = {
 };
 
 static const struct pci_driver nic1_driver __pci_driver = {
-        .ops    = &nic_ops,
-        .vendor = PCI_VENDOR_ID_BROADCOM,
-        .device = PCI_DEVICE_ID_BROADCOM_BCM5780_NIC1,
+	.ops    = &nic_ops,
+	.vendor = PCI_VENDOR_ID_BROADCOM,
+	.device = PCI_DEVICE_ID_BROADCOM_BCM5780_NIC1,
 };

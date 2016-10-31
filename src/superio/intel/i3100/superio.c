@@ -12,10 +12,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #include <stdlib.h>
@@ -24,19 +20,19 @@
 #include "i3100.h"
 #include <arch/io.h>
 
-static void pnp_enter_ext_func_mode(device_t dev)
+static void pnp_enter_ext_func_mode(struct device *dev)
 {
 	outb(0x80, dev->path.pnp.port);
 	outb(0x86, dev->path.pnp.port);
 }
 
-static void pnp_exit_ext_func_mode(device_t dev)
+static void pnp_exit_ext_func_mode(struct device *dev)
 {
 	outb(0x68, dev->path.pnp.port);
 	outb(0x08, dev->path.pnp.port);
 }
 
-static void i3100_init(device_t dev)
+static void i3100_init(struct device *dev)
 {
 	if (!dev->enabled)
 		return;

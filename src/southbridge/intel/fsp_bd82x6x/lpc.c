@@ -13,10 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
 #include <console/console.h>
@@ -31,12 +27,17 @@
 #include <arch/acpi.h>
 #include <cpu/cpu.h>
 #include <elog.h>
+#include <arch/acpigen.h>
+#include <drivers/intel/gma/i915.h>
+#include <cpu/x86/smm.h>
+#include <cbmem.h>
+#include <string.h>
 #include "pch.h"
+#include "nvs.h"
 
 #define NMI_OFF	0
 
 #define ENABLE_ACPI_MODE_IN_COREBOOT	0
-#define TEST_SMM_FLASH_LOCKDOWN		0
 
 typedef struct southbridge_intel_fsp_bd82x6x_config config_t;
 
@@ -131,7 +132,7 @@ static void pch_pirq_init(device_t dev)
 	 * I am not so sure anymore he was right.
 	 */
 
-	for(irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
+	for (irq_dev = all_devices; irq_dev; irq_dev = irq_dev->next) {
 		u8 int_pin=0, int_line=0;
 
 		if (!irq_dev->enabled || irq_dev->path.type != DEVICE_PATH_PCI)
@@ -179,7 +180,7 @@ static void pch_gpi_routing(device_t dev)
 	reg32 |= (config->gpi14_routing & 0x03) << 28;
 	reg32 |= (config->gpi15_routing & 0x03) << 30;
 
-	pci_write_config32(dev, 0xb8, reg32);
+	pci_write_config32(dev, GPIO_ROUT, reg32);
 }
 
 static void pch_power_options(device_t dev)
@@ -300,7 +301,7 @@ static void pch_rtc_init(struct device *dev)
 	}
 	printk(BIOS_DEBUG, "rtc_failed = 0x%x\n", rtc_failed);
 
-	rtc_init(rtc_failed);
+	cmos_init(rtc_failed);
 }
 
 /* CougarPoint PCH Power Management init */
@@ -399,58 +400,20 @@ static void enable_hpet(void)
 	RCBA32(HPTC) = reg32;
 }
 
-#if CONFIG_HAVE_SMI_HANDLER
-static void pch_lock_smm(struct device *dev)
+static void pch_set_acpi_mode(void)
 {
-#if TEST_SMM_FLASH_LOCKDOWN
-	u8 reg8;
-#endif
-
-	if (!acpi_is_wakeup_s3()) {
+	if (!acpi_is_wakeup_s3() && CONFIG_HAVE_SMI_HANDLER) {
 #if ENABLE_ACPI_MODE_IN_COREBOOT
 		printk(BIOS_DEBUG, "Enabling ACPI via APMC:\n");
-		outb(0xe1, 0xb2); // Enable ACPI mode
+		outb(APM_CNT_ACPI_ENABLE, APM_CNT); // Enable ACPI mode
 		printk(BIOS_DEBUG, "done.\n");
 #else
 		printk(BIOS_DEBUG, "Disabling ACPI via APMC:\n");
-		outb(0x1e, 0xb2); // Disable ACPI mode
+		outb(APM_CNT_ACPI_DISABLE, APM_CNT); // Disable ACPI mode
 		printk(BIOS_DEBUG, "done.\n");
 #endif
 	}
-
-	/* Don't allow evil boot loaders, kernels, or
-	 * userspace applications to deceive us:
-	 */
-	smm_lock();
-
-#if TEST_SMM_FLASH_LOCKDOWN
-	/* Now try this: */
-	printk(BIOS_DEBUG, "Locking BIOS to RO... ");
-	reg8 = pci_read_config8(dev, 0xdc);	/* BIOS_CNTL */
-	printk(BIOS_DEBUG, " BLE: %s; BWE: %s\n", (reg8&2)?"on":"off",
-			(reg8&1)?"rw":"ro");
-	reg8 &= ~(1 << 0);			/* clear BIOSWE */
-	pci_write_config8(dev, 0xdc, reg8);
-	reg8 |= (1 << 1);			/* set BLE */
-	pci_write_config8(dev, 0xdc, reg8);
-	printk(BIOS_DEBUG, "ok.\n");
-	reg8 = pci_read_config8(dev, 0xdc);	/* BIOS_CNTL */
-	printk(BIOS_DEBUG, " BLE: %s; BWE: %s\n", (reg8&2)?"on":"off",
-			(reg8&1)?"rw":"ro");
-
-	printk(BIOS_DEBUG, "Writing:\n");
-	*(volatile u8 *)0xfff00000 = 0x00;
-	printk(BIOS_DEBUG, "Testing:\n");
-	reg8 |= (1 << 0);			/* set BIOSWE */
-	pci_write_config8(dev, 0xdc, reg8);
-
-	reg8 = pci_read_config8(dev, 0xdc);	/* BIOS_CNTL */
-	printk(BIOS_DEBUG, " BLE: %s; BWE: %s\n", (reg8&2)?"on":"off",
-			(reg8&1)?"rw":"ro");
-	printk(BIOS_DEBUG, "Done.\n");
-#endif
 }
-#endif
 
 static void pch_disable_smm_only_flashing(struct device *dev)
 {
@@ -535,9 +498,7 @@ static void lpc_init(struct device *dev)
 
 	pch_disable_smm_only_flashing(dev);
 
-#if CONFIG_HAVE_SMI_HANDLER
-	pch_lock_smm(dev);
-#endif
+	pch_set_acpi_mode();
 
 	pch_fixups(dev);
 }
@@ -625,6 +586,165 @@ static void set_subsystem(device_t dev, unsigned vendor, unsigned device)
 	}
 }
 
+static void southbridge_inject_dsdt(device_t dev)
+{
+	global_nvs_t *gnvs = cbmem_add (CBMEM_ID_ACPI_GNVS, sizeof(*gnvs));
+	void *opregion;
+
+	/* Calling northbridge code as gnvs contains opregion address.  */
+	opregion = igd_make_opregion();
+
+	if (gnvs) {
+		const struct i915_gpu_controller_info *gfx = intel_gma_get_controller_info();
+
+		memset(gnvs, 0, sizeof(*gnvs));
+
+		acpi_create_gnvs(gnvs);
+		/* IGD OpRegion Base Address */
+		gnvs->aslb = (u32)opregion;
+
+		gnvs->ndid = gfx->ndid;
+		memcpy(gnvs->did, gfx->did, sizeof(gnvs->did));
+
+		/* And tell SMI about it */
+		smm_setup_structures(gnvs, NULL, NULL);
+
+		/* Add it to DSDT.  */
+		acpigen_write_scope("\\");
+		acpigen_write_name_dword("NVSA", (u32) gnvs);
+		acpigen_pop_len();
+	}
+}
+
+void acpi_fill_fadt(acpi_fadt_t *fadt)
+{
+	device_t dev = dev_find_slot(0, PCI_DEVFN(0x1f,0));
+	config_t *chip = dev->chip_info;
+	u16 pmbase = pci_read_config16(dev, 0x40) & 0xfffe;
+	int c2_latency;
+
+	fadt->model = 1;
+
+	fadt->sci_int = 0x9;
+	fadt->smi_cmd = APM_CNT;
+	fadt->acpi_enable = APM_CNT_ACPI_ENABLE;
+	fadt->acpi_disable = APM_CNT_ACPI_DISABLE;
+	fadt->s4bios_req = 0x0;
+	fadt->pstate_cnt = 0;
+
+	fadt->pm1a_evt_blk = pmbase;
+	fadt->pm1b_evt_blk = 0x0;
+	fadt->pm1a_cnt_blk = pmbase + 0x4;
+	fadt->pm1b_cnt_blk = 0x0;
+	fadt->pm2_cnt_blk = pmbase + 0x50;
+	fadt->pm_tmr_blk = pmbase + 0x8;
+	fadt->gpe0_blk = pmbase + 0x20;
+	fadt->gpe1_blk = 0;
+
+	fadt->pm1_evt_len = 4;
+	fadt->pm1_cnt_len = 2;
+	fadt->pm2_cnt_len = 1;
+	fadt->pm_tmr_len = 4;
+	fadt->gpe0_blk_len = 16;
+	fadt->gpe1_blk_len = 0;
+	fadt->gpe1_base = 0;
+	fadt->cst_cnt = 0;
+	c2_latency = chip->c2_latency;
+	if (!c2_latency) {
+		c2_latency = 101; /* c2 unsupported */
+	}
+	fadt->p_lvl2_lat = c2_latency;
+	fadt->p_lvl3_lat = 87;
+	fadt->flush_size = 1024;
+	fadt->flush_stride = 16;
+	fadt->duty_offset = 1;
+	if (chip->p_cnt_throttling_supported) {
+		fadt->duty_width = 3;
+	} else {
+		fadt->duty_width = 0;
+	}
+	fadt->day_alrm = 0xd;
+	fadt->mon_alrm = 0x00;
+	fadt->century = 0x00;
+	fadt->iapc_boot_arch = ACPI_FADT_LEGACY_DEVICES | ACPI_FADT_8042;
+
+	fadt->flags = ACPI_FADT_WBINVD |
+			ACPI_FADT_C1_SUPPORTED |
+			ACPI_FADT_SLEEP_BUTTON |
+			ACPI_FADT_RESET_REGISTER |
+			ACPI_FADT_SEALED_CASE |
+			ACPI_FADT_S4_RTC_WAKE |
+			ACPI_FADT_PLATFORM_CLOCK;
+	if (c2_latency < 100) {
+		fadt->flags |= ACPI_FADT_C2_MP_SUPPORTED;
+	}
+
+	fadt->reset_reg.space_id = 1;
+	fadt->reset_reg.bit_width = 8;
+	fadt->reset_reg.bit_offset = 0;
+	fadt->reset_reg.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
+	fadt->reset_reg.addrl = 0xcf9;
+	fadt->reset_reg.addrh = 0;
+
+	fadt->reset_value = 6;
+
+	fadt->x_pm1a_evt_blk.space_id = 1;
+	fadt->x_pm1a_evt_blk.bit_width = 32;
+	fadt->x_pm1a_evt_blk.bit_offset = 0;
+	fadt->x_pm1a_evt_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_pm1a_evt_blk.addrl = pmbase;
+	fadt->x_pm1a_evt_blk.addrh = 0x0;
+
+	fadt->x_pm1b_evt_blk.space_id = 1;
+	fadt->x_pm1b_evt_blk.bit_width = 0;
+	fadt->x_pm1b_evt_blk.bit_offset = 0;
+	fadt->x_pm1b_evt_blk.access_size = 0;
+	fadt->x_pm1b_evt_blk.addrl = 0x0;
+	fadt->x_pm1b_evt_blk.addrh = 0x0;
+
+	fadt->x_pm1a_cnt_blk.space_id = 1;
+	fadt->x_pm1a_cnt_blk.bit_width = 16;
+	fadt->x_pm1a_cnt_blk.bit_offset = 0;
+	fadt->x_pm1a_cnt_blk.access_size = ACPI_ACCESS_SIZE_WORD_ACCESS;
+	fadt->x_pm1a_cnt_blk.addrl = pmbase + 0x4;
+	fadt->x_pm1a_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm1b_cnt_blk.space_id = 1;
+	fadt->x_pm1b_cnt_blk.bit_width = 0;
+	fadt->x_pm1b_cnt_blk.bit_offset = 0;
+	fadt->x_pm1b_cnt_blk.access_size = 0;
+	fadt->x_pm1b_cnt_blk.addrl = 0x0;
+	fadt->x_pm1b_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm2_cnt_blk.space_id = 1;
+	fadt->x_pm2_cnt_blk.bit_width = 8;
+	fadt->x_pm2_cnt_blk.bit_offset = 0;
+	fadt->x_pm2_cnt_blk.access_size = ACPI_ACCESS_SIZE_BYTE_ACCESS;
+	fadt->x_pm2_cnt_blk.addrl = pmbase + 0x50;
+	fadt->x_pm2_cnt_blk.addrh = 0x0;
+
+	fadt->x_pm_tmr_blk.space_id = 1;
+	fadt->x_pm_tmr_blk.bit_width = 32;
+	fadt->x_pm_tmr_blk.bit_offset = 0;
+	fadt->x_pm_tmr_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_pm_tmr_blk.addrl = pmbase + 0x8;
+	fadt->x_pm_tmr_blk.addrh = 0x0;
+
+	fadt->x_gpe0_blk.space_id = 1;
+	fadt->x_gpe0_blk.bit_width = 128;
+	fadt->x_gpe0_blk.bit_offset = 0;
+	fadt->x_gpe0_blk.access_size = ACPI_ACCESS_SIZE_DWORD_ACCESS;
+	fadt->x_gpe0_blk.addrl = pmbase + 0x20;
+	fadt->x_gpe0_blk.addrh = 0x0;
+
+	fadt->x_gpe1_blk.space_id = 1;
+	fadt->x_gpe1_blk.bit_width = 0;
+	fadt->x_gpe1_blk.bit_offset = 0;
+	fadt->x_gpe1_blk.access_size = 0;
+	fadt->x_gpe1_blk.addrl = 0x0;
+	fadt->x_gpe1_blk.addrh = 0x0;
+}
+
 static struct pci_operations pci_ops = {
 	.set_subsystem = set_subsystem,
 };
@@ -633,9 +753,11 @@ static struct device_operations device_ops = {
 	.read_resources		= pch_lpc_read_resources,
 	.set_resources		= pci_dev_set_resources,
 	.enable_resources	= pch_lpc_enable_resources,
+	.write_acpi_tables      = acpi_write_hpet,
+	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
 	.init			= lpc_init,
 	.enable			= pch_lpc_enable,
-	.scan_bus		= scan_static_bus,
+	.scan_bus		= scan_lpc_bus,
 	.ops_pci		= &pci_ops,
 };
 
@@ -656,5 +778,3 @@ static const struct pci_driver pch_lpc __pci_driver = {
 	.vendor	 = PCI_VENDOR_ID_INTEL,
 	.devices = pci_device_ids,
 };
-
-

@@ -13,11 +13,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
- * MA 02110-1301 USA
  */
 
 #include <console/console.h>
@@ -38,49 +33,43 @@
 #include "dock.h"
 #include <arch/x86/include/arch/acpigen.h>
 #include <smbios.h>
-#include <build.h>
-#include <x86emu/x86emu.h>
+#include <drivers/intel/gma/int15.h>
+#include "drivers/lenovo/lenovo.h"
+
 #define PANEL INT15_5F35_CL_DISPLAY_DEFAULT
 
-int i915lightup(unsigned int physbase, unsigned int iobase, unsigned int mmio,
-	unsigned int gfx);
+#define MWAIT_RES(state, sub_state)                         \
+	{						    \
+		.space_id = ACPI_ADDRESS_SPACE_FIXED,	    \
+		.bit_width = ACPI_FFIXEDHW_VENDOR_INTEL,    \
+		.bit_offset = ACPI_FFIXEDHW_CLASS_MWAIT,    \
+		{					    \
+			.resv = 0,			    \
+		},					    \
+		.addrl = (((state) << 4) | (sub_state)),    \
+		.addrh = 0,				    \
+			 }
 
 static acpi_cstate_t cst_entries[] = {
-	{ 1,  1, 1000, { 0x7f, 1, 2, { 0 }, 1, 0 } },
-	{ 2,  1,  500, { 0x01, 8, 0, { 0 }, DEFAULT_PMBASE + LV2, 0 } },
-	{ 2, 17,  250, { 0x01, 8, 0, { 0 }, DEFAULT_PMBASE + LV3, 0 } },
+	{
+		.ctype = 1,
+		.latency = 1,
+		.power = 1000,
+		.resource = MWAIT_RES(0, 0),
+	},
+	{
+		.ctype = 2,
+		.latency = 1,
+		.power = 500,
+		.resource = MWAIT_RES(1, 0),
+	},
+	{
+		.ctype = 3,
+		.latency = 17,
+		.power = 250,
+		.resource = MWAIT_RES(2, 0),
+	},
 };
-
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-static int int15_handler(void)
-{
-	/* The right way to do this is to move this handler code into
-	 * the mainboard or northbridge code.
-	 * TODO: completely move to mainboards / chipsets.
-	 */
-	printk(BIOS_DEBUG, "%s: AX=%04x BX=%04x CX=%04x DX=%04x\n",
-	       __func__, X86_AX, X86_BX, X86_CX, X86_DX);
-
-	switch (X86_AX) {
-	case 0x5f35: /* Boot Display */
-		X86_AX = 0x005f; // Success
-		X86_CL = PANEL;
-		break;
-	case 0x5f40: /* Boot Panel Type */
-		X86_AX = 0x005f; // Success
-		X86_CL = 3;
-		printk(BIOS_DEBUG, "DISPLAY=%x\n", X86_CL);
-		break;
-	default:
-		/* Interrupt was not handled */
-		printk(BIOS_DEBUG, "Unknown INT15 function %04x!\n", X86_AX);
-		return 0;
-	}
-
-	/* Interrupt handled */
-	return 1;
-}
-#endif
 
 int get_cst_entries(acpi_cstate_t **entries)
 {
@@ -99,10 +88,7 @@ static void mainboard_init(device_t dev)
 		ec_write(0x0c, 0x88);
 	}
 
-#if CONFIG_PCI_OPTION_ROM_RUN_YABEL || CONFIG_PCI_OPTION_ROM_RUN_REALMODE
-	/* Install custom int15 handler for VGA OPROM */
-	mainboard_interrupt_handlers(0x15, &int15_handler);
-#endif
+	install_intel_vga_int15_handler(GMA_INT15_ACTIVE_LFP_INT_LVDS, GMA_INT15_PANEL_FIT_DEFAULT, PANEL, 3);
 
 	/* If we're resuming from suspend, blink suspend LED */
 	dev0 = dev_find_slot(0, PCI_DEVFN(0,0));
@@ -136,36 +122,17 @@ static void mainboard_init(device_t dev)
 	}
 }
 
-static int mainboard_smbios_data(device_t dev, int *handle, unsigned long *current)
+static void fill_ssdt(device_t device)
 {
-	int len;
-	char tpec[] = "IBM ThinkPad Embedded Controller -[                 ]-";
-	const char *oem_strings[] = {
-		tpec,
-	};
-
-	h8_build_id_and_function_spec_version(tpec + 35, 17);
-	len = smbios_write_type11(current, (*handle)++, oem_strings, ARRAY_SIZE(oem_strings));
-
-	return len;
-}
-
-const char *smbios_mainboard_bios_version(void)
-{
-	/* Satisfy thinkpad_acpi.  */
-	if (strlen(CONFIG_LOCALVERSION))
-		return "CBET4000 " CONFIG_LOCALVERSION;
-	else
-		return "CBET4000 " COREBOOT_VERSION;
+	drivers_lenovo_serial_ports_ssdt_generate("\\_SB.PCI0.LPCB", 1);
 }
 
 static void mainboard_enable(device_t dev)
 {
 	dev->ops->init = mainboard_init;
-	dev->ops->get_smbios_data = mainboard_smbios_data;
+	dev->ops->acpi_fill_ssdt_generator = fill_ssdt;
 }
 
 struct chip_operations mainboard_ops = {
 	.enable_dev = mainboard_enable,
 };
-

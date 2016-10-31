@@ -11,10 +11,6 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 #ifndef __ASM_MPSPEC_H
@@ -123,7 +119,7 @@ struct mpc_config_ioapic
 	u8 mpc_apicver;
 	u8 mpc_flags;
 #define MPC_APIC_USABLE		0x01
-	u32 mpc_apicaddr;
+	void *mpc_apicaddr;
 } __attribute__((packed));
 
 struct mpc_config_intsrc
@@ -260,7 +256,7 @@ void smp_write_processor(struct mp_config_table *mc,
 	u32 featureflag);
 void smp_write_processors(struct mp_config_table *mc);
 void smp_write_ioapic(struct mp_config_table *mc,
-	u8 id, u8 ver, u32 apicaddr);
+	u8 id, u8 ver, void *apicaddr);
 void smp_write_intsrc(struct mp_config_table *mc,
 	u8 irqtype, u16 irqflag, u8 srcbus, u8 srcbusirq,
 	u8 dstapic, u8 dstirq);
@@ -294,4 +290,3 @@ void mptable_write_buses(struct mp_config_table *mc, int *max_pci_bus, int *isa_
 void *mptable_finalize(struct mp_config_table *mc);
 
 #endif
-

@@ -138,7 +138,7 @@ struct layout_maps {
 static const struct layout_maps *map;
 
 static const struct layout_maps keyboard_layouts[] = {
-// #ifdef CONFIG_PC_KEYBOARD_LAYOUT_US
+// #if IS_ENABLED(CONFIG_LP_PC_KEYBOARD_LAYOUT_US)
 { .country = "us", .map = {
 	{ /* No modifier */
 	-1, -1, -1, -1, 'a', 'b', 'c', 'd',
@@ -391,7 +391,8 @@ usb_hid_set_protocol (usbdev_t *dev, interface_descriptor_t *interface, hid_prot
 
 static struct console_input_driver cons = {
 	.havekey = usbhid_havechar,
-	.getchar = usbhid_getchar
+	.getchar = usbhid_getchar,
+	.input_type = CONSOLE_INPUT_TYPE_USB,
 };
 
 
@@ -448,14 +449,18 @@ usb_hid_init (usbdev_t *dev)
 			usb_hid_set_idle(dev, interface, KEYBOARD_REPEAT_MS);
 			usb_debug ("  activating...\n");
 
-			HID_INST (dev)->descriptor =
-				(hid_descriptor_t *)
-					get_descriptor(dev, gen_bmRequestType
-					(device_to_host, standard_type, iface_recp),
-					0x21, 0, 0);
-			countrycode = HID_INST(dev)->descriptor->bCountryCode;
+			hid_descriptor_t *desc = malloc(sizeof(hid_descriptor_t));
+			if (!desc || get_descriptor(dev, gen_bmRequestType(
+				device_to_host, standard_type, iface_recp),
+				0x21, 0, desc, sizeof(*desc)) != sizeof(*desc)) {
+				usb_debug ("get_descriptor(HID) failed\n");
+				usb_detach_device (dev->controller, dev->address);
+				return;
+			}
+			HID_INST (dev)->descriptor = desc;
+			countrycode = desc->bCountryCode;
 			/* 35 countries defined: */
-			if (countrycode > 35)
+			if (countrycode >= ARRAY_SIZE(countries))
 				countrycode = 0;
 			usb_debug ("  Keyboard has %s layout (country code %02x)\n",
 					countries[countrycode][0], countrycode);
@@ -467,14 +472,17 @@ usb_hid_init (usbdev_t *dev)
 			dev->destroy = usb_hid_destroy;
 			dev->poll = usb_hid_poll;
 			int i;
-			for (i = 0; i <= dev->num_endp; i++) {
-				if (dev->endpoints[i].endpoint == 0)
-					continue;
+			for (i = 1; i < dev->num_endp; i++) {
 				if (dev->endpoints[i].type != INTERRUPT)
 					continue;
 				if (dev->endpoints[i].direction != IN)
 					continue;
 				break;
+			}
+			if (i >= dev->num_endp) {
+				usb_debug ("Could not find HID endpoint\n");
+				usb_detach_device (dev->controller, dev->address);
+				return;
 			}
 			usb_debug ("  found endpoint %x for interrupt-in\n", i);
 			/* 20 buffers of 8 bytes, for every 10 msecs */
@@ -505,4 +513,3 @@ int usbhid_getchar (void)
 
 	return (int)ret;
 }
-
